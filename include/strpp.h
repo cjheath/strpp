@@ -1,3 +1,5 @@
+#if !defined(STRPP_H)
+#define STRPP_H
 /*
  * String Value library.
  * - By-value semantics with mutation
@@ -9,14 +11,21 @@
  */
 #include	<stdlib.h>
 #include	<stdint.h>
+
 #include	<refcount.h>
-#include	<utf8.h>
+#include	<char_encoding.h>
 
 // These typedefs can be changed to uint16_t, which reduces storage and maximum string length to 65534
 typedef	uint32_t	CharNum;	// Character position (offset) within a string
 typedef	uint32_t	CharBytes;	// Byte position (offset) within a string
 
 class	StrBody;
+
+#define	STRERR_TRAIL_TEXT	1	// There are non-blank characters after the number
+#define	STRERR_NO_DIGITS	2	// Number string contains only blank characters
+#define	STRERR_NUMBER_OVERFLOW	3	// The number doesn't fit in the requested type
+#define	STRERR_NOT_NUMBER	4	// The first non-blank character was non-numeric
+#define	STRERR_ILLEGAL_RADIX	5	// Use of an unsupported radic
 
 class	StrVal
 {
@@ -95,34 +104,30 @@ public:
 	void		append(const StrVal& addend)
 			{ insert(num_chars, addend); }
 
-#if 0
+	/*
+	 * Convert a string to an integer, using radix (0 means use C rules)
+         *
+         * Leading and trailing spaces are scanned and ignored. Other than
+         * that, non-numeric characters or digits after trailing spaces are
+         * flagged as an error. 
+         *                      
+         * The radix value may be 0 or in the range 2-36. Radices beyond 10
+         * use the ASCII alphabet for digits above 9, upper or lower case.
+         * Radix 2 allows 0b... or 0B..., and radix 16 allows 0x... or
+         * 0X..., and radix 0 recognises both forms and uses the appropriate
+         * radix. Radix 0 also treats a number with a leading zero as octal.
+	 *
+	 * @retval 0 no problems
+         * @retval STRERR_TRAIL_TEXT There are non-blank characters after the number
+         * @retval STRERR_NO_DIGITS Number string contains only blank characters
+         * @retval STRERR_NUMBER_OVERFLOW The number doesn't fit in the requested type
+         * @retval STRERR_NOT_NUMBER The first non-blank character was non-numeric
+ 	 */
 	int32_t		asInt32(
-			//	ErrorT* err_return = 0, // error return
+				int*	err_return = 0, // error return
 				int	radix = 0,	// base for conversion
 				CharNum* scanned = 0	// characters scanned
 			) const;
-
-	int64_t		asInt64(
-			//	ErrorT* err_return = 0, // error return
-				int	radix = 0,	// base for conversion
-				CharNum* scanned = 0	// characters scanned
-			) const;
-
-	StrVal		asLower() const;
-	StrVal		asUpper() const;
-	void		toLower();
-	void		toUpper();
-
-	StrVal		substitute(
-				StrVal		from_str,
-				StrVal		to_str,
-				bool		do_all		= true,
-				int		after		= -1,
-				bool		ignore_case	= false
-			) const;
-
-	// static StrVal	format(StrVal fmt, const ArgListC);	// Like printf, but type-safe
-#endif
 
 	struct Bookmark
 	{
@@ -148,7 +153,7 @@ private:
 
 	void		Unshare();	// Get our own copy of StrBody that we can safely mutate
 			StrVal(StrBody&);
-	static	StrBody	nullBody;
+	static	StrBody nullBody;
 };
 
 class	StrBody
@@ -159,7 +164,7 @@ public:
 	StrBody();				// Null string constructor
 	StrBody(const UTF8* data);
 	StrBody(const UTF8* data, CharBytes length, size_t allocate = 0);
-	static StrBody*	Static(const UTF8* data); // reference a static C string, which will never change or be deleted
+	static StrBody* Static(const UTF8* data); // reference a static C string, which will never change or be deleted
 
 	UCS4		charAt(CharBytes);	// Return the next UCS4 character or UCS4_NONE
 	UCS4		charNext(CharBytes&);	// Return the next UCS4 character or UCS4_NONE, advancing the offset
@@ -192,3 +197,4 @@ protected:
 
 	StrBody(StrBody&) { }		// Never copy a body
 };
+#endif

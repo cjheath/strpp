@@ -1,3 +1,5 @@
+#if !defined(REFCOUNT_H)
+#define REFCOUNT_H
 /*
  * Reference counting with delete on last release
  */
@@ -85,3 +87,4 @@ operator==(const Ref<T>& r1, const Ref<T>& r2)
 {
         return *r1 == *r2;
 }
+#endif

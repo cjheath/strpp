@@ -11,8 +11,9 @@
  * Mutating methods clone (unshare) a shared string before making changes.
  */
 #include	<strpp.h>
-#include	<string.h>
 
+#include	<string.h>
+#include	<limits.h>
 #include	<stdio.h>
 
 StrBody	StrVal::nullBody;
@@ -109,7 +110,7 @@ StrVal::Unshare()
 		const UTF8*	ep = nthChar(num_chars);
 		CharBytes	prefix_bytes = cp - body->data(); // How many leading bytes we are eliding
 
-		body = new StrBody(cp, ep-cp);
+		body = new StrBody(cp, ep-cp, 0);
 		mark.char_num = savemark.char_num - offset;	// Restore the bookmark
 		mark.byte_num = savemark.byte_num - prefix_bytes;
 		offset = 0;
@@ -386,7 +387,6 @@ void
 StrVal::insert(CharNum pos, const StrVal& addend)
 {
 	Unshare();
-
 	body->insert(pos, addend);
 }
 
@@ -408,62 +408,180 @@ StrBody::insert(CharNum pos, const StrVal& addend)
 	num_chars += addend.length();
 }
 
-#if 0
-StrVal
-StrVal::substitute(
-	StrVal		from_str,
-	StrVal		to_str,
-	bool		do_all		= true,
-	int		after		= -1,
-	bool		ignore_case	= false
-) const
+// REVISIT: Need a proper Unicode IsWhite method...
+static inline bool
+IsWhite(UCS4 ch)
 {
+	// REVISIT: Should have a UCS4IsWhite
+	return (ch) == ' ' || (ch) == '\t' || (ch) == '\n' || (ch) == '\r'
+		|| (ch) == ('\xA0'&0xFF);
 }
 
-StrVal
-StrVal::asLower() const
+static inline int
+HexAlpha(UCS4 ch)
 {
+	return (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z')
+		? (int)((ch & ~('a'-'A')) - 'A' + 10)
+		: -1;
 }
 
-StrVal
-StrVal::asUpper() const
+static inline int
+Digit(UCS4 ch, int radix)
 {
-}
+	int	d;
 
-void
-StrVal::toLower()
-{
-}
+	if ((d = UCS4Digit(ch)) < 0)		// Not decimal digit
+	{
+		if (radix > 10
+		 && (d = HexAlpha(ch)) < 0)	// Not ASCII a-z, A-Z either
+			return -1;		// ditch it
+	}
 
-void
-StrVal::toUpper()
-{
+	if (d < radix || (d == 1 && radix == 1))
+		return d;
+	else
+		return -1;
 }
 
 int32_t
 StrVal::asInt32(
-//	ErrorT* err_return = 0, // error return
-	int	radix = 0,	// base for conversion
-	CharNum* scanned = 0	// characters scanned
+	int*	err_return,	// error return
+	int	radix,		// base for conversion
+	CharNum* scanned	// characters scanned
 ) const
 {
-}
+	size_t		len = length();		// length of string
+	size_t		i = 0;			// position of next character
+	UCS4		ch = 0;			// current character
+	int		d;			// current digit value
+	bool		negative = false;	// Was a '-' sign seen?
+	unsigned long	l = 0;			// Number being converted
+	unsigned long	last;
+	unsigned long	max;
 
-int64_t
-StrVal::asInt64(
-//	ErrorT* err_return = 0, // error return
-	int	radix = 0,	// base for conversion
-	CharNum* scanned = 0	// characters scanned
-) const
-{
-}
+	// Check legal radix
+	if (radix < 0 || radix > 36)
+	{
+		if (err_return)
+			*err_return = STRERR_ILLEGAL_RADIX;
+		if (scanned)
+			*scanned = 0;
+		return 0;
+	}
 
-// // Like printf, but type-safe
-// static StrVal	StrVal::format(StrVal fmt, const ArgListC)
-// {
-// }
-//
-#endif
+	// Skip leading white-space
+	while (i < len && IsWhite(ch = (*this)[i]))
+		i++;
+	if (i == len)
+		goto no_digits;
+
+	// Check for sign character
+	if (ch == '+' || ch == '-')
+	{
+		i++;
+		negative = ch == '-';
+		while (i < len && IsWhite(ch = (*this)[i]))
+			i++;
+		if (i == len)
+			goto no_digits;
+	}
+
+	// Auto-detect radix (octal, decimal, binary)
+	if (UCS4Digit(ch) == 0 && i+1 < len)
+	{
+		// ch is the digit zero, look ahead
+		switch ((*this)[i+1])
+		{
+		case 'b': case 'B':
+			if (radix == 0 || radix == 2)
+			{
+				radix = 2;
+				ch = (*this)[i += 2];
+				if (i == len)
+					goto no_digits;
+			}
+			break;
+		case 'x': case 'X':
+			if (radix == 0 || radix == 16)
+			{
+				radix = 16;
+				ch = (*this)[i += 2];
+				if (i == len)
+					goto no_digits;
+			}
+			break;
+		default:
+			if (radix == 0)
+				radix = 8;
+			break;
+		}
+	}
+	else if (radix == 0)
+	{
+		radix = 10;
+	}
+
+	// Check there's at least one digit:
+	if ((d = Digit(ch, radix)) < 0)
+		goto not_number;
+
+	max = (ULONG_MAX-1)/radix + 1;
+	// Convert digits
+	do {
+		i++;			// We're definitely using this char
+		last = l;
+		if (l > max		// Detect *unsigned* long overflow
+		 || (l = l*radix + d) < last)
+		{
+			// Overflowed unsigned long!
+			if (err_return)
+				*err_return = STRERR_NUMBER_OVERFLOW;
+			if (scanned)
+				*scanned = i;
+			return 0;
+		}
+	} while (i < len && (d = Digit((*this)[i], radix)) >= 0);
+
+	if (err_return)
+		*err_return = 0;
+
+	// Check for trailing non-white characters
+	while (i < len && IsWhite((*this)[i]))
+		i++;
+	if (i != len && err_return)
+		*err_return = STRERR_TRAIL_TEXT;
+
+	// Return number of digits scanned
+	if (scanned)
+		*scanned = i;
+
+	if (l > (unsigned long)LONG_MAX+(negative ? 1 : 0))
+	{
+		if (err_return)
+			*err_return = STRERR_NUMBER_OVERFLOW;
+		// Try anyway, they might have wanted unsigned!
+	}
+
+	/*
+	 * Casting unsigned long down to long doesn't clear the high bit
+	 * on a twos-complement architecture:
+	 */
+	return negative ? -(long)l : (long)l;
+
+no_digits:
+	if (err_return)
+		*err_return = STRERR_NO_DIGITS;
+	if (scanned)
+		*scanned = i;
+	return 0;
+
+not_number:
+	if (err_return)
+		*err_return = STRERR_NOT_NUMBER;
+	if (scanned)
+		*scanned = i;
+	return 0;
+}
 
 // Return a pointer to the start of the nth character, using our bookmark to help
 const UTF8*
@@ -493,7 +611,7 @@ StrBody::nthChar(CharNum char_num, StrVal::Bookmark& mark)
 	UTF8*		ep;		// starting pointer for backward search
 	int		end_char;	// starting char number for backward search
 
-	if (char_num < 0 || char_num > (end_char = numChars()))	// numChars() counts the string if necessary
+	if (char_num < 0 || char_num > (end_char = numChars())) // numChars() counts the string if necessary
 		return (UTF8*)0;
 
 	if (num_chars == num_bytes) // ASCII data only, use direct index!
@@ -523,7 +641,7 @@ StrBody::nthChar(CharNum char_num, StrVal::Bookmark& mark)
 	 */
 	if (char_num-start_char < end_char-char_num)
 	{		// Forwards search is shorter
-		end_char = char_num-start_char;	// How far forward should we search?
+		end_char = char_num-start_char; // How far forward should we search?
 		while (start_char < char_num && up < ep)
 		{
 			up += UTF8Len(up);
@@ -595,6 +713,7 @@ StrBody::StrBody(const UTF8* data)
 	num_bytes = length;
 }
 
+
 StrBody::StrBody(const UTF8* data, CharBytes length, size_t allocate)
 : start(0)
 , num_chars(0)
@@ -613,7 +732,7 @@ StrBody::StrBody(const UTF8* data, CharBytes length, size_t allocate)
 StrBody*
 StrBody::Static(const UTF8* data)
 {
-	StrBody*	str = new StrBody();	// A null string, with an extra reference
+	StrBody*	str = new StrBody();	// A null string, with an extra reference baked-in
 	str->start = (UTF8*)data;	// Cast away const. We won't ever change or delete this data
 	str->num_bytes = strlen(data);
 	return str;
