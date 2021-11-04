@@ -82,13 +82,12 @@ StrVal::StrVal(const UTF8* data, CharBytes length, size_t allocate)
 
 // Single-character string
 StrVal::StrVal(UCS4 character)
-: body(new StrBody((char*)0, 0, UTF8Len(character)))
 {
-	int	length = UTF8Len(character);
-	UTF8*	cp = body->data();
-	UTF8Put(cp, character);
-	body->setLength(1, length);
-	UTF8Put(cp, 0);
+	UTF8	one_char[7];
+	UTF8*	op = one_char;		// Pack it into our local buffer
+	UTF8Put(op, character);
+	*op = '\0';
+	body = new StrBody(one_char);
 	num_chars = 1;
 }
 
@@ -100,10 +99,10 @@ StrVal::Unshare()
 		return;
 
 	// Copy only this slice of the body's data, and reset our offset to zero
-	Bookmark	savemark(mark);
-	const UTF8*	cp = nthChar(0);
-	const UTF8*	ep = nthChar(num_chars);
-	CharBytes	prefix_bytes = cp - body->data(); // How many leading bytes we are eliding
+	Bookmark	savemark(mark);			// copy the bookmark
+	const UTF8*	cp = nthChar(0);		// start of this substring
+	const UTF8*	ep = nthChar(num_chars);	// end of this substring
+	CharBytes	prefix_bytes = cp - body->startChar(); // How many leading bytes of the body we are eliding
 
 	body = new StrBody(cp, ep-cp, 0);
 	mark.char_num = savemark.char_num - offset;	// Restore the bookmark
@@ -348,7 +347,7 @@ StrVal
 StrVal::operator+(UCS4 addend) const
 {
 	// Convert addend using a stack-local buffer to save allocation here.
-	UTF8	buf[7];				// Enough for 6-byte content plus a nul
+	UTF8	buf[7];				// Enough for 6-byte content plus a NUL
 	UTF8*	cp = buf;
 	UTF8Put(cp, addend);
 	*cp = '\0';
@@ -369,7 +368,7 @@ StrVal&
 StrVal::operator+=(UCS4 addend)
 {
 	// Convert addend using a stack-local buffer to save allocation here.
-	UTF8	buf[7];				// Enough for 6-byte content plus a nul
+	UTF8	buf[7];				// Enough for 6-byte content plus a NUL
 	UTF8*	cp = buf;
 	UTF8Put(cp, addend);
 	*cp = '\0';
@@ -388,41 +387,6 @@ StrVal::insert(CharNum pos, const StrVal& addend)
 }
 
 void
-StrBody::insert(CharNum pos, const StrBody& addend)
-{
-	resize(num_bytes + addend.num_bytes);
-
-	StrVal::Bookmark nullmark;
-	UTF8*		insert_position = nthChar(pos, nullmark);
-	CharBytes	unmoved = insert_position-start;
-
-	// Move data up, including the trailing NUL
-	memmove(insert_position+addend.num_bytes, insert_position, num_bytes-unmoved+1);
-	memcpy(insert_position, addend.data(), addend.num_bytes);
-	num_bytes += addend.numBytes();
-	num_chars = 0;
-	countChars();
-}
-
-void
-StrBody::insert(CharNum pos, const StrVal& addend)
-{
-	CharBytes	addend_bytes;
-	const UTF8*	addend_data = addend.asUTF8(addend_bytes);
-	resize(num_bytes + addend_bytes);
-
-	StrVal::Bookmark nullmark;
-	UTF8*		insert_position = nthChar(pos, nullmark);
-	CharBytes	unmoved = insert_position-start;
-
-	// Move data up, including the trailing NUL
-	memmove(insert_position+addend_bytes, insert_position, num_bytes-unmoved+1);
-	memcpy(insert_position, addend_data, addend_bytes);
-	num_bytes += addend_bytes;
-	num_chars += addend.length();
-}
-
-void
 StrVal::toLower()
 {
 	Unshare();
@@ -436,108 +400,6 @@ StrVal::toUpper()
 	Unshare();
 	body->toUpper();
 	num_chars = body->numChars();
-}
-
-void
-StrBody::toLower()
-{
-	UTF8	one_char[7];
-	StrBody	body;	// Any StrVal that references this must have a shorter lifetime. transform() guarantees this.
-	transform(
-		[&](const UTF8*& cp, const UTF8* ep) -> StrVal
-		{
-			UCS4	ch = UTF8Get(cp);	// Get UCS4 character
-			ch = UCS4ToLower(ch);		// Transform it
-			UTF8*	op = one_char;		// Pack it into our local buffer
-			UTF8Put(op, ch);
-			*op = '\0';
-
-			return body.staticStr(one_char, 1, op-one_char);
-		}
-	);
-}
-
-void
-StrBody::toUpper()
-{
-	UTF8	one_char[7];
-	StrBody	body;	// Any StrVal that references this must have a shorter lifetime. transform() guarantees this.
-	transform(
-		[&](const UTF8*& cp, const UTF8* ep) -> StrVal
-		{
-			UCS4	ch = UTF8Get(cp);	// Get UCS4 character
-			ch = UCS4ToUpper(ch);		// Transform it
-			UTF8*	op = one_char;		// Pack it into our local buffer
-			UTF8Put(op, ch);
-			*op = '\0';
-
-			return body.staticStr(one_char, 1, op-one_char);
-		}
-	);
-}
-
-/*
- * At every character position after the given point, the passed transform function
- * can extract any number of chars (limited by ep) and return a replacement StrVal for those chars.
- * To leave the remainder untransformed, return without advancing cp
- * (but a returned StrVal will still be inserted)
- */
-void
-StrBody::transform(const std::function<StrVal(const UTF8*& cp, const UTF8* ep)> xform, int after)
-{
-	assert(ref_count <= 1);
-	UTF8*		old_start = start;
-	size_t		old_num_bytes = num_bytes;
-
-	// Allocate new data, preserving the old
-	start = 0;
-	num_chars = 0;
-	num_bytes = 0;
-	num_alloc = 0;
-	resize(old_num_bytes+6);		// Start with same allocation plus one character space
-
-	const UTF8*	up = old_start;		// Input pointer
-	const UTF8*	ep = old_start+old_num_bytes;	// Termination guard
-	CharNum		processed_chars = 0;	// Total input chars transformed
-	bool		stopped = false;	// Are we done yet?
-	UTF8*		op = start;		// Output pointer
-	while (up < ep)
-	{
-		const UTF8*	next = up;
-		if (processed_chars+1 > after+1	// Not yet reached the point to start transforming
-		 && !stopped)			// We have stopped transforming
-		{
-			StrVal		replacement = xform(next, ep);
-			CharBytes	replaced_bytes = next-up;	// How many bytes were consumed?
-			CharNum		replaced_chars = replacement.length();	// Replaced by how many chars?
-
-			// Advance 'up' over the replaced characters
-			while (up < next)
-			{
-				up += UTF8Len(up);
-				processed_chars++;
-			}
-
-			stopped |= (replaced_bytes == 0);
-
-			insert(num_chars, replacement);
-			op = start+num_bytes;
-		}
-		else
-		{		// Just copy one character and move on
-			UCS4	ch = UTF8Get(up);	// Get UCS4 character
-			processed_chars++;
-			if (num_alloc < (op-start+6+1))
-			{
-				resize((op-start)+6);	// Room for any char
-				op = start+num_bytes;	// Reset our output pointer in case start has changed
-			}
-			UTF8Put(op, ch);
-			num_bytes = op-start;
-			num_chars++;
-		}
-	}
-	delete [] old_start;
 }
 
 // REVISIT: Need a proper Unicode UCS4IsWhite method...
@@ -732,6 +594,140 @@ StrVal::nthChar(CharNum char_num) const
 	return body->nthChar(offset+char_num, useless);
 }
 
+StrBody::~StrBody()
+{
+	if (start && num_alloc > 0)
+		delete[] start;
+}
+
+// null string body constructor. Give it a self-reference so we don't ever try to delete it.
+StrBody::StrBody()
+: start((UTF8*)"")
+, num_chars(0)
+, num_bytes(0)
+, num_alloc(0)
+{
+	AddRef();
+}
+
+StrBody::StrBody(const UTF8* data, bool copy)
+: start(0)
+, num_chars(0)
+, num_bytes(0)
+, num_alloc(0)
+{
+	size_t	length = strlen((const char*)data);
+
+	if (copy)
+	{
+		resize(length+1);	// Include space for a trailing NUL
+		memcpy(start, data, length);
+		start[length] = '\0';
+	}
+	else
+	{
+		start = (UTF8*)data;	// Cast const away; copy==false implies no change
+		AddRef();		// Cannot be deleted or resized
+	}
+	num_bytes = length;
+}
+
+StrBody::StrBody(const UTF8* data, CharBytes length, size_t allocate)
+: start(0)
+, num_chars(0)
+, num_bytes(0)
+, num_alloc(0)
+{
+	if (allocate < length)
+		allocate = length;
+	resize(allocate+1);	// Include space for a trailing NUL
+	if (length)
+		memcpy(start, data, length);
+	start[length] = '\0';
+	num_bytes = length;
+}
+
+/*
+ * This method returns a StrVal for fixed data that will not change until the StrBody is destroyed.
+ * The lifetime of the returned StrVal and all copies must end before the StrBody's does.
+ */
+StrVal
+StrBody::staticStr(const UTF8* static_data, CharNum _c, CharBytes _b)
+{
+	if (num_alloc)
+		delete[] start;
+
+	ref_count = 2;		// Self-reference so we don't get deleted by ref-counting
+	start = (UTF8*)static_data;	// Cast const away; we won't ever delete or mutate this
+	num_chars = _c;
+	num_bytes = _b;
+	num_alloc = 0;		// Never delete(start)
+
+	return StrVal(this);
+}
+
+/*
+ * Counting the characters in a string also checks for valid UTF-8.
+ * If the string is allocated (not static) but unshared,
+ * it also compacts non-minimal UTF-8 coding.
+ */
+void
+StrBody::countChars()
+{
+	if (num_chars > 0 || num_bytes == 0)
+		return;
+	const UTF8*	cp = start;		// Progress pointer when reading data
+	UTF8*		op = start;		// Output for compacted data
+	UTF8*		ep = start+num_bytes;	// Marker for end of data
+	while (cp < ep)
+	{
+		const UTF8*	char_start = cp; // Save the start of this character, for rewriting
+		UCS4		ch = UTF8Get(cp);
+
+		// We don't hold by Postel’s Law here. We really should throw an exception, but I'm feeling kind. N'yah!
+		if (ch == UCS4_NONE		// Illegal encoding
+		 || cp > ep)			// Overlaps the end of data
+			break;			// An error occurred before the end of the data; truncate it.
+
+		if (num_alloc > 0		// Not a static string, so we can rewrite it
+		 && ref_count <= 1		// Not currently shared, so not breaking any Bookmarks
+		 && (UTF8Len(ch) < cp-char_start // Optimal length is shorter than this encoding. Start compacting
+		     || op < char_start))	// We were already compacting
+			UTF8Put(op, ch);	// Rewrite the character in compact form
+		else
+			op = (UTF8*)cp;		// Keep up
+		num_chars++;
+	}
+	if (op < cp)
+	{			// We were rewriting, or there was a coding eror, so we now have fewer bytes
+		num_bytes = op-start;
+		if (num_alloc > 0)
+			*op = '\0';
+	}
+}
+
+// Resize the memory allocation to make room for a larger string (size includes the trailing NUL)
+void
+StrBody::resize(size_t minimum)
+{
+	if (minimum <= num_alloc)
+		return;
+
+	minimum = ((minimum-1)|0x7)+1;	// round up to multiple of 8
+	if (num_alloc)	// Minimum growth 50% rounded up to nearest 32
+		num_alloc = ((num_alloc*3/2) | 0x1F) + 1;
+	if (num_alloc < minimum)
+		num_alloc = minimum;		// Still not enough, get enough
+	UTF8*	newdata = new UTF8[num_alloc];
+	if (start)
+	{
+		memcpy(newdata, start, num_bytes);
+		newdata[num_bytes] = '\0';
+		delete[] start;
+	}
+	start = newdata;
+}
+
 // Return a pointer to the start of the nth character
 UTF8*
 StrBody::nthChar(CharNum char_num, StrVal::Bookmark& mark)
@@ -797,6 +793,24 @@ StrBody::nthChar(CharNum char_num, StrVal::Bookmark& mark)
 	return up;
 }
 
+void
+StrBody::insert(CharNum pos, const StrVal& addend)
+{
+	CharBytes	addend_bytes;
+	const UTF8*	addend_data = addend.asUTF8(addend_bytes);
+	resize(num_bytes + addend_bytes + 1);	// Include space for a trailing NUL
+
+	StrVal::Bookmark nullmark;
+	UTF8*		insert_position = nthChar(pos, nullmark);
+	CharBytes	unmoved = insert_position-start;
+
+	// Move data up, including the trailing NUL
+	memmove(insert_position+addend_bytes, insert_position, num_bytes-unmoved+1);
+	memcpy(insert_position, addend_data, addend_bytes);
+	num_bytes += addend_bytes;
+	num_chars += addend.length();
+}
+
 // Delete a substring from the middle
 void
 StrBody::remove(CharNum at, int len)
@@ -814,192 +828,104 @@ StrBody::remove(CharNum at, int len)
 	num_chars -= len;	// len says how many we deleted.
 }
 
-StrBody::~StrBody()
+void
+StrBody::toLower()
 {
-	if (start && num_alloc > 0)
-		delete[] start;
+	UTF8	one_char[7];
+	StrBody	body;	// Any StrVal that references this must have a shorter lifetime. transform() guarantees this.
+	transform(
+		[&](const UTF8*& cp, const UTF8* ep) -> StrVal
+		{
+			UCS4	ch = UTF8Get(cp);	// Get UCS4 character
+			ch = UCS4ToLower(ch);		// Transform it
+			UTF8*	op = one_char;		// Pack it into our local buffer
+			UTF8Put(op, ch);
+			*op = '\0';
+
+			return body.staticStr(one_char, 1, op-one_char);
+		}
+	);
 }
 
-// null string body constructor. Give it a self-reference so we don't ever try to delete it.
-StrBody::StrBody()
-: start((UTF8*)"")
-, num_chars(0)
-, num_bytes(0)
-, num_alloc(0)
+void
+StrBody::toUpper()
 {
-	AddRef();
-}
+	UTF8	one_char[7];
+	StrBody	body;	// Any StrVal that references this must have a shorter lifetime. transform() guarantees this.
+	transform(
+		[&](const UTF8*& cp, const UTF8* ep) -> StrVal
+		{
+			UCS4	ch = UTF8Get(cp);	// Get UCS4 character
+			ch = UCS4ToUpper(ch);		// Transform it
+			UTF8*	op = one_char;		// Pack it into our local buffer
+			UTF8Put(op, ch);
+			*op = '\0';
 
-StrBody::StrBody(const UTF8* data, bool copy)
-: start(0)
-, num_chars(0)
-, num_bytes(0)
-, num_alloc(0)
-{
-	size_t	length = strlen((const char*)data);
-
-	if (copy)
-	{
-		resize(length+1);	// Include space for a trailing NUL
-		memcpy(start, data, length);
-		start[length] = '\0';
-	}
-	else
-	{
-		start = (UTF8*)data;	// Cast const away; copy==false implies no change
-		AddRef();		// Cannot be deleted or resized
-	}
-	num_bytes = length;
+			return body.staticStr(one_char, 1, op-one_char);
+		}
+	);
 }
 
 /*
- * This method returns a StrVal for fixed data that will not change until the StrBody is destroyed.
- * The lifetime of the returned StrVal and all copies must end before the StrBody's does.
+ * At every character position after the given point, the passed transform function
+ * can extract any number of chars (limited by ep) and return a replacement StrVal for those chars.
+ * To leave the remainder untransformed, return without advancing cp
+ * (but a returned StrVal will still be inserted)
  */
-StrVal
-StrBody::staticStr(const UTF8* static_data, CharNum _c, CharBytes _b)
+void
+StrBody::transform(const std::function<StrVal(const UTF8*& cp, const UTF8* ep)> xform, int after)
 {
-	if (num_alloc)
-		delete[] start;
+	assert(ref_count <= 1);
+	UTF8*		old_start = start;
+	size_t		old_num_bytes = num_bytes;
 
-	ref_count = 2;		// Self-reference so we don't get deleted by ref-counting
-	start = (UTF8*)static_data;	// Cast const away; we won't ever delete or mutate this
-	num_chars = _c;
-	num_bytes = _b;
-	num_alloc = 0;		// Never delete(start)
+	// Allocate new data, preserving the old
+	start = 0;
+	num_chars = 0;
+	num_bytes = 0;
+	num_alloc = 0;
+	resize(old_num_bytes+6+1);		// Start with same allocation plus one character space and NUL
 
-	return StrVal(this);
-}
-
-StrBody::StrBody(const UTF8* data, CharBytes length, size_t allocate)
-: start(0)
-, num_chars(0)
-, num_bytes(0)
-, num_alloc(0)
-{
-	if (allocate < length)
-		allocate = length;
-	resize(allocate+1);	// Include space for a trailing NUL
-	if (length)
-		memcpy(start, data, length);
-	start[length] = '\0';
-	num_bytes = length;
-}
-
-// Return the next UCS4 character or UCS4_NONE
-UCS4
-StrBody::charAt(CharBytes off)
-{
-	if (off >= num_bytes)
-		return UCS4_NONE;
-	const UTF8*	cp = start+off;
-#if defined(USE_SYS8)
-	return (UCS4)*cp;
-#else
-	int	bytes = UTF8Len(cp);
-	if (bytes == 0 || off+bytes > num_bytes)	// Bad encoding or overlaps end
-		return UCS4_NONE;
-	return UTF8Get(cp);
-#endif
-}
-
-// Return the next UCS4 character or UCS4_NONE, advancing 'off'
-UCS4
-StrBody::charNext(CharBytes& off)
-{
-	if (off >= num_bytes)
-		return UCS4_NONE;
-	const UTF8*	cp = start+off;
-#if defined(USE_SYS8)
-	return (UCS4)*cp++;
-#else
-	int	bytes = UTF8Len(cp);
-	if (bytes == 0 || off+bytes > num_bytes)	// Bad encoding or overlaps end
-		return UCS4_NONE;
-	UCS4	ch = UTF8Get(cp);
-	off += bytes;
-	return ch;
-#endif
-}
-
-// Return the preceeding UCS4 character or UCS4_NONE, backing up 'off'
-UCS4
-StrBody::charB4(CharBytes& off)
-{
-	if (off > num_bytes || off == 0)
-		return UCS4_NONE;
-#if defined(USE_SYS8)
-	return (UCS4)start[--off];
-#else
-	const UTF8*	cp = start+off;
-	for (int bytes = 1; bytes <= 4 && cp > start; bytes++)
-		if (UTF8Is1st(*--cp))			// Look backwards for a legal UTF-8 1st char
+	const UTF8*	up = old_start;		// Input pointer
+	const UTF8*	ep = old_start+old_num_bytes;	// Termination guard
+	CharNum		processed_chars = 0;	// Total input chars transformed
+	bool		stopped = false;	// Are we done yet?
+	UTF8*		op = start;		// Output pointer
+	while (up < ep)
+	{
+		const UTF8*	next = up;
+		if (processed_chars+1 > after+1	// Not yet reached the point to start transforming
+		 && !stopped)			// We have stopped transforming
 		{
-			UCS4	ch = UTF8Get(cp);	// Advances cp again
-			if (cp != start+off)		// Must be by the right amount!
-				return UCS4_NONE;	// Otherwise it is illegal encoding
-			off -= bytes;
-			return ch;
+			StrVal		replacement = xform(next, ep);
+			CharBytes	replaced_bytes = next-up;	// How many bytes were consumed?
+			CharNum		replaced_chars = replacement.length();	// Replaced by how many chars?
+
+			// Advance 'up' over the replaced characters
+			while (up < next)
+			{
+				up += UTF8Len(up);
+				processed_chars++;
+			}
+
+			stopped |= (replaced_bytes == 0);
+
+			insert(num_chars, replacement);
+			op = start+num_bytes;
 		}
-	return UCS4_NONE;
-#endif
-}
-
-void
-StrBody::resize(size_t minimum)
-{
-	if (minimum <= num_alloc)
-		return;
-
-	minimum = ((minimum-1)|0x7)+1;	// round up to multiple of 8
-	if (num_alloc)	// Minimum growth 50% rounded up to nearest 32
-		num_alloc = ((num_alloc*3/2) | 0x1F) + 1;
-	if (num_alloc < minimum)
-		num_alloc = minimum;		// Still not enough, get enough
-	UTF8*	newdata = new UTF8[num_alloc];
-	if (start)
-	{
-		memcpy(newdata, start, num_bytes);
-		newdata[num_bytes] = '\0';
-		delete[] start;
-	}
-	start = newdata;
-}
-
-void
-StrBody::countChars()
-{
-	if (num_chars > 0 || num_bytes == 0)
-		return;
-#if defined(USE_SYS8)
-	num_chars = num_bytes;
-#else
-	const UTF8*	cp = start;		// Progress pointer when reading data
-	UTF8*		op = start;		// Output for compacted data
-	UTF8*		ep = start+num_bytes;	// Marker for end of data
-	while (cp < ep)
-	{
-		const UTF8*	char_start = cp; // Save the start of this character, for rewriting
-		UCS4		ch = UTF8Get(cp);
-
-		// We don't hold by Postel’s Law here. We really should throw an exception, so I'm being kind. N'yah!
-		if (ch == UCS4_NONE		// Illegal encoding
-		 || cp > ep)			// Overlaps the end of data
-			break;			// An error occurred before the end of the data; truncate it.
-
-		if (num_alloc > 0		// Not a static string, so we can rewrite it
-		 && ref_count <= 1		// Not currently shared, so not breaking any Bookmarks
-		 && (UTF8Len(ch) < cp-char_start // Optimal length is shorter than this encoding. Start compacting
-		     || op < char_start))	// We were already compacting
-			UTF8Put(op, ch);	// Rewrite the character in compact form
 		else
-			op = (UTF8*)cp;		// Keep up
-		num_chars++;
+		{		// Just copy one character and move on
+			UCS4	ch = UTF8Get(up);	// Get UCS4 character
+			processed_chars++;
+			if (num_alloc < (op-start+6+1))
+			{
+				resize((op-start)+6+1);	// Room for any char and NUL
+				op = start+num_bytes;	// Reset our output pointer in case start has changed
+			}
+			UTF8Put(op, ch);
+			num_bytes = op-start;
+			num_chars++;
+		}
 	}
-	if (op < cp)
-	{			// We were rewriting, so now have fewer bytes
-		num_bytes = op-start;
-		*op = '\0';
-	}
-#endif
+	delete [] old_start;
 }

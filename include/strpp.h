@@ -41,7 +41,7 @@ public:
 	StrVal();			// Empty string
 	StrVal(const StrVal& s1);	// Normal copy constructor
 	StrVal& operator=(const StrVal& s1); // Assignment operator
-	StrVal(const UTF8* data);	// construct by copying nul-terminated UTF8 data
+	StrVal(const UTF8* data);	// construct by copying NUL-terminated UTF8 data
 	StrVal(const UTF8* data, CharBytes length, size_t allocate = 0); // construct from length-terminated UTF8 data
 	StrVal(UCS4 character);		// construct from single-character string
 	StrVal(StrBody* body);		// New reference to same string body
@@ -53,7 +53,7 @@ public:
 	// Access characters and UTF8 value:
 	UCS4		operator[](int charNum) const;
 	const UTF8*	asUTF8();	// Null terminated. Must unshare data if it's a substring with elided suffix
-	const UTF8*	asUTF8(CharBytes& bytes) const;	// Returns bytes, but doesn't guarantee nul termination
+	const UTF8*	asUTF8(CharBytes& bytes) const;	// Returns the bytes, but doesn't guarantee NUL termination
 
 	// Comparisons:
 	int		compare(const StrVal&, CompareStyle = CompareRaw) const;
@@ -132,6 +132,10 @@ public:
 				CharNum* scanned = 0	// characters scanned
 			) const;
 
+#if 0
+	// static StrVal	format(StrVal fmt, const ArgListC);	// Like printf, but type-safe
+#endif
+
 	struct Bookmark
 	{
 		Bookmark() : char_num(0), byte_num(0) {}	// 0, 0 is always a valid Bookmark
@@ -157,61 +161,60 @@ private:
 };
 
 class	StrBody
-:	public RefCounted
+: public RefCounted			// This object will be deleted when the ref_count decrements to zero
 {
 public:
 	static	StrBody nullBody;
 
 	~StrBody();
-	StrBody();				// Null string constructor
+	StrBody();			// Null string constructor
 	StrBody(const UTF8* data, bool copy = true);
 	StrBody(const UTF8* data, CharBytes length, size_t allocate);
 
 	/*
-	 * This method returns a StrVal for fixed data that will not change until the StrBody is destroyed.
-	 * The lifetime of the returned StrVal and all copies must end before the StrBody's does.
+	 * This method returns a StrVal for fixed data that must not be changed until the StrBody is destroyed.
+	 * The lifetime of the returned StrVal and all its copies must end before the StrBody's does.
 	 */
 	StrVal		staticStr(const UTF8* static_data, CharNum _c, CharBytes _b);
 
-	UCS4		charAt(CharBytes);	// Return the next UCS4 character or UCS4_NONE
-	UCS4		charNext(CharBytes&);	// Return the next UCS4 character or UCS4_NONE, advancing the offset
-	UCS4		charB4(CharBytes&);	// Return the preceeding UCS4 character or UCS4_NONE, backing up the offset
-
-	void		resize(size_t);
-	inline CharNum	numChars()
-	{
-		if (num_chars == 0 && num_bytes > 0)
-			countChars();
-		return num_chars;
-	}
+	inline CharNum	numChars()	// Not const because it can count chars and compact the data
+			{
+				if (num_chars == 0 && num_bytes > 0)
+					countChars();
+				return num_chars;
+			}
 	CharBytes	numBytes() const { return num_bytes; }
-	void		setLength(CharNum chars, CharBytes len) { num_chars = chars; num_bytes = len; }
-	UTF8*		data() const { return start; }
+	UTF8*		startChar() const { return start; }		// fast access, requires no Bookmark
+	const UTF8*	endChar() { return start+num_bytes; }		// ptr to the trailing NUL (if any)
 	UTF8*		nthChar(CharNum off, StrVal::Bookmark& bm);	// ptr to start of the nth character
-	const UTF8*	endChar() { return start+num_bytes; }
 
 	// Mutating methods. Must only be called when refcount <= 1 (i.e., unshared)
-	void		remove(CharNum at, int len = -1);	// Delete a substring from the middle
-	void		insert(CharNum pos, const StrVal& addend);
-	void		insert(CharNum pos, const StrBody& addend);
-	void		toLower();
+	void		remove(CharNum at, int len = -1);		// Delete a substring from the middle
+	void		insert(CharNum pos, const StrVal& addend);	// Insert a substring
+	void		toLower();	// These use transform()
 	void		toUpper();
 
 	/*
-	 * At every character position after the given point, the passed transform function
-	 * can extract any number of chars (limited by ep) and return a replacement StrVal for those chars.
-	 * To leave the remainder untransformed, return without advancing cp
+	 * At every character position after the given point, the passed transform function can
+	 * extract any number of chars (limited by ep) and return a replacement StrVal for those chars.
+	 * To quit, leaving the remainder untransformed, return without advancing cp
 	 * (but a returned StrVal will still be inserted)
 	 */
 	void		transform(const std::function<StrVal(const UTF8*& cp, const UTF8* ep)> xform, int after = -1);
 
 protected:
-	UTF8*		start;
-	CharNum		num_chars;	// Number of characters, if they have been counted yet
+	UTF8*		start;		// start of the character data
+	CharNum		num_chars;	// Number of characters, if they have been counted yet (else zero)
 	CharBytes	num_bytes;	// How many bytes of data
-	CharBytes	num_alloc;	// How many bytes are allocated
+	CharBytes	num_alloc;	// How many bytes are allocated. 0 means data is not allocated so must not be freed
 
+	/*
+	 * Counting the characters in a string also checks for valid UTF-8.
+	 * If the string is allocated (not static) but unshared,
+	 * it also compacts non-minimal UTF-8 coding.
+	 */
 	void		countChars();
+	void		resize(size_t);	// Change the memory allocation
 
 	StrBody(StrBody&) { }		// Never copy a body
 };
