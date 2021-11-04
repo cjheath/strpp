@@ -41,13 +41,10 @@ public:
 	StrVal();			// Empty string
 	StrVal(const StrVal& s1);	// Normal copy constructor
 	StrVal& operator=(const StrVal& s1); // Assignment operator
-
-	StrVal(const UTF8* data);	// construct by copying null-terminated UTF8 data
+	StrVal(const UTF8* data);	// construct by copying nul-terminated UTF8 data
 	StrVal(const UTF8* data, CharBytes length, size_t allocate = 0); // construct from length-terminated UTF8 data
 	StrVal(UCS4 character);		// construct from single-character string
-
-	// Return a reference to a static C string, which must persist and will never be changed or deleted:
-	static	StrVal	Static(const UTF8* data);	// Avoids using the allocator for a string constant
+	StrVal(StrBody* body);		// New reference to same string body
 
 	CharBytes	numBytes() const { return nthChar(num_chars)-nthChar(0); }
 	CharNum		length() const { return num_chars; }	// Number of chars
@@ -56,7 +53,7 @@ public:
 	// Access characters and UTF8 value:
 	UCS4		operator[](int charNum) const;
 	const UTF8*	asUTF8();	// Null terminated. Must unshare data if it's a substring with elided suffix
-	const UTF8*	asUTF8(CharBytes& bytes) const;	// Returns bytes, but doesn't guarantee null termination
+	const UTF8*	asUTF8(CharBytes& bytes) const;	// Returns bytes, but doesn't guarantee nul termination
 
 	// Comparisons:
 	int		compare(const StrVal&, CompareStyle = CompareRaw) const;
@@ -144,8 +141,7 @@ public:
 	};
 
 protected:
-	StrVal(StrBody* s1);		// New reference to same string body
-	StrVal(StrBody* body, CharNum offs, CharNum len);	// Not bounds-checked!
+	StrVal(StrBody* body, CharNum offs, CharNum len);	// offs/len not bounds-checked!
 	const UTF8*	nthChar(CharNum off) const;	// Return a pointer to the start of the nth character
 	const UTF8*	nthChar(CharNum off);	// Return a pointer to the start of the nth character
 
@@ -158,19 +154,24 @@ private:
 	Bookmark	mark;		// Always the byte_num of a given char_num in body
 
 	void		Unshare();	// Get our own copy of StrBody that we can safely mutate
-			StrVal(StrBody&);
-	static	StrBody nullBody;
 };
 
 class	StrBody
 :	public RefCounted
 {
 public:
+	static	StrBody nullBody;
+
 	~StrBody();
 	StrBody();				// Null string constructor
 	StrBody(const UTF8* data);
-	StrBody(const UTF8* data, CharBytes length, size_t allocate = 0);
-	static StrBody* Static(const UTF8* data); // reference a static C string, which will never change or be deleted
+	StrBody(const UTF8* data, CharBytes length, size_t allocate);
+
+	/*
+	 * This method returns a StrVal for fixed data that will not change until the StrBody is destroyed.
+	 * The lifetime of the returned StrVal and all copies must end before the StrBody's does.
+	 */
+	StrVal		staticStr(const UTF8* static_data, CharNum _c, CharBytes _b);
 
 	UCS4		charAt(CharBytes);	// Return the next UCS4 character or UCS4_NONE
 	UCS4		charNext(CharBytes&);	// Return the next UCS4 character or UCS4_NONE, advancing the offset

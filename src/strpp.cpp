@@ -16,11 +16,11 @@
 #include	<limits.h>
 #include	<stdio.h>
 
-StrBody	StrVal::nullBody;
+StrBody	StrBody::nullBody;
 
 // Empty string
 StrVal::StrVal()
-: body(&nullBody)
+: body(&StrBody::nullBody)
 , offset(0)
 , num_chars(0)
 {
@@ -61,7 +61,7 @@ StrVal& StrVal::operator=(const StrVal& s1)
 // Null-terminated UTF8 data
 // Don't allocate a new StrBody for an empty string
 StrVal::StrVal(const UTF8* data)
-: body(data && data[0] != '\0' ? new StrBody(data) : &nullBody)
+: body(data == 0 || data[0] == '\0' ? &StrBody::nullBody : new StrBody(data))
 , offset(0)
 , num_chars(body->numChars())
 {
@@ -92,29 +92,23 @@ StrVal::StrVal(UCS4 character)
 	num_chars = 1;
 }
 
-StrVal
-StrVal::Static(const UTF8* data)	// A reference to a static C string, which will never change or be deleted
-{
-	return StrVal(StrBody::Static(data));
-}
-
 // Get our own copy of StrBody that we can safely mutate
 void
 StrVal::Unshare()
 {
-	if (body->GetRefCount() > 1)
-	{
-		// Copy only this slice of the body's data, and reset our offset to zero
-		Bookmark	savemark(mark);
-		const UTF8*	cp = nthChar(0);
-		const UTF8*	ep = nthChar(num_chars);
-		CharBytes	prefix_bytes = cp - body->data(); // How many leading bytes we are eliding
+	if (body->GetRefCount() <= 1)
+		return;
 
-		body = new StrBody(cp, ep-cp, 0);
-		mark.char_num = savemark.char_num - offset;	// Restore the bookmark
-		mark.byte_num = savemark.byte_num - prefix_bytes;
-		offset = 0;
-	}
+	// Copy only this slice of the body's data, and reset our offset to zero
+	Bookmark	savemark(mark);
+	const UTF8*	cp = nthChar(0);
+	const UTF8*	ep = nthChar(num_chars);
+	CharBytes	prefix_bytes = cp - body->data(); // How many leading bytes we are eliding
+
+	body = new StrBody(cp, ep-cp, 0);
+	mark.char_num = savemark.char_num - offset;	// Restore the bookmark
+	mark.byte_num = savemark.byte_num - prefix_bytes;
+	offset = 0;
 }
 
 // Access characters:
@@ -182,7 +176,7 @@ StrVal::substr(CharNum at, int len) const
 
 	// Quick check for a null substring:
 	if (at < 0 || at >= num_chars || len == 0)
-		return StrVal(&nullBody);
+		return StrVal();
 
 	// Clamp substring length:
 	if (len == -1)
@@ -354,12 +348,13 @@ StrVal
 StrVal::operator+(UCS4 addend) const
 {
 	// Convert addend using a stack-local buffer to save allocation here.
-	UTF8	buf[7];				// Enough for 6-byte content plus a null
+	UTF8	buf[7];				// Enough for 6-byte content plus a nul
 	UTF8*	cp = buf;
 	UTF8Put(cp, addend);
 	*cp = '\0';
+	StrBody	body;
 
-	return operator+(StrVal::Static(buf));	// The StrVal constructed here will be destroyed without de-allocation
+	return operator+(body.staticStr(buf, 1, cp-buf));
 }
 
 // Add, StrVal is modified:
@@ -374,12 +369,13 @@ StrVal&
 StrVal::operator+=(UCS4 addend)
 {
 	// Convert addend using a stack-local buffer to save allocation here.
-	UTF8	buf[7];				// Enough for 6-byte content plus a null
+	UTF8	buf[7];				// Enough for 6-byte content plus a nul
 	UTF8*	cp = buf;
 	UTF8Put(cp, addend);
 	*cp = '\0';
 
-	operator+=(StrVal::Static(buf));	// The StrVal constructed here will be destroyed without de-allocation
+	StrBody	body;
+	operator+=(body.staticStr(buf, 1, cp-buf));
 	return *this;
 }
 
@@ -389,6 +385,23 @@ StrVal::insert(CharNum pos, const StrVal& addend)
 	Unshare();
 	body->insert(pos, addend);
 	num_chars += addend.length();
+}
+
+void
+StrBody::insert(CharNum pos, const StrBody& addend)
+{
+	resize(num_bytes + addend.num_bytes);
+
+	StrVal::Bookmark nullmark;
+	UTF8*		insert_position = nthChar(pos, nullmark);
+	CharBytes	unmoved = insert_position-start;
+
+	// Move data up, including the trailing NUL
+	memmove(insert_position+addend.num_bytes, insert_position, num_bytes-unmoved+1);
+	memcpy(insert_position, addend.data(), addend.num_bytes);
+	num_bytes += addend.numBytes();
+	num_chars = 0;
+	countChars();
 }
 
 void
@@ -414,6 +427,7 @@ StrVal::toLower()
 {
 	Unshare();
 	body->toLower();
+	num_chars = body->numChars();
 }
 
 void
@@ -421,20 +435,24 @@ StrVal::toUpper()
 {
 	Unshare();
 	body->toUpper();
+	num_chars = body->numChars();
 }
 
 void
 StrBody::toLower()
 {
 	UTF8	one_char[7];
+	StrBody	body;	// Any StrVal that references this must have a shorter lifetime. transform() guarantees this.
 	transform(
 		[&](const UTF8*& cp, const UTF8* ep) -> StrVal
 		{
 			UCS4	ch = UTF8Get(cp);	// Get UCS4 character
 			ch = UCS4ToLower(ch);		// Transform it
-			StrVal	lower;
-			lower += ch;
-			return lower;
+			UTF8*	op = one_char;		// Pack it into our local buffer
+			UTF8Put(op, ch);
+			*op = '\0';
+
+			return body.staticStr(one_char, 1, op-one_char);
 		}
 	);
 }
@@ -442,14 +460,18 @@ StrBody::toLower()
 void
 StrBody::toUpper()
 {
+	UTF8	one_char[7];
+	StrBody	body;	// Any StrVal that references this must have a shorter lifetime. transform() guarantees this.
 	transform(
-		[](const UTF8*& cp, const UTF8* ep) -> StrVal
+		[&](const UTF8*& cp, const UTF8* ep) -> StrVal
 		{
 			UCS4	ch = UTF8Get(cp);	// Get UCS4 character
 			ch = UCS4ToUpper(ch);		// Transform it
-			StrVal	upper;
-			upper += ch;
-			return upper;
+			UTF8*	op = one_char;		// Pack it into our local buffer
+			UTF8Put(op, ch);
+			*op = '\0';
+
+			return body.staticStr(one_char, 1, op-one_char);
 		}
 	);
 }
@@ -518,13 +540,11 @@ StrBody::transform(const std::function<StrVal(const UTF8*& cp, const UTF8* ep)> 
 	delete [] old_start;
 }
 
-// REVISIT: Need a proper Unicode IsWhite method...
+// REVISIT: Need a proper Unicode UCS4IsWhite method...
 static inline bool
 IsWhite(UCS4 ch)
 {
-	// REVISIT: Should have a UCS4IsWhite
-	return (ch) == ' ' || (ch) == '\t' || (ch) == '\n' || (ch) == '\r'
-		|| (ch) == ('\xA0'&0xFF);
+	return (ch) == ' ' || (ch) == '\t' || (ch) == '\n' || (ch) == '\r' || (ch) == 0x00A0;
 }
 
 static inline int
@@ -800,7 +820,7 @@ StrBody::~StrBody()
 		delete[] start;
 }
 
-// null string constructor. Give it a self-reference so we don't ever try to delete it.
+// null string body constructor. Give it a self-reference so we don't ever try to delete it.
 StrBody::StrBody()
 : start((UTF8*)"")
 , num_chars(0)
@@ -817,12 +837,31 @@ StrBody::StrBody(const UTF8* data)
 , num_alloc(0)
 {
 	size_t	length = strlen((const char*)data);
+
 	resize(length+1);	// Include space for a trailing NUL
 	memcpy(start, data, length);
 	start[length] = '\0';
 	num_bytes = length;
 }
 
+/*
+ * This method returns a StrVal for fixed data that will not change until the StrBody is destroyed.
+ * The lifetime of the returned StrVal and all copies must end before the StrBody's does.
+ */
+StrVal
+StrBody::staticStr(const UTF8* static_data, CharNum _c, CharBytes _b)
+{
+	if (num_alloc)
+		delete[] start;
+
+	ref_count = 2;		// Self-reference so we don't get deleted by ref-counting
+	start = (UTF8*)static_data;	// Cast const away; we won't ever delete or mutate this
+	num_chars = _c;
+	num_bytes = _b;
+	num_alloc = 0;		// Never delete(start)
+
+	return StrVal(this);
+}
 
 StrBody::StrBody(const UTF8* data, CharBytes length, size_t allocate)
 : start(0)
@@ -837,15 +876,6 @@ StrBody::StrBody(const UTF8* data, CharBytes length, size_t allocate)
 		memcpy(start, data, length);
 	start[length] = '\0';
 	num_bytes = length;
-}
-
-StrBody*
-StrBody::Static(const UTF8* data)
-{
-	StrBody*	str = new StrBody();	// A null string, with an extra reference baked-in
-	str->start = (UTF8*)data;	// Cast away const. We won't ever change or delete this data
-	str->num_bytes = strlen(data);
-	return str;
 }
 
 // Return the next UCS4 character or UCS4_NONE
