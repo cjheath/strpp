@@ -27,7 +27,10 @@ int main(int argc, const char** argv)
 	for (int i = 0; i <= bar.length(); i++)
 		printf("\t%d: 0x%02X '%c'\n", i, bar[i], bar[i]);
 
-	StrVal	cstr = StrVal::Static("Borrow this data but don't fudge it");
+	// Static string test. The literal string must outlive the body, which must outlive the StrVal
+	StrBody	const_body("Borrow this data but don't fudge it\n", false);	// Don't copy this data
+	StrVal	cstr(&const_body);
+	fputs(cstr.substr(3).asUTF8(), stdout);
 
 	// printf("CompareCI = %d\n", StrVal::CompareCI);
 

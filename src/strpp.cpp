@@ -830,7 +830,7 @@ StrBody::StrBody()
 	AddRef();
 }
 
-StrBody::StrBody(const UTF8* data)
+StrBody::StrBody(const UTF8* data, bool copy)
 : start(0)
 , num_chars(0)
 , num_bytes(0)
@@ -838,9 +838,17 @@ StrBody::StrBody(const UTF8* data)
 {
 	size_t	length = strlen((const char*)data);
 
-	resize(length+1);	// Include space for a trailing NUL
-	memcpy(start, data, length);
-	start[length] = '\0';
+	if (copy)
+	{
+		resize(length+1);	// Include space for a trailing NUL
+		memcpy(start, data, length);
+		start[length] = '\0';
+	}
+	else
+	{
+		start = (UTF8*)data;	// Cast const away; copy==false implies no change
+		AddRef();		// Cannot be deleted or resized
+	}
 	num_bytes = length;
 }
 

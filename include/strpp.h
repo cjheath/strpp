@@ -164,7 +164,7 @@ public:
 
 	~StrBody();
 	StrBody();				// Null string constructor
-	StrBody(const UTF8* data);
+	StrBody(const UTF8* data, bool copy = true);
 	StrBody(const UTF8* data, CharBytes length, size_t allocate);
 
 	/*
