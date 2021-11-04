@@ -388,6 +388,7 @@ StrVal::insert(CharNum pos, const StrVal& addend)
 {
 	Unshare();
 	body->insert(pos, addend);
+	num_chars += addend.length();
 }
 
 void
@@ -406,6 +407,115 @@ StrBody::insert(CharNum pos, const StrVal& addend)
 	memcpy(insert_position, addend_data, addend_bytes);
 	num_bytes += addend_bytes;
 	num_chars += addend.length();
+}
+
+void
+StrVal::toLower()
+{
+	Unshare();
+	body->toLower();
+}
+
+void
+StrVal::toUpper()
+{
+	Unshare();
+	body->toUpper();
+}
+
+void
+StrBody::toLower()
+{
+	UTF8	one_char[7];
+	transform(
+		[&](const UTF8*& cp, const UTF8* ep) -> StrVal
+		{
+			UCS4	ch = UTF8Get(cp);	// Get UCS4 character
+			ch = UCS4ToLower(ch);		// Transform it
+			StrVal	lower;
+			lower += ch;
+			return lower;
+		}
+	);
+}
+
+void
+StrBody::toUpper()
+{
+	transform(
+		[](const UTF8*& cp, const UTF8* ep) -> StrVal
+		{
+			UCS4	ch = UTF8Get(cp);	// Get UCS4 character
+			ch = UCS4ToUpper(ch);		// Transform it
+			StrVal	upper;
+			upper += ch;
+			return upper;
+		}
+	);
+}
+
+/*
+ * At every character position after the given point, the passed transform function
+ * can extract any number of chars (limited by ep) and return a replacement StrVal for those chars.
+ * To leave the remainder untransformed, return without advancing cp
+ * (but a returned StrVal will still be inserted)
+ */
+void
+StrBody::transform(const std::function<StrVal(const UTF8*& cp, const UTF8* ep)> xform, int after)
+{
+	assert(ref_count <= 1);
+	UTF8*		old_start = start;
+	size_t		old_num_bytes = num_bytes;
+
+	// Allocate new data, preserving the old
+	start = 0;
+	num_chars = 0;
+	num_bytes = 0;
+	num_alloc = 0;
+	resize(old_num_bytes+6);		// Start with same allocation plus one character space
+
+	const UTF8*	up = old_start;		// Input pointer
+	const UTF8*	ep = old_start+old_num_bytes;	// Termination guard
+	CharNum		processed_chars = 0;	// Total input chars transformed
+	bool		stopped = false;	// Are we done yet?
+	UTF8*		op = start;		// Output pointer
+	while (up < ep)
+	{
+		const UTF8*	next = up;
+		if (processed_chars+1 > after+1	// Not yet reached the point to start transforming
+		 && !stopped)			// We have stopped transforming
+		{
+			StrVal		replacement = xform(next, ep);
+			CharBytes	replaced_bytes = next-up;	// How many bytes were consumed?
+			CharNum		replaced_chars = replacement.length();	// Replaced by how many chars?
+
+			// Advance 'up' over the replaced characters
+			while (up < next)
+			{
+				up += UTF8Len(up);
+				processed_chars++;
+			}
+
+			stopped |= (replaced_bytes == 0);
+
+			insert(num_chars, replacement);
+			op = start+num_bytes;
+		}
+		else
+		{		// Just copy one character and move on
+			UCS4	ch = UTF8Get(up);	// Get UCS4 character
+			processed_chars++;
+			if (num_alloc < (op-start+6+1))
+			{
+				resize((op-start)+6);	// Room for any char
+				op = start+num_bytes;	// Reset our output pointer in case start has changed
+			}
+			UTF8Put(op, ch);
+			num_bytes = op-start;
+			num_chars++;
+		}
+	}
+	delete [] old_start;
 }
 
 // REVISIT: Need a proper Unicode IsWhite method...
@@ -755,7 +865,7 @@ StrBody::charAt(CharBytes off)
 #endif
 }
 
-// Return the next UCS4 character or UCS4_NONE, advancing the offset
+// Return the next UCS4 character or UCS4_NONE, advancing 'off'
 UCS4
 StrBody::charNext(CharBytes& off)
 {
@@ -774,7 +884,7 @@ StrBody::charNext(CharBytes& off)
 #endif
 }
 
-// Return the preceeding UCS4 character or UCS4_NONE, backing up the offset
+// Return the preceeding UCS4 character or UCS4_NONE, backing up 'off'
 UCS4
 StrBody::charB4(CharBytes& off)
 {

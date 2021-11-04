@@ -11,6 +11,7 @@
  */
 #include	<stdlib.h>
 #include	<stdint.h>
+#include	<functional>
 
 #include	<refcount.h>
 #include	<char_encoding.h>
@@ -104,6 +105,11 @@ public:
 	void		append(const StrVal& addend)
 			{ insert(num_chars, addend); }
 
+	StrVal		asLower() const { StrVal lower(*this); lower.toLower(); return lower; }
+	StrVal		asUpper() const { StrVal upper(*this); upper.toUpper(); return upper; }
+	void		toLower();
+	void		toUpper();
+
 	/*
 	 * Convert a string to an integer, using radix (0 means use C rules)
          *
@@ -186,6 +192,17 @@ public:
 	// Mutating methods. Must only be called when refcount <= 1 (i.e., unshared)
 	void		remove(CharNum at, int len = -1);	// Delete a substring from the middle
 	void		insert(CharNum pos, const StrVal& addend);
+	void		insert(CharNum pos, const StrBody& addend);
+	void		toLower();
+	void		toUpper();
+
+	/*
+	 * At every character position after the given point, the passed transform function
+	 * can extract any number of chars (limited by ep) and return a replacement StrVal for those chars.
+	 * To leave the remainder untransformed, return without advancing cp
+	 * (but a returned StrVal will still be inserted)
+	 */
+	void		transform(const std::function<StrVal(const UTF8*& cp, const UTF8* ep)> xform, int after = -1);
 
 protected:
 	UTF8*		start;
