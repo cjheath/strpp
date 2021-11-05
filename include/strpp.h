@@ -16,9 +16,13 @@
 #include	<refcount.h>
 #include	<char_encoding.h>
 
-// These typedefs can be changed to uint16_t, which reduces storage and maximum string length to 65534
-typedef	uint32_t	CharNum;	// Character position (offset) within a string
+// Reduce string sizes to uint16_t (maximum string length to 65535), shrinking StrVal
+#if	defined	STRVAL_65K
+typedef	uint16_t	CharBytes;	// Byte position (offset) within a string
+#else
 typedef	uint32_t	CharBytes;	// Byte position (offset) within a string
+#endif
+typedef	CharBytes	CharNum;	// Character position (offset) within a string
 
 class	StrBody;
 
