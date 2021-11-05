@@ -859,6 +859,13 @@ StrBody::toUpper()
 	);
 }
 
+void
+StrVal::transform(const std::function<StrVal(const UTF8*& cp, const UTF8* ep)> xform, int after)
+{
+	Unshare();
+	body->transform(xform, after);
+}
+
 /*
  * At every character position after the given point, the passed transform function
  * can extract any number of chars (limited by ep) and return a replacement StrVal for those chars.

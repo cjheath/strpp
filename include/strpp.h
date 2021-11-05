@@ -108,6 +108,7 @@ public:
 	StrVal		asUpper() const { StrVal upper(*this); upper.toUpper(); return upper; }
 	void		toLower();
 	void		toUpper();
+	void		transform(const std::function<StrVal(const UTF8*& cp, const UTF8* ep)> xform, int after = -1);
 
 	/*
 	 * Convert a string to an integer, using radix (0 means use C rules)
@@ -200,7 +201,8 @@ public:
 	 * At every character position after the given point, the passed transform function can
 	 * extract any number of chars (limited by ep) and return a replacement StrVal for those chars.
 	 * To quit, leaving the remainder untransformed, return without advancing cp
-	 * (but a returned StrVal will still be inserted)
+	 * (but a returned StrVal will still be inserted).
+	 * None of the returned StrVals will be retained, so can use static StrBodys (or the same StrBody)
 	 */
 	void		transform(const std::function<StrVal(const UTF8*& cp, const UTF8* ep)> xform, int after = -1);
 
