@@ -402,13 +402,6 @@ StrVal::toUpper()
 	num_chars = body->numChars();
 }
 
-// REVISIT: Need a proper Unicode UCS4IsWhite method...
-static inline bool
-IsWhite(UCS4 ch)
-{
-	return (ch) == ' ' || (ch) == '\t' || (ch) == '\n' || (ch) == '\r' || (ch) == 0x00A0;
-}
-
 static inline int
 HexAlpha(UCS4 ch)
 {
@@ -462,7 +455,7 @@ StrVal::asInt32(
 	}
 
 	// Skip leading white-space
-	while (i < len && IsWhite(ch = (*this)[i]))
+	while (i < len && UCS4IsWhite(ch = (*this)[i]))
 		i++;
 	if (i == len)
 		goto no_digits;
@@ -472,7 +465,7 @@ StrVal::asInt32(
 	{
 		i++;
 		negative = ch == '-';
-		while (i < len && IsWhite(ch = (*this)[i]))
+		while (i < len && UCS4IsWhite(ch = (*this)[i]))
 			i++;
 		if (i == len)
 			goto no_digits;
@@ -538,7 +531,7 @@ StrVal::asInt32(
 		*err_return = 0;
 
 	// Check for trailing non-white characters
-	while (i < len && IsWhite((*this)[i]))
+	while (i < len && UCS4IsWhite((*this)[i]))
 		i++;
 	if (i != len && err_return)
 		*err_return = STRERR_TRAIL_TEXT;

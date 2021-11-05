@@ -34,6 +34,8 @@ public:
 	typedef enum {
 		CompareRaw,		// No processing, just the characters
 		CompareCI,		// Case independent
+		// REVISIT: Language-sensitive collation must consider 2-1 and 1-2 substitutions for each locale
+		// Then there's the issue of Unicode normalization (de/composition), which should use transform()
 		CompareNatural		// Natural comparison, with numeric strings by value
 	} CompareStyle;
 
@@ -44,13 +46,13 @@ public:
 	StrVal(const UTF8* data);	// construct by copying NUL-terminated UTF8 data
 	StrVal(const UTF8* data, CharBytes length, size_t allocate = 0); // construct from length-terminated UTF8 data
 	StrVal(UCS4 character);		// construct from single-character string
-	StrVal(StrBody* body);		// New reference to same string body
+	StrVal(StrBody* body);		// New reference to same string body; used for static strings
 
 	CharBytes	numBytes() const { return nthChar(num_chars)-nthChar(0); }
 	CharNum		length() const { return num_chars; }	// Number of chars
 	bool		isEmpty() const { return length() == 0; } // equals empty string?
 
-	// Access characters and UTF8 value:
+	// Access the characters and UTF8 value:
 	UCS4		operator[](int charNum) const;
 	const UTF8*	asUTF8();	// Null terminated. Must unshare data if it's a substring with elided suffix
 	const UTF8*	asUTF8(CharBytes& bytes) const;	// Returns the bytes, but doesn't guarantee NUL termination

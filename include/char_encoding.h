@@ -43,7 +43,15 @@ int		UCS4Digit(UCS4 ch);		// Digit value 0-9 or -1 if not digit
 UCS4		UCS4ToUpper(UCS4 ch);		// To upper case
 UCS4		UCS4ToLower(UCS4 ch);		// To lower case
 UCS4		UCS4ToTitle(UCS4 ch);		// To Title or upper case
-
+inline bool	UCS4IsWhite(UCS4 ch)
+		{
+			return ch == ' '
+				|| ch == '\t' || ch == '\n' || ch == '\r'
+				|| ch == 0x00A0
+				|| (ch >= 0x2000 && ch <= 0x200B)
+				|| (ch >= 0x2028 && ch <= 0x2029)
+				|| ch == 0x3000;
+		}
 inline bool	UCS4IsASCII(UCS4 ch) { return ch < 0x00000080; }
 inline bool	UCS4IsLatin1(UCS4 ch) { return ch < 0x00000100; }
 inline bool	UCS4IsUTF16(UCS4 ch) { return ch < 0x00010000; }
