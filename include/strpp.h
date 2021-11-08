@@ -8,6 +8,9 @@
  * - Unicode support using UTF-8
  * - Character indexing, not byte offsets
  * - Efficient forward and backward scanning using bookmarks to assist
+ *
+ * Not yet:
+ * - Unicode normalization (de/composition), see https://en.wikipedia.org/wiki/Unicode_equivalence
  */
 #include	<stdlib.h>
 #include	<stdint.h>
@@ -51,10 +54,12 @@ public:
 	StrVal(const UTF8* data, CharBytes length, size_t allocate = 0); // construct from length-terminated UTF8 data
 	StrVal(UCS4 character);		// construct from single-character string
 	StrVal(StrBody* body);		// New reference to same string body; used for static strings
+	static const StrVal	null;
 
 	CharBytes	numBytes() const { return nthChar(num_chars)-nthChar(0); }
 	CharNum		length() const { return num_chars; }	// Number of chars
 	bool		isEmpty() const { return length() == 0; } // equals empty string?
+	operator bool() const { return !isEmpty(); }
 
 	// Access the characters and UTF8 value:
 	UCS4		operator[](int charNum) const;

@@ -17,6 +17,7 @@
 #include	<stdio.h>
 
 StrBody	StrBody::nullBody;
+const StrVal	StrVal::null;
 
 // Empty string
 StrVal::StrVal()
@@ -82,6 +83,9 @@ StrVal::StrVal(const UTF8* data, CharBytes length, size_t allocate)
 
 // Single-character string
 StrVal::StrVal(UCS4 character)
+: body(0)
+, offset(0)
+, num_chars(0)
 {
 	UTF8	one_char[7];
 	UTF8*	op = one_char;		// Pack it into our local buffer
@@ -443,6 +447,9 @@ StrVal::asInt32(
 	unsigned long	l = 0;			// Number being converted
 	unsigned long	last;
 	unsigned long	max;
+
+	if (err_return)
+		err_return = 0;
 
 	// Check legal radix
 	if (radix < 0 || radix > 36)
