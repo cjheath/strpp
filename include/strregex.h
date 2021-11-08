@@ -21,8 +21,8 @@ public:
 		CEscapes	= 0x0000001,	// \0 \b \e \f \n \t \r
 		Shorthand	= 0x0000002,	// \s, later \d \w
 		OctalChar	= 0x0000004,	// \177 (1-3 digits)
-		HexChar		= 0x0000008,	// \xNN	(1-2 digits)
-		UnicodeChar	= 0x0000010,	// \uNNNNN (1-5 digits)
+		HexChar		= 0x0000008,	// \xNN	(1-2 hex digits)
+		UnicodeChar	= 0x0000010,	// \uNNNNN (1-5 hex digits)
 		PropertyChars	= 0x0000020,	// \p{Property_Name}, see https://unicode.org/reports/tr18/
 //		CharClass	= 0x0000040,	// [...], [^...]
 //		PosixClasses	= 0x0000080,	// [:digit:], [=e=], etc, in classes

@@ -18,8 +18,9 @@ RxCompiled::~RxCompiled()
 
 bool RxCompiled::supported(RxFeature feat)
 {
-	if (features_rejected & feat)
+	if ((features_rejected & feat) != 0)
 	{
+		// It would be nice to know the feature here, but we don't have format() yet
 		error_message = "Rejected feature";
 		return false;
 	}
@@ -40,6 +41,7 @@ bool RxCompiled::scan_rx(bool (*func)(RxOp op, StrVal param))
 	int		int_error = 0;
 	CharNum		scanned;
 	bool		ok = true;
+	int		min, max;
 
 	ok = func(RxOp::RxoStart, StrVal::null);
 	for (; i < re.length(); i++)
@@ -88,7 +90,41 @@ bool RxCompiled::scan_rx(bool (*func)(RxOp op, StrVal param))
 		case '{':
 			if (!supported(CountRepetition))
 				goto simple_char;
-			// REVISIT: Implement counted repetition
+			param = re.substr(++i);
+			min = max = -1;
+			// Find the end of the first number:
+			close = param.find(',');
+			if (close < 0)
+				close = param.find('}'); // Just one number?
+			if (close < 0)
+			{
+		bad_repetition:	error_message = "Bad repetition count";
+				break;
+			}
+			if (close > 0)
+			{
+				min = param.substr(0, close).asInt32(&int_error, 10, &scanned);
+				if (int_error)
+					goto bad_repetition;
+			} // else min == -1
+			i += close+1;	// Skip the ',' or '}'
+
+			if (re[i-1] == ',')		// There is a second number
+			{
+				param = re.substr(i);
+				close = param.find('}');
+				if (close < 0)
+					goto bad_repetition;
+				max = param.substr(0, close).asInt32(&int_error, 10, &scanned);
+				if (int_error)
+					goto bad_repetition;
+				i += close+1;
+			}
+			else
+				max = min;		// Exact repetition count
+
+			// REVISIT: Yield counted repetition
+			printf("RxoCountedRepetition(%d, %d)\n", min, max);
 			// ok = func(RxOp::RxoOneOrMore, StrVal::null);
 			break;
 
