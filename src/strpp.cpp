@@ -449,7 +449,7 @@ StrVal::asInt32(
 	unsigned long	max;
 
 	if (err_return)
-		err_return = 0;
+		*err_return = 0;
 
 	// Check legal radix
 	if (radix < 0 || radix > 36)
@@ -478,39 +478,39 @@ StrVal::asInt32(
 			goto no_digits;
 	}
 
-	// Auto-detect radix (octal, decimal, binary)
-	if (UCS4Digit(ch) == 0 && i+1 < len)
+	if (radix == 0)		// Auto-detect radix (octal, decimal, binary)
 	{
-		// ch is the digit zero, look ahead
-		switch ((*this)[i+1])
+		if (UCS4Digit(ch) == 0 && i+1 < len)
 		{
-		case 'b': case 'B':
-			if (radix == 0 || radix == 2)
+			// ch is the digit zero, look ahead
+			switch ((*this)[i+1])
 			{
-				radix = 2;
-				ch = (*this)[i += 2];
-				if (i == len)
-					goto no_digits;
+			case 'b': case 'B':
+				if (radix == 0 || radix == 2)
+				{
+					radix = 2;
+					ch = (*this)[i += 2];
+					if (i == len)
+						goto no_digits;
+				}
+				break;
+			case 'x': case 'X':
+				if (radix == 0 || radix == 16)
+				{
+					radix = 16;
+					ch = (*this)[i += 2];
+					if (i == len)
+						goto no_digits;
+				}
+				break;
+			default:
+				if (radix == 0)
+					radix = 8;
+				break;
 			}
-			break;
-		case 'x': case 'X':
-			if (radix == 0 || radix == 16)
-			{
-				radix = 16;
-				ch = (*this)[i += 2];
-				if (i == len)
-					goto no_digits;
-			}
-			break;
-		default:
-			if (radix == 0)
-				radix = 8;
-			break;
 		}
-	}
-	else if (radix == 0)
-	{
-		radix = 10;
+		else
+			radix = 10;
 	}
 
 	// Check there's at least one digit:
