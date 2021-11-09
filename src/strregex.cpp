@@ -121,7 +121,9 @@ bool RxCompiled::scan_rx(bool (*func)(const RxInstruction&))
 				if (close < 0)
 					goto bad_repetition;
 				max = param.substr(0, close).asInt32(&int_error, 10, &scanned);
-				if (int_error)
+				if (int_error == STRERR_NO_DIGITS)
+					max = 0;
+				else if (int_error)
 					goto bad_repetition;
 				i += close+1;
 			}
