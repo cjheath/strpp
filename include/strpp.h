@@ -41,7 +41,7 @@ public:
 	typedef enum {
 		CompareRaw,		// No processing, just the characters
 		CompareCI,		// Case independent
-		// REVISIT: Language-sensitive collation must consider 2-1 and 1-2 substitutions for each locale
+		// REVISIT: Language-sensitive collation must consider 2-1 and 1-2 digraphs for each locale
 		// Then there's the issue of Unicode normalization (de/composition), which should use transform()
 		CompareNatural		// Natural comparison, with numeric strings by value
 	} CompareStyle;

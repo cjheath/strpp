@@ -32,7 +32,12 @@ bool RxCompiled::enabled(RxFeature feat)
 	return (features_enabled & feat) != 0;
 }
 
-bool RxCompiled::scan_rx(bool (*func)(RxOp op, StrVal param))
+RxCompiled::RxInstruction::RxInstruction(RxOp _op) : op(_op), cclass(0) { }
+RxCompiled::RxInstruction::RxInstruction(RxOp _op, StrVal _str) : op(_op), str(_str), cclass(0) { }
+RxCompiled::RxInstruction::RxInstruction(RxOp _op, int min, int max) : op(_op), repetition(min, max), cclass(0) { }
+RxCompiled::RxInstruction::RxInstruction(RxOp _op, int num_cclass) : op(_op), cclass(new CharClass[num_cclass]) { }
+
+bool RxCompiled::scan_rx(bool (*func)(const RxInstruction&))
 {
 	int		i = 0;		// Regex character offset
 	UCS4		ch;		// A single character to match
@@ -43,7 +48,7 @@ bool RxCompiled::scan_rx(bool (*func)(RxOp op, StrVal param))
 	bool		ok = true;
 	int		min, max;
 
-	ok = func(RxOp::RxoStart, StrVal::null);
+	ok = func(RxInstruction(RxOp::RxoStart));
 	for (; i < re.length(); i++)
 	{
 		switch (ch = re[i])	// Breaking from this switch indicates an error and stops the scan
@@ -51,47 +56,47 @@ bool RxCompiled::scan_rx(bool (*func)(RxOp op, StrVal param))
 		case '^':
 			if (!supported(BOL))
 				goto simple_char;
-			ok = func(RxOp::RxoBOL, StrVal::null);
+			ok = func(RxInstruction(RxOp::RxoBOL));
 			continue;
 
 		case '$':
 			if (!supported(EOL))
 				goto simple_char;
-			ok = func(RxOp::RxoEOL, StrVal::null);
+			ok = func(RxInstruction(RxOp::RxoEOL));
 			continue;
 
 		case '.':
 			if (enabled(AnyIsQuest))
 				goto simple_char;	// if using ?, . is a simple char
-			ok = func(RxOp::RxoAny, StrVal::null);
+			ok = func(RxInstruction(RxOp::RxoAny));
 			continue;
 
 		case '?':
 			if (enabled(AnyIsQuest))
-				ok = func(RxOp::RxoAny, StrVal::null);	// Shell-style any-char wildcard
+				ok = func(RxInstruction(RxOp::RxoAny));	// Shell-style any-char wildcard
 			else
-				ok = func(RxOp::RxoZeroOrOne, StrVal::null);	// Previous elem is optional
+				ok = func(RxInstruction(RxOp::RxoRepetition, 0, 1));	// Previous elem is optional
 			continue;
 
 		case '*':
 			if (!supported(ZeroOrMore))
 				goto simple_char;
 			if (enabled(ZeroOrMoreAny))
-				ok = func(RxOp::RxoAny, StrVal::null);
-			ok = func(RxOp::RxoZeroOrMore, StrVal::null);
+				ok = func(RxInstruction(RxOp::RxoAny));
+			ok = func(RxInstruction(RxOp::RxoRepetition, 0, 0));
 			continue;
 
 		case '+':
 			if (!supported(OneOrMore))
 				goto simple_char;
-			ok = func(RxOp::RxoOneOrMore, StrVal::null);
+			ok = func(RxInstruction(RxOp::RxoRepetition, 1, 0));
 			continue;
 
 		case '{':
 			if (!supported(CountRepetition))
 				goto simple_char;
 			param = re.substr(++i);
-			min = max = -1;
+			min = max = 0;
 			// Find the end of the first number:
 			close = param.find(',');
 			if (close < 0)
@@ -106,7 +111,7 @@ bool RxCompiled::scan_rx(bool (*func)(RxOp op, StrVal param))
 				min = param.substr(0, close).asInt32(&int_error, 10, &scanned);
 				if (int_error)
 					goto bad_repetition;
-			} // else min == -1
+			} // else min == 0
 			i += close+1;	// Skip the ',' or '}'
 
 			if (re[i-1] == ',')		// There is a second number
@@ -123,20 +128,18 @@ bool RxCompiled::scan_rx(bool (*func)(RxOp op, StrVal param))
 			else
 				max = min;		// Exact repetition count
 
-			// REVISIT: Yield counted repetition
-			printf("RxoCountedRepetition(%d, %d)\n", min, max);
-			// ok = func(RxOp::RxoOneOrMore, StrVal::null);
-			break;
+			ok = func(RxInstruction(RxOp::RxoRepetition, min, max));
+			continue;
 
 		case '\\':		// Escape sequence
-			switch (re[++i])
+			switch (ch = re[++i])
 			{
-			case 'b': if (!enabled(CEscapes)) goto simple_escape; ok = func(RxOp::RxoChar, '\b'); continue;
-			case 'e': if (!enabled(CEscapes)) goto simple_escape; ok = func(RxOp::RxoChar, '\e'); continue;
-			case 'f': if (!enabled(CEscapes)) goto simple_escape; ok = func(RxOp::RxoChar, '\f'); continue;
-			case 'n': if (!enabled(CEscapes)) goto simple_escape; ok = func(RxOp::RxoChar, '\n'); continue;
-			case 't': if (!enabled(CEscapes)) goto simple_escape; ok = func(RxOp::RxoChar, '\t'); continue;
-			case 'r': if (!enabled(CEscapes)) goto simple_escape; ok = func(RxOp::RxoChar, '\r'); continue;
+			case 'b': if (!enabled(CEscapes)) goto simple_escape; ch = '\b'; goto escaped_char;
+			case 'e': if (!enabled(CEscapes)) goto simple_escape; ch = '\033'; goto escaped_char;
+			case 'f': if (!enabled(CEscapes)) goto simple_escape; ch = '\f'; goto escaped_char;
+			case 'n': if (!enabled(CEscapes)) goto simple_escape; ch = '\n'; goto escaped_char;
+			case 't': if (!enabled(CEscapes)) goto simple_escape; ch = '\t'; goto escaped_char;
+			case 'r': if (!enabled(CEscapes)) goto simple_escape; ch = '\r'; goto escaped_char;
 
 			case '0': case '1': case '2': case '3':	// Octal char constant
 			case '4': case '5': case '6': case '7':
@@ -150,8 +153,7 @@ bool RxCompiled::scan_rx(bool (*func)(RxOp op, StrVal param))
 					break;
 				}
 				i += scanned;
-				ok = func(RxOp::RxoChar, ch);
-				continue;
+				goto escaped_char;
 
 			case 'x':			// Hex byte (1 or 2 hex digits follow)
 				if (!enabled(HexChar))
@@ -164,8 +166,7 @@ bool RxCompiled::scan_rx(bool (*func)(RxOp op, StrVal param))
 					break;
 				}
 				i += scanned;
-				ok = func(RxOp::RxoChar, ch);
-				continue;
+				goto escaped_char;
 
 			case 'u':			// Unicode (1-5 hex digits follow)
 				if (!enabled(UnicodeChar))
@@ -174,17 +175,17 @@ bool RxCompiled::scan_rx(bool (*func)(RxOp op, StrVal param))
 				ch = param.asInt32(&int_error, 16, &scanned);
 				if (int_error || scanned == 0)
 				{
-					error_message = "Illegal escaped unicode character";
+					error_message = "Illegal Unicode escape";
 					break;
 				}
 				i += scanned;
-				ok = func(RxOp::RxoChar, ch);
+		escaped_char:	ok = func(RxInstruction(RxOp::RxoChar, ch));
 				continue;
 
 			case 's':			// Whitespace
 				if (!enabled(Shorthand))
 					goto simple_escape;
-				ok = func(RxOp::RxoCharProperty, ' ');
+				ok = func(RxInstruction(RxOp::RxoCharProperty, ' '));
 				continue;
 
 			case 'p':			// Posix character type
@@ -192,7 +193,7 @@ bool RxCompiled::scan_rx(bool (*func)(RxOp op, StrVal param))
 					goto simple_escape;
 				if (re[++i] != '{')
 				{
-			bad_posix:	error_message = "Illegal Posix character specification";
+		bad_posix:		error_message = "Illegal Posix character specification";
 					break;
 				}
 				param = re.substr(i+1);
@@ -201,24 +202,25 @@ bool RxCompiled::scan_rx(bool (*func)(RxOp op, StrVal param))
 					goto bad_posix;
 				param = param.substr(0, close); // Truncate name to before '}'
 				i += close;	// Now pointing at the '}'
-				ok = func(RxOp::RxoCharProperty, param);
+				ok = func(RxInstruction(RxOp::RxoCharProperty, param));
 				continue;
 
 			default:
 			simple_escape:
-				ok = func(RxOp::RxoChar, re[i]);
+				ok = func(RxInstruction(RxOp::RxoChar, re.substr(i, 1)));
 				continue;
 			}
 			break;
 
 		case '[':		// Character class
 			// REVISIT: implement character classes
-			break;
+			ok = func(RxInstruction(RxOp::RxoCharClass, 0));
+			continue;
 
 		case '|':
 			if (!supported(Alternates))
 				goto simple_char;
-			ok = func(RxOp::RxoAlternate, StrVal::null);
+			ok = func(RxInstruction(RxOp::RxoAlternate));
 			continue;
 
 		case '(':
@@ -227,7 +229,7 @@ bool RxCompiled::scan_rx(bool (*func)(RxOp op, StrVal param))
 			if (!enabled((RxFeature)(Capture|NonCapture|NegLookahead|Subroutine)) // not doing fancy groups
 			 || re[i+1] != '?')					// or this one is plain
 			{		// Anonymous group
-				ok = func(RxOp::RxoNonCapturingGroup, StrVal::null);
+				ok = func(RxInstruction(RxOp::RxoNonCapturingGroup));
 				continue;
 			}
 
@@ -238,22 +240,22 @@ bool RxCompiled::scan_rx(bool (*func)(RxOp op, StrVal param))
 				close = param.find('>');
 				if (close <= 0)
 				{
-			bad_capture:	error_message = "Invalid group name";
+		bad_capture:		error_message = "Invalid group name";
 					break;
 				}
 				param = param.substr(0, close);		// Truncate name to before >
 				i += close+1;
-				ok = func(RxOp::RxoNamedCapture, param);
+				ok = func(RxInstruction(RxOp::RxoNamedCapture, param));
 				continue;
 			}
 			else if (supported(NonCapture) && re[i] == ':')	// Noncapturing group
 			{
-				ok = func(RxOp::RxoNonCapturingGroup, StrVal::null);
+				ok = func(RxInstruction(RxOp::RxoNonCapturingGroup));
 				continue;
 			}
 			else if (supported(NegLookahead) && re[i] == '!') // Negative Lookahead
 			{
-				ok = func(RxOp::RxoNegLookahead, StrVal::null);
+				ok = func(RxInstruction(RxOp::RxoNegLookahead));
 				continue;
 			}
 			else if (re[i] == '&')				// Subroutine
@@ -263,13 +265,13 @@ bool RxCompiled::scan_rx(bool (*func)(RxOp op, StrVal param))
 				if (close <= 0)
 					goto bad_capture;
 				param = param.substr(0, close); // Truncate name to before >
-				ok = func(RxOp::RxoSubroutine, param);
+				ok = func(RxInstruction(RxOp::RxoSubroutine, param));
 				i += close;	// Now pointing at the ')'
 				continue;
 			}
 			else
 			{
-				error_message = "illegal group type";
+				error_message = "Illegal group type";
 				break;
 			}
 			continue;
@@ -277,12 +279,12 @@ bool RxCompiled::scan_rx(bool (*func)(RxOp op, StrVal param))
 		case ')':
 			if (!enabled(Group))
 				goto simple_char;
-			ok = func(RxOp::RxoEndGroup, StrVal::null);
+			ok = func(RxInstruction(RxOp::RxoEndGroup));
 			continue;
 
 		default:
 		simple_char:
-			ok = func(RxOp::RxoChar, ch);
+			ok = func(RxInstruction(RxOp::RxoChar, re.substr(i, 1)));
 			continue;
 		}
 
@@ -290,7 +292,7 @@ bool RxCompiled::scan_rx(bool (*func)(RxOp op, StrVal param))
 	}
 	if (i >= re.length())	// If we didn't complete, there was an error
 	{
-		ok = func(RxOp::RxoEnd, StrVal::null);
+		ok = func(RxInstruction(RxOp::RxoEnd));
 		return true;
 	}
 	return false;

@@ -12,6 +12,7 @@ class RxCompiled
 {
 protected:
 	enum class RxOp: unsigned char;
+	class RxInstruction;
 
 public:
 	enum RxFeature {
@@ -54,7 +55,7 @@ public:
 	RxCompiled(StrVal re, RxFeature reject_features = NoFeature, RxFeature ignore_features = NoFeature);
 
 	// Lexical scanner for a regular expression. Returns false if error_message gets set.
-	bool		scan_rx(bool (*func)(RxOp op, StrVal param));
+	bool		scan_rx(bool (*func)(const RxInstruction&));
 
 	const char*	ErrorMessage() const { return error_message; }
 
@@ -74,10 +75,7 @@ protected:
 		RxoCharClass,		// Character class
 		RxoNegCharClass,	// Negated Character class
 		RxoAny,			// Any single char
-		RxoZeroOrOne,		// ?
-		RxoZeroOrMore,		// *
-		RxoOneOrMore,		// +
-		RxoCountedRepetition,	// {n, m}
+		RxoRepetition,		// {n, m}
 		RxoNonCapturingGroup,	// (...)
 		RxoNamedCapture,	// (?<name>...)
 		RxoNegLookahead,	// (?!...)
@@ -87,30 +85,37 @@ protected:
 		RxoEnd			// Termination condition
 	};
 
-	struct CharClass {
-		// REVISIT: Implement character classes
+	struct RepetitionRange
+	{
+		RepetitionRange() : min(0), max(0) {}
+		RepetitionRange(int n, int x) : min(n), max(x) {}
+		uint16_t	min;
+		uint16_t	max;
 	};
-	class RxInstruction {
+
+	struct CharClass
+	{
+		// REVISIT: Implement character classes
+		UCS4		first;
+		UCS4		last;
+		StrVal		property;
+	};
+
+	class RxInstruction
+	{
 	public:
-		RxOp		op;
-		union {
-			StrVal*		str;
-			struct {
-				uint16_t	min;
-				uint16_t	max;
-			} repetition;
-			CharClass*	cclass;
-		};
+		RxOp		op;		// 
+		RepetitionRange	repetition;	// How many repetitions?
+		StrVal		str;		// RxoNamedCapture, RxoSubroutine
+		CharClass*	cclass; 	// RxoCharClass,  RxoNegCharClass
 
 		RxInstruction(RxOp);
 		RxInstruction(RxOp, StrVal);
 		RxInstruction(RxOp, int min, int max);
-		RxInstruction(RxOp, CharClass*);
-		~RxInstruction() {
-			// Clean up according to type.
-			if (op == RxOp::RxoNamedCapture || op == RxOp::RxoSubroutine)
-				delete str;
-			else if (op == RxOp::RxoCharClass || op == RxOp::RxoNegCharClass)
+		RxInstruction(RxOp, int num_cclass);	// Allocate space, class values will be assigned
+		~RxInstruction()
+		{
+			if (cclass)
 				delete[] cclass;
 		}
 	};

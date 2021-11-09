@@ -151,10 +151,10 @@ StrVal::compare(const StrVal& comparand, CompareStyle style) const
 		return memcmp(nthChar(0), comparand.nthChar(0), body->numBytes());
 
 	case CompareCI:
-		assert(!"REVISIT: Not implemented");
+		assert(!"REVISIT: Case-independent comparison is not implemented");
 
 	case CompareNatural:
-		assert(!"REVISIT: Not implemented");
+		assert(!"REVISIT: Natural comparison is not implemented");
 
 	default:
 		return 0;
