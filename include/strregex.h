@@ -93,31 +93,16 @@ protected:
 		uint16_t	max;
 	};
 
-	struct CharClass
-	{
-		// REVISIT: Implement character classes
-		UCS4		first;
-		UCS4		last;
-		StrVal		property;
-	};
-
 	class RxInstruction
 	{
 	public:
-		RxOp		op;		// 
+		RxOp		op;		// The instruction code
 		RepetitionRange	repetition;	// How many repetitions?
-		StrVal		str;		// RxoNamedCapture, RxoSubroutine
-		CharClass*	cclass; 	// RxoCharClass,  RxoNegCharClass
+		StrVal		str;		// RxoNamedCapture, RxoSubroutine, RxoCharClass, RxoNegCharClass
 
 		RxInstruction(RxOp);
 		RxInstruction(RxOp, StrVal);
 		RxInstruction(RxOp, int min, int max);
-		RxInstruction(RxOp, int num_cclass);	// Allocate space, class values will be assigned
-		~RxInstruction()
-		{
-			if (cclass)
-				delete[] cclass;
-		}
 	};
 
 	bool		supported(RxFeature);	// Set error message and return false on rejected feature use

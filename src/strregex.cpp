@@ -32,10 +32,9 @@ bool RxCompiled::enabled(RxFeature feat)
 	return (features_enabled & feat) != 0;
 }
 
-RxCompiled::RxInstruction::RxInstruction(RxOp _op) : op(_op), cclass(0) { }
-RxCompiled::RxInstruction::RxInstruction(RxOp _op, StrVal _str) : op(_op), str(_str), cclass(0) { }
-RxCompiled::RxInstruction::RxInstruction(RxOp _op, int min, int max) : op(_op), repetition(min, max), cclass(0) { }
-RxCompiled::RxInstruction::RxInstruction(RxOp _op, int num_cclass) : op(_op), cclass(new CharClass[num_cclass]) { }
+RxCompiled::RxInstruction::RxInstruction(RxOp _op) : op(_op) { }
+RxCompiled::RxInstruction::RxInstruction(RxOp _op, StrVal _str) : op(_op), str(_str) { }
+RxCompiled::RxInstruction::RxInstruction(RxOp _op, int min, int max) : op(_op), repetition(min, max) { }
 
 bool RxCompiled::scan_rx(bool (*func)(const RxInstruction&))
 {
@@ -238,8 +237,14 @@ bool RxCompiled::scan_rx(bool (*func)(const RxInstruction&))
 			if (!supported(CharClasses))
 				goto simple_char;
 			if (!(ok = flush())) continue;
+			/*
+			 * A Character class is compiled as a string containing pairs of characters.
+			 * Each pair determines an (inclusive) subrange of UCS4 characters.
+			 * Character Property groups use non-Unicode UCS4 characters to denote the group.
+			 * REVISIT: methods for allocating property group codes are under consideration
+			 */
 			// REVISIT: implement character classes
-			ok = func(RxInstruction(RxOp::RxoCharClass, 0));
+			ok = func(RxInstruction(RxOp::RxoCharClass, ""));
 			continue;
 
 		case '|':
