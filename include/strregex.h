@@ -65,11 +65,11 @@ protected:
 	RxFeature	features_rejected;	// but these features cause an error if used
 	const char*	error_message;
 
-	// Regular expression opcodes
+	// Regular expression instructions
 	enum class RxOp: unsigned char {
 		RxoStart,		// Place to start the DFA
-		RxoChar,		// A specific char
-		RxoCharProperty,	// A char with a named Unicode property
+		RxoLiteral,		// A string of specific characters
+		RxoCharProperty,	// A character with a named Unicode property
 		RxoBOL,			// Beginning of Line
 		RxoEOL,			// End of Line
 		RxoCharClass,		// Character class

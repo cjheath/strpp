@@ -60,6 +60,7 @@ public:
 	CharNum		length() const { return num_chars; }	// Number of chars
 	bool		isEmpty() const { return length() == 0; } // equals empty string?
 	operator bool() const { return !isEmpty(); }
+	inline bool	isShared() const;
 
 	// Access the characters and UTF8 value:
 	UCS4		operator[](int charNum) const;
@@ -231,4 +232,10 @@ protected:
 
 	StrBody(StrBody&) { }		// Never copy a body
 };
+
+bool
+StrVal::isShared() const
+{
+	return body->GetRefCount() > 1;
+}
 #endif

@@ -47,6 +47,16 @@ bool RxCompiled::scan_rx(bool (*func)(const RxInstruction&))
 	CharNum		scanned;
 	bool		ok = true;
 	int		min, max;
+	StrVal		delayed;	// A sequence of ordinary characters to be matched.
+	auto		flush = [&delayed, func]() {
+				if (delayed.length() > 0)
+				{
+					bool	ok = func(RxInstruction(RxOp::RxoLiteral, delayed));
+					delayed = "";
+					return ok;
+				}
+				return true;
+			};
 
 	ok = func(RxInstruction(RxOp::RxoStart));
 	for (; ok && i < re.length(); i++)
@@ -56,22 +66,26 @@ bool RxCompiled::scan_rx(bool (*func)(const RxInstruction&))
 		case '^':
 			if (!supported(BOL))
 				goto simple_char;
+			if (!(ok = flush())) continue;
 			ok = func(RxInstruction(RxOp::RxoBOL));
 			continue;
 
 		case '$':
 			if (!supported(EOL))
 				goto simple_char;
+			if (!(ok = flush())) continue;
 			ok = func(RxInstruction(RxOp::RxoEOL));
 			continue;
 
 		case '.':
 			if (enabled(AnyIsQuest))
 				goto simple_char;	// if using ?, . is a simple char
+			if (!(ok = flush())) continue;
 			ok = func(RxInstruction(RxOp::RxoAny));
 			continue;
 
 		case '?':
+			if (!(ok = flush())) continue;
 			if (enabled(AnyIsQuest))
 				ok = func(RxInstruction(RxOp::RxoAny));	// Shell-style any-char wildcard
 			else
@@ -81,6 +95,7 @@ bool RxCompiled::scan_rx(bool (*func)(const RxInstruction&))
 		case '*':
 			if (!supported(ZeroOrMore))
 				goto simple_char;
+			if (!(ok = flush())) continue;
 			if (enabled(ZeroOrMoreAny))
 				ok = func(RxInstruction(RxOp::RxoAny));
 			ok = func(RxInstruction(RxOp::RxoRepetition, 0, 0));
@@ -89,12 +104,14 @@ bool RxCompiled::scan_rx(bool (*func)(const RxInstruction&))
 		case '+':
 			if (!supported(OneOrMore))
 				goto simple_char;
+			if (!(ok = flush())) continue;
 			ok = func(RxInstruction(RxOp::RxoRepetition, 1, 0));
 			continue;
 
 		case '{':
 			if (!supported(CountRepetition))
 				goto simple_char;
+			if (!(ok = flush())) continue;
 			param = re.substr(++i);
 			min = max = 0;
 			// Find the end of the first number:
@@ -181,18 +198,21 @@ bool RxCompiled::scan_rx(bool (*func)(const RxInstruction&))
 					break;
 				}
 				i += scanned-1;	// The loop will advance one character
-		escaped_char:	ok = func(RxInstruction(RxOp::RxoChar, ch));
+		escaped_char:	delayed += ch;
+				ok = true;
 				continue;
 
 			case 's':			// Whitespace
 				if (!enabled(Shorthand))
 					goto simple_escape;
+				if (!(ok = flush())) continue;
 				ok = func(RxInstruction(RxOp::RxoCharProperty, ' '));
 				continue;
 
 			case 'p':			// Posix character type
 				if (!enabled(PropertyChars))
 					goto simple_escape;
+				if (!(ok = flush())) continue;
 				if (re[++i] != '{')
 				{
 		bad_posix:		error_message = "Illegal Posix character specification";
@@ -208,8 +228,8 @@ bool RxCompiled::scan_rx(bool (*func)(const RxInstruction&))
 				continue;
 
 			default:
-			simple_escape:
-				ok = func(RxInstruction(RxOp::RxoChar, re.substr(i, 1)));
+		simple_escape:
+				delayed += re[i];
 				continue;
 			}
 			break;
@@ -217,6 +237,7 @@ bool RxCompiled::scan_rx(bool (*func)(const RxInstruction&))
 		case '[':		// Character class
 			if (!supported(CharClasses))
 				goto simple_char;
+			if (!(ok = flush())) continue;
 			// REVISIT: implement character classes
 			ok = func(RxInstruction(RxOp::RxoCharClass, 0));
 			continue;
@@ -224,12 +245,14 @@ bool RxCompiled::scan_rx(bool (*func)(const RxInstruction&))
 		case '|':
 			if (!supported(Alternates))
 				goto simple_char;
+			if (!(ok = flush())) continue;
 			ok = func(RxInstruction(RxOp::RxoAlternate));
 			continue;
 
 		case '(':
 			if (!supported(Group))
 				goto simple_char;
+			if (!(ok = flush())) continue;
 			if (!enabled((RxFeature)(Capture|NonCapture|NegLookahead|Subroutine)) // not doing fancy groups
 			 || re[i+1] != '?')					// or this one is plain
 			{		// Anonymous group
@@ -283,17 +306,27 @@ bool RxCompiled::scan_rx(bool (*func)(const RxInstruction&))
 		case ')':
 			if (!enabled(Group))
 				goto simple_char;
+			if (!(ok = flush())) continue;
 			ok = func(RxInstruction(RxOp::RxoEndGroup));
 			continue;
 
 		default:
 		simple_char:
-			ok = func(RxInstruction(RxOp::RxoChar, re.substr(i, 1)));
+			if (delayed.length() == 0)
+				delayed = re.substr(i, 1);	// Start an re substring - lower cost
+			else if (delayed.isShared())		// Continue an re substring
+				delayed = re.substr(i-delayed.length(), delayed.length()+1);
+			else					// Not using an re substring
+			{
+				printf("Adding simple_char '%c'\n", (char)re[i]);
+				delayed += re.substr(i, 1);
+			}
 			continue;
 		}
 
 		break;
 	}
+	(void)flush();
 	if (i >= re.length())	// If we didn't complete, there was an error
 	{
 		ok = func(RxInstruction(RxOp::RxoEnd));

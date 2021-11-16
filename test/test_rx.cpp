@@ -15,8 +15,8 @@ bool re_lex(const RxCompiled::RxInstruction& instr)
 	{
 	case RxCompiled::RxOp::RxoStart:		// Place to start the DFA
 		op_name = "Start"; break;
-	case RxCompiled::RxOp::RxoChar:			// A specific char
-		op_name = "Char"; break;
+	case RxCompiled::RxOp::RxoLiteral:		// A specific string
+		op_name = "Literal"; break;
 	case RxCompiled::RxOp::RxoCharProperty:		// A char with a named Unicode property
 		op_name = "CharProperty"; break;
 	case RxCompiled::RxOp::RxoBOL:			// Beginning of Line
