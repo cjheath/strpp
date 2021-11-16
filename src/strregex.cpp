@@ -49,7 +49,7 @@ bool RxCompiled::scan_rx(bool (*func)(const RxInstruction&))
 	int		min, max;
 
 	ok = func(RxInstruction(RxOp::RxoStart));
-	for (; i < re.length(); i++)
+	for (; ok && i < re.length(); i++)
 	{
 		switch (ch = re[i])	// Breaking from this switch indicates an error and stops the scan
 		{
@@ -149,12 +149,12 @@ bool RxCompiled::scan_rx(bool (*func)(const RxInstruction&))
 					goto simple_escape;
 				param = re.substr(i, 3);
 				ch = param.asInt32(&int_error, 8, &scanned);
-				if (int_error || scanned == 0)
-				{		// I don't think this can happen
+				if ((int_error && int_error != STRERR_TRAIL_TEXT) || scanned == 0)
+				{
 					error_message = "Illegal octal character";
 					break;
 				}
-				i += scanned;
+				i += scanned-1;
 				goto escaped_char;
 
 			case 'x':			// Hex byte (1 or 2 hex digits follow)
@@ -162,12 +162,12 @@ bool RxCompiled::scan_rx(bool (*func)(const RxInstruction&))
 					goto simple_escape;
 				param = re.substr(++i, 2);
 				ch = param.asInt32(&int_error, 16, &scanned);
-				if (int_error || scanned == 0)
+				if ((int_error && int_error != STRERR_TRAIL_TEXT) || scanned == 0)
 				{
 					error_message = "Illegal hexadecimal character";
 					break;
 				}
-				i += scanned;
+				i += scanned-1;
 				goto escaped_char;
 
 			case 'u':			// Unicode (1-5 hex digits follow)
@@ -175,12 +175,12 @@ bool RxCompiled::scan_rx(bool (*func)(const RxInstruction&))
 					goto simple_escape;
 				param = re.substr(++i, 5);
 				ch = param.asInt32(&int_error, 16, &scanned);
-				if (int_error || scanned == 0)
+				if ((int_error && int_error != STRERR_TRAIL_TEXT) || scanned == 0)
 				{
 					error_message = "Illegal Unicode escape";
 					break;
 				}
-				i += scanned;
+				i += scanned-1;	// The loop will advance one character
 		escaped_char:	ok = func(RxInstruction(RxOp::RxoChar, ch));
 				continue;
 
@@ -215,6 +215,8 @@ bool RxCompiled::scan_rx(bool (*func)(const RxInstruction&))
 			break;
 
 		case '[':		// Character class
+			if (!supported(CharClasses))
+				goto simple_char;
 			// REVISIT: implement character classes
 			ok = func(RxInstruction(RxOp::RxoCharClass, 0));
 			continue;

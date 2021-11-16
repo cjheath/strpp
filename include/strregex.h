@@ -25,12 +25,12 @@ public:
 		HexChar		= 0x0000008,	// \xNN	(1-2 hex digits)
 		UnicodeChar	= 0x0000010,	// \uNNNNN (1-5 hex digits)
 		PropertyChars	= 0x0000020,	// \p{Property_Name}, see https://unicode.org/reports/tr18/
-//		CharClass	= 0x0000040,	// [...], [^...]
+		CharClasses	= 0x0000040,	// [...], [^...]
 //		PosixClasses	= 0x0000080,	// [:digit:], [=e=], etc, in classes
 		// Kinds of multiplicity:
-		ZeroOrMore	= 0x0000100,	// *, zero or more
-		OneOrMore	= 0x0000200,	// +, one or more
-		ZeroOrOneQuest	= 0x0000400,	// ?, zero or one
+		ZeroOrOneQuest	= 0x0000100,	// ?, zero or one
+		ZeroOrMore	= 0x0000200,	// *, zero or more
+		OneOrMore	= 0x0000400,	// +, one or more
 		CountRepetition	= 0x0000800,	// {n, m}
 		// Groups of regular expressions:
 		Alternates	= 0x0001000,	// re1|re2
