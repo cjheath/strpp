@@ -32,10 +32,6 @@ bool RxCompiled::enabled(RxFeature feat)
 	return (features_enabled & feat) != 0;
 }
 
-RxCompiled::RxInstruction::RxInstruction(RxOp _op) : op(_op) { }
-RxCompiled::RxInstruction::RxInstruction(RxOp _op, StrVal _str) : op(_op), str(_str) { }
-RxCompiled::RxInstruction::RxInstruction(RxOp _op, int min, int max) : op(_op), repetition(min, max) { }
-
 bool RxCompiled::scan_rx(bool (*func)(const RxInstruction&))
 {
 	int		i = 0;		// Regex character offset
@@ -46,12 +42,13 @@ bool RxCompiled::scan_rx(bool (*func)(const RxInstruction&))
 	CharNum		scanned;
 	bool		ok = true;
 	int		min, max;
+	bool		char_class_negated;
 	StrVal		delayed;	// A sequence of ordinary characters to be matched.
 	auto		flush = [&delayed, func]() {
 				if (delayed.length() > 0)
 				{
 					bool	ok = func(RxInstruction(RxOp::RxoLiteral, delayed));
-					delayed = "";
+					delayed = StrVal::null;
 					return ok;
 				}
 				return true;
@@ -237,15 +234,53 @@ bool RxCompiled::scan_rx(bool (*func)(const RxInstruction&))
 			if (!supported(CharClasses))
 				goto simple_char;
 			if (!(ok = flush())) continue;
+
 			/*
 			 * A Character class is compiled as a string containing pairs of characters.
 			 * Each pair determines an (inclusive) subrange of UCS4 characters.
-			 * Character Property groups use non-Unicode UCS4 characters to denote the group.
+			 * LATER: Character Property groups use non-Unicode UCS4 characters to denote the group.
 			 * REVISIT: methods for allocating property group codes are under consideration
 			 */
-			// REVISIT: implement character classes
-			ok = func(RxInstruction(RxOp::RxoCharClass, ""));
+			char_class_negated = re[++i] == '^';
+			if (char_class_negated)
+				i++;
+
+			param = StrVal::null;
+
+			// A char class that starts with - or ] mean those literally:
+			ch = re[i];
+			if (ch == '-' || ch == ']')
+			{
+				param += ch;
+				param += ch;
+				ch = re[++i];
+			}
+			while (ch != '\0' && ch != ']')
+			{
+				if (ch == '\\')		// Any single Unicode char can be escaped
+					if ((ch = re[++i]) == '\0')
+						goto bad_class; // RE ends with the backslash
+
+				param += ch;	// Start of range pair
+				if (re[i+1] == '-' && re[i+2] != ']')
+				{		// Character range
+					if ((ch = re[i += 2]) == '\0')
+						goto bad_class;
+					if (ch == '\\')		// Any single Unicode char can be escaped
+						if ((ch = re[++i]) == '\0')
+							goto bad_class; // RE ends with the backslash
+				}
+				param += ch;
+				ch = re[++i];
+			}
+			if (ch == '\0')
+				goto bad_class;
+
+			ok = func(RxInstruction(char_class_negated ? RxOp::RxoNegCharClass : RxOp::RxoCharClass, param));
 			continue;
+
+	bad_class:	error_message = "Bad character class";
+			break;
 
 		case '|':
 			if (!supported(Alternates))
@@ -332,7 +367,7 @@ bool RxCompiled::scan_rx(bool (*func)(const RxInstruction&))
 		break;
 	}
 	(void)flush();
-	if (i >= re.length())	// If we didn't complete, there was an error
+	if (!error_message && i >= re.length())	// If we didn't complete, there was an error
 	{
 		ok = func(RxInstruction(RxOp::RxoEnd));
 		return true;

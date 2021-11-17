@@ -100,9 +100,9 @@ protected:
 		RepetitionRange	repetition;	// How many repetitions?
 		StrVal		str;		// RxoNamedCapture, RxoSubroutine, RxoCharClass, RxoNegCharClass
 
-		RxInstruction(RxOp);
-		RxInstruction(RxOp, StrVal);
-		RxInstruction(RxOp, int min, int max);
+		RxInstruction(RxOp _op) : op(_op) { }
+		RxInstruction(RxOp _op, StrVal _str) : op(_op), str(_str) { }
+		RxInstruction(RxOp _op, int min, int max) : op(_op), repetition(min, max) { }
 	};
 
 	bool		supported(RxFeature);	// Set error message and return false on rejected feature use

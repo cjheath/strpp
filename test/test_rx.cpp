@@ -29,8 +29,7 @@ bool re_lex(const RxCompiled::RxInstruction& instr)
 	case RxCompiled::RxOp::RxoNegCharClass:		// Negated Character class
 		if (!op_name)
 			op_name = "NegCharClass";
-		printf("\t%s[ REVISIT ]\n", op_name);
-		return true;
+		break;
 	case RxCompiled::RxOp::RxoAny:			// Any single char
 		op_name = "Any"; break;
 	case RxCompiled::RxOp::RxoRepetition:		// {n, m}
