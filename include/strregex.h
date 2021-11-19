@@ -42,21 +42,57 @@ enum RxFeature {
 	ExtendedRE	= 0x20000000,	// Whitespace allowed, but may be matched by \s
 };
 
+// Regular expression instructions
+enum class RxOp: unsigned char {
+	RxoStart = 1,		// Place to start the DFA
+	RxoLiteral,		// A string of specific characters
+	RxoCharProperty,	// A character with a named Unicode property
+	RxoBOL,			// Beginning of Line
+	RxoEOL,			// End of Line
+	RxoCharClass,		// Character class
+	RxoNegCharClass,	// Negated Character class
+	RxoAny,			// Any single char
+	RxoRepetition,		// {n, m}
+	RxoNonCapturingGroup,	// (...)
+	RxoNamedCapture,	// (?<name>...)
+	RxoNegLookahead,	// (?!...)
+	RxoAlternate,		// |
+	RxoSubroutine,		// Subroutine call to a named group
+	RxoEndGroup,		// End of a group
+	RxoEnd			// Termination condition
+};
+
+struct RxRepetitionRange
+{
+	RxRepetitionRange() : min(0), max(0) {}
+	RxRepetitionRange(int n, int x) : min(n), max(x) {}
+	uint16_t	min;
+	uint16_t	max;
+};
+
+class RxInstruction
+{
+public:
+	RxOp		op;		// The instruction code
+	RxRepetitionRange repetition;	// How many repetitions?
+	StrVal		str;		// RxoNamedCapture, RxoSubroutine, RxoCharClass, RxoNegCharClass
+
+	RxInstruction(RxOp _op) : op(_op) { }
+	RxInstruction(RxOp _op, StrVal _str) : op(_op), str(_str) { }
+	RxInstruction(RxOp _op, int min, int max) : op(_op), repetition(min, max) { }
+};
+
 /*
  * RxCompiled compiles a regular expressions for the machine to execute.
  */
 class RxCompiled
 {
-protected:
-	enum class RxOp: unsigned char;
-	class RxInstruction;
-
 public:
 	~RxCompiled();
 	RxCompiled(StrVal re, RxFeature features = AllFeatures, RxFeature reject_features = NoFeature);
 
 	// Lexical scanner for a regular expression. Returns false if error_message gets set.
-	bool		scan_rx(bool (*func)(const RxInstruction&));
+	bool		scan_rx(const std::function<bool(const RxInstruction& instr)> func);
 
 	const char*	ErrorMessage() const { return error_message; }
 
@@ -66,48 +102,8 @@ protected:
 	RxFeature	features_rejected;	// but these features cause an error if used
 	const char*	error_message;
 
-	// Regular expression instructions
-	enum class RxOp: unsigned char {
-		RxoStart,		// Place to start the DFA
-		RxoLiteral,		// A string of specific characters
-		RxoCharProperty,	// A character with a named Unicode property
-		RxoBOL,			// Beginning of Line
-		RxoEOL,			// End of Line
-		RxoCharClass,		// Character class
-		RxoNegCharClass,	// Negated Character class
-		RxoAny,			// Any single char
-		RxoRepetition,		// {n, m}
-		RxoNonCapturingGroup,	// (...)
-		RxoNamedCapture,	// (?<name>...)
-		RxoNegLookahead,	// (?!...)
-		RxoAlternate,		// |
-		RxoSubroutine,		// Subroutine call to a named group
-		RxoEndGroup,		// End of a group
-		RxoEnd			// Termination condition
-	};
-
-	struct RepetitionRange
-	{
-		RepetitionRange() : min(0), max(0) {}
-		RepetitionRange(int n, int x) : min(n), max(x) {}
-		uint16_t	min;
-		uint16_t	max;
-	};
-
-	class RxInstruction
-	{
-	public:
-		RxOp		op;		// The instruction code
-		RepetitionRange	repetition;	// How many repetitions?
-		StrVal		str;		// RxoNamedCapture, RxoSubroutine, RxoCharClass, RxoNegCharClass
-
-		RxInstruction(RxOp _op) : op(_op) { }
-		RxInstruction(RxOp _op, StrVal _str) : op(_op), str(_str) { }
-		RxInstruction(RxOp _op, int min, int max) : op(_op), repetition(min, max) { }
-	};
-
 	bool		supported(RxFeature);	// Set error message and return false on rejected feature use
-	bool		enabled(RxFeature);	// Return true if the specified feature is enabled
+	bool		enabled(RxFeature) const; // Return true if the specified feature is enabled
 };
 
 /*

@@ -27,12 +27,12 @@ bool RxCompiled::supported(RxFeature feat)
 	return enabled(feat);
 }
 
-bool RxCompiled::enabled(RxFeature feat)
+bool RxCompiled::enabled(RxFeature feat) const
 {
 	return (features_enabled & feat) != 0;
 }
 
-bool RxCompiled::scan_rx(bool (*func)(const RxInstruction&))
+bool RxCompiled::scan_rx(const std::function<bool(const RxInstruction& instr)> func)
 {
 	int		i = 0;		// Regex character offset
 	UCS4		ch;		// A single character to match
