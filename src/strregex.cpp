@@ -3,9 +3,9 @@
  */
 #include	<strregex.h>
 
-RxCompiled::RxCompiled(StrVal _re, RxFeature reject_features, RxFeature ignore_features)
+RxCompiled::RxCompiled(StrVal _re, RxFeature features, RxFeature reject_features)
 : re(_re)
-, features_enabled((RxFeature)(RxFeature::AllFeatures & ~(reject_features | ignore_features)))
+, features_enabled((RxFeature)(features & ~reject_features))
 , features_rejected(reject_features)
 , error_message(0)
 {
@@ -351,6 +351,14 @@ bool RxCompiled::scan_rx(bool (*func)(const RxInstruction&))
 			ok = func(RxInstruction(RxOp::RxoEndGroup));
 			continue;
 
+		case ' ': case '\t': case '\n': case '\r':
+			if (!enabled(ExtendedRE))
+				goto simple_char;
+			if (re[i+1] == '#')	// Comment to EOL
+				while (++i < re.length() && re[i] != '\n')
+					;
+			continue;
+			
 		default:
 		simple_char:
 			if (delayed.length() == 0)

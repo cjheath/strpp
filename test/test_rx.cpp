@@ -65,7 +65,7 @@ main(int argc, char** argv)
 {
 	for (--argc, ++argv; argc > 0; argc--, argv++)
 	{
-		RxCompiled	rx(*argv);
+		RxCompiled	rx(*argv, (RxFeature)(RxFeature::AllFeatures | RxFeature::ExtendedRE));
 		bool		scanned_ok;
 
 		printf("Compiling '%s'\n", *argv);

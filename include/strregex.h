@@ -5,6 +5,43 @@
  */
 #include	<strpp.h>
 
+enum RxFeature {
+	NoFeature	= 0x0000000,
+	// Kinds of characters or classes:
+	// AnyChar	= 0x0000000,	// . means any char, default
+	CEscapes	= 0x0000001,	// \0 \b \e \f \n \t \r
+	Shorthand	= 0x0000002,	// \s, later \d \w
+	OctalChar	= 0x0000004,	// \177 (1-3 digits)
+	HexChar		= 0x0000008,	// \xNN	(1-2 hex digits)
+	UnicodeChar	= 0x0000010,	// \uNNNNN (1-5 hex digits)
+	PropertyChars	= 0x0000020,	// \p{Property_Name}, see https://unicode.org/reports/tr18/
+	CharClasses	= 0x0000040,	// [...], [^...]
+//	PosixClasses	= 0x0000080,	// [:digit:], [=e=], etc, in classes
+	// Kinds of multiplicity:
+	ZeroOrOneQuest	= 0x0000100,	// ?, zero or one
+	ZeroOrMore	= 0x0000200,	// *, zero or more
+	OneOrMore	= 0x0000400,	// +, one or more
+	CountRepetition	= 0x0000800,	// {n, m}
+	// Groups of regular expressions:
+	Alternates	= 0x0001000,	// re1|re2
+	Group		= 0x0002000,	// (re)
+	Capture		= 0x0004000,	// (?<group_name>re)
+	NonCapture	= 0x0008000,	// (?:re)
+	NegLookahead	= 0x0010000,	// (?!re)
+	Subroutine	= 0x0020000,	// (?&group_name)
+	// Line start/end
+	BOL		= 0x0040000,	// ^ beginning of line
+	EOL		= 0x0080000,	// $ end of line
+	AllFeatures	= 0x00FFFFF,
+	// Options relevant to regexp interpretation
+	AnyIsQuest	= 0x01000000,	// ? means any char (so cannot be ZeroOrOneQuest)
+	ZeroOrMoreAny	= 0x02000000,	// * means zero or more any, aka .*
+	AnyIncludesNL	= 0x04000000,	// Any character includes newline
+	CaseInsensitive	= 0x08000000,	// Perform case-insensitive match
+//	Digraphs	= 0x10000000,	// e.g. ll in Spanish, ss in German, ch in Czech
+	ExtendedRE	= 0x20000000,	// Whitespace allowed, but may be matched by \s
+};
+
 /*
  * RxCompiled compiles a regular expressions for the machine to execute.
  */
@@ -15,44 +52,8 @@ protected:
 	class RxInstruction;
 
 public:
-	enum RxFeature {
-		NoFeature	= 0x0000000,
-		// Kinds of characters or classes:
-		// AnyChar	= 0x0000000,	// . means any char, default
-		CEscapes	= 0x0000001,	// \0 \b \e \f \n \t \r
-		Shorthand	= 0x0000002,	// \s, later \d \w
-		OctalChar	= 0x0000004,	// \177 (1-3 digits)
-		HexChar		= 0x0000008,	// \xNN	(1-2 hex digits)
-		UnicodeChar	= 0x0000010,	// \uNNNNN (1-5 hex digits)
-		PropertyChars	= 0x0000020,	// \p{Property_Name}, see https://unicode.org/reports/tr18/
-		CharClasses	= 0x0000040,	// [...], [^...]
-//		PosixClasses	= 0x0000080,	// [:digit:], [=e=], etc, in classes
-		// Kinds of multiplicity:
-		ZeroOrOneQuest	= 0x0000100,	// ?, zero or one
-		ZeroOrMore	= 0x0000200,	// *, zero or more
-		OneOrMore	= 0x0000400,	// +, one or more
-		CountRepetition	= 0x0000800,	// {n, m}
-		// Groups of regular expressions:
-		Alternates	= 0x0001000,	// re1|re2
-		Group		= 0x0002000,	// (re)
-		Capture		= 0x0004000,	// (?<group_name>re)
-		NonCapture	= 0x0008000,	// (?:re)
-		NegLookahead	= 0x0010000,	// (?!re)
-		Subroutine	= 0x0020000,	// (?&group_name)
-		// Line start/end
-		BOL		= 0x0040000,	// ^ beginning of line
-		EOL		= 0x0080000,	// $ end of line
-		AllFeatures	= 0x00FFFFF,
-		// Options relevant to regexp interpretation
-		AnyIsQuest	= 0x01000000,	// ? means any char (so cannot be ZeroOrOneQuest)
-		ZeroOrMoreAny	= 0x02000000,	// * means zero or more any, aka .*
-		AnyIncludesNL	= 0x04000000,	// Any character includes newline
-		CaseInsensitive	= 0x08000000,	// Perform case-insensitive match
-//		Digraphs	= 0x10000000,	// e.g. ll in Spanish, ss in German, ch in Czech
-		ExtendedRE	= 0x20000000,	// Whitespace allowed, but may be matched by \s
-	};
 	~RxCompiled();
-	RxCompiled(StrVal re, RxFeature reject_features = NoFeature, RxFeature ignore_features = NoFeature);
+	RxCompiled(StrVal re, RxFeature features = AllFeatures, RxFeature reject_features = NoFeature);
 
 	// Lexical scanner for a regular expression. Returns false if error_message gets set.
 	bool		scan_rx(bool (*func)(const RxInstruction&));
