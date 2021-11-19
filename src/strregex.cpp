@@ -122,23 +122,21 @@ bool RxCompiled::scan_rx(bool (*func)(const RxInstruction&))
 			if (close > 0)
 			{
 				min = param.substr(0, close).asInt32(&int_error, 10, &scanned);
-				if (int_error)
+				if (int_error && int_error != STRERR_NO_DIGITS)
 					goto bad_repetition;
-			} // else min == 0
-			i += close+1;	// Skip the ',' or '}'
+			}
+			i += close;	// Skip the ',' or '}'
 
-			if (re[i-1] == ',')		// There is a second number
+			if (re[i] == ',')		// There is a second number
 			{
-				param = re.substr(i);
+				param = re.substr(++i);
 				close = param.find('}');
 				if (close < 0)
 					goto bad_repetition;
 				max = param.substr(0, close).asInt32(&int_error, 10, &scanned);
-				if (int_error == STRERR_NO_DIGITS)
-					max = 0;
-				else if (int_error)
+				if (int_error && int_error == STRERR_NO_DIGITS)
 					goto bad_repetition;
-				i += close+1;
+				i += close;
 			}
 			else
 				max = min;		// Exact repetition count
@@ -173,6 +171,7 @@ bool RxCompiled::scan_rx(bool (*func)(const RxInstruction&))
 			case 'x':			// Hex byte (1 or 2 hex digits follow)
 				if (!enabled(HexChar))
 					goto simple_escape;
+				// REVISIT: Support \x{XX}
 				param = re.substr(++i, 2);
 				ch = param.asInt32(&int_error, 16, &scanned);
 				if ((int_error && int_error != STRERR_TRAIL_TEXT) || scanned == 0)
@@ -186,6 +185,7 @@ bool RxCompiled::scan_rx(bool (*func)(const RxInstruction&))
 			case 'u':			// Unicode (1-5 hex digits follow)
 				if (!enabled(UnicodeChar))
 					goto simple_escape;
+				// REVISIT: Support \u{XX}
 				param = re.substr(++i, 5);
 				ch = param.asInt32(&int_error, 16, &scanned);
 				if ((int_error && int_error != STRERR_TRAIL_TEXT) || scanned == 0)
@@ -202,6 +202,7 @@ bool RxCompiled::scan_rx(bool (*func)(const RxInstruction&))
 				if (!enabled(Shorthand))
 					goto simple_escape;
 				if (!(ok = flush())) continue;
+				// REVISIT: Also support \w, \d, \h, etc - are these effectively character classes?
 				ok = func(RxInstruction(RxOp::RxoCharProperty, ' '));
 				continue;
 
@@ -219,7 +220,7 @@ bool RxCompiled::scan_rx(bool (*func)(const RxInstruction&))
 				if (close <= 0)
 					goto bad_posix;
 				param = param.substr(0, close); // Truncate name to before '}'
-				i += close;	// Now pointing at the '}'
+				i += close+1;	// Now pointing at the '}'
 				ok = func(RxInstruction(RxOp::RxoCharProperty, param));
 				continue;
 
@@ -257,16 +258,16 @@ bool RxCompiled::scan_rx(bool (*func)(const RxInstruction&))
 			}
 			while (ch != '\0' && ch != ']')
 			{
-				if (ch == '\\')		// Any single Unicode char can be escaped
+				if (ch == '\\')		// Any single Unicode char can be escaped. REVISIT for other escapes
 					if ((ch = re[++i]) == '\0')
 						goto bad_class; // RE ends with the backslash
 
 				param += ch;	// Start of range pair
-				if (re[i+1] == '-' && re[i+2] != ']')
+				if (re[i+1] == '-' && re[i+2] != ']')	// Allow a single - before the closing ]
 				{		// Character range
 					if ((ch = re[i += 2]) == '\0')
 						goto bad_class;
-					if (ch == '\\')		// Any single Unicode char can be escaped
+					if (ch == '\\')		// Any single Unicode char can be escaped. REVISIT for other escapes
 						if ((ch = re[++i]) == '\0')
 							goto bad_class; // RE ends with the backslash
 				}
@@ -311,7 +312,7 @@ bool RxCompiled::scan_rx(bool (*func)(const RxInstruction&))
 					break;
 				}
 				param = param.substr(0, close);		// Truncate name to before >
-				i += close+1;
+				i += close;	// Point at the >
 				ok = func(RxInstruction(RxOp::RxoNamedCapture, param));
 				continue;
 			}
@@ -356,11 +357,8 @@ bool RxCompiled::scan_rx(bool (*func)(const RxInstruction&))
 				delayed = re.substr(i, 1);	// Start an re substring - lower cost
 			else if (delayed.isShared())		// Continue an re substring
 				delayed = re.substr(i-delayed.length(), delayed.length()+1);
-			else					// Not using an re substring
-			{
-				printf("Adding simple_char '%c'\n", (char)re[i]);
+			else					// Not using an re substring due to previous escape etc
 				delayed += re.substr(i, 1);
-			}
 			continue;
 		}
 
