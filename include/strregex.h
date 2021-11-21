@@ -5,7 +5,8 @@
  */
 #include	<strpp.h>
 
-enum RxFeature {
+enum RxFeature
+{
 	NoFeature	= 0x0000000,
 	// Kinds of characters or classes:
 	// AnyChar	= 0x0000000,	// . means any char, default
@@ -43,7 +44,8 @@ enum RxFeature {
 };
 
 // Regular expression instructions
-enum class RxOp: unsigned char {
+enum class RxOp: unsigned char
+{
 	RxoStart = 1,		// Place to start the DFA
 	RxoLiteral,		// A string of specific characters
 	RxoCharProperty,	// A character with a named Unicode property

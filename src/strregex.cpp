@@ -194,9 +194,8 @@ bool RxCompiled::scan_rx(const std::function<bool(const RxInstruction& instr)> f
 					break;
 				}
 				i += scanned-1;	// The loop will advance one character
-		escaped_char:	delayed += ch;
-				ok = true;
-				continue;
+		escaped_char:	ok = true;
+				goto delay_escaped;
 
 			case 's':			// Whitespace
 				if (!enabled(Shorthand))
@@ -226,7 +225,14 @@ bool RxCompiled::scan_rx(const std::function<bool(const RxInstruction& instr)> f
 
 			default:
 		simple_escape:
-				delayed += re[i];
+				ch = re[i];
+		delay_escaped:
+				switch (re[i+1])	// Can't delay if this escape is repeated or optional:
+				{
+				case '*': case '+': case '?': case '{':
+					if (!(ok = flush())) continue;	// So flush it first
+				}
+				delayed += ch;
 				continue;
 			}
 			break;
@@ -361,6 +367,13 @@ bool RxCompiled::scan_rx(const std::function<bool(const RxInstruction& instr)> f
 			
 		default:
 		simple_char:
+			switch (re[i+1])
+			{
+			// Can't delay if this item is repeated or optional:
+			case '*': case '+': case '?': case '{':
+				if (!(ok = flush())) continue;	// So flush it first
+			}
+
 			if (delayed.length() == 0)
 				delayed = re.substr(i, 1);	// Start an re substring - lower cost
 			else if (delayed.isShared())		// Continue an re substring
