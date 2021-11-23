@@ -32,6 +32,12 @@ bool RxCompiled::enabled(RxFeature feat) const
 	return (features_enabled & feat) != 0;
 }
 
+/*
+ * Ok ima apologise right now for the nested switch statements and especially the gotos.
+ * But I have been very careful about how those work, and it would have made the code
+ * hugely more complicated and incomprehensible to do it any other way.
+ * If you reckon you can improve on it, you're welcome to try.
+ */
 bool RxCompiled::scan_rx(const std::function<bool(const RxInstruction& instr)> func)
 {
 	int		i = 0;		// Regex character offset
@@ -227,8 +233,8 @@ bool RxCompiled::scan_rx(const std::function<bool(const RxInstruction& instr)> f
 		simple_escape:
 				ch = re[i];
 		delay_escaped:
-				switch (re[i+1])	// Can't delay if this escape is repeated or optional:
-				{
+				switch (re[i+1])	// Can't delay if this escape is repeated or optional
+				{	// Note this is conservative; these repetitions might not be enabled
 				case '*': case '+': case '?': case '{':
 					if (!(ok = flush())) continue;	// So flush it first
 				}
@@ -367,9 +373,8 @@ bool RxCompiled::scan_rx(const std::function<bool(const RxInstruction& instr)> f
 			
 		default:
 		simple_char:
-			switch (re[i+1])
-			{
-			// Can't delay if this item is repeated or optional:
+			switch (re[i+1])	// Can't delay if this escape is repeated or optional
+			{	// Note this is conservative; these repetitions might not be enabled
 			case '*': case '+': case '?': case '{':
 				if (!(ok = flush())) continue;	// So flush it first
 			}
@@ -385,11 +390,12 @@ bool RxCompiled::scan_rx(const std::function<bool(const RxInstruction& instr)> f
 
 		break;
 	}
-	(void)flush();
-	if (!error_message && i >= re.length())	// If we didn't complete, there was an error
+	if (ok)
+		ok = flush();
+	if (ok && !error_message && i >= re.length())	// If we didn't complete, there was an error
 	{
 		ok = func(RxInstruction(RxOp::RxoEnd));
-		return true;
+		return ok;
 	}
 	return false;
 }
