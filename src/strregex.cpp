@@ -2,6 +2,9 @@
  * Unicode String regular expressions
  */
 #include	<strregex.h>
+#include	<vector>
+
+using std::vector;
 
 RxCompiled::RxCompiled(StrVal _re, RxFeature features, RxFeature reject_features)
 : re(_re)
@@ -128,7 +131,7 @@ bool RxCompiled::scan_rx(const std::function<bool(const RxInstruction& instr)> f
 			if (close > 0)
 			{
 				min = param.substr(0, close).asInt32(&int_error, 10, &scanned);
-				if (int_error && int_error != STRERR_NO_DIGITS)
+				if ((int_error && int_error != STRERR_NO_DIGITS) || min < 0)
 					goto bad_repetition;
 			}
 			i += close;	// Skip the ',' or '}'
@@ -140,7 +143,7 @@ bool RxCompiled::scan_rx(const std::function<bool(const RxInstruction& instr)> f
 				if (close < 0)
 					goto bad_repetition;
 				max = param.substr(0, close).asInt32(&int_error, 10, &scanned);
-				if (int_error && int_error == STRERR_NO_DIGITS)
+				if ((int_error && int_error == STRERR_NO_DIGITS) || max < min)
 					goto bad_repetition;
 				i += close;
 			}
@@ -398,6 +401,179 @@ bool RxCompiled::scan_rx(const std::function<bool(const RxInstruction& instr)> f
 		return ok;
 	}
 	return false;
+}
+
+/*
+ * Compilation strategy is as follows:
+ * - Scan through the RE once, accumulating the maximum required size for the NFA
+ * - In the first pass, we build an array of all named groups
+ * - Allocate the data and scan through again, building the compiled NFA
+ * - The start node includes the list of groups. Subroutine calls reference a group by array index
+ *
+ * The finished NFA is a series of packed characters and numbers. Both are packed using UTF-8 coding.
+ * The opcodes are all ASCII (single UTF-8 byte), with one bit indicating that repetition is involved.
+ *
+ * As the NFA is built, there are places where numbers that aren't yet known must be later patched in.
+ * Because the UTF-8 encoding of these numbers might be variable in size, so the maximum required space
+ * is reserved, so patching involves shuffling the rest of the NFA down to meet it.
+ * - The repeat opcode and min&max number (unsigned char) of repetitions allowed, 3 bytes total.
+ * - Byte offset from an alternate or the start of a group, to the next alternate or end of the group.
+ *
+ * This problem doesn't occur with subroutine calls since those go via the names table.
+ *
+ * The first pass involves two counts: the number of offset numbers to encode, and the number of other
+ * bytes.  If this indicates that all offsets will fit in 1 byte (or 2 bytes, etc) the maximum required
+ * size is calculated accordingly.
+ *
+ * When repetition is seen, the entire NFA from the start of the repeated item to the end gets shuffled
+ * down three bytes to make room.
+ */
+bool
+RxCompiled::compile()
+{
+	CharBytes	bytes_required = 0;
+	CharBytes	offsets_required = 0;
+	CharBytes	byte_count;
+	struct {
+		uint8_t		group_num;
+		CharBytes	start;		// Offset to group-start opcode
+		CharBytes	previous;	// Offset to start or previous alternative
+	} stack[16];	// Maximum nesting depth for groups
+	int		depth = 1;
+	RxOp		last = RxOp::RxoStart;
+	bool		last_was_atom = false;
+	bool		ok;
+	vector<StrVal>	names;
+	vector<StrVal>::iterator	iter;
+
+	auto	first_pass =
+		[&](const RxInstruction& instr) -> bool
+                {
+			bool		is_atom = false;
+			bytes_required++;			// One byte to store the RxOp
+
+			switch (instr.op)
+			{
+			case RxOp::RxoStart:			// Place to start the DFA
+				// Memory allocation instructions can also go in the start block, and in each target of a subroutine call.
+				bytes_required += 1;		// Store the number of names in the names array
+				offsets_required++;		// Need an offset to the second alternate, like any group
+				stack[depth++].group_num = 0;
+				break;
+
+			case RxOp::RxoEnd:			// Termination condition
+				// REVISIT: patch the previous alternate/group-start to point here
+				break;
+
+			case RxOp::RxoNonCapturingGroup:	// (...)
+				if (depth >= sizeof(stack)/sizeof(stack[0]))
+				{
+					error_message = "Nesting too deep";
+					return false;
+				}
+				stack[depth].group_num = 0;
+				// stack[depth].start = bytes_required;	// Not needed in first pass
+				depth++;
+				break;
+
+			case RxOp::RxoNamedCapture:		// (?<name>...)
+				if (depth >= sizeof(stack)/sizeof(stack[0]))
+				{
+					error_message = "Nesting too deep";
+					return false;
+				}
+				for (iter = names.begin(); iter != names.end(); iter++)
+					if (*iter == instr.str)
+					{
+						error_message = "Duplicate name";
+						return false;
+					}
+				names.push_back(instr.str);
+				stack[depth].group_num = names.size();	// First entry is 1. 0 means un-named
+				// stack[depth].start = bytes_required;	// Not needed in first pass
+				offsets_required++;
+				depth++;
+				goto str_param;
+
+			case RxOp::RxoLiteral:			// A specific string
+			case RxOp::RxoCharProperty:		// A char with a named Unicode property
+			case RxOp::RxoCharClass:		// Character class; instr contains a string of character pairs
+			case RxOp::RxoNegCharClass:		// Negated Character class
+				is_atom = true;
+		str_param:	(void)instr.str.asUTF8(byte_count);
+				bytes_required += UTF8Len(byte_count);	// Length encoded as UTF-8
+				bytes_required += byte_count;	// UTF8 bytes
+				break;
+
+			case RxOp::RxoSubroutine:		// Subroutine call to a named group
+				// The named subroutine might not yet have been declared, so we can't check it
+				is_atom = true;
+				bytes_required += 1;		// We will store the index in the names array
+				break;
+
+			case RxOp::RxoBOL:			// Beginning of Line
+				break;				// Nothing special to see here, move along
+			case RxOp::RxoEOL:			// End of Line
+				break;				// Nothing special to see here, move along
+			case RxOp::RxoAny:			// Any single char
+				break;				// Nothing special to see here, move along
+
+			case RxOp::RxoRepetition:		// {n, m}
+				if (!last_was_atom)
+				{
+					error_message = "Repeating a repetition is disallowed";
+					return false;
+				}
+				if (instr.repetition.min > 255 || instr.repetition.max > 255)
+				{
+					error_message = "min and max repetition are limited to 255";
+					return false;
+				}
+				bytes_required += 2;
+				break;
+
+			case RxOp::RxoNegLookahead:		// (?!...)
+				if (depth >= sizeof(stack)/sizeof(stack[0]))
+				{
+					error_message = "Nesting too deep";
+					return false;
+				}
+				stack[depth].group_num = 0;
+				// stack[depth].start = bytes_required;	// Not needed in first pass
+				depth++;
+				break;
+
+			case RxOp::RxoAlternate:		// |
+				// REVISIT: patch the previous alternate/group-start to point here
+				offsets_required++;
+				break;
+
+			case RxOp::RxoEndGroup:			// End of a group
+				if (--depth < 0)
+				{
+					error_message = "too many closing parentheses";
+					return false;
+				}
+				// REVISIT: patch the previous alternate/group-start to point here
+				offsets_required++;
+				is_atom = true;
+				break;
+			}
+			last = instr.op;
+			last_was_atom = is_atom;
+			return true;
+                };
+
+	auto	second_pass =
+		[&](const RxInstruction& instr) -> bool
+                {
+			return true;
+		};
+
+	ok = scan_rx(first_pass);
+	if (ok)
+		printf("Required: Bytes %d, Offsets %d\n", bytes_required, offsets_required);
+	return ok;
 }
 
 /*

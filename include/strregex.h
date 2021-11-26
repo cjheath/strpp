@@ -96,6 +96,8 @@ public:
 	// Lexical scanner for a regular expression. Returns false if error_message gets set.
 	bool		scan_rx(const std::function<bool(const RxInstruction& instr)> func);
 
+	bool		compile();
+
 	const char*	ErrorMessage() const { return error_message; }
 
 protected:
