@@ -394,13 +394,7 @@ bool RxCompiled::scan_rx(const std::function<bool(const RxInstruction& instr)> f
 				if (!(ok = flush())) continue;	// So flush it first
 			}
 
-			if (delayed.length() == 0)
-				delayed = re.substr(i, 1);	// Start an re substring - lower cost
-// REVISIT: This optimisation does not work for extended REs where white-space has been skipped
-//			else if (delayed.isShared())		// Continue an re substring
-//				delayed = re.substr(i-delayed.length(), delayed.length()+1);
-			else					// Not using an re substring due to previous escape etc
-				delayed += ch;
+			delayed += re.substr(i, 1);
 			continue;
 		}
 
