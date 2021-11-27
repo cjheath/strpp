@@ -145,10 +145,14 @@ int
 StrVal::compare(const StrVal& comparand, CompareStyle style) const
 {
 	// printf("Comparing %s with %s\n", nthChar(0), comparand.nthChar(0));
+	int	cmp;
 	switch (style)
 	{
 	case CompareRaw:
-		return memcmp(nthChar(0), comparand.nthChar(0), body->numBytes());
+		cmp = memcmp(nthChar(0), comparand.nthChar(0), numBytes());
+		if (cmp == 0)
+			cmp = numBytes() - comparand.numBytes();
+		return cmp;
 
 	case CompareCI:
 		assert(!"REVISIT: Case-independent comparison is not implemented");
