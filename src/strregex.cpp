@@ -469,6 +469,7 @@ RxCompiled::compile()
 				break;
 
 			case RxOp::RxoEnd:			// Termination condition
+				bytes_required++;		// Null at end
 				depth--;
 				break;
 
@@ -493,7 +494,6 @@ RxCompiled::compile()
 					return false;
 				}
 				stack[depth].group_num = 0;
-				// stack[depth].start = bytes_required;	// Not needed in first pass
 				depth++;
 				break;
 
@@ -504,7 +504,6 @@ RxCompiled::compile()
 					return false;
 				}
 				stack[depth].group_num = 0;
-				// stack[depth].start = bytes_required;	// Not needed in first pass
 				depth++;
 				break;
 
@@ -514,7 +513,7 @@ RxCompiled::compile()
 					error_message = "Nesting too deep";
 					return false;
 				}
-				if (names.size() >= 255)
+				if (names.size() >= 254)
 				{
 					error_message = "Too many named groups";
 					return false;
@@ -527,7 +526,6 @@ RxCompiled::compile()
 					}
 				names.push_back(instr.str);
 				stack[depth].group_num = names.size();	// First entry is 1. 0 means un-named
-				// stack[depth].start = bytes_required;	// Not needed in first pass
 				offsets_required++;
 				depth++;
 				goto str_param;
@@ -561,9 +559,9 @@ RxCompiled::compile()
 					error_message = "Repeating a repetition is disallowed";
 					return false;
 				}
-				if (instr.repetition.min > 255 || instr.repetition.max > 255)
+				if (instr.repetition.min > 254 || instr.repetition.max > 254)
 				{
-					error_message = "Min and Max repetition are limited to 255";
+					error_message = "Min and Max repetition are limited to 254";
 					return false;
 				}
 				bytes_required += 2;
@@ -584,13 +582,6 @@ RxCompiled::compile()
 		return false;
 
 	CharBytes	offset_max_bytes = UTF8Len(bytes_required+offsets_required*4);
-
-	printf(
-		"Required: Bytes %d, Offsets %d, Max=%d\n",
-		bytes_required,
-		offsets_required,
-		bytes_required + offsets_required * offset_max_bytes
-	);
 
 	// Now we know the maximum size of the FA, we know the maximum size of an offset:
 	bytes_required += offsets_required * UTF8Len(bytes_required+offsets_required*4);
@@ -621,7 +612,7 @@ RxCompiled::compile()
 				stack[depth].previous = ep-nfa;	// I.e. 1 :)
 				depth++;
 				UTF8PutLong0(ep, offset_max_bytes);	// Reserve space for a patched offset
-				*ep++ = names.size();		// Add 1 to avoid NUL characters
+				*ep++ = names.size() + 1;		// Add 1 to avoid NUL characters
 				for (iter = names.begin(); iter != names.end(); iter++)
 				{
 					sp = iter->asUTF8(byte_count);
@@ -680,12 +671,12 @@ RxCompiled::compile()
 				break;
 
 			case RxOp::RxoNamedCapture:		// (?<name>...)
-				stack[depth].group_num = next_group++;	// Index in names table + 1
+				stack[depth].group_num = next_group;	// Index in names table + 1
 				stack[depth].start = ep-1-nfa;
 				stack[depth].previous = ep-nfa;
 				depth++;
 				UTF8PutLong0(ep, offset_max_bytes);	// Reserve space for a patched offset
-				*ep++ = next_group;
+				*ep++ = next_group++;
 				break;
 
 			case RxOp::RxoLiteral:			// A specific string
@@ -726,8 +717,8 @@ RxCompiled::compile()
 				memmove(last_atom_start+3, last_atom_start, ep-last_atom_start);
 				ep += 3;
 				*last_atom_start++ = (UTF8)RxOp::RxoRepetition;
-				*last_atom_start++ = (UTF8)instr.repetition.min;	// Add 1 to avoid NUL characters
-				*last_atom_start++ = (UTF8)instr.repetition.max;	// Add 1 to avoid NUL characters
+				*last_atom_start++ = (UTF8)instr.repetition.min + 1;	// Add 1 to avoid NUL characters
+				*last_atom_start++ = (UTF8)instr.repetition.max + 1;	// Add 1 to avoid NUL characters
 				break;
 			}
 			last_atom_start = this_atom_start;
@@ -738,7 +729,17 @@ RxCompiled::compile()
 	*ep++ = '\0';
 	nfa_size = ep-nfa;
 
+	/*
+	printf(
+		"Required: Bytes %d, Offsets %d, max offset size=%d\n",
+		bytes_required,
+		offsets_required,
+		offset_max_bytes
+	);
 	printf("NFA final size %d\n", nfa_size);
+
+	assert(nfa_size <= bytes_required);
+	*/
 
 	return ok;
 }
@@ -759,21 +760,23 @@ RxCompiled::dump()			// Dump binary code to stdout
 
 	int		depth = 0;
 	int		num_names;
-	// vector<StrVal>	names;		// REVISIT: Build the names for printing
-	// const UTF8*	name;
+	vector<StrVal>	names;			// Build the names for printing
+	const UTF8*	name;
 	CharBytes	byte_count;		// Used for sizing string storage
 	int		offset_this;
 	int		offset_next;
 	int		group_num;
+	uint8_t		op_num;
 	const char*	op_name;
 	int		min, max;
 	for (np = nfa; np < nfa+nfa_size;)
 	{
 		offset_this = np-nfa;
-		printf("%d(%d)\t", offset_this, *np);
+		printf("%d\t", offset_this);
 		for (int i = 1; i < depth; i++)
 			printf("\t");
-		switch ((RxOp)*np++)
+		op_num = *np++ & 0xFF;
+		switch ((RxOp)op_num)
 		{
 		case (RxOp)'\0':
 			if (np == nfa+nfa_size)
@@ -783,13 +786,13 @@ RxCompiled::dump()			// Dump binary code to stdout
 			}
 			// Fall through
 		default:
-			printf("Illegal NFA opcode %d\n", np[-1]&0xFF);
+			printf("Illegal NFA opcode %02X\n", op_num);
 			return;
 
 		case RxOp::RxoStart:			// Place to start the DFA
 			offset_next = UTF8Get(np);
-			num_names = *np++ & 0xFF;
-			printf("NFA start, next->%d", offset_next);
+			num_names = (*np++ & 0xFF) - 1;
+			printf("NFA Start(%02X), next->%d", op_num, offset_next);
 			if (num_names > 0)
 			{
 				printf(", names:");
@@ -797,9 +800,7 @@ RxCompiled::dump()			// Dump binary code to stdout
 				{
 					byte_count = UTF8Get(np);
 					printf(" %.*s", byte_count, np);
-					// Can't do this as data is not NUL-terminated
-					// StrBody		name_body(np, false);
-					// names.push_back(StrBody::staticStr(np, byte_count));
+					names.push_back(StrVal(np, byte_count));
 					np += byte_count;
 				}
 			}
@@ -808,38 +809,37 @@ RxCompiled::dump()			// Dump binary code to stdout
 			break;
 
 		case RxOp::RxoEnd:			// Termination condition
-			printf("End\n");
+			printf("End(%02X)\n", op_num);
 			depth--;
 			break;
 
 		case RxOp::RxoEndGroup:			// End of a group
-			printf("RxoEndGroup\n");
+			printf("RxoEndGroup(%02X)\n", op_num);
 			depth--;
 			break;
 
 		case RxOp::RxoAlternate:		// |
 			offset_next = UTF8Get(np);
-			printf("RxoAlternate next=(+%d)->%d\n", offset_next, offset_this+offset_next);
+			printf("RxoAlternate(%02X) next=(+%d)->%d\n", op_num, offset_next, offset_this+offset_next);
 			break;
 
 		case RxOp::RxoNonCapturingGroup:	// (...)
 			offset_next = UTF8Get(np);
-			printf("\tRxoNonCapturingGroup, offset=(+%d)->%d\n", offset_next, offset_this+offset_next);
+			printf("\tRxoNonCapturingGroup(%02X) offset=(+%d)->%d\n", op_num, offset_next, offset_this+offset_next);
 			depth++;
 			break;
 
 		case RxOp::RxoNegLookahead:		// (?!...)
 			offset_next = UTF8Get(np);
-			printf("\tRxoNegLookahead, offset=(%d)->%d\n", offset_next, offset_this+offset_next);
+			printf("\tRxoNegLookahead(%02X) offset=(%d)->%d\n", op_num, offset_next, offset_this+offset_next);
 			depth++;
 			break;
 
 		case RxOp::RxoNamedCapture:		// (?<name>...)
 			offset_next = UTF8Get(np);
 			group_num = (*np++ & 0xFF) - 1;
-			// REVISIT: Get the name and print it here
-			// name = names[group_num].asUTF8(byte_count);
-			printf("\tRxoNamedCapture %d, offset=(%d)->%d\n", group_num, offset_next, offset_this+offset_next);
+			name = names[group_num].asUTF8(byte_count);
+			printf("\tRxoNamedCapture(%02X) '%.*s'(%d), offset=(%d)->%d\n", op_num, byte_count, name, group_num, offset_next, offset_this+offset_next);
 			depth++;
 			break;
 
@@ -856,40 +856,33 @@ RxCompiled::dump()			// Dump binary code to stdout
 			op_name = "RxoNegCharClass";
 		string:
 			byte_count = UTF8Get(np);
-			printf("\t%s, '%.*s'\n", op_name, byte_count, np);
+			printf("\t%s(%02X), '%.*s'\n", op_name, op_num, byte_count, np);
 			np += byte_count;
 			break;
 
 		case RxOp::RxoSubroutine:		// Subroutine call to a named group
-			printf("\tRxoSubroutine call to [%d]\n", *np++ & 0xFF);
+			group_num = (*np++ & 0xFF) - 1;
+			name = names[group_num].asUTF8(byte_count);
+			printf("\tRxoSubroutine(%02X) call to '%.*s'(%d)\n", op_num, byte_count, name, group_num);
 			break;
 
 		case RxOp::RxoBOL:			// Beginning of Line
-			printf("\tRxoBOL\n");
+			printf("\tRxoBOL(%02X)\n", op_num);
 			break;
 
 		case RxOp::RxoEOL:			// End of Line
-			printf("\tRxoEOL\n");
+			printf("\tRxoEOL(%02X)\n", op_num);
 			break;
 
 		case RxOp::RxoAny:			// Any single char
-			printf("\tRxoAny\n");
+			printf("\tRxoAny(%02X)\n", op_num);
 			break;
 
 		case RxOp::RxoRepetition:		// {n, m}
-			min = *np++ & 0xFF;
-			max = *np++ & 0xFF;
-			printf("\tRxoRepetition min=%d max=%d\n", min, max);
+			min = (*np++ & 0xFF) - 1;
+			max = (*np++ & 0xFF) - 1;
+			printf("\tRxoRepetition(%02X) min=%d max=%d\n", op_num, min, max);
 			break;
 		}
 	}
-}
-
-RxMatcher::RxMatcher(RxCompiled& rx)
-{
-	rx.compile();
-}
-
-RxMatcher::~RxMatcher()
-{
 }

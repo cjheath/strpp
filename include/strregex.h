@@ -43,16 +43,6 @@ enum RxFeature
 	ExtendedRE	= 0x20000000,	// Whitespace allowed, but may be matched by \s
 };
 
-class RxCompiled;
-class RxMatcher
-{
-protected:
-	~RxMatcher();
-	RxMatcher(RxCompiled& rx);
-public:
-private:
-};
-
 // Regular expression instructions
 enum class RxOp: unsigned char
 {
