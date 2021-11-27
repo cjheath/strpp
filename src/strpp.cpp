@@ -368,6 +368,9 @@ StrVal::operator+(UCS4 addend) const
 StrVal&
 StrVal::operator+=(const StrVal& addend)
 {
+	if (num_chars == 0)
+		return *this = addend;		// Just assign, we were empty anyhow
+
 	append(addend);
 	return *this;
 }
@@ -389,6 +392,15 @@ StrVal::operator+=(UCS4 addend)
 void
 StrVal::insert(CharNum pos, const StrVal& addend)
 {
+	// Handle the rare but important case of extending a slice with a contiguous slice
+	if (pos == num_chars			// Appending at the end
+	 && (StrBody*)body == (StrBody*)addend.body	// From the same body
+	 && pos+offset == addend.offset)	// And addend starts where we end
+	{
+		num_chars += addend.length();
+		return;
+	}
+
 	Unshare();
 	body->insert(pos, addend);
 	num_chars += addend.length();
