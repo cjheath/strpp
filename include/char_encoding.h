@@ -240,6 +240,19 @@ UTF8Backup(const UTF8* cp, const UTF8* limit = 0)
 	return (UTF8*)0;
 }
 
+inline void
+UTF8PutLong0(UTF8*& cp, int length)
+{
+#if defined(UTF8_SIX_BYTE)	// We don't support six-byte UTF-8 by default, for efficiency reasons
+	assert(length >= 0 && length <= 6);
+#else
+	assert(length >= 0 && length <= 4);
+#endif
+	*cp++ = "\x0\xC0\xE0\xF0\xF8\xFC"[length];	// Put lead byte with zero payload
+	while (--length > 0)
+		*cp++ = 0x80;				// Put trailing bytes with zero payload
+}
+
 // Store UTF8 from UCS4
 inline void
 UTF8Put(UTF8*& cp, UCS4 ch)
