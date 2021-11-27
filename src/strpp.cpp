@@ -16,7 +16,7 @@
 #include	<limits.h>
 #include	<stdio.h>
 
-StrBody	StrBody::nullBody;
+StrBody		StrBody::nullBody("", false, 0, 0);
 const StrVal	StrVal::null;
 
 // Empty string
@@ -62,7 +62,7 @@ StrVal& StrVal::operator=(const StrVal& s1)
 // Null-terminated UTF8 data
 // Don't allocate a new StrBody for an empty string
 StrVal::StrVal(const UTF8* data)
-: body(data == 0 || data[0] == '\0' ? &StrBody::nullBody : new StrBody(data))
+: body(data == 0 || data[0] == '\0' ? &StrBody::nullBody : new StrBody(data, true, strlen((const char*)data)))
 , offset(0)
 , num_chars(body->numChars())
 {
@@ -91,7 +91,7 @@ StrVal::StrVal(UCS4 character)
 	UTF8*	op = one_char;		// Pack it into our local buffer
 	UTF8Put(op, character);
 	*op = '\0';
-	body = new StrBody(one_char);
+	body = new StrBody(one_char, true, op-one_char, 1);
 	num_chars = 1;
 }
 
@@ -108,7 +108,7 @@ StrVal::Unshare()
 	const UTF8*	ep = nthChar(num_chars);	// end of this substring
 	CharBytes	prefix_bytes = cp - body->startChar(); // How many leading bytes of the body we are eliding
 
-	body = new StrBody(cp, ep-cp, 0);
+	body = new StrBody(cp, true, ep-cp, 0);
 	mark.char_num = savemark.char_num - offset;	// Restore the bookmark
 	mark.byte_num = savemark.byte_num - prefix_bytes;
 	offset = 0;
@@ -359,9 +359,9 @@ StrVal::operator+(UCS4 addend) const
 	UTF8*	cp = buf;
 	UTF8Put(cp, addend);
 	*cp = '\0';
-	StrBody	body;
+	StrBody	body(cp, false, cp-buf, 1);
 
-	return operator+(body.staticStr(buf, cp-buf, 1));
+	return operator+(StrVal(&body));
 }
 
 // Add, StrVal is modified:
@@ -380,9 +380,9 @@ StrVal::operator+=(UCS4 addend)
 	UTF8*	cp = buf;
 	UTF8Put(cp, addend);
 	*cp = '\0';
+	StrBody	body(cp, false, cp-buf, 1);
 
-	StrBody	body;
-	operator+=(body.staticStr(buf, cp-buf, 1));
+	operator+=(StrVal(&body));
 	return *this;
 }
 
@@ -604,72 +604,46 @@ StrBody::~StrBody()
 		delete[] start;
 }
 
-// null string body constructor. Give it a self-reference so we don't ever try to delete it.
 StrBody::StrBody()
-: start((UTF8*)"")
-, num_chars(0)
-, num_bytes(0)
-, num_alloc(0)
-{
-	AddRef();
-}
-
-StrBody::StrBody(const UTF8* data, bool copy)
 : start(0)
 , num_chars(0)
 , num_bytes(0)
 , num_alloc(0)
 {
-	size_t	length = strlen((const char*)data);
+}
 
+StrBody::StrBody(const UTF8* data, bool copy, CharBytes length, size_t allocate)
+: start(0)
+, num_chars(0)
+, num_bytes(0)
+, num_alloc(0)
+{
 	if (copy)
 	{
-		resize(length+1);	// Include space for a trailing NUL
-		memcpy(start, data, length);
+		if (allocate < length)
+			allocate = length;
+		resize(allocate+1);	// Include space for a trailing NUL
+		if (length)
+			memcpy(start, data, length);
 		start[length] = '\0';
 	}
 	else
 	{
-		start = (UTF8*)data;	// Cast const away; copy==false implies no change
+		start = (UTF8*)data;	// Cast const away; copy==false implies no change will occur
 		AddRef();		// Cannot be deleted or resized
 	}
 	num_bytes = length;
 }
 
-StrBody::StrBody(const UTF8* data, CharBytes length, size_t allocate)
-: start(0)
-, num_chars(0)
-, num_bytes(0)
-, num_alloc(0)
+StrBody&
+StrBody::operator=(const StrBody& s1) // Assignment operator; ONLY for no-copy bodies
 {
-	if (allocate < length)
-		allocate = length;
-	resize(allocate+1);	// Include space for a trailing NUL
-	if (length)
-		memcpy(start, data, length);
-	start[length] = '\0';
-	num_bytes = length;
-}
-
-/*
- * This method returns a StrVal for fixed data that will not change until the StrBody is destroyed.
- * The lifetime of the returned StrVal and all copies must end before the StrBody's does.
- */
-StrVal
-StrBody::staticStr(const UTF8* static_data, CharBytes _num_bytes, CharNum _num_chars)
-{
-	if (num_alloc)
-		delete[] start;
-
-	ref_count = 2;		// Self-reference so we don't get deleted by ref-counting
-	start = (UTF8*)static_data;	// Cast const away; we won't ever delete or mutate this
-	num_chars = _num_chars;
-	num_bytes = _num_bytes;
-	num_alloc = 0;		// Never delete(start)
-	if (num_chars == 0 && num_bytes > 0)
-		countChars();
-
-	return StrVal(this);
+	assert(s1.num_alloc == 0);	// Must not do this if we would make two references to allocated data
+	start = s1.start;
+	num_chars = s1.num_chars;
+	num_bytes = s1.num_bytes;
+	num_alloc = 0;
+	return *this;
 }
 
 /*
@@ -847,8 +821,9 @@ StrBody::toLower()
 			UTF8*	op = one_char;		// Pack it into our local buffer
 			UTF8Put(op, ch);
 			*op = '\0';
-
-			return body.staticStr(one_char, op-one_char, 1);
+			// Assign this to the body in our closure
+			body = StrBody(one_char, false, op-one_char, 1);
+			return StrVal(&body);
 		}
 	);
 }
@@ -867,7 +842,9 @@ StrBody::toUpper()
 			UTF8Put(op, ch);
 			*op = '\0';
 
-			return body.staticStr(one_char, op-one_char, 1);
+			// Assign this to the body in our closure
+			body = StrBody(one_char, false, op-one_char, 1);
+			return StrVal(&body);
 		}
 	);
 }

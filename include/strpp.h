@@ -180,15 +180,8 @@ public:
 	static	StrBody nullBody;
 
 	~StrBody();
-	StrBody();			// Null string constructor
-	StrBody(const UTF8* data, bool copy = true);
-	StrBody(const UTF8* data, CharBytes length, size_t allocate);
-
-	/*
-	 * This method returns a StrVal for fixed data that must not be changed until the StrBody is destroyed.
-	 * The lifetime of the returned StrVal and all its copies must end before the StrBody's does.
-	 */
-	StrVal		staticStr(const UTF8* static_data, CharBytes _num_bytes, CharNum _num_chars = 0);
+	StrBody();
+	StrBody(const UTF8* data, bool copy, CharBytes length, size_t allocate = 0);
 
 	inline CharNum	numChars()	// Not const because it can count chars and compact the data
 			{
@@ -231,6 +224,7 @@ protected:
 	void		resize(size_t);	// Change the memory allocation
 
 	StrBody(StrBody&) { }		// Never copy a body
+	StrBody& operator=(const StrBody& s1); // Assignment operator; ONLY for no-copy bodies
 };
 
 bool
