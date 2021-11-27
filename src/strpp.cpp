@@ -359,7 +359,7 @@ StrVal::operator+(UCS4 addend) const
 	UTF8*	cp = buf;
 	UTF8Put(cp, addend);
 	*cp = '\0';
-	StrBody	body(cp, false, cp-buf, 1);
+	StrBody	body(buf, false, cp-buf, 1);
 
 	return operator+(StrVal(&body));
 }
@@ -380,7 +380,7 @@ StrVal::operator+=(UCS4 addend)
 	UTF8*	cp = buf;
 	UTF8Put(cp, addend);
 	*cp = '\0';
-	StrBody	body(cp, false, cp-buf, 1);
+	StrBody	body(buf, false, cp-buf, 1);
 
 	operator+=(StrVal(&body));
 	return *this;
