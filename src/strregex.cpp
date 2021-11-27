@@ -2,6 +2,7 @@
  * Unicode String regular expressions
  */
 #include	<strregex.h>
+#include	<string.h>
 #include	<vector>
 
 using std::vector;
@@ -11,12 +12,16 @@ RxCompiled::RxCompiled(StrVal _re, RxFeature features, RxFeature reject_features
 , features_enabled((RxFeature)(features & ~reject_features))
 , features_rejected(reject_features)
 , error_message(0)
+, nfa(0)
+, nfa_size(0)
 {
-	// estimate_limits();
 }
 
 RxCompiled::~RxCompiled()
 {
+	if (nfa)
+		delete [] nfa;
+	nfa = 0;
 }
 
 bool RxCompiled::supported(RxFeature feat)
@@ -405,7 +410,7 @@ bool RxCompiled::scan_rx(const std::function<bool(const RxInstruction& instr)> f
 
 /*
  * Compilation strategy is as follows:
- * - Scan through the RE once, accumulating the maximum required size for the NFA
+ * - Scan through the RE once, accumulating the maximum required size for the NFA and error-checking
  * - In the first pass, we build an array of all named groups
  * - Allocate the data and scan through again, building the compiled NFA
  * - The start node includes the list of groups. Subroutine calls reference a group by array index
@@ -431,18 +436,18 @@ bool RxCompiled::scan_rx(const std::function<bool(const RxInstruction& instr)> f
 bool
 RxCompiled::compile()
 {
-	CharBytes	bytes_required = 0;
-	CharBytes	offsets_required = 0;
-	CharBytes	byte_count;
+	CharBytes	bytes_required = 0;	// Count how many bytes we will need
+	CharBytes	offsets_required = 0;	// Count how many UTF8-encoded offsets we will need
 	struct {
 		uint8_t		group_num;
 		CharBytes	start;		// Offset to group-start opcode
-		CharBytes	previous;	// Offset to start or previous alternative
+		CharBytes	previous;	// Index in nfa of the offset in the group-start or previous alternative
 	} stack[16];	// Maximum nesting depth for groups
-	int		depth = 1;
+	int		depth;			// Stack pointer
+	CharBytes	byte_count;		// Used for sizing string storage
 	RxOp		last = RxOp::RxoStart;
-	bool		last_was_atom = false;
-	bool		ok;
+	bool		repeatable = false;	// Cannot start with a repetition
+	bool		ok;			// Is everything still ok to continue?
 	vector<StrVal>	names;
 	vector<StrVal>::iterator	iter;
 
@@ -454,18 +459,45 @@ RxCompiled::compile()
 
 			switch (instr.op)
 			{
+			case RxOp::RxoNull: break;
 			case RxOp::RxoStart:			// Place to start the DFA
 				// Memory allocation instructions can also go in the start block, and in each target of a subroutine call.
 				bytes_required += 1;		// Store the number of names in the names array
 				offsets_required++;		// Need an offset to the second alternate, like any group
-				stack[depth++].group_num = 0;
+				stack[0].group_num = 0;
+				depth = 1;
 				break;
 
 			case RxOp::RxoEnd:			// Termination condition
-				// REVISIT: patch the previous alternate/group-start to point here
+				depth--;
+				break;
+
+			case RxOp::RxoEndGroup:			// End of a group
+				if (--depth < 0)
+				{
+					error_message = "Too many closing parentheses";
+					return false;
+				}
+				offsets_required++;
+				is_atom = true;
+				break;
+
+			case RxOp::RxoAlternate:		// |
+				offsets_required++;
 				break;
 
 			case RxOp::RxoNonCapturingGroup:	// (...)
+				if (depth >= sizeof(stack)/sizeof(stack[0]))
+				{
+					error_message = "Nesting too deep";
+					return false;
+				}
+				stack[depth].group_num = 0;
+				// stack[depth].start = bytes_required;	// Not needed in first pass
+				depth++;
+				break;
+
+			case RxOp::RxoNegLookahead:		// (?!...)
 				if (depth >= sizeof(stack)/sizeof(stack[0]))
 				{
 					error_message = "Nesting too deep";
@@ -480,6 +512,11 @@ RxCompiled::compile()
 				if (depth >= sizeof(stack)/sizeof(stack[0]))
 				{
 					error_message = "Nesting too deep";
+					return false;
+				}
+				if (names.size() >= 255)
+				{
+					error_message = "Too many named groups";
 					return false;
 				}
 				for (iter = names.begin(); iter != names.end(); iter++)
@@ -519,68 +556,340 @@ RxCompiled::compile()
 				break;				// Nothing special to see here, move along
 
 			case RxOp::RxoRepetition:		// {n, m}
-				if (!last_was_atom)
+				if (!repeatable)
 				{
 					error_message = "Repeating a repetition is disallowed";
 					return false;
 				}
 				if (instr.repetition.min > 255 || instr.repetition.max > 255)
 				{
-					error_message = "min and max repetition are limited to 255";
+					error_message = "Min and Max repetition are limited to 255";
 					return false;
 				}
 				bytes_required += 2;
 				break;
-
-			case RxOp::RxoNegLookahead:		// (?!...)
-				if (depth >= sizeof(stack)/sizeof(stack[0]))
-				{
-					error_message = "Nesting too deep";
-					return false;
-				}
-				stack[depth].group_num = 0;
-				// stack[depth].start = bytes_required;	// Not needed in first pass
-				depth++;
-				break;
-
-			case RxOp::RxoAlternate:		// |
-				// REVISIT: patch the previous alternate/group-start to point here
-				offsets_required++;
-				break;
-
-			case RxOp::RxoEndGroup:			// End of a group
-				if (--depth < 0)
-				{
-					error_message = "too many closing parentheses";
-					return false;
-				}
-				// REVISIT: patch the previous alternate/group-start to point here
-				offsets_required++;
-				is_atom = true;
-				break;
 			}
 			last = instr.op;
-			last_was_atom = is_atom;
+			repeatable = is_atom;
 			return true;
                 };
+
+	ok = scan_rx(first_pass);
+	if (ok && depth > 0)
+	{
+		error_message = "Not all groups were closed";
+		ok = false;
+	}
+	if (!ok)
+		return false;
+
+	CharBytes	offset_max_bytes = UTF8Len(bytes_required+offsets_required*4);
+
+	printf(
+		"Required: Bytes %d, Offsets %d, Max=%d\n",
+		bytes_required,
+		offsets_required,
+		bytes_required + offsets_required * offset_max_bytes
+	);
+
+	// Now we know the maximum size of the FA, we know the maximum size of an offset:
+	bytes_required += offsets_required * UTF8Len(bytes_required+offsets_required*4);
+
+	nfa = new UTF8[bytes_required+1];
+	UTF8*		ep = nfa;
+	UTF8*		last_atom_start = ep;
+	UTF8*		cp;
+	const UTF8*	sp;
+	CharBytes	offset;
+	int		i;
+	int		next_group = 0;
 
 	auto	second_pass =
 		[&](const RxInstruction& instr) -> bool
                 {
+			UTF8*	this_atom_start = ep;		// Pointer to the thing a following repetition will repeat
+			*ep++ = (UTF8)instr.op;
+			switch (instr.op)
+			{
+			case RxOp::RxoNull:
+				break;
+
+			case RxOp::RxoStart:			// Place to start the DFA
+				depth = 0;
+				stack[depth].group_num = next_group++;
+				stack[depth].start = ep-1-nfa;
+				stack[depth].previous = ep-nfa;	// I.e. 1 :)
+				depth++;
+				UTF8PutLong0(ep, offset_max_bytes);	// Reserve space for a patched offset
+				*ep++ = names.size();		// Add 1 to avoid NUL characters
+				for (iter = names.begin(); iter != names.end(); iter++)
+				{
+					sp = iter->asUTF8(byte_count);
+					UTF8Put(ep, byte_count);
+					memcpy(ep, sp, byte_count);
+					ep += byte_count;
+				}
+				break;
+
+			case RxOp::RxoEnd:			// Termination condition
+			case RxOp::RxoEndGroup:			// End of a group
+				this_atom_start = nfa+stack[depth-1].start;	// This is what a following repetition repeats
+				// Fall through
+			case RxOp::RxoAlternate:		// |
+				/*
+				 * The previous alternate/group-start is at stack[depth-1].previous.
+				 * We patch an offset there to point to ep-1 (the RxOp byte we just output to *ep).
+				 * If the offset fits in fewer than offset_max_bytes UTF-8 bytes, we must shuffle down.
+				 * This reduces the offset, which can cause it to cross a UTF-8 coding boundary,
+				 * taking one fewer bytes, a process that can only happen once.
+				 */
+				offset = (ep-nfa) - stack[depth-1].previous;
+				byte_count = UTF8Len(offset);
+				if (byte_count < offset_max_bytes)	// We'll shuffle
+				{
+					offset -= (offset_max_bytes-byte_count);
+					byte_count = UTF8Len(offset);
+				}
+
+				cp = nfa+stack[depth-1].previous;	// The patch location
+				if (byte_count < offset_max_bytes)
+				{		// Shuffle down, this offset is smaller than the offset_max_bytes
+					// We reserved offset_max_bytes, but only need byte_count.
+					memmove(cp+byte_count, cp+offset_max_bytes, ep-(cp+offset_max_bytes));
+					ep -= offset_max_bytes-byte_count;	// the nfa contains fewer bytes now
+				}
+				UTF8Put(cp, offset);		// Patch done
+
+				if (instr.op == RxOp::RxoAlternate)
+				{
+					stack[depth-1].previous = ep-nfa;
+					UTF8PutLong0(ep, offset_max_bytes);	// Reserve space for a patched offset
+				}
+				else
+					depth--;		// Pop the stack, this group is done
+
+				break;
+
+			case RxOp::RxoNonCapturingGroup:	// (...)
+			case RxOp::RxoNegLookahead:		// (?!...)
+				stack[depth].group_num = 0;
+				stack[depth].start = ep-1-nfa;
+				stack[depth].previous = ep-nfa;
+				depth++;
+				UTF8PutLong0(ep, offset_max_bytes);	// Reserve space for a patched offset
+				break;
+
+			case RxOp::RxoNamedCapture:		// (?<name>...)
+				stack[depth].group_num = next_group++;	// Index in names table + 1
+				stack[depth].start = ep-1-nfa;
+				stack[depth].previous = ep-nfa;
+				depth++;
+				UTF8PutLong0(ep, offset_max_bytes);	// Reserve space for a patched offset
+				*ep++ = next_group;
+				break;
+
+			case RxOp::RxoLiteral:			// A specific string
+			case RxOp::RxoCharProperty:		// A char with a named Unicode property
+			case RxOp::RxoCharClass:		// Character class; instr contains a string of character pairs
+			case RxOp::RxoNegCharClass:		// Negated Character class
+				sp = instr.str.asUTF8(byte_count);	// Get the bytes and byte count
+				UTF8Put(ep, byte_count);	// Encode the byte counnt as UTF-8
+				memcpy(ep, sp, byte_count);	// Output the bytes
+				ep += byte_count;		// And advance past them
+				break;
+
+			case RxOp::RxoSubroutine:		// Subroutine call to a named group
+				i = 1;
+				for (iter = names.begin(); iter != names.end(); iter++, i++)
+				{
+					if (*iter == instr.str)
+						break;
+				}
+				if (i > names.size())
+				{
+					error_message = "Function call to undeclared group";
+					return false;
+				}
+				*ep++ = i;
+				break;
+
+			case RxOp::RxoBOL:			// Beginning of Line
+				break;				// Nothing special to see here, move along
+			case RxOp::RxoEOL:			// End of Line
+				break;				// Nothing special to see here, move along
+			case RxOp::RxoAny:			// Any single char
+				break;				// Nothing special to see here, move along
+
+			case RxOp::RxoRepetition:		// {n, m}
+				ep--;				// We aren't going to record this here
+				// Shuffle NFA down by 3 bytes to insert this opcode and the repetition limits before last_atom_start
+				memmove(last_atom_start+3, last_atom_start, ep-last_atom_start);
+				ep += 3;
+				*last_atom_start++ = (UTF8)RxOp::RxoRepetition;
+				*last_atom_start++ = (UTF8)instr.repetition.min;	// Add 1 to avoid NUL characters
+				*last_atom_start++ = (UTF8)instr.repetition.max;	// Add 1 to avoid NUL characters
+				break;
+			}
+			last_atom_start = this_atom_start;
 			return true;
 		};
 
-	ok = scan_rx(first_pass);
-	if (ok)
-		printf("Required: Bytes %d, Offsets %d\n", bytes_required, offsets_required);
+	ok = scan_rx(second_pass);
+	*ep++ = '\0';
+	nfa_size = ep-nfa;
+
+	printf("NFA final size %d\n", nfa_size);
+
 	return ok;
 }
 
-/*
- * Evaluate the RE, counting the number of instructions, groups, captures, and parallel states
- * that are required to compile and execute it
 void
-RxCompiled::estimate_limits()
+RxCompiled::dump()			// Dump binary code to stdout
+{
+	if (!nfa)
+	{
+		printf("No NFA to dump\n");
+		return;
+	}
+
+	const	UTF8*	np;
+	for (np = nfa; np < nfa+nfa_size; np++)
+		printf("%02X ", *np&0xFF);
+	printf("\n");
+
+	int		depth = 0;
+	int		num_names;
+	// vector<StrVal>	names;		// REVISIT: Build the names for printing
+	// const UTF8*	name;
+	CharBytes	byte_count;		// Used for sizing string storage
+	int		offset_this;
+	int		offset_next;
+	int		group_num;
+	const char*	op_name;
+	int		min, max;
+	for (np = nfa; np < nfa+nfa_size;)
+	{
+		offset_this = np-nfa;
+		printf("%d(%d)\t", offset_this, *np);
+		for (int i = 1; i < depth; i++)
+			printf("\t");
+		switch ((RxOp)*np++)
+		{
+		case (RxOp)'\0':
+			if (np == nfa+nfa_size)
+			{
+				printf("Null termination\n");
+				break;			// Valid ending
+			}
+			// Fall through
+		default:
+			printf("Illegal NFA opcode %d\n", np[-1]&0xFF);
+			return;
+
+		case RxOp::RxoStart:			// Place to start the DFA
+			offset_next = UTF8Get(np);
+			num_names = *np++ & 0xFF;
+			printf("NFA start, next->%d", offset_next);
+			if (num_names > 0)
+			{
+				printf(", names:");
+				for (int i = 0; i < num_names; i++)
+				{
+					byte_count = UTF8Get(np);
+					printf(" %.*s", byte_count, np);
+					// Can't do this as data is not NUL-terminated
+					// StrBody		name_body(np, false);
+					// names.push_back(StrBody::staticStr(np, byte_count));
+					np += byte_count;
+				}
+			}
+			printf("\n");
+			depth++;
+			break;
+
+		case RxOp::RxoEnd:			// Termination condition
+			printf("End\n");
+			depth--;
+			break;
+
+		case RxOp::RxoEndGroup:			// End of a group
+			printf("RxoEndGroup\n");
+			depth--;
+			break;
+
+		case RxOp::RxoAlternate:		// |
+			offset_next = UTF8Get(np);
+			printf("RxoAlternate next=(+%d)->%d\n", offset_next, offset_this+offset_next);
+			break;
+
+		case RxOp::RxoNonCapturingGroup:	// (...)
+			offset_next = UTF8Get(np);
+			printf("\tRxoNonCapturingGroup, offset=(+%d)->%d\n", offset_next, offset_this+offset_next);
+			depth++;
+			break;
+
+		case RxOp::RxoNegLookahead:		// (?!...)
+			offset_next = UTF8Get(np);
+			printf("\tRxoNegLookahead, offset=(%d)->%d\n", offset_next, offset_this+offset_next);
+			depth++;
+			break;
+
+		case RxOp::RxoNamedCapture:		// (?<name>...)
+			offset_next = UTF8Get(np);
+			group_num = (*np++ & 0xFF) - 1;
+			// REVISIT: Get the name and print it here
+			// name = names[group_num].asUTF8(byte_count);
+			printf("\tRxoNamedCapture %d, offset=(%d)->%d\n", group_num, offset_next, offset_this+offset_next);
+			depth++;
+			break;
+
+		case RxOp::RxoLiteral:			// A specific string
+			op_name = "RxoLiteral";
+			goto string;
+		case RxOp::RxoCharProperty:		// A char with a named Unicode property
+			op_name = "RxoCharProperty";
+			goto string;
+		case RxOp::RxoCharClass:		// Character class; instr contains a string of character pairs
+			op_name = "RxoCharClass";
+			goto string;
+		case RxOp::RxoNegCharClass:		// Negated Character class
+			op_name = "RxoNegCharClass";
+		string:
+			byte_count = UTF8Get(np);
+			printf("\t%s, '%.*s'\n", op_name, byte_count, np);
+			np += byte_count;
+			break;
+
+		case RxOp::RxoSubroutine:		// Subroutine call to a named group
+			printf("\tRxoSubroutine call to [%d]\n", *np++ & 0xFF);
+			break;
+
+		case RxOp::RxoBOL:			// Beginning of Line
+			printf("\tRxoBOL\n");
+			break;
+
+		case RxOp::RxoEOL:			// End of Line
+			printf("\tRxoEOL\n");
+			break;
+
+		case RxOp::RxoAny:			// Any single char
+			printf("\tRxoAny\n");
+			break;
+
+		case RxOp::RxoRepetition:		// {n, m}
+			min = *np++ & 0xFF;
+			max = *np++ & 0xFF;
+			printf("\tRxoRepetition min=%d max=%d\n", min, max);
+			break;
+		}
+	}
+}
+
+RxMatcher::RxMatcher(RxCompiled& rx)
+{
+	rx.compile();
+}
+
+RxMatcher::~RxMatcher()
 {
 }
- */

@@ -43,10 +43,21 @@ enum RxFeature
 	ExtendedRE	= 0x20000000,	// Whitespace allowed, but may be matched by \s
 };
 
+class RxCompiled;
+class RxMatcher
+{
+protected:
+	~RxMatcher();
+	RxMatcher(RxCompiled& rx);
+public:
+private:
+};
+
 // Regular expression instructions
 enum class RxOp: unsigned char
 {
-	RxoStart = 1,		// Place to start the DFA
+	RxoNull = 0,		// Null termination on the NFA
+	RxoStart,		// Place to start the DFA
 	RxoLiteral,		// A string of specific characters
 	RxoCharProperty,	// A character with a named Unicode property
 	RxoBOL,			// Beginning of Line
@@ -93,10 +104,11 @@ public:
 	~RxCompiled();
 	RxCompiled(StrVal re, RxFeature features = AllFeatures, RxFeature reject_features = NoFeature);
 
-	// Lexical scanner for a regular expression. Returns false if error_message gets set.
+	// Lexical scanner and compiler for a regular expression. Returns false if error_message gets set.
 	bool		scan_rx(const std::function<bool(const RxInstruction& instr)> func);
-
 	bool		compile();
+
+	void		dump();			// Dump binary code to stdout
 
 	const char*	ErrorMessage() const { return error_message; }
 
@@ -105,6 +117,8 @@ protected:
 	RxFeature	features_enabled;	// Features that are not enabled are normally ignored
 	RxFeature	features_rejected;	// but these features cause an error if used
 	const char*	error_message;
+	UTF8*		nfa;
+	CharBytes	nfa_size;
 
 	bool		supported(RxFeature);	// Set error message and return false on rejected feature use
 	bool		enabled(RxFeature) const; // Return true if the specified feature is enabled
