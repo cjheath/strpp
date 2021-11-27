@@ -148,7 +148,7 @@ bool RxCompiled::scan_rx(const std::function<bool(const RxInstruction& instr)> f
 				if (close < 0)
 					goto bad_repetition;
 				max = param.substr(0, close).asInt32(&int_error, 10, &scanned);
-				if ((int_error && int_error == STRERR_NO_DIGITS) || max < min)
+				if ((int_error && int_error != STRERR_NO_DIGITS) || (max && max < min))
 					goto bad_repetition;
 				i += close;
 			}
@@ -278,9 +278,13 @@ bool RxCompiled::scan_rx(const std::function<bool(const RxInstruction& instr)> f
 			}
 			while (ch != '\0' && ch != ']')
 			{
+				// REVISIT: Add support for Posix groups or Unicode Properties
 				if (ch == '\\')		// Any single Unicode char can be escaped. REVISIT for other escapes
+				{
 					if ((ch = re[++i]) == '\0')
 						goto bad_class; // RE ends with the backslash
+					// REVISIT: Support \escapes in character classes? Which ones?
+				}
 
 				param += ch;	// Start of range pair
 				if (re[i+1] == '-' && re[i+2] != ']')	// Allow a single - before the closing ]
@@ -288,8 +292,11 @@ bool RxCompiled::scan_rx(const std::function<bool(const RxInstruction& instr)> f
 					if ((ch = re[i += 2]) == '\0')
 						goto bad_class;
 					if (ch == '\\')		// Any single Unicode char can be escaped. REVISIT for other escapes
+					{
 						if ((ch = re[++i]) == '\0')
 							goto bad_class; // RE ends with the backslash
+						// REVISIT: Support \escapes in character classes? Which ones?
+					}
 				}
 				param += ch;
 				ch = re[++i];
@@ -389,10 +396,11 @@ bool RxCompiled::scan_rx(const std::function<bool(const RxInstruction& instr)> f
 
 			if (delayed.length() == 0)
 				delayed = re.substr(i, 1);	// Start an re substring - lower cost
-			else if (delayed.isShared())		// Continue an re substring
-				delayed = re.substr(i-delayed.length(), delayed.length()+1);
+// REVISIT: This optimisation does not work for extended REs where white-space has been skipped
+//			else if (delayed.isShared())		// Continue an re substring
+//				delayed = re.substr(i-delayed.length(), delayed.length()+1);
 			else					// Not using an re substring due to previous escape etc
-				delayed += re.substr(i, 1);
+				delayed += ch;
 			continue;
 		}
 
