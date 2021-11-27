@@ -357,7 +357,7 @@ StrVal::operator+(UCS4 addend) const
 	*cp = '\0';
 	StrBody	body;
 
-	return operator+(body.staticStr(buf, 1, cp-buf));
+	return operator+(body.staticStr(buf, cp-buf, 1));
 }
 
 // Add, StrVal is modified:
@@ -378,7 +378,7 @@ StrVal::operator+=(UCS4 addend)
 	*cp = '\0';
 
 	StrBody	body;
-	operator+=(body.staticStr(buf, 1, cp-buf));
+	operator+=(body.staticStr(buf, cp-buf, 1));
 	return *this;
 }
 
@@ -652,16 +652,18 @@ StrBody::StrBody(const UTF8* data, CharBytes length, size_t allocate)
  * The lifetime of the returned StrVal and all copies must end before the StrBody's does.
  */
 StrVal
-StrBody::staticStr(const UTF8* static_data, CharNum _c, CharBytes _b)
+StrBody::staticStr(const UTF8* static_data, CharBytes _num_bytes, CharNum _num_chars)
 {
 	if (num_alloc)
 		delete[] start;
 
 	ref_count = 2;		// Self-reference so we don't get deleted by ref-counting
 	start = (UTF8*)static_data;	// Cast const away; we won't ever delete or mutate this
-	num_chars = _c;
-	num_bytes = _b;
+	num_chars = _num_chars;
+	num_bytes = _num_bytes;
 	num_alloc = 0;		// Never delete(start)
+	if (num_chars == 0 && num_bytes > 0)
+		countChars();
 
 	return StrVal(this);
 }
@@ -842,7 +844,7 @@ StrBody::toLower()
 			UTF8Put(op, ch);
 			*op = '\0';
 
-			return body.staticStr(one_char, 1, op-one_char);
+			return body.staticStr(one_char, op-one_char, 1);
 		}
 	);
 }
@@ -861,7 +863,7 @@ StrBody::toUpper()
 			UTF8Put(op, ch);
 			*op = '\0';
 
-			return body.staticStr(one_char, 1, op-one_char);
+			return body.staticStr(one_char, op-one_char, 1);
 		}
 	);
 }
