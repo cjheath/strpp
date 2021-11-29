@@ -161,6 +161,7 @@ protected:
 	StrVal(StrBody* body, CharNum offs, CharNum len);	// offs/len not bounds-checked!
 	const UTF8*	nthChar(CharNum off) const;	// Return a pointer to the start of the nth character
 	const UTF8*	nthChar(CharNum off);	// Return a pointer to the start of the nth character
+	bool		noCopy() const;
 
 private:
 	Ref<StrBody>	body;		// The storage structure for the character data
@@ -182,6 +183,8 @@ public:
 	~StrBody();
 	StrBody();
 	StrBody(const UTF8* data, bool copy, CharBytes length, size_t allocate = 0);
+
+	bool		noCopy() const { return num_alloc == 0; }	// This body or its data are transient
 
 	inline CharNum	numChars()	// Not const because it can count chars and compact the data
 			{

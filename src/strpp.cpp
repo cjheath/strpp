@@ -144,7 +144,6 @@ StrVal::asUTF8(CharBytes& bytes) const
 int
 StrVal::compare(const StrVal& comparand, CompareStyle style) const
 {
-	// printf("Comparing %s with %s\n", nthChar(0), comparand.nthChar(0));
 	int	cmp;
 	switch (style)
 	{
@@ -368,7 +367,7 @@ StrVal::operator+(UCS4 addend) const
 StrVal&
 StrVal::operator+=(const StrVal& addend)
 {
-	if (num_chars == 0)
+	if (num_chars == 0 && !addend.noCopy())
 		return *this = addend;		// Just assign, we were empty anyhow
 
 	append(addend);
@@ -608,6 +607,12 @@ StrVal::nthChar(CharNum char_num) const
 		return 0;
 	Bookmark	useless;
 	return body->nthChar(offset+char_num, useless);
+}
+
+bool
+StrVal::noCopy() const
+{
+	return body->noCopy();
 }
 
 StrBody::~StrBody()
