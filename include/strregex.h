@@ -97,6 +97,7 @@ public:
 	// Lexical scanner and compiler for a regular expression. Returns false if error_message gets set.
 	bool		scan_rx(const std::function<bool(const RxInstruction& instr)> func);
 	bool		compile();
+	const char*	Nfa() { return nfa; }
 
 	void		dump();			// Dump binary code to stdout
 
