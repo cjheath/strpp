@@ -647,6 +647,8 @@ StrBody::StrBody(const UTF8* data, bool copy, CharBytes length, size_t allocate)
 	else
 	{
 		start = (UTF8*)data;	// Cast const away; copy==false implies no change will occur
+		if (length == 0)
+			length = strlen(data);
 		AddRef();		// Cannot be deleted or resized
 	}
 	num_bytes = length;

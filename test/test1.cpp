@@ -2,8 +2,20 @@
 
 #include	<string.h>
 #include	<stdio.h>
+#include	"memory_monitor.h"
+
+void tests();
 
 int main(int argc, const char** argv)
+{
+	start_recording_allocations();
+	tests();
+	if (unfreed_allocation_count() > 0)	// No allocation should remain unfreed
+		report_allocations();
+	return 0;
+}
+
+void tests()
 {
 	StrVal	foobar("foo bar");
 
@@ -28,7 +40,7 @@ int main(int argc, const char** argv)
 		printf("\t%d: 0x%02X '%c'\n", i, bar[i], bar[i]);
 
 	// Static string test. The literal string must outlive the body, which must outlive the StrVal
-	StrBody	const_body("Borrow this data but don't fudge it\n", false);	// Don't copy this data
+	StrBody	const_body("Borrow this data but don't fudge it\n", false, 0, 1);
 	StrVal	cstr(&const_body);
 	fputs(cstr.substr(3).asUTF8(), stdout);
 
@@ -62,6 +74,4 @@ int main(int argc, const char** argv)
 	printf("square_is_rectangle = %s\n", square_is_rectangle.asUTF8());
 	for (int i = 0; i <= square_is_rectangle.length(); i++)
 		printf("\t%d: U-%04X (%d bytes)\n", i, square_is_rectangle[i], UTF8Len(square_is_rectangle[i]));
-
-	return 0;
 }

@@ -1,3 +1,6 @@
+/*
+ * Memory leak monitoring and reporting for test programs
+ */
 #include	<vector>
 
 struct	Allocation
