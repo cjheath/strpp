@@ -7,10 +7,10 @@
 class	RefCounted
 {
 public:
-	virtual		~RefCounted() {}
+	virtual		~RefCounted() { }
 			RefCounted() : ref_count(0) {}
 	void		AddRef() { (void)ref_count++; }
-	void		Release() { if (ref_count-- == 0) delete this; }
+	void		Release() { if (--ref_count == 0) delete this; }
 			// Only for debugging, may be instantly stale unless == 1:
 	int		GetRefCount() volatile const { return (int)ref_count; }
 
