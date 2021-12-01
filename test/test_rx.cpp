@@ -19,12 +19,13 @@ main(int argc, char** argv)
 	for (--argc, ++argv; argc > 0; argc--, argv++)
 	{
 		RxCompiled	rx(*argv, (RxFeature)(RxFeature::AllFeatures | RxFeature::ExtendedRE));
+		char*		nfa;
 		bool		scanned_ok;
 
 		printf("Compiling '%s'\n", *argv);
 
 		start_recording_allocations();
-		scanned_ok = rx.compile();
+		scanned_ok = rx.compile(nfa);
 		if (scanned_ok && unfreed_allocation_count() > 1)
 			report_allocations();
 
@@ -34,7 +35,9 @@ main(int argc, char** argv)
 			continue;
 		}
 
-		rx.dump();
+		rx.dump(nfa);
+		if (nfa)
+			delete[] nfa;
 
 		// RxMatcher	rm(rx);
 	}
@@ -193,78 +196,65 @@ compiler_test	compiler_tests[] =
 
 int automated_tests()
 {
-	auto 	wrapper = [&](compiler_test* ct, int leaky_allocations = 1) -> bool
+	auto 	wrapper = [&](compiler_test* ct, int leaky_allocations = 0) -> bool
 	{
 		RxCompiled	rx(ct->regex, (RxFeature)(RxFeature::AllFeatures | RxFeature::ExtendedRE));
+		char*		nfa = 0;
 		bool		scanned_ok;
 
 		start_recording_allocations();
-		scanned_ok = rx.compile();
+		scanned_ok = rx.compile(nfa);
 
-		// Check the success/failure indication first:
-		if ((ct->expected_message == 0) != scanned_ok)
-		{
-			if (scanned_ok)
-				printf("Fixed: %s\n", ct->regex);
-			else
-				printf("Fail (%s): %s\n", rx.ErrorMessage(), ct->regex);
-		}
+		// Check expectations
+		bool	return_code_pass = (ct->expected_message == 0) == scanned_ok;	// Failure was reported if expected
+		bool	nfa_presence_pass = (ct->expected_nfa != 0) == (nfa != 0);	// NFA was returned if one was expected
+		bool	nfa_pass = !ct->expected_nfa || 0 == strcmp(nfa, ct->expected_nfa);	// NFA was correct if expected
+		bool	error_message_presence_pass = (ct->expected_message != 0) == (rx.ErrorMessage() != 0);	// Message was returned if expected
+		bool	error_message_pass = !ct->expected_message || 0 == strcmp(ct->expected_message, rx.ErrorMessage());	// Message was correct if expected
+		bool	test_pass = return_code_pass && nfa_presence_pass && nfa_pass && error_message_presence_pass && error_message_pass;
 
-		if (ct->expected_nfa)
-		{
-			if (0 != strcmp(rx.Nfa(), ct->expected_nfa))
-			{
-				printf("Unexpected NFA for %s\n", ct->regex);
-				rx.dump();
-				return false;
-			}
+		// Report Pass/Fixed/Pending/Fail:
+		if (test_pass && !ct->expected_message)
 			printf("Pass: %s\n", ct->regex);
-		}
-		else if (!scanned_ok)
-		{
-			if (!rx.ErrorMessage())
-			{
-				printf("Fail: compile failed by no error was reported: %s\n", ct->regex);
-				return false;
-			}
-			if (!ct->expected_message)
-			{
-				printf("Fail: unexpected compile failure with message \"%s\": %s\n", rx.ErrorMessage(), ct->regex);
-				return false;
-			}
-
-			if (0 == strcmp(ct->expected_message, rx.ErrorMessage()))
-			{
-				printf("Pass with expected error: %s\n", ct->regex);
-				return true;
-			}
-			else
-			{
-				printf("Fail (unexpected error %s): %s\n", ct->expected_message, ct->regex);
-				return false;
-			}
-		}
-		else if (!rx.Nfa())
-		{
-			printf("Fail (Null NFA): %s\n", ct->regex);
-			return false;
-		}
+		else if (test_pass)
+			printf("Pass (with expected error): %s\n", ct->regex);
+		else if (ct->expected_message && scanned_ok && nfa_pass)
+			printf("Fixed: %s\n", ct->regex);
+		else if (ct->expected_message)
+			printf("Pending: %s\n", ct->regex);
 		else
+			printf(
+				"Fail (%s)%s, (returned %s): %s\n",
+				rx.ErrorMessage() ? rx.ErrorMessage() : "<no message returned>",
+				error_message_presence_pass ? "" : " unexpected",
+				scanned_ok ? "ok" : "fail",
+				ct->regex
+			);
+
+		// On unexpected NFA, show it:
+		if (!ct->expected_nfa && nfa)
 		{
 			printf("Expected NFA unknown for \"%s\". Got:\n\"", ct->regex);
-			for (const char* cp = rx.Nfa(); *cp; cp++)
+			for (const char* cp = nfa; *cp; cp++)
 				printf("\\x%02X", *cp&0xFF);
 			printf("\"\n");
-			return true;
+			nfa_pass = false;	// Force a dump
 		}
 
+		// On incorrect NFA, dump what we got:
+		if (!nfa_pass)
+			rx.dump(nfa);
+
+		// Clean up and check for leaks:
+		if (nfa)
+			delete[] nfa;
 		if (scanned_ok && unfreed_allocation_count() > leaky_allocations)
 		{
 			printf("Unfreed allocations after compiling \"%s\":\n", ct->regex);
 			report_allocations();
 		}
 
-		return (ct->expected_message == 0) == scanned_ok;	// Passed or failed as expected
+		return test_pass;
 	};
 	size_t		num_tests = sizeof(compiler_tests)/sizeof(compiler_tests[0]);
 	bool		all_ok = true;

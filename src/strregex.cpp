@@ -12,16 +12,12 @@ RxCompiled::RxCompiled(StrVal _re, RxFeature features, RxFeature reject_features
 , features_enabled((RxFeature)(features & ~reject_features))
 , features_rejected(reject_features)
 , error_message(0)
-, nfa(0)
 , nfa_size(0)
 {
 }
 
 RxCompiled::~RxCompiled()
 {
-	if (nfa)
-		delete [] nfa;
-	nfa = 0;
 }
 
 bool RxCompiled::supported(RxFeature feat)
@@ -436,7 +432,7 @@ bool RxCompiled::scan_rx(const std::function<bool(const RxInstruction& instr)> f
  * down three bytes to make room.
  */
 bool
-RxCompiled::compile()
+RxCompiled::compile(char*& nfa)
 {
 	CharBytes	bytes_required = 0;	// Count how many bytes we will need
 	CharBytes	offsets_required = 0;	// Count how many UTF8-encoded offsets we will need
@@ -731,6 +727,12 @@ RxCompiled::compile()
 	*ep++ = '\0';
 	nfa_size = ep-nfa;
 
+	if (!ok)
+	{
+		delete[] nfa;
+		nfa = 0;
+	}
+
 	/*
 	printf(
 		"Required: Bytes %d, Offsets %d, max offset size=%d\n",
@@ -747,7 +749,7 @@ RxCompiled::compile()
 }
 
 void
-RxCompiled::dump()			// Dump binary code to stdout
+RxCompiled::dump(const char* nfa)		// Dump binary code to stdout
 {
 	if (!nfa)
 	{

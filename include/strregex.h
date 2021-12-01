@@ -70,7 +70,7 @@ struct RxRepetitionRange
 	RxRepetitionRange() : min(0), max(0) {}
 	RxRepetitionRange(int n, int x) : min(n), max(x) {}
 	uint16_t	min;
-	uint16_t	max;
+	uint16_t	max;	// Zero means no maximum
 };
 
 class RxInstruction
@@ -96,10 +96,9 @@ public:
 
 	// Lexical scanner and compiler for a regular expression. Returns false if error_message gets set.
 	bool		scan_rx(const std::function<bool(const RxInstruction& instr)> func);
-	bool		compile();
-	const char*	Nfa() { return nfa; }
+	bool		compile(char*& nfa);
 
-	void		dump();			// Dump binary code to stdout
+	void		dump(const char* nfa);	// Dump binary code to stdout
 
 	const char*	ErrorMessage() const { return error_message; }
 
@@ -108,24 +107,10 @@ protected:
 	RxFeature	features_enabled;	// Features that are not enabled are normally ignored
 	RxFeature	features_rejected;	// but these features cause an error if used
 	const char*	error_message;
-	UTF8*		nfa;
 	CharBytes	nfa_size;
 
 	bool		supported(RxFeature);	// Set error message and return false on rejected feature use
 	bool		enabled(RxFeature) const; // Return true if the specified feature is enabled
-};
-
-/*
- * RxEngine is the machine that evaluates a Regular Expression
- * against a string, and contains its result.
- */
-class RxEngine
-{
-public:
-	~RxEngine();
-	RxEngine(const RxCompiled* machine, StrVal target);
-
-private:
 };
 
 #endif	// STRREGEX_H
