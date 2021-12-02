@@ -86,13 +86,13 @@ public:
 };
 
 /*
- * RxCompiled compiles a regular expressions for the machine to execute.
+ * RxCompiler compiles a regular expressions for the matcher to execute.
  */
-class RxCompiled
+class RxCompiler
 {
 public:
-	~RxCompiled();
-	RxCompiled(StrVal re, RxFeature features = AllFeatures, RxFeature reject_features = NoFeature);
+	~RxCompiler();
+	RxCompiler(StrVal re, RxFeature features = AllFeatures, RxFeature reject_features = NoFeature);
 
 	// Lexical scanner and compiler for a regular expression. Returns false if error_message gets set.
 	bool		scan_rx(const std::function<bool(const RxInstruction& instr)> func);

@@ -18,7 +18,7 @@ main(int argc, char** argv)
 
 	for (--argc, ++argv; argc > 0; argc--, argv++)
 	{
-		RxCompiled	rx(*argv, (RxFeature)(RxFeature::AllFeatures | RxFeature::ExtendedRE));
+		RxCompiler	rx(*argv, (RxFeature)(RxFeature::AllFeatures | RxFeature::ExtendedRE));
 		char*		nfa;
 		bool		scanned_ok;
 
@@ -198,7 +198,7 @@ int automated_tests()
 {
 	auto 	wrapper = [&](compiler_test* ct, int leaky_allocations = 0) -> bool
 	{
-		RxCompiled	rx(ct->regex, (RxFeature)(RxFeature::AllFeatures | RxFeature::ExtendedRE));
+		RxCompiler	rx(ct->regex, (RxFeature)(RxFeature::AllFeatures | RxFeature::ExtendedRE));
 		char*		nfa = 0;
 		bool		scanned_ok;
 
@@ -218,7 +218,7 @@ int automated_tests()
 			printf("Pass: %s\n", ct->regex);
 		else if (test_pass)
 			printf("Pass (with expected error): %s\n", ct->regex);
-		else if (ct->expected_message && scanned_ok && nfa_pass)
+		else if (ct->expected_message && scanned_ok && nfa_pass && rx.ErrorMessage() == 0)
 			printf("Fixed: %s\n", ct->regex);
 		else if (ct->expected_message)
 			printf("Pending: %s\n", ct->regex);

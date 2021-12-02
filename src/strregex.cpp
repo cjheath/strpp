@@ -7,7 +7,7 @@
 
 using std::vector;
 
-RxCompiled::RxCompiled(StrVal _re, RxFeature features, RxFeature reject_features)
+RxCompiler::RxCompiler(StrVal _re, RxFeature features, RxFeature reject_features)
 : re(_re)
 , features_enabled((RxFeature)(features & ~reject_features))
 , features_rejected(reject_features)
@@ -16,11 +16,11 @@ RxCompiled::RxCompiled(StrVal _re, RxFeature features, RxFeature reject_features
 {
 }
 
-RxCompiled::~RxCompiled()
+RxCompiler::~RxCompiler()
 {
 }
 
-bool RxCompiled::supported(RxFeature feat)
+bool RxCompiler::supported(RxFeature feat)
 {
 	if ((features_rejected & feat) != 0)
 	{
@@ -31,7 +31,7 @@ bool RxCompiled::supported(RxFeature feat)
 	return enabled(feat);
 }
 
-bool RxCompiled::enabled(RxFeature feat) const
+bool RxCompiler::enabled(RxFeature feat) const
 {
 	return (features_enabled & feat) != 0;
 }
@@ -42,7 +42,7 @@ bool RxCompiled::enabled(RxFeature feat) const
  * hugely more complicated and incomprehensible to do it any other way.
  * If you reckon you can improve on it, you're welcome to try.
  */
-bool RxCompiled::scan_rx(const std::function<bool(const RxInstruction& instr)> func)
+bool RxCompiler::scan_rx(const std::function<bool(const RxInstruction& instr)> func)
 {
 	int		i = 0;		// Regex character offset
 	UCS4		ch;		// A single character to match
@@ -432,7 +432,7 @@ bool RxCompiled::scan_rx(const std::function<bool(const RxInstruction& instr)> f
  * down three bytes to make room.
  */
 bool
-RxCompiled::compile(char*& nfa)
+RxCompiler::compile(char*& nfa)
 {
 	CharBytes	bytes_required = 0;	// Count how many bytes we will need
 	CharBytes	offsets_required = 0;	// Count how many UTF8-encoded offsets we will need
@@ -749,7 +749,7 @@ RxCompiled::compile(char*& nfa)
 }
 
 void
-RxCompiled::dump(const char* nfa)		// Dump binary code to stdout
+RxCompiler::dump(const char* nfa)		// Dump binary code to stdout
 {
 	if (!nfa)
 	{
