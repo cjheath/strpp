@@ -4,6 +4,7 @@
  * Unicode String regular expressions
  */
 #include	<strpp.h>
+#include	<vector>
 
 enum RxFeature
 {
