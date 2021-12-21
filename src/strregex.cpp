@@ -513,6 +513,7 @@ RxCompiler::compile(char*& nfa)
 				names.push_back(instr.str);
 
 				offsets_required++;
+				bytes_required++;		// Space for the group number
 				if (depth >= sizeof(stack)/sizeof(stack[0]))
 					goto too_deep;
 				stack[depth].group_num = names.size();	// First entry is 1. 0 means un-named
@@ -715,6 +716,7 @@ RxCompiler::compile(char*& nfa)
 				*last_atom_start++ = (UTF8)instr.repetition.max + 1;	// Add 1 to avoid NUL characters
 				break;
 			}
+			assert(ep < nfa+bytes_required);
 			last_atom_start = this_atom_start;
 			return true;
 		};
