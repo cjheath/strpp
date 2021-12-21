@@ -8,11 +8,18 @@
 
 #include	"memory_monitor.h"
 
+bool	verbose = false;
 int	automated_tests();
 
 int
 main(int argc, char** argv)
 {
+	if (argc > 1 && 0 == strcmp("-v", argv[1]))
+	{
+		verbose = true;
+		argc--; argv++;
+	}
+
 	if (argc == 1)
 		return automated_tests();
 
@@ -106,6 +113,9 @@ compiler_test	compiler_tests[] =
 
 	// Any
 	{ ".",		"\x01\x04\x01\x08\x10", 0 },
+	{ ".*",		"\x01\x07\x01\x09\x01\x01\x08\x10", 0 },
+	{ ".+",		"\x01\x07\x01\x09\x02\x01\x08\x10", 0 },
+	{ ".{2,5}",	"\x01\x07\x01\x09\x03\x06\x08\x10", 0 },
 	{ "a.b",	"\x01\x0A\x01\x02\x01\x61\x08\x02\x01\x62\x10", 0 },
 
 	// Non-capture groups
@@ -232,17 +242,21 @@ int automated_tests()
 			);
 
 		// On unexpected NFA, show it:
-		if (!ct->expected_nfa && nfa)
+		if (nfa && (!ct->expected_nfa || verbose))
 		{
-			printf("Expected NFA unknown for \"%s\". Got:\n\"", ct->regex);
+			if (!ct->expected_nfa)
+			{
+				printf("Expected NFA unknown for \"%s\". Got:\n", ct->regex);
+				nfa_pass = false;	// Force a dump
+			}
+			printf("\t{ \"%s\",\t\t\"", ct->regex);	// Needs escaping, but close
 			for (const char* cp = nfa; *cp; cp++)
 				printf("\\x%02X", *cp&0xFF);
-			printf("\"\n");
-			nfa_pass = false;	// Force a dump
+			printf("\", 0 },\n");
 		}
 
 		// On incorrect NFA, dump what we got:
-		if (!nfa_pass)
+		if (!nfa_pass || verbose)
 			rx.dump(nfa);
 
 		// Clean up and check for leaks:
