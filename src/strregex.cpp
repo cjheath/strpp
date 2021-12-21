@@ -542,6 +542,7 @@ RxCompiler::compile(char*& nfa)
 			case RxOp::RxoEOL:			// End of Line
 				break;				// Nothing special to see here, move along
 			case RxOp::RxoAny:			// Any single char
+				is_atom = true;
 				break;				// Nothing special to see here, move along
 
 			case RxOp::RxoRepetition:		// {n, m}
