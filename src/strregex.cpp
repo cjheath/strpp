@@ -417,8 +417,8 @@ bool RxCompiler::scan_rx(const std::function<bool(const RxInstruction& instr)> f
  * The opcodes are all ASCII (single UTF-8 byte), with one bit indicating that repetition is involved.
  *
  * As the NFA is built, there are places where numbers that aren't yet known must be later patched in.
- * Because the UTF-8 encoding of these numbers might be variable in size, so the maximum required space
- * is reserved, so patching involves shuffling the rest of the NFA down to meet it.
+ * Because the UTF-8 encoding of these numbers is variable in size, the maximum required space is
+ * reserved, so patching involves shuffling the rest of the NFA down to meet it.
  * - The repeat opcode and min&max number (unsigned char) of repetitions allowed, 3 bytes total.
  * - Byte offset from an alternate or the start of a group, to the next alternate or end of the group.
  *
@@ -440,6 +440,7 @@ RxCompiler::compile(char*& nfa)
 		uint8_t		group_num;
 		CharBytes	start;		// Offset to group-start opcode
 		CharBytes	previous;	// Index in nfa of the offset in the group-start or previous alternative
+		CharBytes	next;		// Index in nfa of the opcode following the group-start
 	} stack[16];	// Maximum nesting depth for groups
 	int		depth;			// Stack pointer
 	CharBytes	byte_count;		// Used for sizing string storage
@@ -463,6 +464,7 @@ RxCompiler::compile(char*& nfa)
 				bytes_required += 1;		// Store the number of names in the names array
 				offsets_required++;		// Need an offset to the second alternate, like any group
 				stack[0].group_num = 0;
+				stack[0].start = 1;
 				depth = 1;
 				break;
 
@@ -477,7 +479,6 @@ RxCompiler::compile(char*& nfa)
 					error_message = "Too many closing parentheses";
 					return false;
 				}
-				offsets_required++;
 				is_atom = true;
 				break;
 
@@ -486,31 +487,19 @@ RxCompiler::compile(char*& nfa)
 				break;
 
 			case RxOp::RxoNonCapturingGroup:	// (...)
-				if (depth >= sizeof(stack)/sizeof(stack[0]))
-				{
-					error_message = "Nesting too deep";
-					return false;
-				}
-				stack[depth].group_num = 0;
-				depth++;
-				break;
-
 			case RxOp::RxoNegLookahead:		// (?!...)
+				offsets_required++;
 				if (depth >= sizeof(stack)/sizeof(stack[0]))
 				{
-					error_message = "Nesting too deep";
+		too_deep:		error_message = "Nesting too deep";
 					return false;
 				}
 				stack[depth].group_num = 0;
+				stack[depth].start = 1;		// Before any Alternate
 				depth++;
 				break;
 
 			case RxOp::RxoNamedCapture:		// (?<name>...)
-				if (depth >= sizeof(stack)/sizeof(stack[0]))
-				{
-					error_message = "Nesting too deep";
-					return false;
-				}
 				if (names.size() >= 254)
 				{
 					error_message = "Too many named groups";
@@ -523,8 +512,12 @@ RxCompiler::compile(char*& nfa)
 						return false;
 					}
 				names.push_back(instr.str);
-				stack[depth].group_num = names.size();	// First entry is 1. 0 means un-named
+
 				offsets_required++;
+				if (depth >= sizeof(stack)/sizeof(stack[0]))
+					goto too_deep;
+				stack[depth].group_num = names.size();	// First entry is 1. 0 means un-named
+				stack[depth].start = 1;		// Before any Alternate
 				depth++;
 				goto str_param;
 
@@ -618,6 +611,7 @@ RxCompiler::compile(char*& nfa)
 					memcpy(ep, sp, byte_count);
 					ep += byte_count;
 				}
+				stack[depth-1].next = ep-nfa;
 				break;
 
 			case RxOp::RxoEnd:			// Termination condition
@@ -666,6 +660,7 @@ RxCompiler::compile(char*& nfa)
 				stack[depth].previous = ep-nfa;
 				depth++;
 				UTF8PutLong0(ep, offset_max_bytes);	// Reserve space for a patched offset
+				stack[depth-1].next = ep-nfa;
 				break;
 
 			case RxOp::RxoNamedCapture:		// (?<name>...)
@@ -675,6 +670,7 @@ RxCompiler::compile(char*& nfa)
 				depth++;
 				UTF8PutLong0(ep, offset_max_bytes);	// Reserve space for a patched offset
 				*ep++ = next_group++;
+				stack[depth-1].next = ep-nfa;
 				break;
 
 			case RxOp::RxoLiteral:			// A specific string
