@@ -442,7 +442,7 @@ RxCompiler::compile(char*& nfa)
 		CharBytes	next;		// Index in nfa of the opcode following the group-start
 	} stack[16];	// Maximum nesting depth for groups
 	int		depth;			// Stack pointer
-	CharBytes	byte_count;		// Used for sizing string storage
+	CharBytes	utf8_count;		// Used for sizing string storage
 	RxOp		last = RxOp::RxoStart;
 	bool		repeatable = false;	// Cannot start with a repetition
 	bool		ok;			// Is everything still ok to continue?
@@ -526,9 +526,9 @@ RxCompiler::compile(char*& nfa)
 			case RxOp::RxoCharClass:		// Character class; instr contains a string of character pairs
 			case RxOp::RxoNegCharClass:		// Negated Character class
 				is_atom = true;
-		str_param:	(void)instr.str.asUTF8(byte_count);
-				bytes_required += UTF8Len(byte_count);	// Length encoded as UTF-8
-				bytes_required += byte_count;	// UTF8 bytes
+		str_param:	(void)instr.str.asUTF8(utf8_count);
+				bytes_required += UTF8Len(utf8_count);	// Length encoded as UTF-8
+				bytes_required += utf8_count;	// UTF8 bytes
 				break;
 
 			case RxOp::RxoSubroutine:		// Subroutine call to a named group
@@ -580,12 +580,39 @@ RxCompiler::compile(char*& nfa)
 
 	nfa = new UTF8[bytes_required+1];
 	UTF8*		ep = nfa;
-	UTF8*		last_atom_start = ep;
-	UTF8*		cp;
-	const UTF8*	sp;
-	CharBytes	offset;
-	int		i;
-	int		next_group = 0;
+
+	auto	patch_offset_at =
+		[&](CharBytes patch_location, CharBytes offset_to)
+		{
+			/*
+			 * We reserved offset_max_bytes at patch_location for an offset to the current location.
+			 *
+			 * Patch the offset there to point to ep-1 (the RxOp byte we just output to *ep).
+			 * If the offset fits in fewer than offset_max_bytes UTF-8 bytes, we must shuffle down.
+			 * This reduces the offset, which can cause it to cross a UTF-8 coding boundary,
+			 * taking one fewer bytes, a process that can only happen once.
+			 */
+			CharBytes	offset = offset_to - patch_location;
+			CharBytes	byte_count = UTF8Len(offset);
+			if (byte_count < offset_max_bytes)	// We'll shuffle
+			{
+				offset -= (offset_max_bytes-byte_count);
+				byte_count = UTF8Len(offset);
+			}
+
+			UTF8*	cp = nfa+patch_location;	// The patch location
+			if (byte_count < offset_max_bytes)
+			{		// Shuffle down, this offset is smaller than the offset_max_bytes
+				// We reserved offset_max_bytes, but only need byte_count.
+				memmove(cp+byte_count, cp+offset_max_bytes, ep-(cp+offset_max_bytes));
+				ep -= offset_max_bytes-byte_count;	// the nfa contains fewer bytes now
+			}
+			UTF8Put(cp, offset);		// Patch done
+		};
+
+	UTF8*		last_atom_start = ep;	// Pointer to the thing to which a repetition applies
+	const UTF8*	sp;		// The UTF8 bytes of a string we'll copy into the NFA
+	int		next_group = 0;	// Number of the next named group
 
 	auto	second_pass =
 		[&](const RxInstruction& instr) -> bool
@@ -607,10 +634,10 @@ RxCompiler::compile(char*& nfa)
 				*ep++ = names.size() + 1;		// Add 1 to avoid NUL characters
 				for (iter = names.begin(); iter != names.end(); iter++)
 				{
-					sp = iter->asUTF8(byte_count);
-					UTF8Put(ep, byte_count);
-					memcpy(ep, sp, byte_count);
-					ep += byte_count;
+					sp = iter->asUTF8(utf8_count);
+					UTF8Put(ep, utf8_count);
+					memcpy(ep, sp, utf8_count);
+					ep += utf8_count;
 				}
 				stack[depth-1].next = ep-nfa;
 				break;
@@ -620,29 +647,7 @@ RxCompiler::compile(char*& nfa)
 				this_atom_start = nfa+stack[depth-1].start;	// This is what a following repetition repeats
 				// Fall through
 			case RxOp::RxoAlternate:		// |
-				/*
-				 * The previous alternate/group-start is at stack[depth-1].previous.
-				 * We patch an offset there to point to ep-1 (the RxOp byte we just output to *ep).
-				 * If the offset fits in fewer than offset_max_bytes UTF-8 bytes, we must shuffle down.
-				 * This reduces the offset, which can cause it to cross a UTF-8 coding boundary,
-				 * taking one fewer bytes, a process that can only happen once.
-				 */
-				offset = (ep-nfa) - stack[depth-1].previous;
-				byte_count = UTF8Len(offset);
-				if (byte_count < offset_max_bytes)	// We'll shuffle
-				{
-					offset -= (offset_max_bytes-byte_count);
-					byte_count = UTF8Len(offset);
-				}
-
-				cp = nfa+stack[depth-1].previous;	// The patch location
-				if (byte_count < offset_max_bytes)
-				{		// Shuffle down, this offset is smaller than the offset_max_bytes
-					// We reserved offset_max_bytes, but only need byte_count.
-					memmove(cp+byte_count, cp+offset_max_bytes, ep-(cp+offset_max_bytes));
-					ep -= offset_max_bytes-byte_count;	// the nfa contains fewer bytes now
-				}
-				UTF8Put(cp, offset);		// Patch done
+				patch_offset_at(stack[depth-1].previous, ep-nfa);
 
 				if (instr.op == RxOp::RxoAlternate)
 				{
@@ -678,14 +683,15 @@ RxCompiler::compile(char*& nfa)
 			case RxOp::RxoCharProperty:		// A char with a named Unicode property
 			case RxOp::RxoCharClass:		// Character class; instr contains a string of character pairs
 			case RxOp::RxoNegCharClass:		// Negated Character class
-				sp = instr.str.asUTF8(byte_count);	// Get the bytes and byte count
-				UTF8Put(ep, byte_count);	// Encode the byte counnt as UTF-8
-				memcpy(ep, sp, byte_count);	// Output the bytes
-				ep += byte_count;		// And advance past them
+				sp = instr.str.asUTF8(utf8_count);	// Get the bytes and byte count
+				UTF8Put(ep, utf8_count);	// Encode the byte counnt as UTF-8
+				memcpy(ep, sp, utf8_count);	// Output the bytes
+				ep += utf8_count;		// And advance past them
 				break;
 
 			case RxOp::RxoSubroutine:		// Subroutine call to a named group
-				i = 1;
+			{
+				int i = 1;
 				for (iter = names.begin(); iter != names.end(); iter++, i++)
 				{
 					if (*iter == instr.str)
@@ -698,6 +704,7 @@ RxCompiler::compile(char*& nfa)
 				}
 				*ep++ = i;
 				break;
+			}
 
 			case RxOp::RxoBOL:			// Beginning of Line
 				break;				// Nothing special to see here, move along
