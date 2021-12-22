@@ -63,7 +63,8 @@ enum class RxOp: unsigned char
 	RxoAlternate,		// |
 	RxoSubroutine,		// Subroutine call to a named group
 	RxoEndGroup,		// End of a group
-	RxoEnd			// Termination condition
+	RxoEnd,			// Termination condition
+	RxoFirstAlternate,	// |
 };
 
 struct RxRepetitionRange

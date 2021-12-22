@@ -455,6 +455,7 @@ RxCompiler::compile(char*& nfa)
 
 			switch (instr.op)
 			{
+			case RxOp::RxoFirstAlternate: break;	// Never sent
 			case RxOp::RxoNull: break;
 			case RxOp::RxoStart:			// Place to start the DFA
 				// Memory allocation instructions can also go in the start block, and in each target of a subroutine call.
@@ -625,6 +626,9 @@ RxCompiler::compile(char*& nfa)
 			*ep++ = (char)instr.op;
 			switch (instr.op)
 			{
+			case RxOp::RxoFirstAlternate:		// Never sent
+				break;
+
 			case RxOp::RxoNull:
 				break;
 
@@ -657,7 +661,7 @@ RxCompiler::compile(char*& nfa)
 					char* cp = nfa+stack[depth-1].group_content;
 					memmove(cp+1+offset_max_bytes, cp, ep-cp);
 					ep += 1+offset_max_bytes;
-					*cp++ = (char)RxOp::RxoAlternate;
+					*cp++ = (char)RxOp::RxoFirstAlternate;
 					stack[depth-1].previous = cp-nfa;	// We will patch the offset from this new first alternate
 				}
 				patch_offset_at(stack[depth-1].previous, ep-nfa);

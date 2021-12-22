@@ -78,6 +78,11 @@ RxCompiler::dump(const char* nfa)		// Dump binary code to stdout
 			depth--;
 			break;
 
+		case RxOp::RxoFirstAlternate:		// |
+			offset_next = UTF8Get(np);
+			printf("RxoFirstAlternate(%02X) next=(+%d)->%d\n", op_num, offset_next, offset_this+offset_next);
+			break;
+
 		case RxOp::RxoAlternate:		// |
 			offset_next = UTF8Get(np);
 			printf("RxoAlternate(%02X) next=(+%d)->%d\n", op_num, offset_next, offset_this+offset_next);
