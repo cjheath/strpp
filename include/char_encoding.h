@@ -248,9 +248,14 @@ UTF8PutPaddedZero(UTF8*& cp, int length)
 #else
 	assert(length >= 0 && length <= 4);
 #endif
-	*cp++ = "\x0\xC0\xE0\xF0\xF8\xFC"[length];	// Put lead byte with zero payload
-	while (--length > 0)
-		*cp++ = 0x80;				// Put trailing bytes with zero payload
+	if (length > 1)
+	{
+		*cp++ = "\x0\xC0\xE0\xF0\xF8\xFC"[length];	// Put lead byte with zero payload
+		while (--length > 0)
+			*cp++ = 0x80;				// Put trailing bytes with zero payload
+	}
+	else
+		*cp++ = 0;
 }
 
 // Store UTF8 from UCS4
