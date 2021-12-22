@@ -451,7 +451,7 @@ RxCompiler::compile(char*& nfa)
 
 	auto	first_pass =
 		[&](const RxInstruction& instr) -> bool
-                {
+		{
 			bool		is_atom = false;
 			bytes_required++;			// One byte to store the RxOp
 
@@ -483,6 +483,12 @@ RxCompiler::compile(char*& nfa)
 
 			case RxOp::RxoAlternate:		// |
 				offsets_required++;
+				if (stack[depth-1].start)	// An extra RxOp and offset before the first alternate
+				{
+					stack[depth-1].start = 0;	// After first alternate now
+					bytes_required++;
+					offsets_required++;
+				}
 				break;
 
 			case RxOp::RxoNonCapturingGroup:	// (...)
@@ -575,7 +581,7 @@ RxCompiler::compile(char*& nfa)
 
 	CharBytes	offset_max_bytes = UTF8Len(bytes_required+offsets_required*4);
 
-	// Now we know the maximum size of the FA, we know the maximum size of an offset:
+	// Now we know the maximum size of the NFA, we know the maximum size of an offset:
 	bytes_required += offsets_required * UTF8Len(bytes_required+offsets_required*4);
 
 	nfa = new UTF8[bytes_required+1];
@@ -616,7 +622,7 @@ RxCompiler::compile(char*& nfa)
 
 	auto	second_pass =
 		[&](const RxInstruction& instr) -> bool
-                {
+		{
 			char*	this_atom_start = ep;		// Pointer to the thing a following repetition will repeat
 			*ep++ = (char)instr.op;
 			switch (instr.op)
@@ -643,6 +649,19 @@ RxCompiler::compile(char*& nfa)
 				break;
 
 			case RxOp::RxoAlternate:		// |
+				if (stack[depth-1].previous == stack[depth-1].start+1)
+				{
+					/*
+					 * This second alternate terminates the first alternate.
+					 * Patch in an RxoAlternate instruction before stack[depth-1].group_content
+					 * Reserve offset_max_bytes by shuffling down. We might shuffle up a bit when patching
+					 */
+					char* cp = nfa+stack[depth-1].group_content;
+					memmove(cp+1+offset_max_bytes, cp, ep-cp);
+					ep += 1+offset_max_bytes;
+					*cp++ = (char)RxOp::RxoAlternate;
+					stack[depth-1].previous = cp-nfa;	// We will patch the offset from this new first alternate
+				}
 				patch_offset_at(stack[depth-1].previous, ep-nfa);
 				stack[depth-1].previous = ep-nfa;
 				UTF8PutPaddedZero(ep, offset_max_bytes);	// Reserve space for a patched offset
@@ -650,8 +669,11 @@ RxCompiler::compile(char*& nfa)
 
 			case RxOp::RxoEnd:			// Termination condition
 			case RxOp::RxoEndGroup:			// End of a group
+				// Patch the final alternate, if any
+				if (stack[depth-1].previous > stack[depth-1].start+1)
+					patch_offset_at(stack[depth-1].previous, ep-nfa);
 				this_atom_start = nfa+stack[depth-1].start;	// This is what a following repetition repeats
-				patch_offset_at(stack[depth-1].previous, ep-nfa);
+				patch_offset_at(stack[depth-1].start+1, ep-nfa);	// Start of group points to the end
 				depth--;		// Pop the stack, this group is done
 				break;
 
