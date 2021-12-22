@@ -342,6 +342,11 @@ StrVal::rfindNot(const StrVal& s1, int before) const
 StrVal
 StrVal::operator+(const StrVal& addend) const
 {
+	// Handle the rare but important case of extending a slice with a contiguous slice of the same body
+	if ((StrBody*)body == (StrBody*)addend.body	// From the same body
+	 && offset+num_chars == addend.offset)	// And this ends where the addend starts
+		return StrVal(body, offset, num_chars+addend.num_chars);
+
 	const UTF8*	cp = nthChar(0);
 	CharBytes	len = numBytes();
 	StrVal		str(cp, len, len+addend.numBytes());
@@ -391,10 +396,10 @@ StrVal::operator+=(UCS4 addend)
 void
 StrVal::insert(CharNum pos, const StrVal& addend)
 {
-	// Handle the rare but important case of extending a slice with a contiguous slice
+	// Handle the rare but important case of extending a slice with a contiguous slice of the same body
 	if (pos == num_chars			// Appending at the end
 	 && (StrBody*)body == (StrBody*)addend.body	// From the same body
-	 && pos+offset == addend.offset)	// And addend starts where we end
+	 && offset+pos == addend.offset)	// And addend starts where we end
 	{
 		num_chars += addend.length();
 		return;
