@@ -630,7 +630,7 @@ RxCompiler::compile(char*& nfa)
 				stack[depth].start = ep-1-nfa;
 				stack[depth].previous = ep-nfa;	// I.e. 1 :)
 				depth++;
-				UTF8PutLong0(ep, offset_max_bytes);	// Reserve space for a patched offset
+				UTF8PutPaddedZero(ep, offset_max_bytes);	// Reserve space for a patched offset
 				*ep++ = names.size() + 1;		// Add 1 to avoid NUL characters
 				for (iter = names.begin(); iter != names.end(); iter++)
 				{
@@ -652,7 +652,7 @@ RxCompiler::compile(char*& nfa)
 				if (instr.op == RxOp::RxoAlternate)
 				{
 					stack[depth-1].previous = ep-nfa;
-					UTF8PutLong0(ep, offset_max_bytes);	// Reserve space for a patched offset
+					UTF8PutPaddedZero(ep, offset_max_bytes);	// Reserve space for a patched offset
 				}
 				else
 					depth--;		// Pop the stack, this group is done
@@ -665,7 +665,7 @@ RxCompiler::compile(char*& nfa)
 				stack[depth].start = ep-1-nfa;
 				stack[depth].previous = ep-nfa;
 				depth++;
-				UTF8PutLong0(ep, offset_max_bytes);	// Reserve space for a patched offset
+				UTF8PutPaddedZero(ep, offset_max_bytes);	// Reserve space for a patched offset
 				stack[depth-1].next = ep-nfa;
 				break;
 
@@ -674,7 +674,7 @@ RxCompiler::compile(char*& nfa)
 				stack[depth].start = ep-1-nfa;
 				stack[depth].previous = ep-nfa;
 				depth++;
-				UTF8PutLong0(ep, offset_max_bytes);	// Reserve space for a patched offset
+				UTF8PutPaddedZero(ep, offset_max_bytes);	// Reserve space for a patched offset
 				*ep++ = next_group++;
 				stack[depth-1].next = ep-nfa;
 				break;

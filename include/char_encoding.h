@@ -241,7 +241,7 @@ UTF8Backup(const UTF8* cp, const UTF8* limit = 0)
 }
 
 inline void
-UTF8PutLong0(UTF8*& cp, int length)
+UTF8PutPaddedZero(UTF8*& cp, int length)
 {
 #if defined(UTF8_SIX_BYTE)	// We don't support six-byte UTF-8 by default, for efficiency reasons
 	assert(length >= 0 && length <= 6);
