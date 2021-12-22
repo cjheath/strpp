@@ -4,8 +4,6 @@
 #include	<strregex.h>
 #include	<string.h>
 
-using std::vector;
-
 RxCompiler::RxCompiler(StrVal _re, RxFeature features, RxFeature reject_features)
 : re(_re)
 , features_enabled((RxFeature)(features & ~reject_features))
@@ -446,8 +444,8 @@ RxCompiler::compile(char*& nfa)
 	RxOp		last = RxOp::RxoStart;
 	bool		repeatable = false;	// Cannot start with a repetition
 	bool		ok;			// Is everything still ok to continue?
-	vector<StrVal>	names;
-	vector<StrVal>::iterator	iter;
+	std::vector<StrVal>	names;
+	std::vector<StrVal>::iterator	iter;
 
 	auto	first_pass =
 		[&](const RxInstruction& instr) -> bool

@@ -4,8 +4,6 @@
 #include	<strregex.h>
 #include	<string.h>
 
-using std::vector;
-
 void
 RxCompiler::dump(const char* nfa)		// Dump binary code to stdout
 {
@@ -22,7 +20,7 @@ RxCompiler::dump(const char* nfa)		// Dump binary code to stdout
 
 	int		depth = 0;
 	int		num_names;
-	vector<StrVal>	names;			// Build the names for printing
+	std::vector<StrVal>	names;			// Build the names for printing
 	const UTF8*	name;
 	CharBytes	byte_count;		// Used for sizing string storage
 	int		offset_this;
