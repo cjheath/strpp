@@ -439,7 +439,7 @@ RxCompiler::compile(char*& nfa)
 		uint8_t		group_num;
 		CharBytes	start;		// Offset to group-start opcode
 		CharBytes	previous;	// Index in nfa of the offset in the group-start or previous alternative
-		CharBytes	next;		// Index in nfa of the opcode following the group-start
+		CharBytes	group_content;	// Index in nfa of the opcode following the group-start
 	} stack[16];	// Maximum nesting depth for groups
 	int		depth;			// Stack pointer
 	CharBytes	utf8_count;		// Used for sizing string storage
@@ -463,7 +463,7 @@ RxCompiler::compile(char*& nfa)
 				bytes_required += 1;		// Store the number of names in the names array
 				offsets_required++;		// Need an offset to the second alternate, like any group
 				stack[0].group_num = 0;
-				stack[0].start = 1;
+				stack[0].start = 1;		// Before any Alternate
 				depth = 1;
 				break;
 
@@ -600,7 +600,7 @@ RxCompiler::compile(char*& nfa)
 				byte_count = UTF8Len(offset);
 			}
 
-			UTF8*	cp = nfa+patch_location;	// The patch location
+			char*	cp = nfa+patch_location;	// The patch location
 			if (byte_count < offset_max_bytes)
 			{		// Shuffle down, this offset is smaller than the offset_max_bytes
 				// We reserved offset_max_bytes, but only need byte_count.
@@ -617,8 +617,8 @@ RxCompiler::compile(char*& nfa)
 	auto	second_pass =
 		[&](const RxInstruction& instr) -> bool
                 {
-			UTF8*	this_atom_start = ep;		// Pointer to the thing a following repetition will repeat
-			*ep++ = (UTF8)instr.op;
+			char*	this_atom_start = ep;		// Pointer to the thing a following repetition will repeat
+			*ep++ = (char)instr.op;
 			switch (instr.op)
 			{
 			case RxOp::RxoNull:
@@ -627,7 +627,7 @@ RxCompiler::compile(char*& nfa)
 			case RxOp::RxoStart:			// Place to start the DFA
 				depth = 0;
 				stack[depth].group_num = next_group++;
-				stack[depth].start = ep-1-nfa;
+				stack[depth].start = ep-nfa-1;
 				stack[depth].previous = ep-nfa;	// I.e. 1 :)
 				depth++;
 				UTF8PutPaddedZero(ep, offset_max_bytes);	// Reserve space for a patched offset
@@ -639,7 +639,7 @@ RxCompiler::compile(char*& nfa)
 					memcpy(ep, sp, utf8_count);
 					ep += utf8_count;
 				}
-				stack[depth-1].next = ep-nfa;
+				stack[depth-1].group_content = ep-nfa;
 				break;
 
 			case RxOp::RxoAlternate:		// |
@@ -658,21 +658,21 @@ RxCompiler::compile(char*& nfa)
 			case RxOp::RxoNonCapturingGroup:	// (...)
 			case RxOp::RxoNegLookahead:		// (?!...)
 				stack[depth].group_num = 0;
-				stack[depth].start = ep-1-nfa;
+				stack[depth].start = ep-nfa-1;
 				stack[depth].previous = ep-nfa;
 				depth++;
 				UTF8PutPaddedZero(ep, offset_max_bytes);	// Reserve space for a patched offset
-				stack[depth-1].next = ep-nfa;
+				stack[depth-1].group_content = ep-nfa;
 				break;
 
 			case RxOp::RxoNamedCapture:		// (?<name>...)
 				stack[depth].group_num = next_group;	// Index in names table + 1
-				stack[depth].start = ep-1-nfa;
+				stack[depth].start = ep-nfa-1;
 				stack[depth].previous = ep-nfa;
 				depth++;
 				UTF8PutPaddedZero(ep, offset_max_bytes);	// Reserve space for a patched offset
 				*ep++ = next_group++;
-				stack[depth-1].next = ep-nfa;
+				stack[depth-1].group_content = ep-nfa;
 				break;
 
 			case RxOp::RxoLiteral:			// A specific string
@@ -714,9 +714,9 @@ RxCompiler::compile(char*& nfa)
 				// Shuffle NFA down by 3 bytes to insert this opcode and the repetition limits before last_atom_start
 				memmove(last_atom_start+3, last_atom_start, ep-last_atom_start);
 				ep += 3;
-				*last_atom_start++ = (UTF8)RxOp::RxoRepetition;
-				*last_atom_start++ = (UTF8)instr.repetition.min + 1;	// Add 1 to avoid NUL characters
-				*last_atom_start++ = (UTF8)instr.repetition.max + 1;	// Add 1 to avoid NUL characters
+				*last_atom_start++ = (char)RxOp::RxoRepetition;
+				*last_atom_start++ = (char)instr.repetition.min + 1;	// Add 1 to avoid NUL characters
+				*last_atom_start++ = (char)instr.repetition.max + 1;	// Add 1 to avoid NUL characters
 				break;
 			}
 			assert(ep < nfa+bytes_required);
