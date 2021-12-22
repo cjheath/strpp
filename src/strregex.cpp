@@ -642,21 +642,17 @@ RxCompiler::compile(char*& nfa)
 				stack[depth-1].next = ep-nfa;
 				break;
 
+			case RxOp::RxoAlternate:		// |
+				patch_offset_at(stack[depth-1].previous, ep-nfa);
+				stack[depth-1].previous = ep-nfa;
+				UTF8PutPaddedZero(ep, offset_max_bytes);	// Reserve space for a patched offset
+				break;
+
 			case RxOp::RxoEnd:			// Termination condition
 			case RxOp::RxoEndGroup:			// End of a group
 				this_atom_start = nfa+stack[depth-1].start;	// This is what a following repetition repeats
-				// Fall through
-			case RxOp::RxoAlternate:		// |
 				patch_offset_at(stack[depth-1].previous, ep-nfa);
-
-				if (instr.op == RxOp::RxoAlternate)
-				{
-					stack[depth-1].previous = ep-nfa;
-					UTF8PutPaddedZero(ep, offset_max_bytes);	// Reserve space for a patched offset
-				}
-				else
-					depth--;		// Pop the stack, this group is done
-
+				depth--;		// Pop the stack, this group is done
 				break;
 
 			case RxOp::RxoNonCapturingGroup:	// (...)
