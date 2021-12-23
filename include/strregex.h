@@ -101,6 +101,7 @@ public:
 	bool		compile(char*& nfa);
 
 	void		dump(const char* nfa);	// Dump binary code to stdout
+	static bool	instr_dump(const char* nfa, const char*& np, int& depth);		// Dump binary code to stdout
 
 	const char*	ErrorMessage() const { return error_message; }
 
