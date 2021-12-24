@@ -127,7 +127,11 @@ StrVal::asUTF8()	// Must unshare data if it's a substring with elided suffix
 {
 	const	UTF8*	ep = nthChar(num_chars);
 	if (ep < body->endChar())
+	{
 		Unshare();
+		// If we are the last reference and a substring, we might not be terminated
+		*body->nthChar(num_chars, mark) = '\0';
+	}
 	return nthChar(0);
 }
 
