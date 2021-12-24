@@ -116,4 +116,65 @@ protected:
 	bool		enabled(RxFeature) const; // Return true if the specified feature is enabled
 };
 
+// A capture not within a repetition is a singular substring:
+struct RxCapture
+{
+	StrVal		name;			// Capture group name
+	StrVal		text;			// Capture substrings
+};
+
+// A capture within a repetition is a vector of substrings:
+struct RxCaptureVec
+{
+	StrVal			name;		// Capture group name
+	std::vector<StrVal>	texts;		// Capture substrings
+};
+
+class RxMatch
+{
+public:
+	RxMatch(StrVal _target) : target(_target), succeeded(false), offset(0), length(0) {}
+	void		take(RxMatch& alt);	// Take contents from alt, to avoid copying the vectors
+
+	StrVal		target;
+	bool		succeeded;
+	CharNum		offset;
+	CharNum		length;
+	std::vector<RxCapture>		captures;		// Singular captures, indexed by group number
+	std::vector<RxCaptureVec>	captureVecs;		// Captures within repetitions, indexed by group number
+	std::vector<RxMatch>		subroutineMatches;	// Ordered by position of the subroutine call in the regexp
+
+	void		clear()
+			{
+				captures.clear();	// Singular captures, indexed by group number
+				captureVecs.clear();	// Captures within repetitions, indexed by group number
+				subroutineMatches.clear();	// Ordered by position of the subroutine call in the regexp
+			}
+};
+
+class	RxBacktracks;
+
+/*
+ * RxMatcher is the engine that evaluates a Regular Expression
+ * against a string, and contains its result.
+ */
+class RxMatcher
+{
+public:
+	~RxMatcher() { if (nfa && nfa_owned) delete(nfa); }
+	RxMatcher(const char* nfa, bool take_ownership = false);
+	RxMatcher(RxCompiler* compiler) { char* _nfa = 0; compiler->compile(_nfa); RxMatcher(nfa, true); }
+
+	RxMatch		match_after(StrVal target, CharNum offset = 0);
+	RxMatch		match_at(StrVal target, CharNum offset = 0);
+
+private:
+	bool		match_at(RxMatch& match, RxBacktracks& bt, const char*& nfa_pp, CharNum& offset);
+	const char*	continue_nfa(const char* nfa_p) const;
+
+	bool		nfa_owned;	// This matcher will delete the nfa
+	const char*	nfa;
+	std::vector<StrVal>	names;
+};
+
 #endif	// STRREGEX_H
