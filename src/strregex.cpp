@@ -561,7 +561,7 @@ RxCompiler::compile(char*& nfa)
 					error_message = "Min and Max repetition are limited to 254";
 					return false;
 				}
-				bytes_required += 2;
+				bytes_required += 3;
 				break;
 			}
 			last = instr.op;
@@ -734,7 +734,7 @@ RxCompiler::compile(char*& nfa)
 				break;				// Nothing special to see here, move along
 
 			case RxOp::RxoRepetition:		// {n, m}
-				ep--;				// We aren't going to record this here
+				ep[-1] = (char)RxOp::RxoEndGroup;
 				// Shuffle NFA down by 3 bytes to insert this opcode and the repetition limits before last_atom_start
 				memmove(last_atom_start+3, last_atom_start, ep-last_atom_start);
 				ep += 3;

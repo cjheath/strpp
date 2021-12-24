@@ -169,6 +169,7 @@ RxCompiler::instr_dump(const char* nfa, const char*& np, int& depth)		// Dump bi
 		min = (*np++ & 0xFF) - 1;
 		max = (*np++ & 0xFF) - 1;
 		printf("\tRxoRepetition(%02X) min=%d max=%d\n", op_num, min, max);
+		depth++;
 		break;
 	}
 	return true;
