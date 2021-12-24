@@ -882,6 +882,8 @@ StrVal::transform(const std::function<StrVal(const UTF8*& cp, const UTF8* ep)> x
 {
 	Unshare();
 	body->transform(xform, after);
+	num_chars = body->numChars();
+	mark = Bookmark();
 }
 
 /*
