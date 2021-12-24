@@ -10,6 +10,7 @@
 
 bool	verbose = false;
 bool	show_all_expectations = false;
+void	show_expectation(const char* regex, const char* nfa, const char* error_message);
 int	automated_tests();
 
 int
@@ -45,6 +46,8 @@ main(int argc, char** argv)
 			printf("Regex scan failed: %s\n", rx.ErrorMessage());
 			continue;
 		}
+		if (show_all_expectations)
+			show_expectation(*argv, nfa, rx.ErrorMessage());
 
 		rx.dump(nfa);
 		if (nfa)
@@ -192,6 +195,36 @@ compiler_test	compiler_tests[] =
 	{ "(?<a>b(?<c>d)e(?&a)?)(?&c)",	"\x01\x20\x03\x01\x61\x01\x63\x0B\x16\x01\x02\x01\x62\x0B\x06\x02\x02\x01\x64\x0F\x02\x01\x65\x09\x01\x02\x0E\x01\x0F\x0F\x0E\x02\x10", 0 },
 };
 
+void	show_expectation(const char* regex, const char* nfa, const char* error_message)
+{		// Print the expected output line:
+	StrVal	double_backslash("\\\\");
+	StrVal	re(regex);
+	re.transform(
+		[&](const UTF8*& cp, const UTF8* ep) -> StrVal
+		{
+			UCS4    ch = UTF8Get(cp);       // Get UCS4 character
+			StrVal	charval(ch);
+			if (ch == '\\')
+				return double_backslash;
+			return charval;
+		}
+	);
+	printf("\t{ \"%s\",\t", re.asUTF8());
+	if (nfa)
+	{
+		printf("\"");
+		for (const char* cp = nfa; *cp; cp++)
+			printf("\\x%02X", *cp&0xFF);
+		printf("\"");
+	}
+	else
+		printf("0");
+	if (error_message)
+		printf(", \"%s\" },\n", error_message);
+	else
+		printf(", 0 },\n");
+}
+
 int automated_tests()
 {
 	auto 	wrapper = [&](compiler_test* ct, int leaky_allocations = 0) -> bool
@@ -237,34 +270,7 @@ int automated_tests()
 			);
 
 		if (!test_pass || show_all_expectations)
-		{		// Print the expected output line:
-			StrVal	double_backslash("\\\\");
-			StrVal	re(ct->regex);
-			re.transform(
-				[&](const UTF8*& cp, const UTF8* ep) -> StrVal
-				{
-					UCS4    ch = UTF8Get(cp);       // Get UCS4 character
-					StrVal	charval(ch);
-					if (ch == '\\')
-						return double_backslash;
-					return charval;
-				}
-			);
-			printf("\t{ \"%s\",\t", re.asUTF8());
-			if (nfa)
-			{
-				printf("\"");
-				for (const char* cp = nfa; *cp; cp++)
-					printf("\\x%02X", *cp&0xFF);
-				printf("\"");
-			}
-			else
-				printf("0");
-			if (rx.ErrorMessage())
-				printf(", \"%s\" },\n", rx.ErrorMessage());
-			else
-				printf(", 0 },\n");
-		}
+			show_expectation(ct->regex, nfa, rx.ErrorMessage());
 
 		// On incorrect NFA, dump what we got:
 		if (nfa && (!nfa_pass || verbose))
