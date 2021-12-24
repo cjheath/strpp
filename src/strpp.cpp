@@ -947,5 +947,6 @@ StrBody::transform(const std::function<StrVal(const UTF8*& cp, const UTF8* ep)> 
 			num_chars++;
 		}
 	}
+	*op = '\0';
 	delete [] old_start;
 }
