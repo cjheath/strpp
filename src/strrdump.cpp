@@ -1,5 +1,5 @@
 /*
- * Unicode String regular expressions
+ * Unicode String regular expression diagnostic dump
  */
 #include	<strregex.h>
 #include	<string.h>
@@ -102,12 +102,12 @@ RxCompiler::instr_dump(const char* nfa, const char*& np, int& depth)		// Dump bi
 
 	case RxOp::RxoFirstAlternate:		// |
 		offset_next = UTF8Get(np);
-		printf("RxoFirstAlternate(%02X) next=(+%d)->%d\n", op_num, offset_next, offset_this+offset_next);
+		printf("\tRxoFirstAlternate(%02X) next=(+%d)->%d\n", op_num, offset_next, offset_this+offset_next);
 		break;
 
 	case RxOp::RxoAlternate:		// |
 		offset_next = UTF8Get(np);
-		printf("RxoAlternate(%02X) next=(+%d)->%d\n", op_num, offset_next, offset_this+offset_next);
+		printf("\tRxoAlternate(%02X) next=(+%d)->%d\n", op_num, offset_next, offset_this+offset_next);
 		break;
 
 	case RxOp::RxoNonCapturingGroup:	// (...)

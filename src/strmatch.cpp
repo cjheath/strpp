@@ -25,6 +25,7 @@ RxMatch::take(RxMatch& alt)	// Take contents from alt, to avoid copying the vect
 RxMatcher::RxMatcher(const char* _nfa, bool take_ownership)
 : nfa_owned(take_ownership)
 , nfa(_nfa)
+, depth(0)
 {
 }
 
@@ -67,10 +68,17 @@ RxMatcher::match_at(RxMatch& match, RxBacktracks& bt, const char*& nfa_p, CharNu
 
 	for (;;)
 	{
+#if	TRACE_MATCH
+		const char*	np = nfa_p;
+		printf("(at %d): NFA ", offset);
+		RxCompiler::instr_dump(nfa, np, depth);
+#endif
+
 		RxOp	op = (RxOp)*nfa_p++;
 		switch (op)
 		{
-		case RxOp::RxoNull:	return false;
+		case RxOp::RxoNull:
+			return false;
 
 		case RxOp::RxoStart:			// Place to start the DFA
 		{
@@ -222,14 +230,20 @@ RxMatcher::match_at(RxMatch& match, RxBacktracks& bt, const char*& nfa_p, CharNu
 				offset = start_offset;
 				if (match_at(match, bt, nfa_p, offset))
 				{		// Succeeding means we hit RxoEnd/RxoEndGroup, or RxoAlternate which advanced to End
+					nfa_p--;
 					break;
 				}
 				if (*next_p == (char)RxOp::RxoEndGroup || *next_p == (char)RxOp::RxoEnd)
 				{
+					nfa_p = next_p;
 					return false;	// No alternate succeeded
 				}
 				assert(*next_p == (char)RxOp::RxoAlternate);
 				nfa_p = next_p+1;
+#if	TRACE_MATCH
+				printf("(at %d): NFA ", offset);
+				RxCompiler::instr_dump(nfa, next_p, depth);
+#endif
 			}
 			continue;	// An alternate succeeded, we're now looking at the next thing
 		}
@@ -312,11 +326,14 @@ RxMatcher::continue_nfa(const char* nfa_p) const
 
 	case RxOp::RxoFirstAlternate:		// |
 	case RxOp::RxoAlternate:		// |
+		offset_next = UTF8Get(nfa_p);	// REVISIT: Are these ever needed?
+		return start_p+offset_next;
+
 	case RxOp::RxoNonCapturingGroup:	// (...)
 	case RxOp::RxoNegLookahead:		// (?!...)
 	case RxOp::RxoNamedCapture:		// (?<name>...)
 		offset_next = UTF8Get(nfa_p);
-		return start_p+offset_next;
+		return start_p+offset_next+1;
 
 	case RxOp::RxoLiteral:			// A specific string
 	case RxOp::RxoCharProperty:		// A char with a named Unicode property

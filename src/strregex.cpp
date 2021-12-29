@@ -1,5 +1,5 @@
 /*
- * Unicode String regular expressions
+ * Unicode String regular expressions compiler
  */
 #include	<strregex.h>
 #include	<string.h>

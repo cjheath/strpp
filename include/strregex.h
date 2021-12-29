@@ -163,7 +163,7 @@ class RxMatcher
 public:
 	~RxMatcher() { if (nfa && nfa_owned) delete(nfa); }
 	RxMatcher(const char* nfa, bool take_ownership = false);
-	RxMatcher(RxCompiler* compiler) { char* _nfa = 0; compiler->compile(_nfa); RxMatcher(nfa, true); }
+	// RxMatcher(RxCompiler* compiler) : depth(0), nfa(0) { char* _nfa = 0; compiler->compile(_nfa); RxMatcher(nfa, true); }
 
 	RxMatch		match_after(StrVal target, CharNum offset = 0);
 	RxMatch		match_at(StrVal target, CharNum offset = 0);
@@ -174,6 +174,7 @@ private:
 
 	bool		nfa_owned;	// This matcher will delete the nfa
 	const char*	nfa;
+	int		depth;		// Recursion depth
 	std::vector<StrVal>	names;
 };
 
