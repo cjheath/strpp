@@ -77,7 +77,7 @@ StrVal::StrVal(const UTF8* data, CharBytes length, size_t allocate)
 {
 	if (allocate < length)
 		allocate = length;
-	body = new StrBody(data, length, allocate);
+	body = new StrBody(data, true, length, allocate);
 	num_chars = body->numChars();
 }
 
