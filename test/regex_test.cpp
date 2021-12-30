@@ -1,5 +1,5 @@
 /*
- * Unit test driver for Regular Expressions
+ * Unit test driver for compiling Regular Expressions
  */
 #include	<stdio.h>
 
@@ -10,8 +10,8 @@
 
 bool	verbose = false;
 bool	show_all_expectations = false;
-void	show_expectation(const char* regex, const char* nfa, const char* error_message);
 int	automated_tests();
+void	show_expectation(const char* regex, const char* nfa, const char* error_message);
 
 int
 main(int argc, char** argv)
