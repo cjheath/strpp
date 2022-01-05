@@ -91,7 +91,7 @@ matcher_test	matcher_tests[] =
 	{ "^a",		"\na",			1, 1 },
 	{ "^a",		"b\na",			2, 1 },
 	{ "a$",		"ab",			-1, 0 },
-	{ "a$",		"ba",			1, 0 },
+	{ "a$",		"ba",			1, 1 },
 	{ "a$",		"bab",			-1, 0 },
 	{ "a$",		"ba\n",			1, 1 },
 	{ "a$",		"a\nb",			0, 1 },
@@ -106,13 +106,13 @@ matcher_test	matcher_tests[] =
 	{ "a?",		"b",			0, 0 },
 	{ "a?",		"a",			0, 1 },
 	{ "a?",		"aa",			0, 1 },
-	{ "a?",		"ba",			1, 1 },
+	{ "a?",		"ba",			0, 0 },
 
 	{ "a*",		"b",			0, 0 },
 	{ "a*",		"a",			0, 1 },
 	{ "a*",		"aa",			0, 2 },
-	{ "a*",		"ba",			1, 1 },
-	{ "a*",		"baac",			1, 2 },
+	{ "a*",		"ba",			0, 0 },
+	{ "a*",		"baac",			0, 0 },
 
 	{ "a+",		"b",			-1, 0 },
 	{ "a+",		"a",			0, 1 },
@@ -137,6 +137,11 @@ matcher_test	matcher_tests[] =
 	{ 0,	"Backtracking", 0, 0 },
 	{ "a{2}a",	"baaaa",		1, 3 },
 	{ "ba*a",	"baaaab",		0, 5 },
+	{ "a(bc|b)c",	"abcc",			0, 4 },
+	{ "a*aa",	"baaaab",		1, 4},
+	{ "a(bc|b)c",	"abc",			-1, 0 },	// Will not backtrack to succeed
+	{ "a?a",	"a",			0, 1},		// Will not backtrack to succeed
+	{ "a(bc|b)+c",	"abcbc",		0, 5 },		// Will not backtrack to succeed
 
 	// { 0,	"Alternates", 0, 0 },
 	// { 0,	"Non-capturing groups", 0, 0 },
@@ -199,8 +204,8 @@ int automated_tests()
 			RxMatch		match = matcher.match_after(target);
 
 			bool		success_ok = match.succeeded == (test_case->offset >= 0);	// Is success status as expected?
-			bool		offset_ok = success_ok || match.offset == test_case->offset;
-			bool		length_ok = success_ok || match.length == test_case->length;
+			bool		offset_ok = !match.succeeded || match.offset == test_case->offset;
+			bool		length_ok = !match.succeeded || match.length == test_case->length;
 			test_passed = success_ok && offset_ok && length_ok;
 
 			printf("%s: /%s/ =~ \"%s\"", test_passed ? "Pass" : "Fail", test_case->regex, target_escaped.asUTF8());
