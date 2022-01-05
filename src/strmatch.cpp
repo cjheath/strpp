@@ -215,8 +215,10 @@ RxMatcher::match_at(RxMatch& match, RxBacktracks& bt, const char*& nfa_p, CharNu
 					offset = bt.back();
 					bt.pop_back();
 				}
-				else		// or the previous character if none saved
+				else if (offset > 0)		// or the previous character if none saved
 					offset = current_offset-1;
+				else
+					break;
 			} while (bt.size() > 0 || offset > repetition_start);
 			return false;
 		}
