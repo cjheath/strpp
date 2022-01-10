@@ -226,7 +226,7 @@ protected:
 	void		countChars();
 	void		resize(size_t);	// Change the memory allocation
 
-	StrBody(StrBody&) { }		// Never copy a body
+	StrBody(StrBody&) = delete;		// Never copy a body
 	StrBody& operator=(const StrBody& s1); // Assignment operator; ONLY for no-copy bodies
 };
 

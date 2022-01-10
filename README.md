@@ -15,7 +15,7 @@ A value-oriented Unicode string library with reference-counting to manage shared
 
 Regular Expressions:
 - Literal strings
-- Escapes \0 \b \e \f \n \t \r \0 \177 \xAB \u12345 \s
+- Escapes \0 \b \e \f \n \r \t \177 \xAB \u12345 \s
 - Beginning/End of line ^, $
 - Any-character "." (optionally "?", configurable)
 - Repetition ?, *, +, {n,m}

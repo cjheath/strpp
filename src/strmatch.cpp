@@ -62,10 +62,6 @@ RxMatcher::match_at(StrVal target, CharNum offset)
 bool
 RxMatcher::match_at(RxMatch& match, RxBacktracks& bt, const char*& nfa_p, CharNum& offset)
 {
-	// The NFA contains UTF8-encoded numbers. We decode into these
-	CharBytes	byte_count;	// Bytes in a string
-	CharBytes	offset_next;	// NFA offset to the next RxOp
-
 	for (;;)
 	{
 #if	TRACE_MATCH
@@ -74,19 +70,19 @@ RxMatcher::match_at(RxMatch& match, RxBacktracks& bt, const char*& nfa_p, CharNu
 		RxCompiler::instr_dump(nfa, np, depth);
 #endif
 
-		RxOp	op = (RxOp)*nfa_p++;
-		switch (op)
+		switch ((RxOp)*nfa_p++)
 		{
 		case RxOp::RxoNull:
 			return false;
 
 		case RxOp::RxoStart:			// Place to start the DFA
 		{
+			// CharBytes	offset_next;	// NFA offset to the next RxOp
 			/* offset_next = */(void)UTF8Get(nfa_p);	// Offset to the RxoEnd
 			int num_names = (*nfa_p++ & 0xFF) - 1;
 			for (int i = 0; i < num_names; i++)
 			{
-				byte_count = UTF8Get(nfa_p);
+				CharBytes	byte_count = UTF8Get(nfa_p);
 				names.push_back(StrVal(nfa_p, byte_count));
 				nfa_p += byte_count;
 			}
@@ -121,7 +117,7 @@ RxMatcher::match_at(RxMatch& match, RxBacktracks& bt, const char*& nfa_p, CharNu
 		case RxOp::RxoLiteral:		// A string of specific characters
 		{
 			// Check that the next characters match these ones
-			byte_count = UTF8Get(nfa_p);
+			CharBytes	byte_count = UTF8Get(nfa_p);
 			StrBody		body(nfa_p, false, byte_count);	// Static body, contents won't be copied or deleted
 			StrVal		expected(&body);
 			CharNum		length = expected.length();	// Count the chars in the literal
@@ -139,7 +135,7 @@ RxMatcher::match_at(RxMatch& match, RxBacktracks& bt, const char*& nfa_p, CharNu
 		case RxOp::RxoNegCharClass:		// Negated Character class
 		{
 			// Check that the next characters match these ones
-			byte_count = UTF8Get(nfa_p);
+			CharBytes	byte_count = UTF8Get(nfa_p);
 			StrBody		body(nfa_p, false, byte_count);	// Static body, contents won't be copied or deleted
 			StrVal		expected(&body);
 			CharNum		length = expected.length();	// Count the chars in the literal
@@ -252,6 +248,7 @@ RxMatcher::match_at(RxMatch& match, RxBacktracks& bt, const char*& nfa_p, CharNu
 
 		case RxOp::RxoAlternate:		// Match to the EndGroup or the next alternate
 			// This alternate succeeded. Skip to the instruction after the last alternate
+			// REVISIT: If the rest of the RE fails, backtrack to here and try this alternative
 			do {
 				const char*	np = nfa_p-1;
 				nfa_p = np + UTF8Get(nfa_p);
@@ -263,14 +260,14 @@ RxMatcher::match_at(RxMatch& match, RxBacktracks& bt, const char*& nfa_p, CharNu
 			return true;
 
 		case RxOp::RxoNonCapturingGroup:	// (...); match until EndGroup
-			offset_next = UTF8Get(nfa_p);	// Pointer to what follows the group
+			/* offset_next = */ (void)UTF8Get(nfa_p);	// Pointer to what follows the group
 			if (!match_at(match, bt, nfa_p, offset))
 				return false;
 			continue;
 
 		case RxOp::RxoNamedCapture:		// (?<name>...)	match until EndGroup and save as a capture
 		{
-			offset_next = UTF8Get(nfa_p);
+			/* offset_next = */ (void)UTF8Get(nfa_p);
 			int	group_num = (*nfa_p++ & 0xFF) - 1;
 			if (!match_at(match, bt, nfa_p, offset))
 				return false;
