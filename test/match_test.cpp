@@ -61,8 +61,8 @@ main(int argc, char** argv)
 
 			if (match.succeeded)
 			{
-				StrVal	matched_substr = match.target.substr(match.offset, match.length);
-				printf("\t\"%s\" matched at [%d, %d]: %s\n", match.target.asUTF8(), match.offset, match.length, matched_substr.asUTF8());
+				StrVal	matched_substr = match.target.substr(match.offset(), match.length());
+				printf("\t\"%s\" matched at [%d, %d]: %s\n", match.target.asUTF8(), match.offset(), match.length(), matched_substr.asUTF8());
 				continue;
 			}
 			printf("\t\"%s\" failed\n", *argv);
@@ -204,13 +204,13 @@ int automated_tests()
 			RxMatch		match = matcher.match_after(target);
 
 			bool		success_ok = match.succeeded == (test_case->offset >= 0);	// Is success status as expected?
-			bool		offset_ok = !match.succeeded || match.offset == test_case->offset;
-			bool		length_ok = !match.succeeded || match.length == test_case->length;
+			bool		offset_ok = !match.succeeded || match.offset() == test_case->offset;
+			bool		length_ok = !match.succeeded || match.length() == test_case->length;
 			test_passed = success_ok && offset_ok && length_ok;
 
 			printf("%s: /%s/ =~ \"%s\"", test_passed ? "Pass" : "Fail", test_case->regex, target_escaped.asUTF8());
 			if (match.succeeded)
-				printf(" -> (%d, %d)\n", match.offset, match.length);
+				printf(" -> (%d, %d)\n", match.offset(), match.length());
 			else
 				printf(" (no match)\n");
 

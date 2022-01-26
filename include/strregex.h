@@ -6,6 +6,9 @@
 #include	<strpp.h>
 #include	<vector>
 
+/*
+ * Configurable features. These change the behaviour of the compiler, not the matcher.
+ */
 enum RxFeature
 {
 	NoFeature	= 0x0000000,
@@ -61,30 +64,40 @@ enum class RxOp: unsigned char
 	RxoNamedCapture,	// (?<name>...)
 	RxoNegLookahead,	// (?!...)
 	RxoAlternate,		// |
-	RxoSubroutine,		// Subroutine call to a named group
+	RxoSubroutineCall,		// Subroutine call to a named group
 	RxoEndGroup,		// End of a group
-	RxoEnd,			// Termination condition
+	RxoAccept,		// Termination condition
 	RxoFirstAlternate,	// |
+	// NFA Instructions, not from the lexical scan
+	RxoChar,		// A single literal character
+	RxoJump,		// Continue from a different offset in the NFA
+	RxoSplit,		// Continue with two threads at different offsets in the NFA
+	// RxoZero,		// Zero a counter and continue from specified offset in the NFA
+	// RxoCount,		// Increment a counter. Compare the value with min and max parameters,
+				// and continue one or two threads at the specified offsets
+	RxoCaptureStart,	// Save start
+	RxoCaptureEnd,		// Save end
 };
+
+#define	RxMaxLiteral		100	// Long literals in the NFA will be split after this many bytes
+#define	RxMaxNesting		16	// Maximum nesting depth for groups
 
 struct RxRepetitionRange
 {
-	RxRepetitionRange() : min(0), max(0) {}
-	RxRepetitionRange(int n, int x) : min(n), max(x) {}
 	uint16_t	min;
 	uint16_t	max;	// Zero means no maximum
 };
 
-class RxInstruction
+class RxStatement
 {
 public:
 	RxOp		op;		// The instruction code
 	RxRepetitionRange repetition;	// How many repetitions?
-	StrVal		str;		// RxoNamedCapture, RxoSubroutine, RxoCharClass, RxoNegCharClass
+	StrVal		str;		// RxoNamedCapture, RxoSubroutineCall, RxoCharClass, RxoNegCharClass
 
-	RxInstruction(RxOp _op) : op(_op) { }
-	RxInstruction(RxOp _op, StrVal _str) : op(_op), str(_str) { }
-	RxInstruction(RxOp _op, int min, int max) : op(_op), repetition(min, max) { }
+	RxStatement(RxOp _op) : op(_op) { }
+	RxStatement(RxOp _op, StrVal _str) : op(_op), str(_str) { }
+	RxStatement(RxOp _op, int min, int max) : op(_op) { repetition.min = min; repetition.max = max; }
 };
 
 /*
@@ -97,11 +110,11 @@ public:
 	RxCompiler(StrVal re, RxFeature features = AllFeatures, RxFeature reject_features = NoFeature);
 
 	// Lexical scanner and compiler for a regular expression. Returns false if error_message gets set.
-	bool		scan_rx(const std::function<bool(const RxInstruction& instr)> func);
+	bool		scan_rx(const std::function<bool(const RxStatement& instr)> func);
 	bool		compile(char*& nfa);
 
 	void		dump(const char* nfa);	// Dump binary code to stdout
-	static bool	instr_dump(const char* nfa, const char*& np, int& depth);		// Dump binary code to stdout
+	static bool	instr_dump(const char* nfa, const char*& np);		// Dump binary code to stdout
 
 	const char*	ErrorMessage() const { return error_message; }
 
@@ -116,43 +129,63 @@ protected:
 	bool		enabled(RxFeature) const; // Return true if the specified feature is enabled
 };
 
-// A capture not within a repetition is a singular substring:
-struct RxCapture
+/*
+ * Structure of the virtual machine:
+ *
+ * Each Instruction has a one-byte opcode followed by any parameters.
+ * Number parameters are non-negative integers, encoded using UTF-8 encoding.
+ * String parameters are a byte count (UTF-8 integer) followed by the UTF-8 bytes. REVISIT: include a char count as well, needed for platform counting.
+ * Offset is a byte offset within the NFA, relative to the start of the offset. LSB is the sign bit; shift right for the magnitude!
+ *
+ * An Instruction is either a Station or a Shunt. Threads stop at Stations, but never at Shunts.
+ *
+ * Stations:
+ * - Char, UCS4
+ * - Character Class/Negated class, #bytes as UTF8, String (pairs of UTF8 characters, each representing a range)
+ * - Character Property, #bytes as UTF8, String (name of the Property)
+ * - BOL/EOL (Line assertions)
+ * - Any
+ * - Subroutine call, 1-byte group number
+ * Shunts:
+ * - Start, Number of stations, Maximum Counter Nesting, offset to End, Number of names, array of names as consecutive Strings
+ * - Accept
+ * - Capture Start, capture# (single byte)
+ * - Capture End, capture# (single byte)
+ * - Jump, Offset (Always forwards)
+ * - Split, Offset1, Offset2
+ * - Zero, counter# (single byte), Offset
+ * - Count, counter# (single byte), Offset1 (until max), Offset2 (after min until max) REVISIT: Necessary to reverse the priority of these for non-greedy?
+ *
+ * Negative lookahead requires a recursive call to the matcher. Subroutine calls do as well.
+ *
+ * Any Instruction that matches text is counted as a Station. Start, End, Jump, Split, Zero, Count, Success are not stations.
+ * The Station count determines how many parallel threads there can be.
+ * A Literal can have more than one character. These are different "platforms" at the same station. The Platform# is included in the Thread ID.
+ */
+
+class RxMatch;
+
+typedef	CharNum	RxStationID;
+
+/*
+ * A decoded NFA instruction
+ */
+struct RxDecoded
 {
-	StrVal		name;			// Capture group name
-	StrVal		text;			// Capture substrings
+	RxOp		op;
+	RxStationID	next;			// Every opcode except RxoAccept
+	union {
+		UCS4		character;	// RxoChar
+		struct {
+			CharBytes	bytes;
+			const UTF8*	utf8;
+		} text;				// RxoCharClass, RxoNegCharClass, RxoCharProperty
+		RxStationID	alternate;	// RxoSplit, RxoCount
+		short		capture_number;	// RxoCaptureStart, RxoCaptureEnd (0..maxCapture)
+		short		group_number;	// RxoSubroutineCall
+		RxRepetitionRange repetition;
+	};
 };
-
-// A capture within a repetition is a vector of substrings:
-struct RxCaptureVec
-{
-	StrVal			name;		// Capture group name
-	std::vector<StrVal>	texts;		// Capture substrings
-};
-
-class RxMatch
-{
-public:
-	RxMatch(StrVal _target) : target(_target), succeeded(false), offset(0), length(0) {}
-	void		take(RxMatch& alt);	// Take contents from alt, to avoid copying the vectors
-
-	StrVal		target;
-	bool		succeeded;
-	CharNum		offset;
-	CharNum		length;
-	std::vector<RxCapture>		captures;		// Singular captures, indexed by group number
-	std::vector<RxCaptureVec>	captureVecs;		// Captures within repetitions, indexed by group number
-	std::vector<RxMatch>		subroutineMatches;	// Ordered by position of the subroutine call in the regexp
-
-	void		clear()
-			{
-				captures.clear();	// Singular captures, indexed by group number
-				captureVecs.clear();	// Captures within repetitions, indexed by group number
-				subroutineMatches.clear();	// Ordered by position of the subroutine call in the regexp
-			}
-};
-
-class	RxBacktracks;
 
 /*
  * RxMatcher is the engine that evaluates a Regular Expression
@@ -161,21 +194,69 @@ class	RxBacktracks;
 class RxMatcher
 {
 public:
-	~RxMatcher() { if (nfa && nfa_owned) delete(nfa); }
+	~RxMatcher();
 	RxMatcher(const char* nfa, bool take_ownership = false);
-	// RxMatcher(RxCompiler* compiler) : depth(0), nfa(0) { char* _nfa = 0; compiler->compile(_nfa); RxMatcher(nfa, true); }
 
 	RxMatch		match_after(StrVal target, CharNum offset = 0);
 	RxMatch		match_at(StrVal target, CharNum offset = 0);
 
-private:
-	bool		match_at(RxMatch& match, RxBacktracks& bt, const char*& nfa_pp, CharNum& offset);
-	const char*	continue_nfa(const char* nfa_p) const;
+	RxStationID	startStation() const { return start_station; }
+	RxStationID	searchStation() const { return search_station; }
+	int		maxStation() const { return max_station; }
+	int		maxCounter() const { return max_counter; }
+	int		maxCapture() const { return max_capture; }
+	void		decode(RxStationID, RxDecoded&);
 
+private:
+	// const char*	continue_nfa(const char* nfa_p) const;
+
+	// The NFA, and whether we should delete the data:
 	bool		nfa_owned;	// This matcher will delete the nfa
 	const char*	nfa;
-	int		depth;		// Recursion depth
+
+	RxStationID	start_station;	// Start point for just the regex
+	RxStationID	search_station;	// Start point for jhe regex preceeded by .*
+	int		max_station;	// Maximum number of concurrent threads, from NFA header
+	short		max_counter;	// Number of counters required, from NFA header
+	short		max_capture;	// Number of capture expressions in this NFA
+
+	// Names of the capture groups or subroutines, extracted from the NFA header
 	std::vector<StrVal>	names;
+};
+
+class RxMatch
+{
+public:
+	RxMatch(RxMatcher& _matcher, StrVal _target);
+	~RxMatch();
+	// void		take(RxMatch& alt);	// Take contents from alt, to avoid copying the vectors
+
+	bool		match_at(RxStationID start, CharNum& offset);
+	CharNum		offset() const { return captures[0]; }
+	CharNum		length() const { return captures[1]; }
+
+//private:
+	RxMatcher& 	matcher;		// The NFA to execute
+	StrVal		target;			// The string we are searching
+	bool		succeeded;		// Are we done yet?
+
+	// Concurrent threads of execution:
+	RxStationID*	current_stations;
+	RxStationID	current_count;		// How many of the above are populated
+	RxStationID*	next_stations;
+	RxStationID	next_count;		// How many of the above are populated
+	void		addthread(RxStationID thread, CharNum offset);
+
+	// Repetition counters, one for each repetition nesting level:
+	short*		current_counter;// Pointer to top of counter stack
+	short*		counters;	// Array of counters
+
+	// Capture offsets:
+	CharNum*	captures;	// A pair of CharNums for start and end of each capture
+
+	// Something to handle function-call results:
+	// mumble, mumble...
+	// std::vector<RxMatch>		subroutineMatches;	// Ordered by position of the subroutine call in the regexp
 };
 
 #endif	// STRREGEX_H

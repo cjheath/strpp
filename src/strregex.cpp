@@ -39,7 +39,7 @@ bool RxCompiler::enabled(RxFeature feat) const
  * hugely more complicated and incomprehensible to do it any other way.
  * If you reckon you can improve on it, you're welcome to try.
  */
-bool RxCompiler::scan_rx(const std::function<bool(const RxInstruction& instr)> func)
+bool RxCompiler::scan_rx(const std::function<bool(const RxStatement& instr)> func)
 {
 	int		i = 0;		// Regex character offset
 	UCS4		ch;		// A single character to match
@@ -54,14 +54,14 @@ bool RxCompiler::scan_rx(const std::function<bool(const RxInstruction& instr)> f
 	auto		flush = [&delayed, func]() {
 				if (delayed.length() > 0)
 				{
-					bool	ok = func(RxInstruction(RxOp::RxoLiteral, delayed));
+					bool	ok = func(RxStatement(RxOp::RxoLiteral, delayed));
 					delayed = StrVal::null;
 					return ok;
 				}
 				return true;
 			};
 
-	ok = func(RxInstruction(RxOp::RxoStart));
+	ok = func(RxStatement(RxOp::RxoStart));
 	for (; ok && i < re.length(); i++)
 	{
 		switch (ch = re[i])	// Breaking from this switch indicates an error and stops the scan
@@ -70,29 +70,29 @@ bool RxCompiler::scan_rx(const std::function<bool(const RxInstruction& instr)> f
 			if (!supported(BOL))
 				goto simple_char;
 			if (!(ok = flush())) continue;
-			ok = func(RxInstruction(RxOp::RxoBOL));
+			ok = func(RxStatement(RxOp::RxoBOL));
 			continue;
 
 		case '$':
 			if (!supported(EOL))
 				goto simple_char;
 			if (!(ok = flush())) continue;
-			ok = func(RxInstruction(RxOp::RxoEOL));
+			ok = func(RxStatement(RxOp::RxoEOL));
 			continue;
 
 		case '.':
 			if (enabled(AnyIsQuest))
 				goto simple_char;	// if using ?, . is a simple char
 			if (!(ok = flush())) continue;
-			ok = func(RxInstruction(RxOp::RxoAny));
+			ok = func(RxStatement(RxOp::RxoAny));
 			continue;
 
 		case '?':
 			if (!(ok = flush())) continue;
 			if (enabled(AnyIsQuest))
-				ok = func(RxInstruction(RxOp::RxoAny));	// Shell-style any-char wildcard
+				ok = func(RxStatement(RxOp::RxoAny));	// Shell-style any-char wildcard
 			else
-				ok = func(RxInstruction(RxOp::RxoRepetition, 0, 1));	// Previous elem is optional
+				ok = func(RxStatement(RxOp::RxoRepetition, 0, 1));	// Previous elem is optional
 			continue;
 
 		case '*':
@@ -100,15 +100,15 @@ bool RxCompiler::scan_rx(const std::function<bool(const RxInstruction& instr)> f
 				goto simple_char;
 			if (!(ok = flush())) continue;
 			if (enabled(ZeroOrMoreAny))
-				ok = func(RxInstruction(RxOp::RxoAny));
-			ok = func(RxInstruction(RxOp::RxoRepetition, 0, 0));
+				ok = func(RxStatement(RxOp::RxoAny));
+			ok = func(RxStatement(RxOp::RxoRepetition, 0, 0));
 			continue;
 
 		case '+':
 			if (!supported(OneOrMore))
 				goto simple_char;
 			if (!(ok = flush())) continue;
-			ok = func(RxInstruction(RxOp::RxoRepetition, 1, 0));
+			ok = func(RxStatement(RxOp::RxoRepetition, 1, 0));
 			continue;
 
 		case '{':
@@ -148,7 +148,7 @@ bool RxCompiler::scan_rx(const std::function<bool(const RxInstruction& instr)> f
 			else
 				max = min;		// Exact repetition count
 
-			ok = func(RxInstruction(RxOp::RxoRepetition, min, max));
+			ok = func(RxStatement(RxOp::RxoRepetition, min, max));
 			continue;
 
 		case '\\':		// Escape sequence
@@ -209,7 +209,7 @@ bool RxCompiler::scan_rx(const std::function<bool(const RxInstruction& instr)> f
 					goto simple_escape;
 				if (!(ok = flush())) continue;
 				// REVISIT: Also support \w, \d, \h, etc - are these effectively character classes?
-				ok = func(RxInstruction(RxOp::RxoCharProperty, ' '));
+				ok = func(RxStatement(RxOp::RxoCharProperty, ' '));
 				continue;
 
 			case 'p':			// Posix character type
@@ -227,7 +227,7 @@ bool RxCompiler::scan_rx(const std::function<bool(const RxInstruction& instr)> f
 					goto bad_posix;
 				param = param.substr(0, close); // Truncate name to before '}'
 				i += close+1;	// Now pointing at the '}'
-				ok = func(RxInstruction(RxOp::RxoCharProperty, param));
+				ok = func(RxStatement(RxOp::RxoCharProperty, param));
 				continue;
 
 			default:
@@ -239,6 +239,8 @@ bool RxCompiler::scan_rx(const std::function<bool(const RxInstruction& instr)> f
 				case '*': case '+': case '?': case '{':
 					if (!(ok = flush())) continue;	// So flush it first
 				}
+				if (delayed.numBytes() >= RxMaxLiteral)
+					if (!(ok = flush())) continue;	// Limit length of delayed text
 				delayed += ch;
 				continue;
 			}
@@ -297,7 +299,7 @@ bool RxCompiler::scan_rx(const std::function<bool(const RxInstruction& instr)> f
 			if (ch == '\0')
 				goto bad_class;
 
-			ok = func(RxInstruction(char_class_negated ? RxOp::RxoNegCharClass : RxOp::RxoCharClass, param));
+			ok = func(RxStatement(char_class_negated ? RxOp::RxoNegCharClass : RxOp::RxoCharClass, param));
 			continue;
 
 	bad_class:	error_message = "Bad character class";
@@ -307,7 +309,7 @@ bool RxCompiler::scan_rx(const std::function<bool(const RxInstruction& instr)> f
 			if (!supported(Alternates))
 				goto simple_char;
 			if (!(ok = flush())) continue;
-			ok = func(RxInstruction(RxOp::RxoAlternate));
+			ok = func(RxStatement(RxOp::RxoAlternate));
 			continue;
 
 		case '(':
@@ -317,7 +319,7 @@ bool RxCompiler::scan_rx(const std::function<bool(const RxInstruction& instr)> f
 			if (!enabled((RxFeature)(Capture|NonCapture|NegLookahead|Subroutine)) // not doing fancy groups
 			 || re[i+1] != '?')					// or this one is plain
 			{		// Anonymous group
-				ok = func(RxInstruction(RxOp::RxoNonCapturingGroup));
+				ok = func(RxStatement(RxOp::RxoNonCapturingGroup));
 				continue;
 			}
 
@@ -333,17 +335,17 @@ bool RxCompiler::scan_rx(const std::function<bool(const RxInstruction& instr)> f
 				}
 				param = param.substr(0, close);		// Truncate name to before >
 				i += close;	// Point at the >
-				ok = func(RxInstruction(RxOp::RxoNamedCapture, param));
+				ok = func(RxStatement(RxOp::RxoNamedCapture, param));
 				continue;
 			}
 			else if (supported(NonCapture) && re[i] == ':')	// Noncapturing group
 			{
-				ok = func(RxInstruction(RxOp::RxoNonCapturingGroup));
+				ok = func(RxStatement(RxOp::RxoNonCapturingGroup));
 				continue;
 			}
 			else if (supported(NegLookahead) && re[i] == '!') // Negative Lookahead
 			{
-				ok = func(RxInstruction(RxOp::RxoNegLookahead));
+				ok = func(RxStatement(RxOp::RxoNegLookahead));
 				continue;
 			}
 			else if (re[i] == '&')				// Subroutine
@@ -353,7 +355,7 @@ bool RxCompiler::scan_rx(const std::function<bool(const RxInstruction& instr)> f
 				if (close <= 0)
 					goto bad_capture;
 				param = param.substr(0, close); // Truncate name to before >
-				ok = func(RxInstruction(RxOp::RxoSubroutine, param));
+				ok = func(RxStatement(RxOp::RxoSubroutineCall, param));
 				i += close;	// Now pointing at the ')'
 				continue;
 			}
@@ -368,7 +370,7 @@ bool RxCompiler::scan_rx(const std::function<bool(const RxInstruction& instr)> f
 			if (!enabled(Group))
 				goto simple_char;
 			if (!(ok = flush())) continue;
-			ok = func(RxInstruction(RxOp::RxoEndGroup));
+			ok = func(RxStatement(RxOp::RxoEndGroup));
 			continue;
 
 		case ' ': case '\t': case '\n': case '\r':
@@ -387,6 +389,9 @@ bool RxCompiler::scan_rx(const std::function<bool(const RxInstruction& instr)> f
 				if (!(ok = flush())) continue;	// So flush it first
 			}
 
+			if (delayed.numBytes() >= RxMaxLiteral)
+				if (!(ok = flush())) continue;	// Limit length of delayed text
+
 			delayed += re.substr(i, 1);
 			continue;
 		}
@@ -397,7 +402,7 @@ bool RxCompiler::scan_rx(const std::function<bool(const RxInstruction& instr)> f
 		ok = flush();
 	if (ok && !error_message && i >= re.length())	// If we didn't complete, there was an error
 	{
-		ok = func(RxInstruction(RxOp::RxoEnd));
+		ok = func(RxStatement(RxOp::RxoAccept));
 		return ok;
 	}
 	return false;
@@ -406,104 +411,175 @@ bool RxCompiler::scan_rx(const std::function<bool(const RxInstruction& instr)> f
 /*
  * Compilation strategy is as follows:
  * - Scan through the RE once, accumulating the maximum required size for the NFA and error-checking
- * - In the first pass, we build an array of all named groups
+ * - In the first pass, we:
+ *   + build an array of all named groups
+ *   + accumulate the maximum nesting of repetitions (actuall, just maximum nesting)
+ *   + Count the number of Stations
  * - Allocate the data and scan through again, building the compiled NFA
- * - The start node includes the list of groups. Subroutine calls reference a group by array index
+ * - The RxoStart node includes the list of group names. Subroutine calls reference a group by array index
  *
  * The finished NFA is a series of packed characters and numbers. Both are packed using UTF-8 coding.
- * The opcodes are all ASCII (single UTF-8 byte), with one bit indicating that repetition is involved.
+ * The opcodes are all ASCII (single UTF-8 byte)
+ * Signed numbers are stored using zig-zag coding (sign bit is LSB, magnitude is doubled)
  *
- * As the NFA is built, there are places where numbers that aren't yet known must be later patched in.
- * Because the UTF-8 encoding of these numbers is variable in size, the maximum required space is
- * reserved, so patching involves shuffling the rest of the NFA down to meet it.
- * - The repeat opcode and min&max number (unsigned char) of repetitions allowed, 3 bytes total.
- * - Byte offset from an alternate or the start of a group, to the next alternate or end of the group.
+ * As the NFA is built, there are places where numbers (especially station numbers aka NFA offsets)
+ * that aren't yet known must be later patched in.  Because the UTF-8 encoding of these numbers is
+ * variable in size, the maximum required space is reserved, so patching involves shuffling the rest
+ * of the NFA down to meet it. This must be done in such away that other offsets aren't affected, or
+ * those are also patched.
  *
  * This problem doesn't occur with subroutine calls since those go via the names table.
  *
- * The first pass involves two counts: the number of offset numbers to encode, and the number of other
- * bytes.  If this indicates that all offsets will fit in 1 byte (or 2 bytes, etc) the maximum required
+ * The first pass involves two counts that affect the allocation size:
+ * - the number of offset numbers to encode, and
+ * - the number of other bytes.
+ * If this indicates that all offsets will fit in 1 byte (or 2 bytes, etc) the maximum required
  * size is calculated accordingly.
- *
- * When repetition is seen, the entire NFA from the start of the repeated item to the end gets shuffled
- * down three bytes to make room.
  */
 bool
 RxCompiler::compile(char*& nfa)
 {
-	CharBytes	bytes_required = 0;	// Count how many bytes we will need
-	CharBytes	offsets_required = 0;	// Count how many UTF8-encoded offsets we will need
-	struct {
+	// Each stack entry contains enough information to find the start station,
+	// and to close off the group, including finalising a chain of alternates.
+	struct Stack {
+		RxOp		op;
 		uint8_t		group_num;
-		CharBytes	start;		// Offset to group-start opcode
-		CharBytes	previous;	// Index in nfa of the offset in the group-start or previous alternative
-		CharBytes	group_content;	// Index in nfa of the opcode following the group-start
-	} stack[16];	// Maximum nesting depth for groups
-	int		depth;			// Stack pointer
-	CharBytes	utf8_count;		// Used for sizing string storage
-	RxOp		last = RxOp::RxoStart;
-	bool		repeatable = false;	// Cannot start with a repetition
-	bool		ok;			// Is everything still ok to continue?
-	std::vector<StrVal>	names;
-	std::vector<StrVal>::iterator	iter;
+		CharBytes	start;		// Index in NFA to group-start opcode (2nd pass) or boolean (1st pass)
+		CharBytes	last_split;	// Index in NFA to the Split offset for the previous alternate
+		CharBytes	last_jump;	// Index in NFA to the Jump at the end of the most recent alternate. Signals an alternate chain.
+	} stack[RxMaxNesting];
+	int		nesting = 0;		// Stack pointer
+	auto		tos = [&]() -> Stack& { return stack[nesting-1]; };	// Top of stack is stack[nesting-1]
+	auto		group_op = [&]() -> RxOp { return tos().op; };		// What kind of group is at the top?
+	int		max_nesting;		// How deeply are groups nested? (we actually need to know the count of nested repetitions)
+	int		station_count = 0;	// How many parallel threads can a nesting-first search have?
+	std::vector<StrVal>	names;		// Sequence of group names in order of occurrence
+	std::vector<StrVal>::iterator	iter;	// An iterator for the group names
+	UTF8*		ep;			// NFA output pointer, not used until 2nd pass
 
+	/*
+	 * In first pass, we must count how many offsets and how many other bytes are needed to store the NFA
+	 */
+	CharBytes	bytes_required = 0;	// Count how many bytes we will need
+	CharBytes	offsets_required = 0;	// Count how many UTF8-encoded offsets we will need (these may vary in size)
+	// Adjust for the size of a string to be emitted
+	auto	add_string_size =
+		[&](StrVal str)
+		{
+			CharBytes	utf8_count;	// Used for sizing string storage
+			(void)str.asUTF8(utf8_count);
+			bytes_required += UTF8Len(utf8_count);	// Length encoded as UTF-8
+			bytes_required += utf8_count;	// UTF8 bytes
+		};
+	auto	add_string_storage =			// Just the string bytes, excluding the length
+		[&](StrVal str)
+		{
+			CharBytes	utf8_count;	// Used for sizing string storage
+			(void)str.asUTF8(utf8_count);
+			bytes_required += utf8_count;	// UTF8 bytes
+		};
+
+	auto	push =
+		[&](RxOp op, int group_num = 0) -> bool
+		{
+			if (nesting >= RxMaxNesting)
+				return false;
+			stack[nesting].op = op;
+			stack[nesting].group_num = group_num;
+			stack[nesting].start = ep-nfa-1;	// Always called immediately after the RxOp has been emitted.
+			stack[nesting].last_split = ep-nfa;
+			stack[nesting].last_jump = 0;
+			nesting++;
+			if (max_nesting < nesting)
+				max_nesting = nesting;
+			return true;
+		};
+
+	bool		repeatable = false;	// Cannot start with a repetition
+	nfa = ep = 0;
 	auto	first_pass =
-		[&](const RxInstruction& instr) -> bool
+		[&](const RxStatement& instr) -> bool
 		{
 			bool		is_atom = false;
-			bytes_required++;			// One byte to store the RxOp
+			bytes_required++;			// One byte to store this RxOp
 
 			switch (instr.op)
 			{
-			case RxOp::RxoFirstAlternate: break;	// Never sent
-			case RxOp::RxoNull: break;
+			case RxOp::RxoFirstAlternate:
+			case RxOp::RxoNull:
+			case RxOp::RxoChar:
+			case RxOp::RxoJump:
+			case RxOp::RxoSplit:
+			case RxOp::RxoCaptureStart:
+			case RxOp::RxoCaptureEnd:
+				break;				// Never sent
+
 			case RxOp::RxoStart:			// Place to start the DFA
-				// Memory allocation instructions can also go in the start block, and in each target of a subroutine call.
-				bytes_required += 1;		// Store the number of names in the names array
-				offsets_required++;		// Need an offset to the second alternate, like any group
-				stack[0].group_num = 0;
-				stack[0].start = 1;		// Before any Alternate
-				depth = 1;
+				offsets_required++;		// station_count
+				bytes_required += 1;		// max_nesting
+				offsets_required += 3;		// start_station, search_station
+				bytes_required += 3;		// max_nesting, max_capture, name_count, size of the names array. Names will get added later
+				station_count = 0;
+				push(instr.op, 0);
 				break;
 
-			case RxOp::RxoEnd:			// Termination condition
-				bytes_required++;		// Null at end
-				depth--;
+			case RxOp::RxoAccept:			// Termination condition
+				// Add room for the RxoAny RxoSplit for search_station
+				bytes_required += 3;
+				offsets_required += 2;
+
+				// Null at end
+				bytes_required++;
+				nesting--;
 				break;
 
-			case RxOp::RxoEndGroup:			// End of a group
-				if (--depth < 0)
-				{
-					error_message = "Too many closing parentheses";
-					return false;
-				}
+			case RxOp::RxoLiteral:			// A specific string
 				is_atom = true;
+				bytes_required += instr.str.length();	// One RxoChar for each char
+				bytes_required += instr.str.numBytes();	// and the data
+				// REVISIT: This is pessimistic. A string has one station plus the number of times its prefix re-occurs
+				station_count += instr.str.numBytes();
 				break;
 
-			case RxOp::RxoAlternate:		// |
-				offsets_required++;
-				if (stack[depth-1].start)	// An extra RxOp and offset before the first alternate
-				{
-					stack[depth-1].start = 0;	// After first alternate now
-					bytes_required++;
-					offsets_required++;
-				}
+			case RxOp::RxoBOL:			// Beginning of Line
+				station_count++;
+				break;				// Nothing special to see here, move along
+
+			case RxOp::RxoEOL:			// End of Line
+				station_count++;
+				break;				// Nothing special to see here, move along
+
+			case RxOp::RxoAny:			// Any single char
+				station_count++;
+				is_atom = true;
+				break;				// Nothing special to see here, move along
+
+			case RxOp::RxoCharClass:		// Character class; instr contains a string of character pairs
+			case RxOp::RxoNegCharClass:		// Negated Character class
+			case RxOp::RxoCharProperty:		// A char with a named Unicode property
+				station_count++;
+				is_atom = true;
+		str_param:	add_string_size(instr.str);
 				break;
 
 			case RxOp::RxoNonCapturingGroup:	// (...)
-			case RxOp::RxoNegLookahead:		// (?!...)
-				offsets_required++;
-				if (depth >= sizeof(stack)/sizeof(stack[0]))
+				if (!push(instr.op, 0))
 				{
 		too_deep:		error_message = "Nesting too deep";
 					return false;
 				}
-				stack[depth].group_num = 0;
-				stack[depth].start = 1;		// Before any Alternate
-				depth++;
+				break;
+
+			case RxOp::RxoNegLookahead:		// (?!...)
+				if (!push(instr.op, 0))
+					goto too_deep;
+				offsets_required++;		// Offset to the continuation point
 				break;
 
 			case RxOp::RxoNamedCapture:		// (?<name>...)
+				/*
+				 * The name must be unique. Add it to the names table
+				 */
 				if (names.size() >= 254)
 				{
 					error_message = "Too many named groups";
@@ -517,38 +593,61 @@ RxCompiler::compile(char*& nfa)
 					}
 				names.push_back(instr.str);
 
-				offsets_required++;
-				bytes_required++;		// Space for the group number
-				if (depth >= sizeof(stack)/sizeof(stack[0]))
+				if (!push(instr.op, names.size()))
 					goto too_deep;
-				stack[depth].group_num = names.size();	// First entry is 1. 0 means un-named
-				stack[depth].start = 1;		// Before any Alternate
-				depth++;
-				goto str_param;
 
-			case RxOp::RxoLiteral:			// A specific string
-			case RxOp::RxoCharProperty:		// A char with a named Unicode property
-			case RxOp::RxoCharClass:		// Character class; instr contains a string of character pairs
-			case RxOp::RxoNegCharClass:		// Negated Character class
-				is_atom = true;
-		str_param:	(void)instr.str.asUTF8(utf8_count);
-				bytes_required += UTF8Len(utf8_count);	// Length encoded as UTF-8
-				bytes_required += utf8_count;	// UTF8 bytes
-				break;
+				bytes_required += 2;		// RxoCaptureStart, group#
+				goto str_param;			// This string will be in the names table of RxoStart
 
-			case RxOp::RxoSubroutine:		// Subroutine call to a named group
+			case RxOp::RxoSubroutineCall:		// Subroutine call to a named group
 				// The named subroutine might not yet have been declared, so we can't check it
+				station_count++;
 				is_atom = true;
 				bytes_required += 1;		// We will store the index in the names array
 				break;
 
-			case RxOp::RxoBOL:			// Beginning of Line
-				break;				// Nothing special to see here, move along
-			case RxOp::RxoEOL:			// End of Line
-				break;				// Nothing special to see here, move along
-			case RxOp::RxoAny:			// Any single char
+			case RxOp::RxoEndGroup:			// End of a group
+				if (nesting <= 0)
+				{
+					error_message = "Too many closing parentheses";
+					return false;
+				}
+
+				switch (group_op())
+				{
+				default:	// Internal error
+					return false;
+				case RxOp::RxoNegLookahead:
+					break;
+
+				case RxOp::RxoNonCapturingGroup:
+					bytes_required--;	// Delete the RxoEndGroup
+					break;
+
+				case RxOp::RxoNamedCapture:
+					bytes_required--;	// Replace the RxoEndGroup
+					bytes_required += 2;	// with RxoCaptureEnd+group#
+					break;
+				}
+
+				nesting--;	// Pop the stack
 				is_atom = true;
-				break;				// Nothing special to see here, move along
+				break;
+
+			case RxOp::RxoAlternate:		// |
+				offsets_required++;
+				if (tos().start)		// First alternate: Emit Jump, insert Split before the group contents
+				{
+					tos().start = 0;	// After first alternate now
+					bytes_required++;
+					offsets_required += 2;
+				}
+				else				// non-first alternate. Emit RxoJump, insert RxoSplit after previous Jump
+				{
+					bytes_required += 2;
+					offsets_required += 2;
+				}
+				break;
 
 			case RxOp::RxoRepetition:		// {n, m}
 				if (!repeatable)
@@ -561,16 +660,23 @@ RxCompiler::compile(char*& nfa)
 					error_message = "Min and Max repetition are limited to 254";
 					return false;
 				}
-				bytes_required += 3;
+				bytes_required++;		// RxoZero
+				if (instr.repetition.min > 0)
+				{		// We have a mandatory repetition first
+					bytes_required++;	// RxoJump to the repeated thing
+					offsets_required++;
+				}
+				bytes_required++;		// RxoCount, offset back to repeated thing
+				offsets_required++;
 				break;
 			}
-			last = instr.op;
 			repeatable = is_atom;
 			return true;
                 };
 
+	bool		ok;			// Is everything still ok to continue?
 	ok = scan_rx(first_pass);
-	if (ok && depth > 0)
+	if (ok && nesting > 0)
 	{
 		error_message = "Not all groups were closed";
 		ok = false;
@@ -578,138 +684,270 @@ RxCompiler::compile(char*& nfa)
 	if (!ok)
 		return false;
 
-	CharBytes	offset_max_bytes = UTF8Len(bytes_required+offsets_required*4);
+	// What is a maximum sufficient size (in bytes) of an offset, if all offsets were the maximum 4 bytes?
+	// Note that zig-zag encoding means an offset may be twice the maximum size of the NFA.
+	CharBytes	offset_max_bytes = UTF8Len(2*(bytes_required+offsets_required*4));	// Upper limit on offset size
+	offset_max_bytes = UTF8Len(2*(bytes_required+offsets_required*offset_max_bytes));	/// Based on actual offset size
 
-	// Now we know the maximum size of the NFA, we know the maximum size of an offset:
-	bytes_required += offsets_required * UTF8Len(bytes_required+offsets_required*4);
+	// The maximum size of the nfa is thus (bytes_required+offsets_required*offset_max_bytes)
+	// Now we know this, we know the maximum size of an actual offset and can get close to the actual NFA size.
+	// This might be a tad high as some offsets might shrink, but not by much.
+	bytes_required += offsets_required * UTF8Len(bytes_required+offsets_required*offset_max_bytes);
+printf("Allocating %d bytes for the NFA\n", bytes_required);
 
 	nfa = new UTF8[bytes_required+1];
-	UTF8*		ep = nfa;
+	ep = nfa;
+
+	auto	zigzag =
+		[](int i) -> CharBytes
+		{
+			return (abs(i)<<1) | (i < 0 ? 1 : 0);
+		};
+
+	auto	zagzig =
+		[](int i) -> int
+		{
+			return (i>>1) * ((i&01) ? -1 : 1);
+		};
+
+	// Emit an offset, advancing np, and returning the number of UTF8 bytes emitted
+	auto	emit_offset =
+		[&](char*& np, int offset) -> CharBytes
+		{
+			char*	cp = np;
+
+			UTF8Put(np, zigzag(offset));
+			return (CharBytes)(np-cp);
+		};
+
+	// Emit an offset, advancing np, and returning the number of UTF8 bytes emitted
+	auto	get_offset =
+		[&](const char*& np) -> CharBytes
+		{
+			return (CharBytes)zagzig(UTF8Get(np));
+		};
+
+	// Emit a zigzag integer, but always advance np by offset_max_bytes
+	auto	emit_padded_offset =
+		[&](char*& np, int offset = 0)
+		{
+			char*	cp = np;
+			UTF8Put(cp, zigzag(offset));
+			np += offset_max_bytes;
+		};
+
+	// Emit a StrVal, advancing ep
+	auto	emit_string =
+		[&](StrVal str)
+		{
+			const UTF8*	sp;		// The UTF8 bytes of a string we'll copy into the NFA
+			CharBytes	utf8_count;	// Used for sizing string storage
+			sp = str.asUTF8(utf8_count);	// Get the bytes and byte count
+			UTF8Put(ep, utf8_count);	// Encode the byte count as UTF-8
+			memcpy(ep, sp, utf8_count);	// Output the bytes to the NFA
+			ep += utf8_count;		// And advance past them
+		};
+
+	auto	patch_value_at =
+		[&](CharBytes patch_location, int value) -> int
+		{
+			CharBytes	byte_count = UTF8Len(zigzag(value));
+			CharBytes	shrinkage = offset_max_bytes - byte_count;
+printf("Patching %d with value %d (offs to %d), with %d shrinkage\n", patch_location, value, (patch_location+value), shrinkage);
+
+			char*	cp = nfa+patch_location;	// The patch location
+			UTF8Put(cp, zigzag(value));		// Patch done
+			if (shrinkage)
+			{		// Shuffle down, this offset is smaller than the offset_max_bytes
+				// We reserved offset_max_bytes, but only need byte_count.
+				memmove(cp, cp+shrinkage, ep-(cp+shrinkage));
+				ep -= shrinkage;	// the nfa contains fewer bytes now
+			}
+			return shrinkage;
+		};
 
 	auto	patch_offset_at =
-		[&](CharBytes patch_location, CharBytes offset_to)
+		[&](CharBytes patch_location, CharBytes offset_to) -> int
 		{
 			/*
 			 * We reserved offset_max_bytes at patch_location for an offset to the current location.
 			 *
-			 * Patch the offset there to point to ep-1 (the RxOp byte we just output to *ep).
+			 * Patch the offset there to point to offset_to.
 			 * If the offset fits in fewer than offset_max_bytes UTF-8 bytes, we must shuffle down.
 			 * This reduces the offset, which can cause it to cross a UTF-8 coding boundary,
-			 * taking one fewer bytes, a process that can only happen once.
+			 * taking one fewer bytes, a process that can only happen once(?).
 			 */
-			CharBytes	offset = offset_to - patch_location;
-			CharBytes	byte_count = UTF8Len(offset);
-			if (byte_count < offset_max_bytes)	// We'll shuffle
-			{
-				offset -= (offset_max_bytes-byte_count);
-				byte_count = UTF8Len(offset);
-			}
+			int		offset = offset_to - patch_location;
+			CharBytes	byte_count = UTF8Len(zigzag(offset));
+			CharBytes	shrinkage = offset_max_bytes - byte_count;
+			if (byte_count < offset_max_bytes	// We'll shuffle
+			 && patch_location < offset_to)		// And the patch location is prior to the target
+				offset -= shrinkage;		// The offset is now smaller
 
-			char*	cp = nfa+patch_location;	// The patch location
-			if (byte_count < offset_max_bytes)
-			{		// Shuffle down, this offset is smaller than the offset_max_bytes
-				// We reserved offset_max_bytes, but only need byte_count.
-				memmove(cp+byte_count, cp+offset_max_bytes, ep-(cp+offset_max_bytes));
-				ep -= offset_max_bytes-byte_count;	// the nfa contains fewer bytes now
+			return patch_value_at(patch_location, offset);
+		};
+
+	auto	insert_split =
+		[&](CharBytes location)
+		{		// The new split is 1 byte & 1 offset. Make room for it
+			char*	new_split = nfa+location;
+			memmove(new_split+1+offset_max_bytes, new_split, ep-new_split);
+			ep += 1+offset_max_bytes;
+			*new_split++ = (char)RxOp::RxoSplit;
+			tos().last_split = new_split-nfa;
+			emit_padded_offset(new_split);			// and make room for it
+		};
+
+	auto	fixup_alternates =
+		[&]()
+		{
+			if (tos().last_jump != 0)
+			{		// Fixup Alternates
+				// If patching the Split shrinks the offset, pull last_jump() back by the shrinkage
+				tos().last_jump -=
+					patch_offset_at(tos().last_split, tos().last_jump+offset_max_bytes);
+
+				CharBytes	jump = tos().last_jump;	// Offset inside the last Jump
+				for (;;)
+				{
+					const char*	cp = nfa+jump;
+					int		prev = get_offset(cp);	// Get offset to previous jump
+
+					// REVISIT: Handle shrinkage here!
+
+					patch_offset_at(jump, (ep-nfa));
+					if (!prev)
+						break;
+					jump += prev;
+				}
 			}
-			UTF8Put(cp, offset);		// Patch done
 		};
 
 	UTF8*		last_atom_start = ep;	// Pointer to the thing to which a repetition applies
-	const UTF8*	sp;		// The UTF8 bytes of a string we'll copy into the NFA
 	int		next_group = 0;	// Number of the next named group
 
 	auto	second_pass =
-		[&](const RxInstruction& instr) -> bool
+		[&](const RxStatement& instr) -> bool
 		{
 			char*	this_atom_start = ep;		// Pointer to the thing a following repetition will repeat
 			*ep++ = (char)instr.op;
 			switch (instr.op)
 			{
-			case RxOp::RxoFirstAlternate:		// Never sent
-				break;
-
+			case RxOp::RxoChar:
+			case RxOp::RxoJump:
+			case RxOp::RxoSplit:
+			case RxOp::RxoCaptureStart:
+			case RxOp::RxoCaptureEnd:
+			case RxOp::RxoFirstAlternate:
 			case RxOp::RxoNull:
-				break;
+				break;				// Never sent
 
 			case RxOp::RxoStart:			// Place to start the DFA
-				depth = 0;
-				stack[depth].group_num = next_group++;
-				stack[depth].start = ep-nfa-1;
-				stack[depth].previous = ep-nfa;	// I.e. 1 :)
-				depth++;
-				UTF8PutPaddedZero(ep, offset_max_bytes);	// Reserve space for a patched offset
-				*ep++ = names.size() + 1;		// Add 1 to avoid NUL characters
+				nesting = 0;			// Clear the stack
+				push(instr.op, next_group++);	// and open this "group"
+				emit_padded_offset(ep);		// search_station; will be patched on RxoAccept
+				emit_padded_offset(ep);		// start_station
+				emit_offset(ep, station_count);
+				*ep++ = max_nesting;		// REVISIT: Not all nesting involves counters
+				*ep++ = names.size() + 1;	// max_capture; 0 is the overall match, first group starts at 1
+				*ep++ = names.size() + 1;	// num_names
 				for (iter = names.begin(); iter != names.end(); iter++)
-				{
-					sp = iter->asUTF8(utf8_count);
-					UTF8Put(ep, utf8_count);
-					memcpy(ep, sp, utf8_count);
-					ep += utf8_count;
-				}
-				stack[depth-1].group_content = ep-nfa;
+					emit_string(*iter);
+				tos().last_split = ep-nfa;	// Record where the first alternate must start
+				patch_offset_at(1+offset_max_bytes, ep-nfa);	// start_station
 				break;
 
-			case RxOp::RxoAlternate:		// |
-				if (stack[depth-1].previous == stack[depth-1].start+1)
-				{
-					/*
-					 * This second alternate terminates the first alternate.
-					 * Patch in an RxoAlternate instruction before stack[depth-1].group_content
-					 * Reserve offset_max_bytes by shuffling down. We might shuffle up a bit when patching
-					 */
-					char* cp = nfa+stack[depth-1].group_content;
-					memmove(cp+1+offset_max_bytes, cp, ep-cp);
-					ep += 1+offset_max_bytes;
-					*cp++ = (char)RxOp::RxoFirstAlternate;
-					stack[depth-1].previous = cp-nfa;	// We will patch the offset from this new first alternate
-				}
-				patch_offset_at(stack[depth-1].previous, ep-nfa);
-				stack[depth-1].previous = ep-nfa;
-				UTF8PutPaddedZero(ep, offset_max_bytes);	// Reserve space for a patched offset
+			case RxOp::RxoAccept:			// Termination condition
+			{
+				ep--;
+				fixup_alternates();
+				*ep++ = (char)RxOp::RxoAccept;
+
+				// Fixup RxoStart block
+				const char*	cp = nfa+1+offset_max_bytes;	// Location of start_station
+				cp -= patch_offset_at(1, ep-nfa);	// Patch search_station (not actually an offset!)
+
+				CharBytes	start_station = (cp-nfa)+get_offset(cp);
+
+				// Add .* sequence for a search:
+				cp = ep;
+				*ep++ = (char)RxOp::RxoSplit;
+				emit_offset(ep, (nfa+start_station)-ep);
+				*ep++ = (char)RxOp::RxoAny;
+				*ep++ = (char)RxOp::RxoJump;
+				emit_offset(ep, cp-ep);
+			}
 				break;
 
-			case RxOp::RxoEnd:			// Termination condition
-			case RxOp::RxoEndGroup:			// End of a group
-				// Patch the final alternate, if any
-				if (stack[depth-1].previous > stack[depth-1].start+1)
-					patch_offset_at(stack[depth-1].previous, ep-nfa);
-				this_atom_start = nfa+stack[depth-1].start;	// This is what a following repetition repeats
-				patch_offset_at(stack[depth-1].start+1, ep-nfa);	// Start of group points to the end
-				depth--;		// Pop the stack, this group is done
-				break;
-
-			case RxOp::RxoNonCapturingGroup:	// (...)
-			case RxOp::RxoNegLookahead:		// (?!...)
-				stack[depth].group_num = 0;
-				stack[depth].start = ep-nfa-1;
-				stack[depth].previous = ep-nfa;
-				depth++;
-				UTF8PutPaddedZero(ep, offset_max_bytes);	// Reserve space for a patched offset
-				stack[depth-1].group_content = ep-nfa;
-				break;
-
-			case RxOp::RxoNamedCapture:		// (?<name>...)
-				stack[depth].group_num = next_group;	// Index in names table + 1
-				stack[depth].start = ep-nfa-1;
-				stack[depth].previous = ep-nfa;
-				depth++;
-				UTF8PutPaddedZero(ep, offset_max_bytes);	// Reserve space for a patched offset
-				*ep++ = next_group++;
-				stack[depth-1].group_content = ep-nfa;
-				break;
+			case RxOp::RxoBOL:			// Beginning of Line
+				break;				// Nothing special to see here, move along
+			case RxOp::RxoEOL:			// End of Line
+				break;				// Nothing special to see here, move along
+			case RxOp::RxoAny:			// Any single char
+				break;				// Nothing special to see here, move along
 
 			case RxOp::RxoLiteral:			// A specific string
+				ep--;
+				for (int i = 0; i < instr.str.length(); i++)
+				{		// Emit each character one at a time
+					*ep++ = (char)RxOp::RxoChar;
+					UTF8Put(ep, instr.str[i]);
+				}
+				break;
+
 			case RxOp::RxoCharProperty:		// A char with a named Unicode property
 			case RxOp::RxoCharClass:		// Character class; instr contains a string of character pairs
 			case RxOp::RxoNegCharClass:		// Negated Character class
-				sp = instr.str.asUTF8(utf8_count);	// Get the bytes and byte count
-				UTF8Put(ep, utf8_count);	// Encode the byte counnt as UTF-8
-				memcpy(ep, sp, utf8_count);	// Output the bytes
-				ep += utf8_count;		// And advance past them
+				emit_string(instr.str);
 				break;
 
-			case RxOp::RxoSubroutine:		// Subroutine call to a named group
+			case RxOp::RxoNonCapturingGroup:	// (...)
+				ep--;
+				push(instr.op, 0);
+				break;
+
+			case RxOp::RxoNamedCapture:		// (?<name>...)
+				ep[-1] = (char)RxOp::RxoCaptureStart;
+				push(instr.op, next_group++);
+				*ep++ = next_group-1;
+				tos().last_split = ep-nfa;	// Record where the first alternate must start
+				break;
+
+			case RxOp::RxoNegLookahead:		// (?!...)
+				push(instr.op, 0);
+				emit_padded_offset(ep);		// Pointer to next station if the lookahead allows us to proceed
+				tos().last_split = ep-nfa;	// Record where the first alternate must start
+				break;
+
+			case RxOp::RxoEndGroup:			// End of a group
+				ep--;
+				switch (group_op())
+				{
+				default:	// Internal error
+					assert(0 == "Internal error in group management");
+					return false;
+
+				case RxOp::RxoNegLookahead:
+					fixup_alternates();
+					*ep++ = (char)RxOp::RxoAccept;	// Stops the recursion on the lookahead
+					// Patch the continuation pointer in the lookahead to point here
+					patch_offset_at(tos().start+1, ep-nfa);
+					break;
+
+				case RxOp::RxoNonCapturingGroup:
+					fixup_alternates();
+					break;
+
+				case RxOp::RxoNamedCapture:
+					fixup_alternates();
+					*ep++ = (char)RxOp::RxoCaptureEnd;
+					*ep++ = tos().group_num;
+					break;
+				}
+				nesting--;
+				break;
+
+			case RxOp::RxoSubroutineCall:		// Subroutine call to a named group
 			{
 				int i = 1;
 				for (iter = names.begin(); iter != names.end(); iter++, i++)
@@ -726,14 +964,42 @@ RxCompiler::compile(char*& nfa)
 				break;
 			}
 
-			case RxOp::RxoBOL:			// Beginning of Line
-				break;				// Nothing special to see here, move along
-			case RxOp::RxoEOL:			// End of Line
-				break;				// Nothing special to see here, move along
-			case RxOp::RxoAny:			// Any single char
-				break;				// Nothing special to see here, move along
+			case RxOp::RxoAlternate:		// |
+				ep--;	// Don't output RxoAlternate
 
+				if (tos().last_jump == 0)
+				{		// End of first alternate. tos().last_split is the start of the group contents
+					// Insert a split at last_split
+					insert_split(tos().last_split);		// Sets new last_split
+
+					// Append a new jump with a zero value to terminate a new list
+					*ep++ = (char)RxOp::RxoJump;
+					tos().last_jump = ep-nfa;		// Prepare for the next jump
+					emit_padded_offset(ep);
+				}
+				else
+				{		// End of subsequent alternate. tos().last_split is where we'll find the offset in the previous split
+					CharBytes	last_split = tos().last_split;
+					CharBytes	new_split;
+
+					// We need to insert a new split after the last jump whose offset is at last_jump
+					new_split = tos().last_jump+offset_max_bytes;		// The newsplit goes after the last Jump+offset
+					insert_split(new_split);		// Sets new last_split
+
+					// Patch the last_split to point to the start of this new split
+					patch_offset_at(last_split, new_split);
+
+					// Append a new jump that points back to the previous one
+					*ep++ = (char)RxOp::RxoJump;
+					emit_padded_offset(ep, tos().last_jump-(ep-nfa));
+					tos().last_jump = (ep-nfa)-offset_max_bytes;
+				}
+				break;
+
+//========================================================================================================================
 			case RxOp::RxoRepetition:		// {n, m}
+				ep--;
+#if 0
 				ep[-1] = (char)RxOp::RxoEndGroup;
 				// Shuffle NFA down by 3 bytes to insert this opcode and the repetition limits before last_atom_start
 				memmove(last_atom_start+3, last_atom_start, ep-last_atom_start);
@@ -741,6 +1007,7 @@ RxCompiler::compile(char*& nfa)
 				*last_atom_start++ = (char)RxOp::RxoRepetition;
 				*last_atom_start++ = (char)instr.repetition.min + 1;	// Add 1 to avoid NUL characters
 				*last_atom_start++ = (char)instr.repetition.max + 1;	// Add 1 to avoid NUL characters
+#endif
 				break;
 			}
 			assert(ep < nfa+bytes_required);
