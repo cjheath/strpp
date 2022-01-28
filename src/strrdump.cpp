@@ -5,26 +5,27 @@
 #include	<string.h>
 
 void
-RxCompiler::dump(const char* nfa)		// Dump binary code to stdout
+RxCompiler::dump(const char* nfa) const		// Dump NFA to stdout
 {
-	if (!nfa)
-	{
-		printf("No NFA to dump\n");
-		return;
-	}
+	hexdump(nfa);
 
 	const	UTF8*	np;
-	for (np = nfa; np < nfa+nfa_size; np++)
-		printf("%02X ", *np&0xFF);
-	printf("\n");
-
 	for (np = nfa; np < nfa+nfa_size;)
 		if (!instr_dump(nfa, np))
 			break;
 }
 
+void
+RxCompiler::hexdump(const char* nfa) const		// Dump binary code to stdout
+{
+	const	UTF8*	np;
+	for (np = nfa; np < nfa+nfa_size; np++)
+		printf("%02X%s", *np&0xFF, (np+1-nfa)%5 ? " " : "   ");
+	printf("\n");
+}
+
 bool
-RxCompiler::instr_dump(const char* nfa, const char*& np)		// Dump binary code to stdout
+RxCompiler::instr_dump(const char* nfa, const char*& np)	// Disassenble NFA to stdout
 {
 	int		num_names;
 	StrVal		name;
@@ -188,11 +189,6 @@ RxCompiler::instr_dump(const char* nfa, const char*& np)		// Dump binary code to
 
 	case RxOp::RxoEndGroup:			// End of a group
 		printf("ERROR: RxoEndGroup(%02X) should not be emitted\n", op_num);
-		break;
-
-	case RxOp::RxoFirstAlternate:		// |
-		offset_next = UTF8Get(np);
-		printf("ERROR:gRxoFirstAlternate(%02X) next=(+%d)->%d should not be emitted\n", op_num, offset_next, offset_this+offset_next);
 		break;
 
 	case RxOp::RxoAlternate:		// |

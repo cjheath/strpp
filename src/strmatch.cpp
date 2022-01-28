@@ -240,6 +240,13 @@ RxMatch::match_at(RxStationID start, CharNum& offset)
 				return false;
 			}
 #endif
+			case RxOp::RxoCount:
+				// REVISIT: Implement counted repetition
+				break;
+
+			case RxOp::RxoZero:
+				// REVISIT: push a zero this thread's counter stack
+				break;
 
 			// Compiler opcodes that aren't part of the VM:
 			case RxOp::RxoNull:
@@ -250,7 +257,6 @@ RxMatch::match_at(RxStationID start, CharNum& offset)
 			case RxOp::RxoNamedCapture:
 			case RxOp::RxoAlternate:
 			case RxOp::RxoEndGroup:
-			case RxOp::RxoFirstAlternate:
 
 			// Shunts (handled in addthread)
 			case RxOp::RxoJump:
@@ -295,7 +301,6 @@ RxMatcher::continue_nfa(const char* nfa_p) const
 	case RxOp::RxoAny:			// Any single char
 		return nfa_p;
 
-	case RxOp::RxoFirstAlternate:		// |
 	case RxOp::RxoAlternate:		// |
 		offset_next = UTF8Get(nfa_p);	// REVISIT: Are these ever needed?
 		return start_p+offset_next;

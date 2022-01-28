@@ -445,7 +445,7 @@ RxCompiler::compile(char*& nfa)
 		RxOp		op;
 		uint8_t		group_num;
 		CharBytes	start;		// Index in NFA to group-start opcode (2nd pass) or boolean (1st pass)
-		CharBytes	last_split;	// Index in NFA to the Split offset for the previous alternate
+		CharBytes	contents;	// Index in NFA to the start of the group contents
 		CharBytes	last_jump;	// Index in NFA to the Jump at the end of the most recent alternate. Signals an alternate chain.
 	} stack[RxMaxNesting];
 	int		nesting = 0;		// Stack pointer
@@ -487,7 +487,7 @@ RxCompiler::compile(char*& nfa)
 			stack[nesting].op = op;
 			stack[nesting].group_num = group_num;
 			stack[nesting].start = ep-nfa-1;	// Always called immediately after the RxOp has been emitted.
-			stack[nesting].last_split = ep-nfa;
+			stack[nesting].contents = ep-nfa;
 			stack[nesting].last_jump = 0;
 			nesting++;
 			if (max_nesting < nesting)
@@ -505,13 +505,14 @@ RxCompiler::compile(char*& nfa)
 
 			switch (instr.op)
 			{
-			case RxOp::RxoFirstAlternate:
 			case RxOp::RxoNull:
 			case RxOp::RxoChar:
 			case RxOp::RxoJump:
 			case RxOp::RxoSplit:
 			case RxOp::RxoCaptureStart:
 			case RxOp::RxoCaptureEnd:
+			case RxOp::RxoCount:
+			case RxOp::RxoZero:
 				break;				// Never sent
 
 			case RxOp::RxoStart:			// Place to start the DFA
@@ -732,8 +733,9 @@ printf("Allocating %d bytes for the NFA\n", bytes_required);
 		[&](char*& np, int offset = 0)
 		{
 			char*	cp = np;
-			UTF8Put(cp, zigzag(offset));
-			np += offset_max_bytes;
+			memset(cp, 0, offset_max_bytes);	// Ensure the entire space is zero
+			UTF8Put(cp, zigzag(offset));		// But emit only what we need
+			np += offset_max_bytes;			// Reserve all the space
 		};
 
 	// Emit a StrVal, advancing ep
@@ -766,7 +768,7 @@ printf("Patching %d with value %d (offs to %d), with %d shrinkage\n", patch_loca
 			return shrinkage;
 		};
 
-	auto	patch_offset_at =
+	auto	patch_offset =
 		[&](CharBytes patch_location, CharBytes offset_to) -> int
 		{
 			/*
@@ -794,32 +796,41 @@ printf("Patching %d with value %d (offs to %d), with %d shrinkage\n", patch_loca
 			memmove(new_split+1+offset_max_bytes, new_split, ep-new_split);
 			ep += 1+offset_max_bytes;
 			*new_split++ = (char)RxOp::RxoSplit;
-			tos().last_split = new_split-nfa;
 			emit_padded_offset(new_split);			// and make room for it
 		};
 
 	auto	fixup_alternates =
 		[&]()
 		{
-			if (tos().last_jump != 0)
-			{		// Fixup Alternates
-				// If patching the Split shrinks the offset, pull last_jump() back by the shrinkage
-				tos().last_jump -=
-					patch_offset_at(tos().last_split, tos().last_jump+offset_max_bytes);
+			if (tos().last_jump == 0)
+				return;
 
-				CharBytes	jump = tos().last_jump;	// Offset inside the last Jump
-				for (;;)
-				{
-					const char*	cp = nfa+jump;
-					int		prev = get_offset(cp);	// Get offset to previous jump
+			/*
+			 * Patching must occur strictly backwards, since each patch might shrink the NFA
+			 * We patch the last Jump (after using its value to find the previous Jump&Split),
+			 * then the previous Split, then the associated Jump, and continue.
+			 * The last Jump points nowhere, but there is one more Split at the start of the
+			 * group contents.
+			 */
+			CharBytes	jump = tos().last_jump;	// location of the offset inside the last Jump
 
-					// REVISIT: Handle shrinkage here!
+			for (;;)
+			{
+				const char*	cp = nfa+jump;
+				int		prev = get_offset(cp);	// Get offset to previous jump
 
-					patch_offset_at(jump, (ep-nfa));
-					if (!prev)
-						break;
-					jump += prev;
-				}
+				int		shrinkage;
+				assert(nfa[jump-1] == (char)RxOp::RxoJump);
+				shrinkage = patch_offset(jump, (ep-nfa));	// Make the jump point to the end of the NFA
+				CharBytes	prev_split = prev ? jump+prev+(int)offset_max_bytes+1 : tos().contents+1;
+				assert(nfa[prev_split-1] == (char)RxOp::RxoSplit);
+				// Patch previous split to point at the split after the jump we just patched
+				patch_offset(prev_split, jump+offset_max_bytes-shrinkage);
+
+				if (!prev)
+					break;
+				assert(prev < 0);
+				jump += prev;
 			}
 		};
 
@@ -838,8 +849,9 @@ printf("Patching %d with value %d (offs to %d), with %d shrinkage\n", patch_loca
 			case RxOp::RxoSplit:
 			case RxOp::RxoCaptureStart:
 			case RxOp::RxoCaptureEnd:
-			case RxOp::RxoFirstAlternate:
 			case RxOp::RxoNull:
+			case RxOp::RxoCount:
+			case RxOp::RxoZero:
 				break;				// Never sent
 
 			case RxOp::RxoStart:			// Place to start the DFA
@@ -853,8 +865,8 @@ printf("Patching %d with value %d (offs to %d), with %d shrinkage\n", patch_loca
 				*ep++ = names.size() + 1;	// num_names
 				for (iter = names.begin(); iter != names.end(); iter++)
 					emit_string(*iter);
-				tos().last_split = ep-nfa;	// Record where the first alternate must start
-				patch_offset_at(1+offset_max_bytes, ep-nfa);	// start_station
+				tos().contents = ep-nfa;	// Record where the first alternate must start
+				patch_offset(1+offset_max_bytes, ep-nfa);	// start_station
 				break;
 
 			case RxOp::RxoAccept:			// Termination condition
@@ -865,7 +877,7 @@ printf("Patching %d with value %d (offs to %d), with %d shrinkage\n", patch_loca
 
 				// Fixup RxoStart block
 				const char*	cp = nfa+1+offset_max_bytes;	// Location of start_station
-				cp -= patch_offset_at(1, ep-nfa);	// Patch search_station (not actually an offset!)
+				cp -= patch_offset(1, ep-nfa);	// Patch search_station (not actually an offset!)
 
 				CharBytes	start_station = (cp-nfa)+get_offset(cp);
 
@@ -910,13 +922,13 @@ printf("Patching %d with value %d (offs to %d), with %d shrinkage\n", patch_loca
 				ep[-1] = (char)RxOp::RxoCaptureStart;
 				push(instr.op, next_group++);
 				*ep++ = next_group-1;
-				tos().last_split = ep-nfa;	// Record where the first alternate must start
+				tos().contents = ep-nfa;	// Record where the first alternate must start
 				break;
 
 			case RxOp::RxoNegLookahead:		// (?!...)
 				push(instr.op, 0);
 				emit_padded_offset(ep);		// Pointer to next station if the lookahead allows us to proceed
-				tos().last_split = ep-nfa;	// Record where the first alternate must start
+				tos().contents = ep-nfa;	// Record where the first alternate must start
 				break;
 
 			case RxOp::RxoEndGroup:			// End of a group
@@ -931,7 +943,7 @@ printf("Patching %d with value %d (offs to %d), with %d shrinkage\n", patch_loca
 					fixup_alternates();
 					*ep++ = (char)RxOp::RxoAccept;	// Stops the recursion on the lookahead
 					// Patch the continuation pointer in the lookahead to point here
-					patch_offset_at(tos().start+1, ep-nfa);
+					patch_offset(tos().start+1, ep-nfa);
 					break;
 
 				case RxOp::RxoNonCapturingGroup:
@@ -967,32 +979,32 @@ printf("Patching %d with value %d (offs to %d), with %d shrinkage\n", patch_loca
 			case RxOp::RxoAlternate:		// |
 				ep--;	// Don't output RxoAlternate
 
+				/*
+				 * Each new alternate inserts a split at the start of the previous alternate, and a
+				 * Jump at the end of this one. The jumps are backward-chained during construction, and
+				 * at end of group, we walk backward, patching final offsets and compacting the NFA.
+				 * The first split remains at offset tos().contents
+				 */
 				if (tos().last_jump == 0)
-				{		// End of first alternate. tos().last_split is the start of the group contents
-					// Insert a split at last_split
-					insert_split(tos().last_split);		// Sets new last_split
+				{		// Reached the end of the first alternate.
+					insert_split(tos().contents);	// Insert a split at start of group contents
 
 					// Append a new jump with a zero value to terminate a new list
 					*ep++ = (char)RxOp::RxoJump;
-					tos().last_jump = ep-nfa;		// Prepare for the next jump
+					tos().last_jump = ep-nfa;	// The next jump will point back to this one
 					emit_padded_offset(ep);
 				}
 				else
-				{		// End of subsequent alternate. tos().last_split is where we'll find the offset in the previous split
-					CharBytes	last_split = tos().last_split;
-					CharBytes	new_split;
+				{		// End of subsequent alternate. tos().last_jump is where we'll find the previous alternate
+					CharBytes	last_jump = tos().last_jump;
 
 					// We need to insert a new split after the last jump whose offset is at last_jump
-					new_split = tos().last_jump+offset_max_bytes;		// The newsplit goes after the last Jump+offset
-					insert_split(new_split);		// Sets new last_split
-
-					// Patch the last_split to point to the start of this new split
-					patch_offset_at(last_split, new_split);
+					insert_split(last_jump+offset_max_bytes);		// We'll find this and patch it later
 
 					// Append a new jump that points back to the previous one
 					*ep++ = (char)RxOp::RxoJump;
-					emit_padded_offset(ep, tos().last_jump-(ep-nfa));
-					tos().last_jump = (ep-nfa)-offset_max_bytes;
+					tos().last_jump = ep-nfa;
+					emit_padded_offset(ep, last_jump-(ep-nfa));
 				}
 				break;
 

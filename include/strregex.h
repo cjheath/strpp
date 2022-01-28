@@ -51,32 +51,33 @@ enum RxFeature
 enum class RxOp: unsigned char
 {
 	RxoNull = 0,		// Null termination on the NFA
-	RxoStart,		// Place to start the DFA
-	RxoLiteral,		// A string of specific characters
-	RxoCharProperty,	// A character with a named Unicode property
-	RxoBOL,			// Beginning of Line
-	RxoEOL,			// End of Line
-	RxoCharClass,		// Character class
-	RxoNegCharClass,	// Negated Character class
-	RxoAny,			// Any single char
-	RxoRepetition,		// {n, m}
-	RxoNonCapturingGroup,	// (...)
-	RxoNamedCapture,	// (?<name>...)
-	RxoNegLookahead,	// (?!...)
-	RxoAlternate,		// |
-	RxoSubroutineCall,		// Subroutine call to a named group
-	RxoEndGroup,		// End of a group
-	RxoAccept,		// Termination condition
-	RxoFirstAlternate,	// |
+	RxoLiteral = 1,		// A string of specific characters
+	RxoNonCapturingGroup = 2,	// (...)
+	RxoNamedCapture = 3,	// (?<name>...)
+	RxoAlternate = 4,	// |
+	RxoEndGroup = 5,	// End of a group
+	RxoRepetition = 6,	// {n, m}
+
+	// The following opcodes are emitted in the NFA. Use ASCII to make it a bit readable
+	RxoStart = 'S',		// Place to start the DFA
+	RxoCharProperty = 'P',	// A character with a named Unicode property
+	RxoBOL = '^',		// Beginning of Line
+	RxoEOL = '$',		// End of Line
+	RxoCharClass = 'L',	// Character class
+	RxoNegCharClass = 'N',	// Negated Character class
+	RxoAny = '.',		// Any single char
+	RxoNegLookahead = '!',	// (?!...)
+	RxoSubroutineCall = 'U', // Subroutine call to a named group
+	RxoAccept = '#',	// Termination condition
 	// NFA Instructions, not from the lexical scan
-	RxoChar,		// A single literal character
-	RxoJump,		// Continue from a different offset in the NFA
-	RxoSplit,		// Continue with two threads at different offsets in the NFA
-	// RxoZero,		// Zero a counter and continue from specified offset in the NFA
-	// RxoCount,		// Increment a counter. Compare the value with min and max parameters,
+	RxoChar = 'C',		// A single literal character
+	RxoJump = 'J',		// Continue from a different offset in the NFA
+	RxoSplit = 'A',		// Continue with two threads at different offsets in the NFA
+	RxoZero = 'Z',		// Zero a counter and continue from specified offset in the NFA
+	RxoCount = 'R',		// Increment a counter. Compare the value with min and max parameters,
 				// and continue one or two threads at the specified offsets
-	RxoCaptureStart,	// Save start
-	RxoCaptureEnd,		// Save end
+	RxoCaptureStart = '(',	// Save start
+	RxoCaptureEnd = ')',	// Save end
 };
 
 #define	RxMaxLiteral		100	// Long literals in the NFA will be split after this many bytes
@@ -113,8 +114,9 @@ public:
 	bool		scan_rx(const std::function<bool(const RxStatement& instr)> func);
 	bool		compile(char*& nfa);
 
-	void		dump(const char* nfa);	// Dump binary code to stdout
-	static bool	instr_dump(const char* nfa, const char*& np);		// Dump binary code to stdout
+	void		dump(const char* nfa) const;	// Dump NFA to stdout
+	void		hexdump(const char* nfa) const;	// Dump binary code to stdout
+	static bool	instr_dump(const char* nfa, const char*& np);	// Disassemble symbolic code to stdout
 
 	const char*	ErrorMessage() const { return error_message; }
 
