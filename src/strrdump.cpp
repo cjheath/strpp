@@ -220,6 +220,17 @@ RxCompiler::instr_dump(const char* nfa, const char*& np)	// Disassenble NFA to s
 		max = (*np++ & 0xFF) - 1;
 		printf("ERROR: RxoRepetition(%02X) min=%d max=%d should not be emitted\n", op_num, min, max);
 		break;
+
+	case RxOp::RxoZero:
+		printf("RxoZero(%02X)\n", op_num);
+		break;
+
+	case RxOp::RxoCount:
+		min = (*np++ & 0xFF) - 1;
+		max = (*np++ & 0xFF) - 1;
+		offset_alternate = get_offset(np);
+		printf("RxoCount(%02X) min=%d max=%d repeating at %d\n", op_num, min, max, offset_this+3+offset_alternate);
+		break;
 	}
 	return true;
 }

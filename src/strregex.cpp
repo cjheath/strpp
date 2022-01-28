@@ -451,7 +451,7 @@ RxCompiler::compile(char*& nfa)
 	int		nesting = 0;		// Stack pointer
 	auto		tos = [&]() -> Stack& { return stack[nesting-1]; };	// Top of stack is stack[nesting-1]
 	auto		group_op = [&]() -> RxOp { return tos().op; };		// What kind of group is at the top?
-	int		max_nesting;		// How deeply are groups nested? (we actually need to know the count of nested repetitions)
+	int		max_nesting = 0;	// How deeply are groups nested? (we actually need to know the count of nested repetitions)
 	int		station_count = 0;	// How many parallel threads can a nesting-first search have?
 	std::vector<StrVal>	names;		// Sequence of group names in order of occurrence
 	std::vector<StrVal>::iterator	iter;	// An iterator for the group names
@@ -661,14 +661,21 @@ RxCompiler::compile(char*& nfa)
 					error_message = "Min and Max repetition are limited to 254";
 					return false;
 				}
-				bytes_required++;		// RxoZero
-				if (instr.repetition.min > 0)
-				{		// We have a mandatory repetition first
-					bytes_required++;	// RxoJump to the repeated thing
-					offsets_required++;
+
+				if (instr.repetition.min == 0 && instr.repetition.max == 0)
+				{
+					bytes_required += 1;	// An inserted Split and a Jump
+					offsets_required += 2;
 				}
-				bytes_required++;		// RxoCount, offset back to repeated thing
-				offsets_required++;
+				else if (instr.repetition.min == 1 && instr.repetition.max == 0)
+				{
+					offsets_required += 1;	// Just a Split
+				}
+				else
+				{
+					bytes_required += 3;	// A Zero and a Count
+					offsets_required += 1;
+				}
 				break;
 			}
 			repeatable = is_atom;
@@ -914,13 +921,14 @@ printf("Patching %d with value %d (offs to %d), with %d shrinkage\n", patch_loca
 				break;
 
 			case RxOp::RxoNonCapturingGroup:	// (...)
-				ep--;
 				push(instr.op, 0);
+				ep--;
+				tos().contents = ep-nfa;
 				break;
 
 			case RxOp::RxoNamedCapture:		// (?<name>...)
-				ep[-1] = (char)RxOp::RxoCaptureStart;
 				push(instr.op, next_group++);
+				ep[-1] = (char)RxOp::RxoCaptureStart;
 				*ep++ = next_group-1;
 				tos().contents = ep-nfa;	// Record where the first alternate must start
 				break;
@@ -956,8 +964,9 @@ printf("Patching %d with value %d (offs to %d), with %d shrinkage\n", patch_loca
 					*ep++ = tos().group_num;
 					break;
 				}
+				this_atom_start = nfa+tos().start;
 				nesting--;
-				break;
+				break;		// Don't break and set last_atom_start wrongly
 
 			case RxOp::RxoSubroutineCall:		// Subroutine call to a named group
 			{
@@ -1008,18 +1017,40 @@ printf("Patching %d with value %d (offs to %d), with %d shrinkage\n", patch_loca
 				}
 				break;
 
-//========================================================================================================================
 			case RxOp::RxoRepetition:		// {n, m}
 				ep--;
-#if 0
-				ep[-1] = (char)RxOp::RxoEndGroup;
-				// Shuffle NFA down by 3 bytes to insert this opcode and the repetition limits before last_atom_start
-				memmove(last_atom_start+3, last_atom_start, ep-last_atom_start);
-				ep += 3;
-				*last_atom_start++ = (char)RxOp::RxoRepetition;
-				*last_atom_start++ = (char)instr.repetition.min + 1;	// Add 1 to avoid NUL characters
-				*last_atom_start++ = (char)instr.repetition.max + 1;	// Add 1 to avoid NUL characters
-#endif
+
+				/*
+				 * Cases:
+				 * No MIN, no MAX: Insert a Split (to the continuation) at the start, append a Jump back to the Split
+				 * MIN 1, no MAX: Append a Split (back to the start)
+				 * other: Insert a Zero, append a Count
+				 */
+				if (instr.repetition.min == 0 && instr.repetition.max == 0)
+				{
+					insert_split(last_atom_start-nfa);
+					*ep++ = (char)RxOp::RxoJump;
+					emit_offset(ep, last_atom_start - ep);
+					patch_offset(last_atom_start+1-nfa, ep-nfa);
+				}
+				else if (instr.repetition.min == 1 && instr.repetition.max == 0)
+				{
+					*ep++ = (char)RxOp::RxoSplit;
+					emit_offset(ep, last_atom_start - ep);
+				}
+				else
+				{
+					// Insert an RxoZero
+					memmove(last_atom_start+1, last_atom_start, ep-last_atom_start);
+					ep++;
+					*last_atom_start = (char)RxOp::RxoZero;
+
+					// Emit the repetition counter
+					*ep++ = (char)RxOp::RxoCount;
+					*ep++ = (char)instr.repetition.min + 1;	// Add 1 to avoid NUL characters
+					*ep++ = (char)instr.repetition.max + 1;	// Add 1 to avoid NUL characters
+					emit_offset(ep, last_atom_start+1 - ep);
+				}
 				break;
 			}
 			assert(ep < nfa+bytes_required);
