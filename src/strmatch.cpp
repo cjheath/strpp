@@ -5,6 +5,38 @@
 #include	<string.h>
 #include	<utility>
 
+/*
+ * To make it easy to pass around and modify result sets, we use a reference counted body.
+ * This will never be changed except when the reference count is one (1), and will be
+ * deleted when the ref_count decrements to zero.
+ *
+ * These objects are not publicly visible. The end-user API is in RxResult.
+ */
+class RxResultBody
+: public RefCounted
+{
+public:
+	RxResultBody(short c_max, short p_max);		// Needed when we want to truncate the captures
+	RxResultBody(const RxProgram& _program)	// program is needed to initialise counter_max&capture_max
+			: RxResultBody(_program.maxCounter(), _program.maxCapture()) {}
+	RxResultBody(const RxResultBody& _to_copy);	// Used by RxResult::Unshare
+
+	void		counter_push_zero();
+	CharNum		counter_incr();
+	void		counter_pop();
+
+	CharNum		capture(int index);
+	CharNum		capture_set(int index, CharNum val);
+
+	// REVISIT: Add function call results
+
+private:
+	short		counter_max;
+	short		capture_max;
+	short		counters_used;
+	CharNum*	counters;	// captures and counters stored in the same array
+};
+
 class RxMatch
 {
 	struct Thread {
@@ -64,14 +96,17 @@ const RxResult
 RxProgram::match_after(StrVal target, CharNum offset) const
 {
 	RxMatch		match(*this, target);
-	return match.match_at(searchStation(), offset);
+	RxResult	result = match.match_at(searchStation(), offset);
+	// REVISIT: Clean up remaining threads
+	return result;
 }
 
 const RxResult
 RxProgram::match_at(StrVal target, CharNum offset) const
 {
 	RxMatch		match(*this, target);
-	return match.match_at(startStation(), offset);
+	RxResult	result = match.match_at(startStation(), offset);
+	return result;
 }
 
 static int zagzig(int i)
@@ -238,9 +273,9 @@ RxMatch::match_at(RxStationID start, CharNum& offset)
 {
 	RxDecoded	instr;
 
+	// Start where directed, and step forward one character at a time, following all threads until successful or there are no threads left
 	current_count = 0;
 	current_stations[current_count++] = {start, RxResult(program)};
-	// Step forward one character at a time, following all threads
 	for (; current_count > 0 && offset < target.length(); offset++)
 	{
 		for (int thread_num = 0; thread_num < current_count; thread_num++)
@@ -249,8 +284,7 @@ RxMatch::match_at(RxStationID start, CharNum& offset)
 			RxStationID	pc = thread.station;
 			program.decode(pc, instr);
 
-			// break from here to accept instr.next, continue to ignore it.
-			switch (instr.op)
+			switch (instr.op)	// break from here to continue with instr.next, continue to ignore it.
 			{
 			case RxOp::RxoAccept:			// Termination condition
 				succeeded = true;
@@ -318,11 +352,22 @@ RxMatch::match_at(RxStationID start, CharNum& offset)
 			}
 #endif
 			case RxOp::RxoCount:
-				// REVISIT: Implement counted repetition
-				break;
+			{
+				short	counter = thread.result.counter_incr();
+				if (counter < instr.repetition.max)	// Greedily repeat
+					addthread({instr.next, thread.result}, instr.alternate);
+				if (counter > instr.repetition.min && counter < instr.repetition.max)
+				{
+					RxResult	continuation = thread.result;
+					continuation.counter_pop();
+					addthread({instr.next, continuation}, instr.next);
+				}
+			}
+				continue;
 
 			case RxOp::RxoZero:
-				// REVISIT: push a zero this thread's counter stack
+				// push a zero this thread's counter stack
+				thread.result.counter_push_zero();
 				break;
 
 			// Compiler opcodes that aren't part of the VM:
@@ -355,4 +400,130 @@ RxMatch::match_at(RxStationID start, CharNum& offset)
 
 	// We ran out of threads that could move forward, or ran out of input to move forward on
 	return RxResult();
+}
+
+RxResultBody::RxResultBody(short c_max, short p_max)
+: counter_max(c_max)
+, capture_max(p_max)
+, counters(new CharNum[counter_max+capture_max])
+, counters_used(0)
+{
+	memset(counters, 0, sizeof(CharNum)*counter_max+capture_max);
+}
+
+RxResultBody::RxResultBody(const RxResultBody& to_copy)
+: counter_max(to_copy.counter_max)
+, capture_max(to_copy.capture_max)
+, counters(new CharNum[counter_max+capture_max])
+, counters_used(to_copy.counters_used)
+{
+	memcpy(counters, to_copy.counters, sizeof(CharNum)*counter_max+capture_max);
+}
+
+void
+RxResultBody::counter_push_zero()
+{
+	assert(counters_used < counter_max);
+	if (counters_used == counter_max)
+		return;
+	counters[counters_used++] = 0;
+}
+
+CharNum
+RxResultBody::counter_incr()
+{
+	return ++counters[counters_used];
+}
+
+void
+RxResultBody::counter_pop()
+{
+	assert(counters_used > 0);
+	if (counters_used == 0)
+		return;
+	counters_used--;
+}
+
+CharNum
+RxResultBody::capture(int index)
+{
+	if (index < 0 || index >= capture_max)
+		return 0;
+	return counters[counter_max+index];
+}
+
+CharNum
+RxResultBody::capture_set(int index, CharNum val)
+{
+	if (index < 0 || index >= capture_max)
+		return 0;		// Ignore captures outside the defined range
+	return counters[counter_max+index] = val;
+}
+
+RxResult::RxResult(const RxProgram& program)
+: body(new RxResultBody(program))
+{
+}
+
+RxResult::RxResult()		// Failed result
+: body(0)
+{
+}
+
+RxResult::RxResult(const RxResult& s1)
+: body(s1.body)
+{	// Normal copy constructor
+}
+
+RxResult& RxResult::operator=(const RxResult& s1)
+{
+	body = s1.body;
+	return *this;
+}
+
+void
+RxResult::Unshare()
+{
+	if (body.GetRefCount() <= 1)
+		return;
+	body = new RxResultBody(*body);	// Copy the result body before making changes
+}
+
+RxResult::~RxResult()
+{
+}
+
+CharNum
+RxResult::capture(int index) const
+{
+	return body->capture(index);
+}
+
+RxResult&
+RxResult::capture_set(int index, CharNum val)
+{
+	Unshare();
+	body->capture_set(index, val);
+	return *this;
+}
+
+void
+RxResult::counter_push_zero()	// Push a zero counter
+{
+	Unshare();
+	body->counter_push_zero();
+}
+
+CharNum
+RxResult::counter_incr()	// Increment and return top counter of stack
+{
+	Unshare();
+	return body->counter_incr();
+}
+
+void
+RxResult::counter_pop()		// Discard the top counter of the stack
+{
+	Unshare();
+	body->counter_pop();
 }

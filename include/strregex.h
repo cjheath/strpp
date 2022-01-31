@@ -161,7 +161,7 @@ private:
 	const char*	nfa;
 
 	RxStationID	start_station;	// Start point for just the regex
-	RxStationID	search_station;	// Start point for jhe regex preceeded by .*
+	RxStationID	search_station;	// Start point for the regex preceeded by .*
 	int		max_station;	// Maximum number of concurrent threads, from NFA header
 	short		max_counter;	// Number of counters required, from NFA header
 	short		max_capture;	// Number of capture expressions in this NFA
@@ -170,51 +170,33 @@ private:
 	std::vector<StrVal>	names;
 };
 
-/*
- * To make it easy to pass around and modify result sets, we use a reference counted body.
- * This will never be changed except when the reference count is one (1), and will be
- * deleted when the ref_count decrements to zero.
- */
-class RxResultBody
-: public RefCounted
-{
-public:
-	RxResultBody(const RxProgram& _program);	// program is needed to initialise counter_max&capture_max
-
-	CharNum&	counter(RxProgram& p, int index) { return counters[index]; }	// REVISIT: Bounds Check!
-	CharNum&	capture(RxProgram& p, int index) { return counters[p.maxCounter()+index]; }	// REVISIT: Bounds Check!
-
-	// REVISIT: Function call results?
-
-private:
-	short		counter_max;
-	short		capture_max;
-	CharNum*	counters;
-};
+class RxResultBody;	// RefCounted shared result values
 
 /*
  * The result from regex matching:
- * Counters, captures, function-call results.
+ * Counter stack, captures, function-call results.
  */
 class RxResult {
 public:
-	~RxResult() {}			// Destructor
-	RxResult() : body(0) {}		// Failed result
-	RxResult(const RxProgram& program) : body(new RxResultBody(program)) {}
-	RxResult(const RxResult& s1) : body(s1.body) {}	// Normal copy constructor
-	RxResult& operator=(const RxResult& s1) { body = s1.body; return *this; }
+	~RxResult();
+	RxResult();
+	RxResult(const RxProgram& program);
+	RxResult(const RxResult& s1);
+	RxResult& operator=(const RxResult& s1);
 
 	bool		succeeded() { return (RxResultBody*)body != 0; }
 	operator	bool() { return succeeded(); }
 	CharNum		offset() const { return capture(0); }
 	CharNum		length() const { return capture(1); }
 
+	// Capture and counter access outside the 0..index range is ignored.
+	// This makes it possible to match a Regex without capturing all results.
 	CharNum		capture(int index) const;
 	RxResult&	capture_set(int index, CharNum val);
 
-	CharNum		counter(int index) const;
-	RxResult&	counter_set(int index, CharNum val);
-	CharNum		counter_decr(int index);
+	void		counter_push_zero();	// Push a zero counter
+	CharNum		counter_incr();		// Increment and return top counter of stack
+	void		counter_pop();		// Discard the top counter of the stack
 
 	// Something to handle function-call results:
 	// mumble, mumble...
