@@ -550,21 +550,17 @@ RxCompiler::compile(char*& nfa)
 				break;				// Never sent
 
 			case RxOp::RxoStart:			// Place to start the DFA
-				offsets_required++;		// station_count
-				bytes_required += 1;		// max_nesting
-				offsets_required += 3;		// start_station, search_station
-				bytes_required += 3;		// max_nesting, max_capture, name_count, size of the names array. Names will get added later
+				bytes_required += 2+3;		// RxoCaptureStart 0, max_nesting, max_capture, num_names
+				offsets_required += 3;		// search_station, start_station, station_count
+				// Names will get added later
 				station_count = 0;
 				push(instr.op, 0);
 				break;
 
 			case RxOp::RxoAccept:			// Termination condition
-				// Add room for the RxoAny RxoSplit for search_station
-				bytes_required += 3;
+				// RxoAny/RxoSplit/RxoJump for search_station, and a trailing NUL
+				bytes_required += 3+1;
 				offsets_required += 2;
-
-				// Null at end
-				bytes_required++;
 				nesting--;
 				break;
 
@@ -735,7 +731,7 @@ RxCompiler::compile(char*& nfa)
 	// Now we know this, we know the maximum size of an actual offset and can get close to the actual NFA size.
 	// This might be a tad high as some offsets might shrink, but not by much.
 	bytes_required += offsets_required * UTF8Len(bytes_required+offsets_required*offset_max_bytes);
-printf("Allocating %d bytes for the NFA\n", bytes_required);
+	// printf("Allocating %d bytes for the NFA\n", bytes_required);
 
 	nfa = new UTF8[bytes_required+1];
 	ep = nfa;
@@ -796,7 +792,7 @@ printf("Allocating %d bytes for the NFA\n", bytes_required);
 		{
 			CharBytes	byte_count = UTF8Len(zigzag(value));
 			CharBytes	shrinkage = offset_max_bytes - byte_count;
-printf("Patching %d with value %d (offs to %d), with %d shrinkage\n", patch_location, value, (patch_location+value), shrinkage);
+			// printf("Patching %d with value %d (offs to %d), with %d shrinkage\n", patch_location, value, (patch_location+value), shrinkage);
 
 			char*	cp = nfa+patch_location;	// The patch location
 			UTF8Put(cp, zigzag(value));		// Patch done
@@ -908,12 +904,20 @@ printf("Patching %d with value %d (offs to %d), with %d shrinkage\n", patch_loca
 					emit_string(*iter);
 				tos().contents = ep-nfa;	// Record where the first alternate must start
 				patch_offset(1+offset_max_bytes, ep-nfa);	// start_station
+
+				*ep++ = (char)RxOp::RxoCaptureStart;
+				*ep++ = 1;
 				break;
 
 			case RxOp::RxoAccept:			// Termination condition
 			{
 				ep--;
 				fixup_alternates();
+
+				// The CaptureEnd is build-in to Accept handling
+				// *ep++ = (char)RxOp::RxoCaptureEnd;
+				// *ep++ = 0;
+
 				*ep++ = (char)RxOp::RxoAccept;
 
 				// Fixup RxoStart block
