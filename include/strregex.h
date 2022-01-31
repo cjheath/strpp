@@ -102,7 +102,7 @@ public:
 };
 
 /*
- * RxCompiler compiles a regular expressions for the matcher to execute.
+ * RxCompiler compiles a regular expression for the matcher to execute.
  */
 class RxCompiler
 {
@@ -131,89 +131,33 @@ protected:
 	bool		enabled(RxFeature) const; // Return true if the specified feature is enabled
 };
 
-/*
- * Structure of the virtual machine:
- *
- * Each Instruction has a one-byte opcode followed by any parameters.
- * Number parameters are non-negative integers, encoded using UTF-8 encoding.
- * String parameters are a byte count (UTF-8 integer) followed by the UTF-8 bytes. REVISIT: include a char count as well, needed for platform counting.
- * Offset is a byte offset within the NFA, relative to the start of the offset. LSB is the sign bit; shift right for the magnitude!
- *
- * An Instruction is either a Station or a Shunt. Threads stop at Stations, but never at Shunts.
- *
- * Stations:
- * - Char, UCS4
- * - Character Class/Negated class, #bytes as UTF8, String (pairs of UTF8 characters, each representing a range)
- * - Character Property, #bytes as UTF8, String (name of the Property)
- * - BOL/EOL (Line assertions)
- * - Any
- * - Subroutine call, 1-byte group number
- * Shunts:
- * - Start, Number of stations, Maximum Counter Nesting, offset to End, Number of names, array of names as consecutive Strings
- * - Accept
- * - Capture Start, capture# (single byte)
- * - Capture End, capture# (single byte)
- * - Jump, Offset (Always forwards)
- * - Split, Offset1, Offset2
- * - Zero, counter# (single byte), Offset
- * - Count, counter# (single byte), Offset1 (until max), Offset2 (after min until max) REVISIT: Necessary to reverse the priority of these for non-greedy?
- *
- * Negative lookahead requires a recursive call to the matcher. Subroutine calls do as well.
- *
- * Any Instruction that matches text is counted as a Station. Start, End, Jump, Split, Zero, Count, Success are not stations.
- * The Station count determines how many parallel threads there can be.
- * A Literal can have more than one character. These are different "platforms" at the same station. The Platform# is included in the Thread ID.
- */
-
-class RxMatch;
-
-typedef	CharNum	RxStationID;
+typedef	CharNum	RxStationID;	// A station in the NFA (as a byte offset from the start)
+struct		RxDecoded;	// A decoded NFA instruction
+class		RxResult;	// The result of a regex match
 
 /*
- * A decoded NFA instruction
+ * RxProgram contains a compiled Regular Expression. Contains the result of decoding the NFA header.
+ * It can run a match against a string and return the RxResult but does not get modified during the matching process.
  */
-struct RxDecoded
-{
-	RxOp		op;
-	RxStationID	next;			// Every opcode except RxoAccept
-	union {
-		UCS4		character;	// RxoChar
-		struct {
-			CharBytes	bytes;
-			const UTF8*	utf8;
-		} text;				// RxoCharClass, RxoNegCharClass, RxoCharProperty
-		RxStationID	alternate;	// RxoSplit, RxoCount
-		short		capture_number;	// RxoCaptureStart, RxoCaptureEnd (0..maxCapture)
-		short		group_number;	// RxoSubroutineCall
-		RxRepetitionRange repetition;
-	};
-};
-
-/*
- * RxMatcher is the engine that evaluates a Regular Expression
- * against a string, and contains its result.
- */
-class RxMatcher
+class RxProgram
 {
 public:
-	~RxMatcher();
-	RxMatcher(const char* nfa, bool take_ownership = false);
+	~RxProgram();
+	RxProgram(const char* nfa, bool take_ownership = false);		// REVISIT: Add option flags? Like no-capture, etc?
 
-	RxMatch		match_after(StrVal target, CharNum offset = 0);
-	RxMatch		match_at(StrVal target, CharNum offset = 0);
+	const RxResult	match_after(StrVal target, CharNum offset = 0) const;
+	const RxResult	match_at(StrVal target, CharNum offset = 0) const;
 
 	RxStationID	startStation() const { return start_station; }
 	RxStationID	searchStation() const { return search_station; }
 	int		maxStation() const { return max_station; }
 	int		maxCounter() const { return max_counter; }
 	int		maxCapture() const { return max_capture; }
-	void		decode(RxStationID, RxDecoded&);
+	void		decode(RxStationID, RxDecoded&) const;
 
 private:
-	// const char*	continue_nfa(const char* nfa_p) const;
-
 	// The NFA, and whether we should delete the data:
-	bool		nfa_owned;	// This matcher will delete the nfa
+	bool		nfa_owned;	// This program will delete the nfa
 	const char*	nfa;
 
 	RxStationID	start_station;	// Start point for just the regex
@@ -226,39 +170,59 @@ private:
 	std::vector<StrVal>	names;
 };
 
-class RxMatch
+/*
+ * To make it easy to pass around and modify result sets, we use a reference counted body.
+ * This will never be changed except when the reference count is one (1), and will be
+ * deleted when the ref_count decrements to zero.
+ */
+class RxResultBody
+: public RefCounted
 {
 public:
-	RxMatch(RxMatcher& _matcher, StrVal _target);
-	~RxMatch();
-	// void		take(RxMatch& alt);	// Take contents from alt, to avoid copying the vectors
+	RxResultBody(const RxProgram& _program);	// program is needed to initialise counter_max&capture_max
 
-	bool		match_at(RxStationID start, CharNum& offset);
-	CharNum		offset() const { return captures[0]; }
-	CharNum		length() const { return captures[1]; }
+	CharNum&	counter(RxProgram& p, int index) { return counters[index]; }	// REVISIT: Bounds Check!
+	CharNum&	capture(RxProgram& p, int index) { return counters[p.maxCounter()+index]; }	// REVISIT: Bounds Check!
 
-//private:
-	RxMatcher& 	matcher;		// The NFA to execute
-	StrVal		target;			// The string we are searching
-	bool		succeeded;		// Are we done yet?
+	// REVISIT: Function call results?
 
-	// Concurrent threads of execution:
-	RxStationID*	current_stations;
-	RxStationID	current_count;		// How many of the above are populated
-	RxStationID*	next_stations;
-	RxStationID	next_count;		// How many of the above are populated
-	void		addthread(RxStationID thread, CharNum offset);
+private:
+	short		counter_max;
+	short		capture_max;
+	CharNum*	counters;
+};
 
-	// Repetition counters, one for each repetition nesting level:
-	short*		current_counter;// Pointer to top of counter stack
-	short*		counters;	// Array of counters
+/*
+ * The result from regex matching:
+ * Counters, captures, function-call results.
+ */
+class RxResult {
+public:
+	~RxResult() {}			// Destructor
+	RxResult() : body(0) {}		// Failed result
+	RxResult(const RxProgram& program) : body(new RxResultBody(program)) {}
+	RxResult(const RxResult& s1) : body(s1.body) {}	// Normal copy constructor
+	RxResult& operator=(const RxResult& s1) { body = s1.body; return *this; }
 
-	// Capture offsets:
-	CharNum*	captures;	// A pair of CharNums for start and end of each capture
+	bool		succeeded() { return (RxResultBody*)body != 0; }
+	operator	bool() { return succeeded(); }
+	CharNum		offset() const { return capture(0); }
+	CharNum		length() const { return capture(1); }
+
+	CharNum		capture(int index) const;
+	RxResult&	capture_set(int index, CharNum val);
+
+	CharNum		counter(int index) const;
+	RxResult&	counter_set(int index, CharNum val);
+	CharNum		counter_decr(int index);
 
 	// Something to handle function-call results:
 	// mumble, mumble...
-	// std::vector<RxMatch>		subroutineMatches;	// Ordered by position of the subroutine call in the regexp
+	// std::vector<RxResult> subroutineMatches;	// Ordered by position of the subroutine call in the regexp
+
+private:
+	Ref<RxResultBody>	body;
+	void		Unshare();
 };
 
 #endif	// STRREGEX_H

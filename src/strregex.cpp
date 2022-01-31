@@ -4,6 +4,40 @@
 #include	<strregex.h>
 #include	<string.h>
 
+/*
+ * Structure of the virtual machine:
+ *
+ * Each Instruction has a one-byte opcode followed by any parameters.
+ * Number parameters are non-negative integers, encoded using UTF-8 encoding.
+ * String parameters are a byte count (UTF-8 integer) followed by the UTF-8 bytes
+ * An offset parameter is a byte offset within the NFA, relative to the start of the offset.
+ * Offsets are stored using zigzag notation; LSB is the sign bit, shift right for the magnitude!
+ *
+ * An Instruction is either a Station or a Shunt. Threads stop at Stations, but never at Shunts.
+ *
+ * Stations:
+ * - Char(UCS4)
+ * - Character Class/Negated class(#bytes as UTF8, String) (The string is pairs of UTF8 characters, each representing a range)
+ * - Character Property(#bytes as UTF8, String) (name of the Property)
+ * - BOL/EOL (Line assertions)
+ * - Any
+ * - Subroutine call(1-byte group number)
+ * Shunts:
+ * - Start(Number of stations, Maximum Counter Nesting, offset to End, Number of names, array of names as consecutive Strings)
+ * - Accept
+ * - Capture Start(uchar capture#)
+ * - Capture End(uchar capture#)
+ * - Jump(Offset)
+ * - Split(Offset to alternate path)
+ * - Zero (push new zero counter to top of stack)
+ * - Count(uchar min, uchar max, Offset to the repetition path)
+ *
+ * Negative lookahead requires a recursive call to the matcher. Subroutine calls do as well.
+ *
+ * Any Instruction that consumes text is counted as a Station. Start, End, Jump, Split, Zero, Count, Success are not stations.
+ * There may be as many as one parallel thread per Station in the NFA.
+ */
+
 RxCompiler::RxCompiler(StrVal _re, RxFeature features, RxFeature reject_features)
 : re(_re)
 , features_enabled((RxFeature)(features & ~reject_features))

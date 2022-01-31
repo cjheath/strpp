@@ -28,7 +28,7 @@ main(int argc, char** argv)
 	if (argc == 1)
 		return automated_tests();
 
-	RxMatcher*	matcher = 0;
+	RxProgram*	program = 0;
 	char*		nfa = 0;
 	for (--argc, ++argv; argc > 0; argc--, argv++)
 	{
@@ -47,22 +47,23 @@ main(int argc, char** argv)
 			if (!rx.compile(nfa))
 			{
 				printf("Regex scan failed: %s\n", rx.ErrorMessage());
-				matcher = 0;
+				program = 0;
 				continue;
 			}
 			rx.dump(nfa);
 
-			delete matcher;
-			matcher = new RxMatcher(nfa);
+			delete program;
+			program = new RxProgram(nfa);
 		}
-		else if (matcher)
+		else if (program)
 		{
-			RxMatch	match = matcher->match_after(*argv);
+			StrVal		target(*argv);
+			RxResult	result = program->match_after(target);
 
-			if (match.succeeded)
+			if (result.succeeded())
 			{
-				StrVal	matched_substr = match.target.substr(match.offset(), match.length());
-				printf("\t\"%s\" matched at [%d, %d]: %s\n", match.target.asUTF8(), match.offset(), match.length(), matched_substr.asUTF8());
+				StrVal	matched_substr = target.substr(result.offset(), result.length());
+				printf("\t\"%s\" matched at [%d, %d]: %s\n", target.asUTF8(), result.offset(), result.length(), matched_substr.asUTF8());
 				continue;
 			}
 			printf("\t\"%s\" failed\n", *argv);
@@ -198,19 +199,19 @@ int automated_tests()
 
 		start_recording_allocations();
 		{
-			RxMatcher	matcher(nfa);
+			RxProgram	program(nfa);
 			StrVal		target(test_case->target);
 			StrVal		target_escaped = escape(target);
-			RxMatch		match = matcher.match_after(target);
+			RxResult	result = program.match_after(target);
 
-			bool		success_ok = match.succeeded == (test_case->offset >= 0);	// Is success status as expected?
-			bool		offset_ok = !match.succeeded || match.offset() == test_case->offset;
-			bool		length_ok = !match.succeeded || match.length() == test_case->length;
+			bool		success_ok = result.succeeded() == (test_case->offset >= 0);	// Is success status as expected?
+			bool		offset_ok = !result.succeeded() || result.offset() == test_case->offset;
+			bool		length_ok = !result.succeeded() || result.length() == test_case->length;
 			test_passed = success_ok && offset_ok && length_ok;
 
 			printf("%s: /%s/ =~ \"%s\"", test_passed ? "Pass" : "Fail", test_case->regex, target_escaped.asUTF8());
-			if (match.succeeded)
-				printf(" -> (%d, %d)\n", match.offset(), match.length());
+			if (result.succeeded())
+				printf(" -> (%d, %d)\n", result.offset(), result.length());
 			else
 				printf(" (no match)\n");
 
