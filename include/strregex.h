@@ -189,7 +189,7 @@ public:
 	bool		succeeded() { return (RxResultBody*)body != 0; }
 	operator	bool() { return succeeded(); }
 	CharNum		offset() const { return capture(0); }
-	CharNum		length() const { return capture(1); }
+	CharNum		length() const { return capture(1)-capture(0); }
 
 	// Capture and counter access outside the 0..index range is ignored.
 	// This makes it possible to match a Regex without capturing all results.

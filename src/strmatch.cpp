@@ -85,7 +85,7 @@ RxProgram::RxProgram(const char* _nfa, bool take_ownership)
 	start_station += zagzig(UTF8Get(nfa_p));
 	max_station = UTF8Get(nfa_p);
 	max_counter = *nfa_p++;
-	max_capture = (*nfa_p++ & 0xFF) - 1;
+	max_capture = (*nfa_p++ & 0xFF);
 
 	int	num_names = (*nfa_p++ & 0xFF)-1;
 	for (int i = 0; i < num_names; i++)
@@ -94,8 +94,10 @@ RxProgram::RxProgram(const char* _nfa, bool take_ownership)
 		names.push_back(StrVal(nfa_p, byte_count));
 		nfa_p += byte_count;
 	}
+#ifdef TRACK_RESULTS
 	printf("search_station %d start_station %d max_station %d max_counter %d max_capture %d, num_names %d, next %d\n",
 		search_station, start_station, max_station, max_counter, max_capture, (int)names.size(), (int)(nfa_p-nfa));
+#endif
 	assert(start_station == nfa_p-nfa);
 }
 
@@ -199,7 +201,7 @@ RxProgram::decode(RxStationID station, RxDecoded& instr) const
 
 	case RxOp::RxoCaptureStart:
 	case RxOp::RxoCaptureEnd:
-		instr.capture_number = *(unsigned char*)nfa_p++;
+		instr.capture_number = *(unsigned char*)nfa_p++ - 1;
 		break;
 
 	case RxOp::RxoNull:			// These opcodes are never in the NFA
@@ -252,8 +254,8 @@ RxMatch::addthread(Thread thread, CharNum offset)
 		break;
 
 	case RxOp::RxoSplit:
-		addthread({instr.next, thread.result}, offset);
 		addthread({instr.alternate, thread.result}, offset);
+		addthread({instr.next, thread.result}, offset);
 		break;
 
 	case RxOp::RxoCaptureStart:
@@ -280,11 +282,11 @@ RxMatch::match_at(RxStationID start, CharNum& offset)
 
 	// Start where directed, and step forward one character at a time, following all threads until successful or there are no threads left
 	next_count = 0;
-	addthread({start, RxResult(program)}, offset+1);
+	addthread({start, RxResult(program)}, offset);
 	std::swap(current_stations, next_stations);
 	current_count = next_count;
 	next_count = 0;
-	for (; current_count > 0 && offset < target.length(); offset++)
+	for (; current_count > 0 && offset <= target.length(); offset++)
 	{
 		for (Thread* thread_p = current_stations; thread_p < current_stations+current_count; thread_p++)
 		{
@@ -295,7 +297,7 @@ RxMatch::match_at(RxStationID start, CharNum& offset)
 			{
 			case RxOp::RxoAccept:			// Termination condition
 				result = thread_p->result;	// Make a new reference to this RxResult
-				result.capture_set(instr.capture_number*2+1, offset);
+				result.capture_set(1, offset);
 
 				// Wipe old result references, we already copied the one we chose:
 				for (thread_p = current_stations; thread_p < current_stations+current_count; thread_p++)
@@ -303,7 +305,7 @@ RxMatch::match_at(RxStationID start, CharNum& offset)
 				for (thread_p = next_stations; thread_p < next_stations+next_count; thread_p++)
 					thread_p->result.clear();
 
-				return thread_p->result;
+				return result;
 
 			case RxOp::RxoBOL:			// Beginning of Line
 				if (offset == 0 || target[offset-1] == '\n')
@@ -320,7 +322,7 @@ RxMatch::match_at(RxStationID start, CharNum& offset)
 			case RxOp::RxoAny:			// Any single char
 				// As long as we aren't at the end, all is good
 				// REVISIT: Add except-newline mode behaviour
-				if (offset >= target.length())
+				if (offset < target.length())
 					break;
 				thread_p->result.clear();
 				continue;
@@ -435,7 +437,7 @@ RxResultBody::RxResultBody(short c_max, short p_max)
 , counters(new CharNum[counter_max+capture_max*2])
 , counters_used(0)
 {
-	memset(counters, 0, sizeof(CharNum)*counter_max+capture_max*2);
+	memset(counters, 0, sizeof(CharNum)*(counter_max+capture_max*2));
 }
 
 RxResultBody::RxResultBody(const RxResultBody& to_copy)
@@ -444,7 +446,7 @@ RxResultBody::RxResultBody(const RxResultBody& to_copy)
 , counters(new CharNum[counter_max+capture_max*2])
 , counters_used(to_copy.counters_used)
 {
-	memcpy(counters, to_copy.counters, sizeof(CharNum)*counter_max+capture_max*2);
+	memcpy(counters, to_copy.counters, sizeof(CharNum)*(counter_max+capture_max*2));
 }
 
 void
