@@ -136,8 +136,8 @@ struct		RxDecoded;	// A decoded NFA instruction
 class		RxResult;	// The result of a regex match
 
 /*
- * RxProgram contains a compiled Regular Expression. Contains the result of decoding the NFA header.
- * It can run a match against a string and return the RxResult but does not get modified during the matching process.
+ * RxProgram contains a compiled Regular Expression. Contains the decoded NFA header.
+ * Does not get modified after construction, so can run matches in multiple threads simultaneously.
  */
 class RxProgram
 {
@@ -176,13 +176,15 @@ class RxResultBody;	// RefCounted shared result values
  * The result from regex matching:
  * Counter stack, captures, function-call results.
  */
-class RxResult {
+class RxResult
+{
 public:
 	~RxResult();
 	RxResult();
 	RxResult(const RxProgram& program);
 	RxResult(const RxResult& s1);
 	RxResult& operator=(const RxResult& s1);
+	void		clear();
 
 	bool		succeeded() { return (RxResultBody*)body != 0; }
 	operator	bool() { return succeeded(); }
@@ -191,9 +193,11 @@ public:
 
 	// Capture and counter access outside the 0..index range is ignored.
 	// This makes it possible to match a Regex without capturing all results.
+	// Even numbers are the capture start, odd numbers are the end
 	CharNum		capture(int index) const;
-	RxResult&	capture_set(int index, CharNum val);
 
+	// Mutation API, used during matching
+	RxResult&	capture_set(int index, CharNum val);
 	void		counter_push_zero();	// Push a zero counter
 	CharNum		counter_incr();		// Increment and return top counter of stack
 	void		counter_pop();		// Discard the top counter of the stack
@@ -203,7 +207,7 @@ public:
 	// std::vector<RxResult> subroutineMatches;	// Ordered by position of the subroutine call in the regexp
 
 private:
-	Ref<RxResultBody>	body;
+	Ref<RxResultBody> body;
 	void		Unshare();
 };
 

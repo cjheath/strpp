@@ -7,8 +7,8 @@
 
 /*
  * To make it easy to pass around and modify result sets, we use a reference counted body.
- * This will never be changed except when the reference count is one (1), and will be
- * deleted when the ref_count decrements to zero.
+ * These never get changed except when the reference count is one (1), and get deleted
+ * when the ref_count decrements to zero.
  *
  * These objects are not publicly visible. The end-user API is in RxResult.
  */
@@ -32,13 +32,15 @@ public:
 
 private:
 	short		counter_max;
-	short		capture_max;
+	short		capture_max;	// Each capture has a start and an end, so we allocate double
 	short		counters_used;
 	CharNum*	counters;	// captures and counters stored in the same array
 };
 
 class RxMatch
 {
+	// It is possible there can be as many threads as Stations in the program.
+	// Each cycle traverses an array of current threads, building an array for the next cycle.
 	struct Thread {
 		RxStationID	station;
 		RxResult	result;
@@ -50,11 +52,10 @@ public:
 
 	const RxResult	match_at(RxStationID start, CharNum& offset);
 
-//private:
+private:
 	const RxProgram&  program;		// The NFA to execute
 	StrVal		target;			// The string we are searching
-	bool		succeeded;		// Are we done yet?
-	RxResult	result;			// result from the successful thread
+	RxResult	result;			// Result from the successful thread
 
 	// Concurrent threads of execution:
 	Thread*		current_stations;
@@ -97,7 +98,6 @@ RxProgram::match_after(StrVal target, CharNum offset) const
 {
 	RxMatch		match(*this, target);
 	RxResult	result = match.match_at(searchStation(), offset);
-	// REVISIT: Clean up remaining threads
 	return result;
 }
 
@@ -215,7 +215,6 @@ RxProgram::decode(RxStationID station, RxDecoded& instr) const
 RxMatch::RxMatch(const RxProgram& _program, StrVal _target)
 : program(_program)
 , target(_target)
-, succeeded(false)
 {
 	int	i;
 	current_stations = new Thread[i = program.maxStation()];
@@ -278,26 +277,35 @@ RxMatch::match_at(RxStationID start, CharNum& offset)
 	current_stations[current_count++] = {start, RxResult(program)};
 	for (; current_count > 0 && offset < target.length(); offset++)
 	{
-		for (int thread_num = 0; thread_num < current_count; thread_num++)
+		for (Thread* thread_p = current_stations; thread_p < current_stations+current_count; thread_p++)
 		{
-			Thread&		thread = current_stations[thread_num];
-			RxStationID	pc = thread.station;
+			RxStationID	pc = thread_p->station;
 			program.decode(pc, instr);
 
 			switch (instr.op)	// break from here to continue with instr.next, continue to ignore it.
 			{
 			case RxOp::RxoAccept:			// Termination condition
-				succeeded = true;
-				return thread.result;
+				result = thread_p->result;	// Make a new reference to this RxResult
+				result.capture_set(instr.capture_number*2+1, offset);
+
+				// Wipe old result references, we already copied the one we chose:
+				for (thread_p = current_stations; thread_p < current_stations+current_count; thread_p++)
+					thread_p->result.clear();
+				for (thread_p = next_stations; thread_p < next_stations+next_count; thread_p++)
+					thread_p->result.clear();
+
+				return thread_p->result;
 
 			case RxOp::RxoBOL:			// Beginning of Line
 				if (offset == 0 || target[offset-1] == '\n')
 					break;
+				thread_p->result.clear();
 				continue;
 
 			case RxOp::RxoEOL:			// End of Line
 				if (offset == target.length() || target[offset] == '\n')
 					break;
+				thread_p->result.clear();
 				continue;
 
 			case RxOp::RxoAny:			// Any single char
@@ -305,12 +313,14 @@ RxMatch::match_at(RxStationID start, CharNum& offset)
 				// REVISIT: Add except-newline mode behaviour
 				if (offset >= target.length())
 					break;
+				thread_p->result.clear();
 				continue;
 
 			case RxOp::RxoChar:			// A specific UCS4 character
 				// REVISIT: Add case-insensitive mode behaviour
 				if (target[offset] == instr.character)
 					break;
+				thread_p->result.clear();
 				continue;			// Dead-end this thread
 
 			case RxOp::RxoCharClass:		// Character class
@@ -339,6 +349,7 @@ RxMatch::match_at(RxStationID start, CharNum& offset)
 				// Not matched, as requested, so continue with the next instruction at the current offset
 				offset = start_offset;
 				nfa_p = next_p;
+				thread_p->result.clear();
 				continue;
 			}
 
@@ -353,21 +364,22 @@ RxMatch::match_at(RxStationID start, CharNum& offset)
 #endif
 			case RxOp::RxoCount:
 			{
-				short	counter = thread.result.counter_incr();
+				short	counter = thread_p->result.counter_incr();
 				if (counter < instr.repetition.max)	// Greedily repeat
-					addthread({instr.next, thread.result}, instr.alternate);
+					addthread({instr.next, thread_p->result}, instr.alternate);
 				if (counter > instr.repetition.min && counter < instr.repetition.max)
 				{
-					RxResult	continuation = thread.result;
+					RxResult	continuation = thread_p->result;
 					continuation.counter_pop();
 					addthread({instr.next, continuation}, instr.next);
 				}
+				thread_p->result.clear();
 			}
 				continue;
 
 			case RxOp::RxoZero:
 				// push a zero this thread's counter stack
-				thread.result.counter_push_zero();
+				thread_p->result.counter_push_zero();
 				break;
 
 			// Compiler opcodes that aren't part of the VM:
@@ -391,33 +403,39 @@ RxMatch::match_at(RxStationID start, CharNum& offset)
 				assert(0 == "Should not happen");
 				return RxResult();
 			}
-			addthread({instr.next, thread.result}, offset+1);
+			addthread({instr.next, thread_p->result}, offset+1);
+			thread_p->result.clear();
 		}
+// REVISIT: Should not now be necessary, because we clear as we go
+//		// Wipe old result references, we already copied the ones we need into next_stations:
+//		for (Thread* thread_p = current_stations; thread_p < current_stations+current_count; thread_p++)
+//			thread_p->result.clear();
 		std::swap(current_stations, next_stations);
 		current_count = next_count;
 		next_count = 0;
 	}
 
 	// We ran out of threads that could move forward, or ran out of input to move forward on
+	// REVISIT: Might it be useful to know on which Station we ran out of input?
 	return RxResult();
 }
 
 RxResultBody::RxResultBody(short c_max, short p_max)
 : counter_max(c_max)
 , capture_max(p_max)
-, counters(new CharNum[counter_max+capture_max])
+, counters(new CharNum[counter_max+capture_max*2])
 , counters_used(0)
 {
-	memset(counters, 0, sizeof(CharNum)*counter_max+capture_max);
+	memset(counters, 0, sizeof(CharNum)*counter_max+capture_max*2);
 }
 
 RxResultBody::RxResultBody(const RxResultBody& to_copy)
 : counter_max(to_copy.counter_max)
 , capture_max(to_copy.capture_max)
-, counters(new CharNum[counter_max+capture_max])
+, counters(new CharNum[counter_max+capture_max*2])
 , counters_used(to_copy.counters_used)
 {
-	memcpy(counters, to_copy.counters, sizeof(CharNum)*counter_max+capture_max);
+	memcpy(counters, to_copy.counters, sizeof(CharNum)*counter_max+capture_max*2);
 }
 
 void
@@ -447,7 +465,7 @@ RxResultBody::counter_pop()
 CharNum
 RxResultBody::capture(int index)
 {
-	if (index < 0 || index >= capture_max)
+	if (index < 0 || index >= capture_max*2)
 		return 0;
 	return counters[counter_max+index];
 }
@@ -455,7 +473,7 @@ RxResultBody::capture(int index)
 CharNum
 RxResultBody::capture_set(int index, CharNum val)
 {
-	if (index < 0 || index >= capture_max)
+	if (index < 0 || index >= capture_max*2)
 		return 0;		// Ignore captures outside the defined range
 	return counters[counter_max+index] = val;
 }
@@ -479,6 +497,12 @@ RxResult& RxResult::operator=(const RxResult& s1)
 {
 	body = s1.body;
 	return *this;
+}
+
+void
+RxResult::clear()
+{
+	body = (RxResultBody*)0;	// Clear the reference and its refcount
 }
 
 void
