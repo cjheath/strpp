@@ -61,7 +61,7 @@ RxCompiler::instr_dump(const char* nfa, const char*& np)	// Disassenble NFA to s
 			assert(*nfa++ == (char)RxOp::RxoStart);
 			get_offset(nfa);	// start_station
 			get_offset(nfa);	// search_station
-			get_offset(nfa);	// station_count
+			UTF8Get(nfa);		// station_count
 			nfa++;			// max_nesting
 			int	num_names = (*nfa++ & 0xFF) - 1;
 			if (i < 0 || i >= num_names)
@@ -92,7 +92,7 @@ RxCompiler::instr_dump(const char* nfa, const char*& np)	// Disassenble NFA to s
 	{
 		int search_station = (np-nfa)+get_offset(np);
 		int start_station = (np-nfa)+get_offset(np);
-		int station_count = get_offset(np);
+		int station_count = UTF8Get(np);
 		int max_nesting = (*np++ & 0xFF);
 		int max_capture = (*np++ & 0xFF);
 		printf("NFA Start(%02X), search->%d, start->%d, station_count=%d, max_nesting=%d, max_capture=%d",

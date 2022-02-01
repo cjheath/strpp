@@ -65,6 +65,11 @@ private:
 	void		addthread(Thread thread, CharNum offset);
 };
 
+static int zagzig(int i)
+{
+	return (i>>1) * ((i&01) ? -1 : 1);
+}
+
 RxProgram::RxProgram(const char* _nfa, bool take_ownership)
 : nfa_owned(take_ownership)
 , nfa(_nfa)
@@ -74,17 +79,23 @@ RxProgram::RxProgram(const char* _nfa, bool take_ownership)
 
 	op = (RxOp)*nfa_p++;
 	assert(op == RxOp::RxoStart);
-	search_station = (nfa_p-nfa)+UTF8Get(nfa_p);
-	start_station = (nfa_p-nfa)+UTF8Get(nfa_p);
+	search_station = nfa_p-nfa;
+	search_station += zagzig(UTF8Get(nfa_p));
+	start_station = (nfa_p-nfa);
+	start_station += zagzig(UTF8Get(nfa_p));
 	max_station = UTF8Get(nfa_p);
 	max_counter = *nfa_p++;
 	max_capture = (*nfa_p++ & 0xFF) - 1;
-	for (int i = 0; i < max_capture; i++)
+
+	int	num_names = (*nfa_p++ & 0xFF)-1;
+	for (int i = 0; i < num_names; i++)
 	{
 		CharBytes	byte_count = UTF8Get(nfa_p);
 		names.push_back(StrVal(nfa_p, byte_count));
 		nfa_p += byte_count;
 	}
+	printf("search_station %d start_station %d max_station %d max_counter %d max_capture %d, num_names %d, next %d\n",
+		search_station, start_station, max_station, max_counter, max_capture, (int)names.size(), (int)(nfa_p-nfa));
 	assert(start_station == nfa_p-nfa);
 }
 
@@ -107,11 +118,6 @@ RxProgram::match_at(StrVal target, CharNum offset) const
 	RxMatch		match(*this, target);
 	RxResult	result = match.match_at(startStation(), offset);
 	return result;
-}
-
-static int zagzig(int i)
-{
-	return (i>>1) * ((i&01) ? -1 : 1);
 }
 
 /*
@@ -273,8 +279,11 @@ RxMatch::match_at(RxStationID start, CharNum& offset)
 	RxDecoded	instr;
 
 	// Start where directed, and step forward one character at a time, following all threads until successful or there are no threads left
-	current_count = 0;
-	current_stations[current_count++] = {start, RxResult(program)};
+	next_count = 0;
+	addthread({start, RxResult(program)}, offset+1);
+	std::swap(current_stations, next_stations);
+	current_count = next_count;
+	next_count = 0;
 	for (; current_count > 0 && offset < target.length(); offset++)
 	{
 		for (Thread* thread_p = current_stations; thread_p < current_stations+current_count; thread_p++)
