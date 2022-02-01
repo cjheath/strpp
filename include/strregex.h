@@ -207,6 +207,7 @@ public:
 	// std::vector<RxResult> subroutineMatches;	// Ordered by position of the subroutine call in the regexp
 
 private:
+	CharNum		cap0;
 	Ref<RxResultBody> body;
 	void		Unshare();
 };

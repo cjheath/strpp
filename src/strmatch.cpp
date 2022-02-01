@@ -290,6 +290,7 @@ RxMatch::match_at(RxStationID start, CharNum& offset)
 	{
 		for (Thread* thread_p = current_stations; thread_p < current_stations+current_count; thread_p++)
 		{
+		decode_next:
 			RxStationID	pc = thread_p->station;
 			program.decode(pc, instr);
 
@@ -297,7 +298,6 @@ RxMatch::match_at(RxStationID start, CharNum& offset)
 			{
 			case RxOp::RxoAccept:			// Termination condition
 				result = thread_p->result;	// Make a new reference to this RxResult
-				result.capture_set(1, offset);
 
 				// Wipe old result references, we already copied the one we chose:
 				for (thread_p = current_stations; thread_p < current_stations+current_count; thread_p++)
@@ -305,17 +305,25 @@ RxMatch::match_at(RxStationID start, CharNum& offset)
 				for (thread_p = next_stations; thread_p < next_stations+next_count; thread_p++)
 					thread_p->result.clear();
 
+				result.capture_set(1, offset);
+
 				return result;
 
 			case RxOp::RxoBOL:			// Beginning of Line
 				if (offset == 0 || target[offset-1] == '\n')
-					break;
+				{
+					thread_p->station = instr.next;
+					goto decode_next;
+				}
 				thread_p->result.clear();
 				continue;
 
 			case RxOp::RxoEOL:			// End of Line
 				if (offset == target.length() || target[offset] == '\n')
-					break;
+				{
+					thread_p->station = instr.next;
+					goto decode_next;
+				}
 				thread_p->result.clear();
 				continue;
 
@@ -350,8 +358,11 @@ RxMatch::match_at(RxStationID start, CharNum& offset)
 				break;
 			}
 
-#if 0
 			case RxOp::RxoNegLookahead:		// (?!...) match until EndGroup and return the opposite
+				// REVISIT: Act like the negative lookahead has succeeded
+				thread_p->station = instr.next;
+				goto decode_next;
+#if 0
 			{
 				CharNum 	start_offset = offset;	// Remember the target offset and reset it for each alternate
 				const char*	next_p = nfa_p-1 + UTF8Get(nfa_p) + 1;	// Start of this instr, plus size, plus the EndGroup
@@ -363,8 +374,11 @@ RxMatch::match_at(RxStationID start, CharNum& offset)
 				thread_p->result.clear();
 				continue;
 			}
+#endif
 
 			case RxOp::RxoSubroutineCall:		// Subroutine call to a named group
+				break;	// REVISIT: Act like the subroutine has completed
+#if 0
 			{
 				// Match the subroutine group and push_back subroutineMatches
 				RxMatch		m;
@@ -373,6 +387,11 @@ RxMatch::match_at(RxStationID start, CharNum& offset)
 				return RxResult();
 			}
 #endif
+
+	/********************************************
+	 * This next case must be moved to addthread
+	 ********************************************/
+
 			case RxOp::RxoCount:
 			{
 				short	counter = thread_p->result.counter_incr();
@@ -389,9 +408,10 @@ RxMatch::match_at(RxStationID start, CharNum& offset)
 				continue;
 
 			case RxOp::RxoZero:
-				// push a zero this thread's counter stack
+				// push a zero to this thread's counter stack
 				thread_p->result.counter_push_zero();
-				break;
+				thread_p->station = instr.next;
+				goto decode_next;
 
 			// Compiler opcodes that aren't part of the VM:
 			case RxOp::RxoNull:
@@ -408,45 +428,44 @@ RxMatch::match_at(RxStationID start, CharNum& offset)
 			case RxOp::RxoSplit:
 			case RxOp::RxoCaptureStart:
 			case RxOp::RxoCaptureEnd:
-			// Not yet implemented:
-			case RxOp::RxoNegLookahead:
-			case RxOp::RxoSubroutineCall:
 				assert(0 == "Should not happen");
 				return RxResult();
 			}
 			addthread({instr.next, thread_p->result}, offset+1);
 			thread_p->result.clear();
 		}
+
 // REVISIT: Should not now be necessary, because we clear as we go
 //		// Wipe old result references, we already copied the ones we need into next_stations:
 //		for (Thread* thread_p = current_stations; thread_p < current_stations+current_count; thread_p++)
-//			thread_p->result.clear();
+//			assert((RxResultBody*)thread_p->result.body == (RxResultBody*)0);
+
 		std::swap(current_stations, next_stations);
 		current_count = next_count;
 		next_count = 0;
 	}
 
 	// We ran out of threads that could move forward, or ran out of input to move forward on
-	// REVISIT: Might it be useful to know on which Station we ran out of input?
+	// REVISIT: Might it be useful to know on which Station(s) we ran out of input?
 	return RxResult();
 }
 
 RxResultBody::RxResultBody(short c_max, short p_max)
 : counter_max(c_max)
 , capture_max(p_max)
-, counters(new CharNum[counter_max+capture_max*2])
+, counters(new CharNum[counter_max+capture_max*2-1])
 , counters_used(0)
 {
-	memset(counters, 0, sizeof(CharNum)*(counter_max+capture_max*2));
+	memset(counters, 0, sizeof(CharNum)*(counter_max+capture_max*2-1));
 }
 
 RxResultBody::RxResultBody(const RxResultBody& to_copy)
 : counter_max(to_copy.counter_max)
 , capture_max(to_copy.capture_max)
-, counters(new CharNum[counter_max+capture_max*2])
+, counters(new CharNum[counter_max+capture_max*2-1])
 , counters_used(to_copy.counters_used)
 {
-	memcpy(counters, to_copy.counters, sizeof(CharNum)*(counter_max+capture_max*2));
+	memcpy(counters, to_copy.counters, sizeof(CharNum)*(counter_max+capture_max*2-1));
 }
 
 void
@@ -461,7 +480,8 @@ RxResultBody::counter_push_zero()
 CharNum
 RxResultBody::counter_incr()
 {
-	return ++counters[counters_used];
+	assert(counters_used > 0);
+	return ++counters[counters_used-1];
 }
 
 void
@@ -476,17 +496,19 @@ RxResultBody::counter_pop()
 CharNum
 RxResultBody::capture(int index)
 {
-	if (index < 0 || index >= capture_max*2)
+	assert(!(index < 1 || index >= capture_max*2));
+	if (index < 1 || index >= capture_max*2)
 		return 0;
-	return counters[counter_max+index];
+	return counters[counter_max+index-1];
 }
 
 CharNum
 RxResultBody::capture_set(int index, CharNum val)
 {
-	if (index < 0 || index >= capture_max*2)
+	assert(!(index < 1 || index >= capture_max*2));
+	if (index < 1 || index >= capture_max*2)
 		return 0;		// Ignore captures outside the defined range
-	return counters[counter_max+index] = val;
+	return counters[counter_max+index-1] = val;
 }
 
 RxResult::RxResult(const RxProgram& program)
@@ -496,17 +518,20 @@ RxResult::RxResult(const RxProgram& program)
 
 RxResult::RxResult()		// Failed result
 : body(0)
+, cap0(0)
 {
 }
 
 RxResult::RxResult(const RxResult& s1)
 : body(s1.body)
+, cap0(s1.cap0)
 {	// Normal copy constructor
 }
 
 RxResult& RxResult::operator=(const RxResult& s1)
 {
 	body = s1.body;
+	cap0 = s1.cap0;
 	return *this;
 }
 
@@ -514,11 +539,13 @@ void
 RxResult::clear()
 {
 	body = (RxResultBody*)0;	// Clear the reference and its refcount
+	cap0 = 0;
 }
 
 void
 RxResult::Unshare()
 {
+	assert(body);
 	if (body.GetRefCount() <= 1)
 		return;
 	body = new RxResultBody(*body);	// Copy the result body before making changes
@@ -531,12 +558,21 @@ RxResult::~RxResult()
 CharNum
 RxResult::capture(int index) const
 {
+	if (index == 0)
+		return cap0;
+	assert(body);
 	return body->capture(index);
 }
 
 RxResult&
 RxResult::capture_set(int index, CharNum val)
 {
+	if (index == 0)
+	{
+		cap0 = val;
+		return *this;
+	}
+	assert(body);
 	Unshare();
 	body->capture_set(index, val);
 	return *this;
@@ -546,6 +582,7 @@ void
 RxResult::counter_push_zero()	// Push a zero counter
 {
 	Unshare();
+	assert(body);
 	body->counter_push_zero();
 }
 
@@ -553,6 +590,7 @@ CharNum
 RxResult::counter_incr()	// Increment and return top counter of stack
 {
 	Unshare();
+	assert(body);
 	return body->counter_incr();
 }
 
@@ -560,5 +598,6 @@ void
 RxResult::counter_pop()		// Discard the top counter of the stack
 {
 	Unshare();
+	assert(body);
 	body->counter_pop();
 }
