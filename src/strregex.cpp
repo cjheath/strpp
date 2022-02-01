@@ -561,6 +561,7 @@ RxCompiler::compile(char*& nfa)
 				// RxoAny/RxoSplit/RxoJump for search_station, and a trailing NUL
 				bytes_required += 3+1;
 				offsets_required += 2;
+				station_count++;
 				nesting--;
 				break;
 
@@ -602,6 +603,7 @@ RxCompiler::compile(char*& nfa)
 				break;
 
 			case RxOp::RxoNegLookahead:		// (?!...)
+				station_count++;
 				if (!push(instr.op, 0))
 					goto too_deep;
 				offsets_required++;		// Offset to the continuation point
