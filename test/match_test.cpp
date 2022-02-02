@@ -140,9 +140,9 @@ matcher_test	matcher_tests[] =
 	{ "ba*a",	"baaaab",		0, 5 },
 	{ "a(bc|b)c",	"abcc",			0, 4 },
 	{ "a*aa",	"baaaab",		1, 4},
-	{ "a(bc|b)c",	"abc",			-1, 0 },	// Will not backtrack to succeed
+	{ "a(bc|b)c",	"abc",			0, 3 },
 	{ "a?a",	"a",			0, 1},		// Will not backtrack to succeed
-	{ "a(bc|b)+c",	"abcbc",		0, 5 },		// Will not backtrack to succeed
+	{ "a(bc|b)+c",	"abcbc",		0, 5 },		// Fails at (0, 3), should be greedier
 
 	// { 0,	"Alternates", 0, 0 },
 	// { 0,	"Non-capturing groups", 0, 0 },
@@ -211,9 +211,17 @@ int automated_tests()
 
 			printf("%s: /%s/ =~ \"%s\"", test_passed ? "Pass" : "Fail", test_case->regex, target_escaped.asUTF8());
 			if (result.succeeded())
-				printf(" -> (%d, %d)\n", result.offset(), result.length());
+				printf(" -> (%d, %d)", result.offset(), result.length());
 			else
-				printf(" (no match)\n");
+				printf(" (no match)");
+			if (!test_passed)
+			{
+				if (test_case->offset < 0)
+					printf(", unexpected match");
+				else
+					printf(", expected (%d, %d)", test_case->offset, test_case->length);
+			}
+			printf("\n");
 
 			if (nfa)
 				delete[] nfa;

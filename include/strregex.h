@@ -201,6 +201,7 @@ public:
 	void		counter_push_zero();	// Push a zero counter
 	CharNum		counter_incr();		// Increment and return top counter of stack
 	void		counter_pop();		// Discard the top counter of the stack
+	const CharNum*	counter_top();		// Pointer to the top counter value, if any
 
 	// Something to handle function-call results:
 	// mumble, mumble...

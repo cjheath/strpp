@@ -24,6 +24,7 @@ public:
 	void		counter_push_zero();
 	CharNum		counter_incr();
 	void		counter_pop();
+	const CharNum*	counter_top();
 
 	CharNum		capture(int index);
 	CharNum		capture_set(int index, CharNum val);
@@ -62,7 +63,7 @@ private:
 	RxStationID	current_count;		// How many of the above are populated
 	Thread*		next_stations;
 	RxStationID	next_count;		// How many of the above are populated
-	void		addthread(Thread thread, CharNum offset);
+	void		addthread(Thread thread, CharNum offset, CharNum duplicates_allowed = 0);
 };
 
 static int zagzig(int i)
@@ -127,19 +128,19 @@ RxProgram::match_at(StrVal target, CharNum offset) const
  */
 struct RxDecoded
 {
-	RxOp		op;
+	RxOp		op;			// The opcode
 	RxStationID	next;			// Every opcode except RxoAccept
 	union {
 		UCS4		character;	// RxoChar
-		struct {
+		struct {			// RxoCharClass, RxoNegCharClass, RxoCharProperty
 			CharBytes	bytes;
 			const UTF8*	utf8;
-		} text;				// RxoCharClass, RxoNegCharClass, RxoCharProperty
+		} text;
 		RxStationID	alternate;	// RxoSplit, RxoCount
 		short		capture_number;	// RxoCaptureStart, RxoCaptureEnd (0..maxCapture)
 		short		group_number;	// RxoSubroutineCall
-		RxRepetitionRange repetition;
 	};
+	RxRepetitionRange repetition;		// RxoCount
 };
 
 void
@@ -238,11 +239,25 @@ RxMatch::~RxMatch()
 }
 
 void
-RxMatch::addthread(Thread thread, CharNum offset)
+RxMatch::addthread(Thread thread, CharNum offset, CharNum duplicates_allowed)
 {
+	int	duplicates = 0;
 	for (int i = 0; i < next_count; i++)
+	{
 		if (next_stations[i].station == thread.station)
-			return;		// We already have this thread
+		{
+			// Check for an exact duplicate first
+			if ((duplicates_allowed		// If duplicates are allowed, we know there must be a counter
+				&& thread.result.counter_top()
+				&& *next_stations[i].result.counter_top()
+				&& *thread.result.counter_top() == *next_stations[i].result.counter_top())
+			 || ++duplicates > duplicates_allowed)
+			{
+				// REVISIT: Should we have a policy of deleting the duplicate with the lowest count?
+				return;		// We already have this thread
+			}
+		}
+	}
 
 	// If the opcode at the new thread is Jump or Split, add the target(s). If it's Save, do that and skip over it
 	RxDecoded	instr;
@@ -254,6 +269,7 @@ RxMatch::addthread(Thread thread, CharNum offset)
 		break;
 
 	case RxOp::RxoSplit:
+		// REVISIT: Do ee need greedy and non-greedy versions of RxoSplit, with these in opposite order (same for RxoCount?)
 		addthread({instr.alternate, thread.result}, offset);
 		addthread({instr.next, thread.result}, offset);
 		break;
@@ -266,7 +282,25 @@ RxMatch::addthread(Thread thread, CharNum offset)
 		addthread({instr.next, thread.result.capture_set(instr.capture_number*2+1, offset)}, offset);
 		break;
 
+	case RxOp::RxoCount:	// This instruction follows a repeated item, so the pre-incremented counter tells how many we've passed
+	{
+		short	counter = thread.result.counter_incr();
+
+		if (counter <= instr.repetition.max)	// Greedily repeat
+			addthread({instr.alternate, thread.result}, offset, instr.repetition.min);
+
+		if (counter >= instr.repetition.min && counter <= instr.repetition.max)
+		{					// Wait at least until minimum count before trying to continue
+			RxResult	continuation = thread.result;
+			continuation.counter_pop();	// The continuing thread has no further need of the counter
+			addthread({instr.next, continuation}, offset, instr.repetition.min);
+		}
+		thread.result.clear();
+	}
+		break;
+
 	default:
+		assert(next_count < program.maxStation());
 		next_stations[next_count++] = thread;
 	}
 };
@@ -278,6 +312,7 @@ RxMatch::addthread(Thread thread, CharNum offset)
 const RxResult
 RxMatch::match_at(RxStationID start, CharNum& offset)
 {
+	Thread*		thread_p;
 	RxDecoded	instr;
 
 	// Start where directed, and step forward one character at a time, following all threads until successful or there are no threads left
@@ -288,7 +323,6 @@ RxMatch::match_at(RxStationID start, CharNum& offset)
 	next_count = 0;
 	for (; current_count > 0 && offset <= target.length(); offset++)
 	{
-		for (Thread* thread_p = current_stations; thread_p < current_stations+current_count; thread_p++)
 		{
 		decode_next:
 			RxStationID	pc = thread_p->station;
@@ -297,17 +331,19 @@ RxMatch::match_at(RxStationID start, CharNum& offset)
 			switch (instr.op)	// break from here to continue with instr.next, continue to ignore it.
 			{
 			case RxOp::RxoAccept:			// Termination condition
-				result = thread_p->result;	// Make a new reference to this RxResult
-
-				// Wipe old result references, we already copied the one we chose:
-				for (thread_p = current_stations; thread_p < current_stations+current_count; thread_p++)
-					thread_p->result.clear();
-				for (thread_p = next_stations; thread_p < next_stations+next_count; thread_p++)
-					thread_p->result.clear();
-
-				result.capture_set(1, offset);
-
-				return result;
+			{
+				CharNum	new_result_start = thread_p->result.offset();
+				if (!result.succeeded()			// We don't have any result yet
+				 || new_result_start < result.offset()	// New result starts earlier
+				 || (offset-new_result_start > result.length()		// New result is longer
+				  && new_result_start == result.offset()))		// and starts at the same place
+				{		// Got a better result
+					result = thread_p->result;	// Make a new reference to this RxResult
+					thread_p->result.clear();	// Clear the old reference
+					result.capture_set(1, offset);	// Before we finalise it
+				}
+			}
+				continue;
 
 			case RxOp::RxoBOL:			// Beginning of Line
 				if (offset == 0 || target[offset-1] == '\n')
@@ -388,25 +424,6 @@ RxMatch::match_at(RxStationID start, CharNum& offset)
 			}
 #endif
 
-	/********************************************
-	 * This next case must be moved to addthread
-	 ********************************************/
-
-			case RxOp::RxoCount:
-			{
-				short	counter = thread_p->result.counter_incr();
-				if (counter < instr.repetition.max)	// Greedily repeat
-					addthread({instr.next, thread_p->result}, instr.alternate);
-				if (counter > instr.repetition.min && counter < instr.repetition.max)
-				{
-					RxResult	continuation = thread_p->result;
-					continuation.counter_pop();
-					addthread({instr.next, continuation}, instr.next);
-				}
-				thread_p->result.clear();
-			}
-				continue;
-
 			case RxOp::RxoZero:
 				// push a zero to this thread's counter stack
 				thread_p->result.counter_push_zero();
@@ -428,6 +445,7 @@ RxMatch::match_at(RxStationID start, CharNum& offset)
 			case RxOp::RxoSplit:
 			case RxOp::RxoCaptureStart:
 			case RxOp::RxoCaptureEnd:
+			case RxOp::RxoCount:
 				assert(0 == "Should not happen");
 				return RxResult();
 			}
@@ -445,9 +463,14 @@ RxMatch::match_at(RxStationID start, CharNum& offset)
 		next_count = 0;
 	}
 
-	// We ran out of threads that could move forward, or ran out of input to move forward on
+	// If we have a result, it's in `result`.
+	// If not, we ran out of threads that could move forward, or ran out of input to move forward on.
 	// REVISIT: Might it be useful to know on which Station(s) we ran out of input?
-	return RxResult();
+
+	// Wipe old result references, we already copied the one we chose:
+	for (thread_p = current_stations; thread_p < current_stations+current_count; thread_p++)
+		thread_p->result.clear();
+	return result;
 }
 
 RxResultBody::RxResultBody(short c_max, short p_max)
@@ -491,6 +514,12 @@ RxResultBody::counter_pop()
 	if (counters_used == 0)
 		return;
 	counters_used--;
+}
+
+const CharNum*
+RxResultBody::counter_top()
+{
+	return counters_used > 0 ? &counters[counters_used-1] : 0;
 }
 
 CharNum
@@ -600,4 +629,10 @@ RxResult::counter_pop()		// Discard the top counter of the stack
 	Unshare();
 	assert(body);
 	body->counter_pop();
+}
+
+const CharNum*
+RxResult::counter_top()
+{
+	return body->counter_top();
 }
