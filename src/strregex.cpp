@@ -699,12 +699,18 @@ RxCompiler::compile(char*& nfa)
 					bytes_required += 1;	// An inserted Split and a Jump
 					offsets_required += 2;
 				}
+				else if (instr.repetition.min == 0 && instr.repetition.max == 1)
+				{
+					//bytes_required += 0;	// An inserted Split
+					offsets_required += 1;
+				}
 				else if (instr.repetition.min == 1 && instr.repetition.max == 0)
 				{
 					offsets_required += 1;	// Just a Split
 				}
 				else
 				{
+					station_count += instr.repetition.min;
 					bytes_required += 3;	// A Zero and a Count
 					offsets_required += 1;
 				}
@@ -1071,6 +1077,11 @@ RxCompiler::compile(char*& nfa)
 					insert_split(last_atom_start-nfa);
 					*ep++ = (char)RxOp::RxoJump;
 					emit_offset(ep, last_atom_start - ep);
+					patch_offset(last_atom_start+1-nfa, ep-nfa);
+				}
+				else if (instr.repetition.min == 0 && instr.repetition.max == 1)
+				{
+					insert_split(last_atom_start-nfa);
 					patch_offset(last_atom_start+1-nfa, ep-nfa);
 				}
 				else if (instr.repetition.min == 1 && instr.repetition.max == 0)
