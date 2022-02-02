@@ -54,7 +54,7 @@ public:
 	const RxResult	match_at(RxStationID start, CharNum& offset);
 
 private:
-	const RxProgram&  program;		// The NFA to execute
+	const RxProgram& program;		// The NFA to execute
 	StrVal		target;			// The string we are searching
 	RxResult	result;			// Result from the successful thread
 
@@ -246,12 +246,11 @@ RxMatch::addthread(Thread thread, CharNum offset, CharNum duplicates_allowed)
 	{
 		if (next_stations[i].station == thread.station)
 		{
-			// Check for an exact duplicate first
-			if ((duplicates_allowed		// If duplicates are allowed, we know there must be a counter
+			if ((duplicates_allowed			// Check for an exact duplicate first
 				&& thread.result.counter_top()
 				&& *next_stations[i].result.counter_top()
 				&& *thread.result.counter_top() == *next_stations[i].result.counter_top())
-			 || ++duplicates > duplicates_allowed)
+			 || ++duplicates > duplicates_allowed)	// Or too many duplicates
 			{
 				// REVISIT: Should we have a policy of deleting the duplicate with the lowest count?
 				return;		// We already have this thread
@@ -259,28 +258,54 @@ RxMatch::addthread(Thread thread, CharNum offset, CharNum duplicates_allowed)
 		}
 	}
 
-	// If the opcode at the new thread is Jump or Split, add the target(s). If it's Save, do that and skip over it
+	/*
+	 * If the opcode at the new thread won't consume text, evaluate it either by looping (tail recursion) or a recursive call
+	 */
 	RxDecoded	instr;
+next:
 	program.decode(thread.station, instr);
 	switch (instr.op)
 	{
-	case RxOp::RxoJump:
-		addthread({instr.next, thread.result}, offset);
+	case RxOp::RxoBOL:			// Beginning of Line
+		if (offset == 0 || target[offset-1] == '\n')
+		{
+			thread.station = instr.next;
+			goto next;
+		}
 		break;
 
+	case RxOp::RxoEOL:			// End of Line
+		if (offset == target.length() || target[offset] == '\n')
+		{
+			thread.station = instr.next;
+			goto next;
+		}
+		break;
+
+	case RxOp::RxoJump:
+		thread.station = instr.next;
+		goto next;
+
 	case RxOp::RxoSplit:
-		// REVISIT: Do ee need greedy and non-greedy versions of RxoSplit, with these in opposite order (same for RxoCount?)
+		// REVISIT: We need greedy and non-greedy versions of RxoSplit, with these in opposite order (same for RxoCount?)
 		addthread({instr.alternate, thread.result}, offset);
 		addthread({instr.next, thread.result}, offset);
 		break;
 
 	case RxOp::RxoCaptureStart:
-		addthread({instr.next, thread.result.capture_set(instr.capture_number*2, offset)}, offset);
-		break;
+		thread.station = instr.next;
+		thread.result = thread.result.capture_set(instr.capture_number*2, offset);
+		goto next;
 
 	case RxOp::RxoCaptureEnd:
-		addthread({instr.next, thread.result.capture_set(instr.capture_number*2+1, offset)}, offset);
+		thread.station = instr.next;
+		thread.result = thread.result.capture_set(instr.capture_number*2+1, offset);
 		break;
+
+	case RxOp::RxoZero:
+		thread.result.counter_push_zero();
+		thread = {instr.next, thread.result};
+		goto next;
 
 	case RxOp::RxoCount:	// This instruction follows a repeated item, so the pre-incremented counter tells how many we've passed
 	{
@@ -345,24 +370,6 @@ RxMatch::match_at(RxStationID start, CharNum& offset)
 			}
 				continue;
 
-			case RxOp::RxoBOL:			// Beginning of Line
-				if (offset == 0 || target[offset-1] == '\n')
-				{
-					thread_p->station = instr.next;
-					goto decode_next;
-				}
-				thread_p->result.clear();
-				continue;
-
-			case RxOp::RxoEOL:			// End of Line
-				if (offset == target.length() || target[offset] == '\n')
-				{
-					thread_p->station = instr.next;
-					goto decode_next;
-				}
-				thread_p->result.clear();
-				continue;
-
 			case RxOp::RxoAny:			// Any single char
 				// As long as we aren't at the end, all is good
 				// REVISIT: Add except-newline mode behaviour
@@ -424,12 +431,6 @@ RxMatch::match_at(RxStationID start, CharNum& offset)
 			}
 #endif
 
-			case RxOp::RxoZero:
-				// push a zero to this thread's counter stack
-				thread_p->result.counter_push_zero();
-				thread_p->station = instr.next;
-				goto decode_next;
-
 			// Compiler opcodes that aren't part of the VM:
 			case RxOp::RxoNull:
 			case RxOp::RxoStart:
@@ -441,10 +442,13 @@ RxMatch::match_at(RxStationID start, CharNum& offset)
 			case RxOp::RxoEndGroup:
 
 			// Shunts (handled in addthread)
+			case RxOp::RxoBOL:			// Beginning of Line
+			case RxOp::RxoEOL:			// End of Line
 			case RxOp::RxoJump:
 			case RxOp::RxoSplit:
 			case RxOp::RxoCaptureStart:
 			case RxOp::RxoCaptureEnd:
+			case RxOp::RxoZero:
 			case RxOp::RxoCount:
 				assert(0 == "Should not happen");
 				return RxResult();
@@ -525,7 +529,7 @@ RxResultBody::counter_top()
 CharNum
 RxResultBody::capture(int index)
 {
-	assert(!(index < 1 || index >= capture_max*2));
+	assert(!(index < 1 || index >= capture_max*2));		// REVISIT: Delete this when capture limiting is implemented
 	if (index < 1 || index >= capture_max*2)
 		return 0;
 	return counters[counter_max+index-1];
@@ -534,7 +538,7 @@ RxResultBody::capture(int index)
 CharNum
 RxResultBody::capture_set(int index, CharNum val)
 {
-	assert(!(index < 1 || index >= capture_max*2));
+	assert(!(index < 1 || index >= capture_max*2));		// REVISIT: Delete this when capture limiting is implemented
 	if (index < 1 || index >= capture_max*2)
 		return 0;		// Ignore captures outside the defined range
 	return counters[counter_max+index-1] = val;

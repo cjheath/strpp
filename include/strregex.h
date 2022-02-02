@@ -208,6 +208,7 @@ public:
 	// std::vector<RxResult> subroutineMatches;	// Ordered by position of the subroutine call in the regexp
 
 private:
+	// Storing capture-zero (start of match) here saves many RxResultBody allocations:
 	CharNum		cap0;
 	Ref<RxResultBody> body;
 	void		Unshare();

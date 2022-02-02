@@ -131,15 +131,15 @@ RxCompiler::instr_dump(const char* nfa, const char*& np)	// Disassenble NFA to s
 		break;
 
 	case RxOp::RxoBOL:			// Beginning of Line
-		printf("RxoBOL(%02X)\n", op_num);
+		printf("BOL(%02X)\n", op_num);
 		break;
 
 	case RxOp::RxoEOL:			// End of Line
-		printf("RxoEOL(%02X)\n", op_num);
+		printf("EOL(%02X)\n", op_num);
 		break;
 
 	case RxOp::RxoAny:			// Any single char
-		printf("RxoAny(%02X)\n", op_num);
+		printf("Any(%02X)\n", op_num);
 		break;
 
 	case RxOp::RxoJump:
@@ -164,17 +164,17 @@ RxCompiler::instr_dump(const char* nfa, const char*& np)	// Disassenble NFA to s
 
 	case RxOp::RxoNegLookahead:		// (?!...)
 		offset_next = get_offset(np);
-		printf("RxoNegLookahead(%02X) offset=(%d)->%d\n", op_num, offset_next, offset_this+1+offset_next);
+		printf("NegLookahead(%02X) offset=(%d)->%d\n", op_num, offset_next, offset_this+1+offset_next);
 		break;
 
 	case RxOp::RxoCharProperty:		// A char with a named Unicode property
-		op_name = "RxoCharProperty";
+		op_name = "CharProperty";
 		goto string;
 	case RxOp::RxoCharClass:		// Character class; instr contains a string of character pairs
-		op_name = "RxoCharClass";
+		op_name = "CharClass";
 		goto string;
 	case RxOp::RxoNegCharClass:		// Negated Character class
-		op_name = "RxoNegCharClass";
+		op_name = "NegCharClass";
 	string:
 		byte_count = UTF8Get(np);
 		printf("%s(%02X), '%.*s'\n", op_name, op_num, byte_count, np);
@@ -184,52 +184,52 @@ RxCompiler::instr_dump(const char* nfa, const char*& np)	// Disassenble NFA to s
 	case RxOp::RxoSubroutineCall:		// Subroutine call to a named group
 		group_num = (*np++ & 0xFF) - 1;
 		name = get_name(nfa, group_num).asUTF8();
-		printf("RxoSubroutineCall(%02X) call to '%.*s'(%d)\n", op_num, byte_count, name.asUTF8(), group_num);
+		printf("SubroutineCall(%02X) call to '%.*s'(%d)\n", op_num, byte_count, name.asUTF8(), group_num);
 		break;
 
 	case RxOp::RxoEndGroup:			// End of a group
-		printf("ERROR: RxoEndGroup(%02X) should not be emitted\n", op_num);
+		printf("ERROR: EndGroup(%02X) should not be emitted\n", op_num);
 		break;
 
 	case RxOp::RxoAlternate:		// |
 		offset_next = UTF8Get(np);
-		printf("ERROR: RxoAlternate(%02X) next=(+%d)->%d should not be emitted\n", op_num, offset_next, offset_this+offset_next);
+		printf("ERROR: Alternate(%02X) next=(+%d)->%d should not be emitted\n", op_num, offset_next, offset_this+offset_next);
 		break;
 
 	case RxOp::RxoNonCapturingGroup:	// (...)
 		offset_next = UTF8Get(np);
-		printf("ERROR: RxoNonCapturingGroup(%02X) offset=(+%d)->%d should not be emitted\n", op_num, offset_next, offset_this+offset_next);
+		printf("ERROR: NonCapturingGroup(%02X) offset=(+%d)->%d should not be emitted\n", op_num, offset_next, offset_this+offset_next);
 		break;
 
 	case RxOp::RxoNamedCapture:		// (?<name>...)
 		offset_next = UTF8Get(np);
 		group_num = (*np++ & 0xFF) - 1;
 		name = get_name(nfa, group_num);
-		printf("ERROR: RxoNamedCapture(%02X) '%.*s'(%d), offset=(%d)->%d should not be emitted\n", op_num, byte_count, name.asUTF8(), group_num, offset_next, offset_this+offset_next);
+		printf("ERROR: NamedCapture(%02X) '%.*s'(%d), offset=(%d)->%d should not be emitted\n", op_num, byte_count, name.asUTF8(), group_num, offset_next, offset_this+offset_next);
 		break;
 
 	case RxOp::RxoLiteral:			// A specific string
-		op_name = "RxoLiteral";
+		op_name = "Literal";
 		byte_count = UTF8Get(np);
-		printf("ERROR: RxoLiteral(%02X), '%.*s' should not be emitted\n", op_num, byte_count, np);
+		printf("ERROR: Literal(%02X), '%.*s' should not be emitted\n", op_num, byte_count, np);
 		np += byte_count;
 		break;
 
 	case RxOp::RxoRepetition:		// {n, m}
 		min = (*np++ & 0xFF) - 1;
 		max = (*np++ & 0xFF) - 1;
-		printf("ERROR: RxoRepetition(%02X) min=%d max=%d should not be emitted\n", op_num, min, max);
+		printf("ERROR: Repetition(%02X) min=%d max=%d should not be emitted\n", op_num, min, max);
 		break;
 
 	case RxOp::RxoZero:
-		printf("RxoZero(%02X)\n", op_num);
+		printf("Zero(%02X)\n", op_num);
 		break;
 
 	case RxOp::RxoCount:
 		min = (*np++ & 0xFF) - 1;
 		max = (*np++ & 0xFF) - 1;
 		offset_alternate = get_offset(np);
-		printf("RxoCount(%02X) min=%d max=%d repeating at %d\n", op_num, min, max, offset_this+3+offset_alternate);
+		printf("Count(%02X) min=%d max=%d repeating at %d\n", op_num, min, max, offset_this+3+offset_alternate);
 		break;
 	}
 	return true;
