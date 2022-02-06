@@ -173,12 +173,16 @@ private:
 class RxResultBody;	// RefCounted shared result values
 
 /*
- * The result from regex matching:
- * Counter stack, captures, function-call results.
+ * The result from regex matching: captures, function-call results.
+ * Also contains the counter stack (count&offset) for each nested repetition level.
  */
 class RxResult
 {
 public:
+	struct	Counter {
+		CharNum		count;		// The number of repetitions seen so far
+		CharNum		offset;		// The text offset at the start of the last repetition
+	};
 	~RxResult();
 	RxResult();
 	RxResult(const RxProgram& program);
@@ -198,14 +202,17 @@ public:
 
 	// Mutation API, used during matching
 	RxResult&	capture_set(int index, CharNum val);
-	void		counter_push_zero();	// Push a zero counter
-	CharNum		counter_incr();		// Increment and return top counter of stack
+	bool		has_counter() const;
+	void		counter_push_zero(CharNum offset);	// Push a zero counter at this offset
+	CharNum		counter_incr(CharNum offset);		// Increment and return top counter of stack
 	void		counter_pop();		// Discard the top counter of the stack
-	const CharNum*	counter_top();		// Pointer to the top counter value, if any
+	const Counter	counter_top();		// Top counter value, if any
 
 	// Something to handle function-call results:
 	// mumble, mumble...
 	// std::vector<RxResult> subroutineMatches;	// Ordered by position of the subroutine call in the regexp
+
+        int		resultNumber() const;	// Only used for diagnostics
 
 private:
 	// Storing capture-zero (start of match) here saves many RxResultBody allocations:

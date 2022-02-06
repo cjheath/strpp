@@ -905,7 +905,7 @@ RxCompiler::compile(char*& nfa)
 				emit_padded_offset(ep);		// search_station; will be patched on RxoAccept
 				emit_padded_offset(ep);		// start_station
 				emit_offset(ep, station_count);
-				*ep++ = max_nesting;		// REVISIT: Not all nesting involves counters
+				*ep++ = max_nesting;		// REVISIT: Not all nesting involves repetition that needs counters
 				*ep++ = names.size() + 1;	// max_capture; 0 is the overall match, first group starts at 1
 				*ep++ = names.size() + 1;	// num_names
 				for (iter = names.begin(); iter != names.end(); iter++)
@@ -930,7 +930,7 @@ RxCompiler::compile(char*& nfa)
 
 				// Fixup RxoStart block
 				const char*	cp = nfa+1+offset_max_bytes;	// Location of start_station
-				cp -= patch_offset(1, ep-nfa);	// Patch search_station (not actually an offset!)
+				cp -= patch_offset(1, ep-nfa);	// Patch search_station 
 
 				CharBytes	start_station = (cp-nfa)+get_offset(cp);
 

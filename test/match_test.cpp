@@ -141,8 +141,12 @@ matcher_test	matcher_tests[] =
 	{ "a(bc|b)c",	"abcc",			0, 4 },
 	{ "a*aa",	"baaaab",		1, 4},
 	{ "a(bc|b)c",	"abc",			0, 3 },
-	{ "a?a",	"a",			0, 1},		// Will not backtrack to succeed
-	{ "a(bc|b)+c",	"abcbc",		0, 5 },		// Fails at (0, 3), should be greedier
+	{ "a?a",	"a",			0, 1},
+	{ "a(bc|b)+c",	"abcbc",		0, 5 },
+	{ "a(b|bc)+c",	"abcbc",		0, 5 },
+
+	{ "()*c",	"abcbc",		2, 1 },
+	{ "((a)*)*",	"aaaaa",		0, 5 },
 
 	// { 0,	"Alternates", 0, 0 },
 	// { 0,	"Non-capturing groups", 0, 0 },

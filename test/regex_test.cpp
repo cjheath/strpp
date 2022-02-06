@@ -177,6 +177,8 @@ compiler_test	compiler_tests[] =
 	{ "(abc)+",				"S\"\x0A\x08\x02\x01\x01(\x01""CaCbCcA\x0F#A\x19.J\x09", 0 },
 	{ "(a|b?|c*|d+)*",			"SR\x0A\x0A\x02\x01\x01(\x01""A>A\x0A""CaJ.A\x0E""A\x06""CbJ\x1E""A\x12""A\x0A""CcJ\x0DJ\x0A""CdA\x07JA#AI.J\x09", 0 },
 
+	{ "((((a*)*)*)*)*",			"S>\x0A\x04\x05\x01\x01(\x01""A*A\"A\x1A""A\x12""A\x0A""CaJ\x0BJ\x13J\x1BJ#J+#A5.J\x09", 0},
+
 	{ "?",	0, "Repeating a repetition is disallowed" },
 	{ "*",	0, "Repeating a repetition is disallowed" },
 	{ "+",	0, "Repeating a repetition is disallowed" },

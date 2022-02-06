@@ -21,10 +21,11 @@ public:
 			: RxResultBody(_program.maxCounter(), _program.maxCapture()) {}
 	RxResultBody(const RxResultBody& _to_copy);	// Used by RxResult::Unshare
 
-	void		counter_push_zero();
-	CharNum		counter_incr();
+	bool		has_counter() const { return counters_used > 0; }
+	void		counter_push_zero(CharNum offset);
+	CharNum		counter_incr(CharNum offset);
 	void		counter_pop();
-	const CharNum*	counter_top();
+	const RxResult::Counter	counter_top();
 
 	CharNum		capture(int index);
 	CharNum		capture_set(int index, CharNum val);
@@ -63,7 +64,7 @@ private:
 	RxStationID	current_count;		// How many of the above are populated
 	Thread*		next_stations;
 	RxStationID	next_count;		// How many of the above are populated
-	void		addthread(Thread thread, CharNum offset, CharNum duplicates_allowed = 0);
+	void		addthread(Thread thread, CharNum offset, CharNum *shunts, CharNum num_shunt, CharNum max_duplicates_allowed = 0);
 };
 
 static int zagzig(int i)
@@ -239,18 +240,27 @@ RxMatch::~RxMatch()
 }
 
 void
-RxMatch::addthread(Thread thread, CharNum offset, CharNum duplicates_allowed)
+RxMatch::addthread(Thread thread, CharNum offset, CharNum* shunts, CharNum num_shunt, CharNum max_duplicates_allowed)
 {
+	// Recursion control, prevents looping over loops
+	for (int i = 0; i < num_shunt; i++)
+		if (shunts[i] == thread.station)
+			return;
+	assert(num_shunt < RxMaxNesting);
+	if (num_shunt == RxMaxNesting)
+		return;
+	shunts[num_shunt++] = thread.station;
+
 	int	duplicates = 0;
 	for (int i = 0; i < next_count; i++)
 	{
 		if (next_stations[i].station == thread.station)
 		{
-			if ((duplicates_allowed			// Check for an exact duplicate first
-				&& thread.result.counter_top()
-				&& *next_stations[i].result.counter_top()
-				&& *thread.result.counter_top() == *next_stations[i].result.counter_top())
-			 || ++duplicates > duplicates_allowed)	// Or too many duplicates
+			if ((max_duplicates_allowed			// Check for an exact duplicate first
+				&& thread.result.has_counter()
+				&& next_stations[i].result.has_counter()
+				&& thread.result.counter_top().count == next_stations[i].result.counter_top().count)
+			 || ++duplicates > max_duplicates_allowed)	// Or too many duplicates
 			{
 				// REVISIT: Should we have a policy of deleting the duplicate with the lowest count?
 				return;		// We already have this thread
@@ -288,8 +298,8 @@ next:
 
 	case RxOp::RxoSplit:
 		// REVISIT: We need greedy and non-greedy versions of RxoSplit, with these in opposite order (same for RxoCount?)
-		addthread({instr.alternate, thread.result}, offset);
-		addthread({instr.next, thread.result}, offset);
+		addthread({instr.alternate, thread.result}, offset, shunts, num_shunt);
+		addthread({instr.next, thread.result}, offset, shunts, num_shunt);
 		break;
 
 	case RxOp::RxoCaptureStart:
@@ -303,22 +313,28 @@ next:
 		break;
 
 	case RxOp::RxoZero:
-		thread.result.counter_push_zero();
+		thread.result.counter_push_zero(offset);
 		thread = {instr.next, thread.result};
 		goto next;
 
 	case RxOp::RxoCount:	// This instruction follows a repeated item, so the pre-incremented counter tells how many we've passed
 	{
-		short	counter = thread.result.counter_incr();
+		RxResult::Counter	previous = thread.result.counter_top();
 
-		if (counter <= instr.repetition.max)	// Greedily repeat
-			addthread({instr.alternate, thread.result}, offset, instr.repetition.min);
+		short	counter = thread.result.counter_incr(offset);
 
-		if (counter >= instr.repetition.min && counter <= instr.repetition.max)
-		{					// Wait at least until minimum count before trying to continue
+		// Don't repeat unless the offset has increased since the last repeat (instead, just continue with next).
+
+		if (counter <= instr.repetition.max	// Greedily repeat
+		 && previous.offset <= offset)		// Only if we advanced
+			addthread({instr.alternate, thread.result}, offset, shunts, num_shunt, instr.repetition.min);
+
+		if ((counter >= instr.repetition.min || previous.offset == offset)	// Reached minimum count, or will without advancing
+		 && counter <= instr.repetition.max)
+		{
 			RxResult	continuation = thread.result;
 			continuation.counter_pop();	// The continuing thread has no further need of the counter
-			addthread({instr.next, continuation}, offset, instr.repetition.min);
+			addthread({instr.next, continuation}, offset, shunts, num_shunt, instr.repetition.min);
 		}
 		thread.result.clear();
 	}
@@ -339,10 +355,11 @@ RxMatch::match_at(RxStationID start, CharNum& offset)
 {
 	Thread*		thread_p;
 	RxDecoded	instr;
+	CharNum		shunts[RxMaxNesting];	// Controls recursion in addthread
 
 	// Start where directed, and step forward one character at a time, following all threads until successful or there are no threads left
 	next_count = 0;
-	addthread({start, RxResult(program)}, offset);
+	addthread({start, RxResult(program)}, offset, shunts, 0);
 	std::swap(current_stations, next_stations);
 	current_count = next_count;
 	next_count = 0;
@@ -453,7 +470,7 @@ RxMatch::match_at(RxStationID start, CharNum& offset)
 				assert(0 == "Should not happen");
 				return RxResult();
 			}
-			addthread({instr.next, thread_p->result}, offset+1);
+			addthread({instr.next, thread_p->result}, offset+1, shunts, 0);
 			thread_p->result.clear();
 		}
 
@@ -480,34 +497,38 @@ RxMatch::match_at(RxStationID start, CharNum& offset)
 RxResultBody::RxResultBody(short c_max, short p_max)
 : counter_max(c_max)
 , capture_max(p_max)
-, counters(new CharNum[counter_max+capture_max*2-1])
+, counters(new CharNum[(counter_max+capture_max)*2-1])
 , counters_used(0)
 {
-	memset(counters, 0, sizeof(CharNum)*(counter_max+capture_max*2-1));
+	memset(counters, 0, sizeof(CharNum)*((counter_max+capture_max)*2-1));
 }
 
 RxResultBody::RxResultBody(const RxResultBody& to_copy)
 : counter_max(to_copy.counter_max)
 , capture_max(to_copy.capture_max)
-, counters(new CharNum[counter_max+capture_max*2-1])
+, counters(new CharNum[(counter_max+capture_max)*2-1])
 , counters_used(to_copy.counters_used)
 {
-	memcpy(counters, to_copy.counters, sizeof(CharNum)*(counter_max+capture_max*2-1));
+	memcpy(counters, to_copy.counters, sizeof(CharNum)*((counter_max+capture_max)*2-1));
 }
 
 void
-RxResultBody::counter_push_zero()
+RxResultBody::counter_push_zero(CharNum offset)
 {
 	assert(counters_used < counter_max);
 	if (counters_used == counter_max)
 		return;
+	// printf("Pushed new counter %d = 0\n", counters_used);
+	counters[counters_used++] = offset;
 	counters[counters_used++] = 0;
 }
 
 CharNum
-RxResultBody::counter_incr()
+RxResultBody::counter_incr(CharNum offset)
 {
 	assert(counters_used > 0);
+	// printf("Incrementing counter %d = %d\n", counters_used-1, counters[counters_used-1]+1);
+	counters[counters_used-2] = offset;
 	return ++counters[counters_used-1];
 }
 
@@ -517,13 +538,15 @@ RxResultBody::counter_pop()
 	assert(counters_used > 0);
 	if (counters_used == 0)
 		return;
+	// printf("Discarding counter %d (was %d)\n", counters_used-1, counters[counters_used-1]);
 	counters_used--;
 }
 
-const CharNum*
+const RxResult::Counter
 RxResultBody::counter_top()
 {
-	return counters_used > 0 ? &counters[counters_used-1] : 0;
+	assert(counters_used > 0);
+	return {counters[counters_used-1], counters[counters_used-2]};
 }
 
 CharNum
@@ -553,6 +576,12 @@ RxResult::RxResult()		// Failed result
 : body(0)
 , cap0(0)
 {
+}
+
+int
+RxResult::resultNumber() const
+{
+	return 0;
 }
 
 RxResult::RxResult(const RxResult& s1)
@@ -611,20 +640,26 @@ RxResult::capture_set(int index, CharNum val)
 	return *this;
 }
 
+bool
+RxResult::has_counter() const
+{
+	return body && body->has_counter();
+}
+
 void
-RxResult::counter_push_zero()	// Push a zero counter
+RxResult::counter_push_zero(CharNum offset)	// Push a zero counter
 {
 	Unshare();
 	assert(body);
-	body->counter_push_zero();
+	body->counter_push_zero(offset);
 }
 
 CharNum
-RxResult::counter_incr()	// Increment and return top counter of stack
+RxResult::counter_incr(CharNum offset)	// Increment and return top counter of stack
 {
 	Unshare();
 	assert(body);
-	return body->counter_incr();
+	return body->counter_incr(offset);
 }
 
 void
@@ -635,7 +670,7 @@ RxResult::counter_pop()		// Discard the top counter of the stack
 	body->counter_pop();
 }
 
-const CharNum*
+const RxResult::Counter
 RxResult::counter_top()
 {
 	return body->counter_top();
