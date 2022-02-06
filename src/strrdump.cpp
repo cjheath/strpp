@@ -90,8 +90,10 @@ RxCompiler::instr_dump(const char* nfa, const char*& np)	// Disassenble NFA to s
 
 	case RxOp::RxoStart:			// Place to start the DFA
 	{
-		int search_station = (np-nfa)+get_offset(np);
-		int start_station = (np-nfa)+get_offset(np);
+		int search_station = np-nfa;
+		search_station += get_offset(np);
+		int start_station = np-nfa;
+		start_station += get_offset(np);
 		int station_count = UTF8Get(np);
 		int max_nesting = (*np++ & 0xFF);
 		int max_capture = (*np++ & 0xFF);
