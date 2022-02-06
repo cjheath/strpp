@@ -800,6 +800,7 @@ RxCompiler::compile(char*& nfa)
 		{
 			CharBytes	byte_count = UTF8Len(zigzag(value));
 			CharBytes	shrinkage = offset_max_bytes - byte_count;
+
 			// printf("Patching %d with value %d (offs to %d), with %d shrinkage\n", patch_location, value, (patch_location+value), shrinkage);
 
 			char*	cp = nfa+patch_location;	// The patch location
@@ -1069,15 +1070,28 @@ RxCompiler::compile(char*& nfa)
 				/*
 				 * Cases:
 				 * No MIN, no MAX: Insert a Split (to the continuation) at the start, append a Jump back to the Split
+				 * No MIN, 1 MAX: Split to bypass the atom
 				 * MIN 1, no MAX: Append a Split (back to the start)
 				 * other: Insert a Zero, append a Count
 				 */
 				if (instr.repetition.min == 0 && instr.repetition.max == 0)
 				{
+					char*	cp;
 					insert_split(last_atom_start-nfa);
 					*ep++ = (char)RxOp::RxoJump;
+					cp = ep;	// Remember where we put the jump offset
 					emit_offset(ep, last_atom_start - ep);
-					patch_offset(last_atom_start+1-nfa, ep-nfa);
+					cp -= patch_offset(last_atom_start+1-nfa, ep-nfa);
+					if (cp < ep)	// that shrank, the jump is now incorrec, do it again
+					{
+						ep = cp;
+						cp -= emit_offset(ep, last_atom_start - ep);
+						if (cp < ep)					// That shrank, so patch the Split again
+						{		// ep is the new target of the split
+							cp = last_atom_start+1;
+							emit_offset(cp, ep-nfa);		// Rewrite it. It won't shrink this time
+						}
+					}
 				}
 				else if (instr.repetition.min == 0 && instr.repetition.max == 1)
 				{
