@@ -32,6 +32,11 @@ public:
 
 	// REVISIT: Add function call results
 
+#ifdef TRACK_RESULTS
+	static	int	next_results;
+	int		result_number;
+#endif
+
 private:
 	short		counter_max;
 	short		capture_max;	// Each capture has a start and an end, so we allocate double
@@ -263,6 +268,15 @@ RxMatch::addthread(Thread thread, CharNum offset, CharNum* shunts, CharNum num_s
 			 || ++duplicates > max_duplicates_allowed)	// Or too many duplicates
 			{
 				// REVISIT: Should we have a policy of deleting the duplicate with the lowest count?
+
+#ifdef TRACK_RESULTS
+				printf("Skipping thread at %d", thread.station);
+				if (thread.result.has_counter()) printf(" (count %d)", thread.result.counter_top().count);
+				printf(" because we have one");
+				if (next_stations[i].result.has_counter()) printf(" (count %d)", next_stations[i].result.counter_top().count);
+				printf("\n");
+#endif
+
 				return;		// We already have this thread
 			}
 		}
@@ -324,6 +338,10 @@ next:
 		short	counter = thread.result.counter_incr(offset);
 
 		// Don't repeat unless the offset has increased since the last repeat (instead, just continue with next).
+#ifdef TRACK_RESULTS
+		if (previous.offset == offset)
+			printf("\t\tRepetition at shunt %d did not proceed from offset %d\n", thread.station, offset);
+#endif
 
 		if (counter <= instr.repetition.max	// Greedily repeat
 		 && previous.offset <= offset)		// Only if we advanced
@@ -341,6 +359,12 @@ next:
 		break;
 
 	default:
+#ifdef TRACK_RESULTS
+		printf("\t\t... adding thread at instr %d, offset %d with results %d", thread.station, offset, thread.result.resultNumber());
+		if (thread.result.has_counter())
+			printf(", counter %d", thread.result.counter_top().count);
+		printf("\n");
+#endif
 		assert(next_count < program.maxStation());
 		next_stations[next_count++] = thread;
 	}
@@ -365,15 +389,27 @@ RxMatch::match_at(RxStationID start, CharNum& offset)
 	next_count = 0;
 	for (; current_count > 0 && offset <= target.length(); offset++)
 	{
+#ifdef TRACK_RESULTS
+		printf("\ncycle at %d with %d threads\n", offset, current_count);
+#endif
+		for (thread_p = current_stations; thread_p < current_stations+current_count; thread_p++)
 		{
 		decode_next:
 			RxStationID	pc = thread_p->station;
 			program.decode(pc, instr);
 
+#ifdef TRACK_RESULTS
+			printf("\tthread %d instr %d op %c: ", (int)(thread_p-current_stations), pc, (char)instr.op);
+			if (thread_p->result.has_counter())
+				printf("counter %d: ", thread_p->result.counter_top().count);
+#endif
 			switch (instr.op)	// break from here to continue with instr.next, continue to ignore it.
 			{
 			case RxOp::RxoAccept:			// Termination condition
 			{
+#ifdef TRACK_RESULTS
+				printf("accepts\n");
+#endif
 				CharNum	new_result_start = thread_p->result.offset();
 				if (!result.succeeded()			// We don't have any result yet
 				 || new_result_start < result.offset()	// New result starts earlier
@@ -391,14 +427,30 @@ RxMatch::match_at(RxStationID start, CharNum& offset)
 				// As long as we aren't at the end, all is good
 				// REVISIT: Add except-newline mode behaviour
 				if (offset < target.length())
+				{
+#ifdef TRACK_RESULTS
+					printf("succeeds\n");
+#endif
 					break;
+				}
+#ifdef TRACK_RESULTS
+				printf("fails\n");
+#endif
 				thread_p->result.clear();
 				continue;
 
 			case RxOp::RxoChar:			// A specific UCS4 character
 				// REVISIT: Add case-insensitive mode behaviour
 				if (target[offset] == instr.character)
+				{
+#ifdef TRACK_RESULTS
+					printf("succeeds\n");
+#endif
 					break;
+				}
+#ifdef TRACK_RESULTS
+				printf("fails\n");
+#endif
 				thread_p->result.clear();
 				continue;			// Dead-end this thread
 
@@ -494,6 +546,10 @@ RxMatch::match_at(RxStationID start, CharNum& offset)
 	return result;
 }
 
+#ifdef TRACK_RESULTS
+int	RxResultBody::next_results = 1;
+#endif
+
 RxResultBody::RxResultBody(short c_max, short p_max)
 : counter_max(c_max)
 , capture_max(p_max)
@@ -501,6 +557,9 @@ RxResultBody::RxResultBody(short c_max, short p_max)
 , counters_used(0)
 {
 	memset(counters, 0, sizeof(CharNum)*((counter_max+capture_max)*2-1));
+#ifdef TRACK_RESULTS
+	result_number = next_results++;
+#endif
 }
 
 RxResultBody::RxResultBody(const RxResultBody& to_copy)
@@ -510,6 +569,10 @@ RxResultBody::RxResultBody(const RxResultBody& to_copy)
 , counters_used(to_copy.counters_used)
 {
 	memcpy(counters, to_copy.counters, sizeof(CharNum)*((counter_max+capture_max)*2-1));
+#ifdef TRACK_RESULTS
+	result_number = next_results++;
+	printf("Results %d clones %d\n", result_number, to_copy.result_number);
+#endif
 }
 
 void
@@ -581,7 +644,11 @@ RxResult::RxResult()		// Failed result
 int
 RxResult::resultNumber() const
 {
+#ifdef TRACK_RESULTS
+	return body->result_number;
+#else
 	return 0;
+#endif
 }
 
 RxResult::RxResult(const RxResult& s1)
@@ -629,6 +696,9 @@ RxResult::capture(int index) const
 RxResult&
 RxResult::capture_set(int index, CharNum val)
 {
+#ifdef TRACK_RESULTS
+	printf("\t\tSet capture %d[%d] = %d\n", body ? body->result_number : -1, index, val);
+#endif
 	if (index == 0)
 	{
 		cap0 = val;
