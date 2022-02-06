@@ -146,12 +146,12 @@ RxCompiler::instr_dump(const char* nfa, const char*& np)	// Disassenble NFA to s
 
 	case RxOp::RxoJump:
 		offset_next = get_offset(np);
-		printf("Jump(%02X) %d->%d\n", op_num, offset_next, offset_this+1+offset_next);
+		printf("Jump(%02X) %+d->%d\n", op_num, offset_next, offset_this+1+offset_next);
 		break;
 
 	case RxOp::RxoSplit:
 		offset_alternate = get_offset(np);
-		printf("Split(%02X) %d->%d\n", op_num, offset_alternate, offset_this+1+offset_alternate);
+		printf("Split(%02X) %+d->%d\n", op_num, offset_alternate, offset_this+1+offset_alternate);
 		break;
 
 	case RxOp::RxoCaptureStart:
@@ -166,7 +166,7 @@ RxCompiler::instr_dump(const char* nfa, const char*& np)	// Disassenble NFA to s
 
 	case RxOp::RxoNegLookahead:		// (?!...)
 		offset_next = get_offset(np);
-		printf("NegLookahead(%02X) offset=(%d)->%d\n", op_num, offset_next, offset_this+1+offset_next);
+		printf("NegLookahead(%02X) bypass=(%+d)->%d\n", op_num, offset_next, offset_this+1+offset_next);
 		break;
 
 	case RxOp::RxoCharProperty:		// A char with a named Unicode property
@@ -195,19 +195,19 @@ RxCompiler::instr_dump(const char* nfa, const char*& np)	// Disassenble NFA to s
 
 	case RxOp::RxoAlternate:		// |
 		offset_next = UTF8Get(np);
-		printf("ERROR: Alternate(%02X) next=(+%d)->%d should not be emitted\n", op_num, offset_next, offset_this+offset_next);
+		printf("ERROR: Alternate(%02X) next=(%+d)->%d should not be emitted\n", op_num, offset_next, offset_this+offset_next);
 		break;
 
 	case RxOp::RxoNonCapturingGroup:	// (...)
 		offset_next = UTF8Get(np);
-		printf("ERROR: NonCapturingGroup(%02X) offset=(+%d)->%d should not be emitted\n", op_num, offset_next, offset_this+offset_next);
+		printf("ERROR: NonCapturingGroup(%02X) offset=(%+d)->%d should not be emitted\n", op_num, offset_next, offset_this+offset_next);
 		break;
 
 	case RxOp::RxoNamedCapture:		// (?<name>...)
 		offset_next = UTF8Get(np);
 		group_num = (*np++ & 0xFF) - 1;
 		name = get_name(nfa, group_num);
-		printf("ERROR: NamedCapture(%02X) '%.*s'(%d), offset=(%d)->%d should not be emitted\n", op_num, byte_count, name.asUTF8(), group_num, offset_next, offset_this+offset_next);
+		printf("ERROR: NamedCapture(%02X) '%.*s'(%d), offset=(%+d)->%d should not be emitted\n", op_num, byte_count, name.asUTF8(), group_num, offset_next, offset_this+offset_next);
 		break;
 
 	case RxOp::RxoLiteral:			// A specific string
