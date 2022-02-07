@@ -391,7 +391,7 @@ RxMatch::match_at(RxStationID start, CharNum& offset)
 	for (; current_count > 0 && offset <= target.length(); offset++)
 	{
 #ifdef TRACK_RESULTS
-		printf("\ncycle at %d with %d threads\n", offset, current_count);
+		printf("\ncycle at %d with %d threads looking at '%s'\n", offset, current_count, target.substr(offset, 1).asUTF8());
 #endif
 		for (thread_p = current_stations; thread_p < current_stations+current_count; thread_p++)
 		{

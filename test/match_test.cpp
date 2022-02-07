@@ -64,7 +64,7 @@ main(int argc, char** argv)
 			if (result.succeeded())
 			{
 				StrVal	matched_substr = target.substr(result.offset(), result.length());
-				printf("\t\"%s\" matched at [%d, %d]: %s\n", target.asUTF8(), result.offset(), result.length(), matched_substr.asUTF8());
+				printf("\t\"%s\" matched at [%d, %d]: \"%s\"\n", target.asUTF8(), result.offset(), result.length(), matched_substr.asUTF8());
 				continue;
 			}
 			printf("\t\"%s\" failed\n", *argv);
@@ -90,6 +90,7 @@ matcher_test	matcher_tests[] =
 	{ 0,	"Literals", 0, 0 },
 	{ "a",		"a",			0, 1 },
 	{ "ab",		"babc",			1, 2 },
+	{ "abc",	"babcd",		1, 3 },
 
 	{ 0,	"Start and End of line", 0, 0 },
 	{ "^a",		"ba",			-1, 0 },
@@ -104,6 +105,9 @@ matcher_test	matcher_tests[] =
 
 	{ 0,	"Any character", 0, 0 },
 	{ ".",		"ba",			0, 1 },
+	{ "a.",		"bac",			1, 2 },
+	{ "a.c",	"dabcd",		1, 3 },
+	{ "a.b.c",	"dadbacd",		1, 5 },
 
 	// { 0,	"Character classes", 0, 0 },
 	// { 0,	"Character properties", 0, 0 },
