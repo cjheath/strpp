@@ -89,7 +89,7 @@ matcher_test	matcher_tests[] =
 {
 	{ 0,	"Null expressions", 0, 0 },
 	{ "",		"a",			0, 0 },
-//	{ "|",		"a",			0, 0 },		// FAILS with a crash!
+//	{ "|",		"a",			0, 0 },		// FAILS with more active threads than budgeted
 	{ "|a|",	"a",			0, 1 },
 	{ "a||",	"a",			0, 1 },
 
@@ -148,6 +148,13 @@ matcher_test	matcher_tests[] =
 	{ "[^ace]",	"c",			-1, 0 },
 	{ "[^0-9]",	"c",			0, 1 },
 	{ "[^0-9]+",	"049cb012",		3, 2 },
+	{ "[-ace]",	"-",			0, 1 },
+	{ "[ace-]",	"-",			0, 1 },
+	{ "[a\\-e]",	"-",			0, 1 },
+	{ "[a\\]e]",	"]",			0, 1 },
+	{ "[ace",	0,			0, 0 },
+	{ "[ace\\",	0,			0, 0 },
+	{ "[a-\\",	0,			0, 0 },
 
 	{ 0,	"Character properties", 0, 0 },
 	{ "\\s",	"#",			-1, 0 },
@@ -186,20 +193,11 @@ matcher_test	matcher_tests[] =
 	{ "a+",		"aa",			0, 2 },
 	{ "a+",		"ba",			1, 1 },
 	{ "a+",		"baac",			1, 2 },
-	{ "(a{2}){2}",	"baaaab",		1, 4 },
 	{ "(x{2}){2}",	"axxxxb",		1, 4 },
 	{ "((x{2}){2}){2}",	"axxxxxxxxb",	1, 8 },
-//	{ "(((x{2}){2}){2}){2}",	"xxxxxxxxxxxxxxxxxx",	0, 16 },
-	{ "((((((((((x{2}){2}){2}){2}){2}){2}){2}){2}){2}))",	"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",	-1, 512 },
-
-	/* REVISIT: Non-greedy repetition (not implemented)
-	{ "a*?"
-	{ "a+?"
-	{ "a??"
-	{ "a{2}?"
-	{ "a{2,3}?"
-	{ "a{2,}?"
-	*/
+	{ "(((x{2}){2}){2}){2}",	"axxxxxxxxxxxxxxxxxxb",	1, 16 },
+//	{ "((((x{2}){2}){2}){2}){2}",	"axxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxb",	1, 32 },	// Fails. Probably a duplicate thread issue. Care factor?
+	{ "((((((((((x{2}){2}){2}){2}){2}){2}){2}){2}){2}))",	"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",	-1, 512 },	// Counters 9 deep
 
 	{ "a{2,4}",	"b",			-1, 0 },
 	{ "a{2,4}",	"aa",			0, 2 },
@@ -215,6 +213,22 @@ matcher_test	matcher_tests[] =
 	{ "a{2}b",	"baaab",		2, 3 },
 	{ "a{2,}b",	"baaab",		1, 4 },
 	{ "ba{2}b",	"baaab",		-1, 0 },
+	{ "ba{2}b",	"baab",			0, 4 },
+	{ "ba{2}a",	"baaa",			0, 4 },
+	{ "ba{2,4}a",	"baaa",			0, 4 },
+	{ "ba{2,4}a",	"baaaa",		0, 5 },
+	{ "ba{2,3}a{2,3}",	"baaaaa",	0, 6 },
+	{ "b(a){2,3}a{2,3}",	"baaaaa",	0, 6 },
+	{ "b(a{2,3})(a{2,3})",	"baaaaa",	0, 6 },
+
+	/* REVISIT: Non-greedy repetition (not implemented)
+	{ "a*?"
+	{ "a+?"
+	{ "a??"
+	{ "a{2}?"
+	{ "a{2,3}?"
+	{ "a{2,}?"
+	*/
 
 	{ 0,	"Resolving ambiguous paths", 0, 0 },
 	{ "a{2}a",	"baaaa",		1, 3 },

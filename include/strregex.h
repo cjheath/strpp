@@ -203,7 +203,8 @@ public:
 
 	// Mutation API, used during matching
 	RxResult&	capture_set(int index, CharNum val);
-	bool		has_counter() const;
+	bool		has_counter() const { return counter_num() > 0; }
+	bool		counters_same(RxResult& other) const;
 	int		counter_num() const;	// How many counters are in use?
 	int		counter_get(int = 0) const;	// get the nth top counter
 	void		counter_push_zero(CharNum offset);	// Push a zero counter at this offset

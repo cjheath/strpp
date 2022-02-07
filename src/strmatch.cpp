@@ -22,7 +22,6 @@ public:
 	RxResultBody(const RxResultBody& _to_copy);	// Used by RxResult::Unshare
 	~RxResultBody() { if (counters) delete[] counters; }
 
-	bool		has_counter() const { return counters_used > 0; }
 	int		counter_num() const { return counters_used/2; }
 	int		counter_get(int i) const { return counters[counters_used - i*2 - 1]; }
 	void		counter_push_zero(CharNum offset);
@@ -288,9 +287,7 @@ RxMatch::addthread(Thread thread, CharNum offset, CharNum* shunts, CharNum num_s
 		if (next_stations[i].station == thread.station)
 		{
 			if ((max_duplicates_allowed			// Check for an exact duplicate first
-				&& thread.result.has_counter()
-				&& next_stations[i].result.has_counter()
-				&& thread.result.counter_top().count == next_stations[i].result.counter_top().count)
+				&& thread.result.counters_same(next_stations[i].result))
 			 || ++duplicates > max_duplicates_allowed)	// Or too many duplicates
 			{
 				// REVISIT: Should we have a policy of deleting the duplicate with the lowest count?
@@ -299,7 +296,13 @@ RxMatch::addthread(Thread thread, CharNum offset, CharNum* shunts, CharNum num_s
 				printf("\t\tthread %d at %d is a duplicate", thread.thread_number, thread.station);
 				if (thread.result.has_counter()) printf(" (count %d)", thread.result.counter_top().count);
 				printf(" of thread %d", next_stations[i].thread_number);
-				if (next_stations[i].result.has_counter()) printf(" (count %d)", next_stations[i].result.counter_top().count);
+				if (next_stations[i].result.has_counter())
+				{
+					printf(" (counters");
+					for (int i = 0; i < next_stations[i].result.counter_num(); i++)
+						printf(" %d", next_stations[i].result.counter_get(i));
+					printf(")");
+				}
 				printf("\n");
 #endif
 				return;		// We already have this thread
@@ -395,7 +398,12 @@ next:
 		for (int i = 0; i < thread.result.captureMax(); i++)
 			printf("%s(%d,%d)", i ? ", " : "", thread.result.capture(i*2), thread.result.capture(i*2+1));
 		if (thread.result.has_counter())
-			printf(", counter %d", thread.result.counter_top().count);
+		{
+			printf(" (counters");
+			for (int i = 0; i < thread.result.counter_num(); i++)
+				printf(" %d", thread.result.counter_get(i));
+			printf(")");
+		}
 		printf("\n");
 #endif
 		assert(next_count < program.maxStation());
@@ -799,9 +807,14 @@ RxResult::capture_set(int index, CharNum val)
 }
 
 bool
-RxResult::has_counter() const
+RxResult::counters_same(RxResult& other) const
 {
-	return body && body->has_counter();
+	if (counter_num() != other.counter_num())
+		return false;
+	for (int i = 0; i < counter_num(); i++)
+		if (counter_get(i) != other.counter_get(i))
+			return false;
+	return true;
 }
 
 int

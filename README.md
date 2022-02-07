@@ -15,28 +15,31 @@ A value-oriented Unicode string library with reference-counting to manage shared
 
 Regular Expressions:
 - Literal strings
-- Escapes \0 \b \e \f \n \r \t \177 \xAB \u12345 \s
+- Escapes \0 \b \e \f \n \r \t \177 \xAB \u12345
 - Beginning/End of line ^, $
 - Any-character "." (optionally "?", configurable)
 - Repetition ?, *, +, {n,m}
 - Alternates a|b
-- Character classes [a-z], [^a-z] (TBD)
-- Character properties \p{PropertyName} by callout to external functions (TBD)
+- Character classes [a-z], [^a-z]
+- Character shorthand properties: \s \d \h
+- Character extended properties \p{PropertyName} by callout to external functions (TBD)
 - Non-capturing groups (abc) or (?:abc)
-- Negative Lookahead (?!abc)
-- Named capture groups (?<foo>abc) (capture return TBD)
+- Named capture groups (?<foo>abc)
+- Extended regular expression syntax (skips whitespace and #comment-to-eol)
+- Negative Lookahead (?!abc) (TBD)
 - Subroutine calls (?&foo) (TBD)
-- Extended regular expressions (skips whitespace and #comment-to-eol)
 - Optional: "Any" excludes newline (TBD)
 - Optional: * means .* as in the shell (TBD)
 - Optional: case-insensitive matching (TBD)
-- Optional: backtrack limiting (TBD)
 
-Each regular expression feature may be enabled or disabled at compile time.
+Regular expression features may be enabled or disabled at compile time.
 
 The compiler produces an NFA as a NUL-terminated character string
 you can strlen() or put into a #define, so you can exclude the
 compiler from your program.
+
+The regular expression matcher uses a version of Pike's algorithm, extended with counters,
+so it has linear runtime and strictly predictable (and limited) memory usage.
 
 ## Example
 
