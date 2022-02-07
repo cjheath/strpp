@@ -20,6 +20,7 @@ public:
 	RxResultBody(const RxProgram& _program)	// program is needed to initialise counter_max&capture_max
 			: RxResultBody(_program.maxCounter(), _program.maxCapture()) {}
 	RxResultBody(const RxResultBody& _to_copy);	// Used by RxResult::Unshare
+	~RxResultBody() { if (counters) delete[] counters; }
 
 	bool		has_counter() const { return counters_used > 0; }
 	void		counter_push_zero(CharNum offset);
