@@ -144,8 +144,30 @@ matcher_test	matcher_tests[] =
 	{ "[abc]",	"d",			-1, 0 },
 	{ "[a-z]",	"m",			0, 1 },
 	{ "[a]",	"a",			0, 1 },
+	{ "[^ace]",	"b",			0, 1 },
+	{ "[^ace]",	"c",			-1, 0 },
+	{ "[^0-9]",	"c",			0, 1 },
+	{ "[^0-9]+",	"049cb012",		3, 2 },
 
 	{ 0,	"Character properties", 0, 0 },
+	{ "\\s",	"#",			-1, 0 },
+	{ "\\s",	"a b",			1, 1 },
+	{ "\\d",	"a0b",			1, 1 },
+	{ "\\d",	"a9b",			1, 1 },
+	{ "\\d",	"a\u0660b",		1, 1 },	// U+0660 Arabic-Indic Digit Zero 
+	{ "\\d",	"a\u0669b",		1, 1 },	// U+0669 Arabic-Indic Digit Nine
+	{ "\\h",	"x0z",			1, 1 },
+	{ "\\h",	"x9z",			1, 1 },
+	{ "\\h",	"x\u0660z",		1, 1 },
+	{ "\\h",	"x\u0660z",		1, 1 },
+	{ "\\h",	"xaz",			1, 1 },
+	{ "\\h",	"xAz",			1, 1 },
+	{ "\\h",	"xfz",			1, 1 },
+	{ "\\h",	"xFz",			1, 1 },
+	{ "\\h",	"xgz",			-1, 0 },
+	{ "\\h",	"xGz",			-1, 0 },
+	// REVISIT: Implement property callbacks and add test cases here
+	// { "\\p{Braille}",	
 
 	{ 0,	"Repetition", 0, 0 },
 	{ "a?",		"b",			0, 0 },
@@ -166,6 +188,18 @@ matcher_test	matcher_tests[] =
 	{ "a+",		"baac",			1, 2 },
 	{ "(a{2}){2}",	"baaaab",		1, 4 },
 	{ "(x{2}){2}",	"axxxxb",		1, 4 },
+	{ "((x{2}){2}){2}",	"axxxxxxxxb",	1, 8 },
+//	{ "(((x{2}){2}){2}){2}",	"xxxxxxxxxxxxxxxxxx",	0, 16 },
+	{ "((((((((((x{2}){2}){2}){2}){2}){2}){2}){2}){2}))",	"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",	-1, 512 },
+
+	/* REVISIT: Non-greedy repetition (not implemented)
+	{ "a*?"
+	{ "a+?"
+	{ "a??"
+	{ "a{2}?"
+	{ "a{2,3}?"
+	{ "a{2,}?"
+	*/
 
 	{ "a{2,4}",	"b",			-1, 0 },
 	{ "a{2,4}",	"aa",			0, 2 },
@@ -179,10 +213,10 @@ matcher_test	matcher_tests[] =
 	{ "a{2,4}",	"baaaac",		1, 4 },
 	{ "ba*b",	"baaab",		0, 5 },
 	{ "a{2}b",	"baaab",		2, 3 },
-	{ "a{2,}b",	"baaab",		1, 4 },		// FAILING: No match
+	{ "a{2,}b",	"baaab",		1, 4 },
 	{ "ba{2}b",	"baaab",		-1, 0 },
 
-	{ 0,	"Backtracking", 0, 0 },
+	{ 0,	"Resolving ambiguous paths", 0, 0 },
 	{ "a{2}a",	"baaaa",		1, 3 },
 	{ "ba*a",	"baaaab",		0, 5 },
 	{ "a(bc|b)c",	"abcc",			0, 4 },

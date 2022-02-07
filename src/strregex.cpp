@@ -239,11 +239,13 @@ bool RxCompiler::scan_rx(const std::function<bool(const RxStatement& instr)> fun
 				goto delay_escaped;
 
 			case 's':			// Whitespace
+			case 'd':			// Digit
+			case 'h':			// Hexdigit
 				if (!enabled(Shorthand))
 					goto simple_escape;
 				if (!(ok = flush())) continue;
-				// REVISIT: Also support \w, \d, \h, etc - are these effectively character classes?
-				ok = func(RxStatement(RxOp::RxoCharProperty, ' '));
+				// REVISIT: Also support \w, etc
+				ok = func(RxStatement(RxOp::RxoCharProperty, StrVal(ch)));
 				continue;
 
 			case 'p':			// Posix character type

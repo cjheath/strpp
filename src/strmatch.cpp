@@ -535,9 +535,36 @@ RxMatch::match_at(RxStationID start, CharNum& offset)
 				CharNum		length = expected.length();	// Count the chars in the literal
 				assert(length > 0);
 
-				// REVISIT: Implement this operation
+				if (length == 1)
+				{
+					switch (expected[0])
+					{
+					case 's':
+						if (UCS4IsWhite(ch))
+							break;
+						continue;
 
-				break;
+					case 'd':	// digit
+						if (UCS4Digit(ch) >= 0)
+							break;
+						continue;
+
+					case 'h':	// hex digit
+						if (UCS4Digit(ch) >= 0 || (ch >= 'a' && ch <= 'f') || (ch >= 'A' && ch <= 'F'))
+							break;
+						continue;
+
+					// REVISIT: Implement more built-in CharProperties
+					default:
+						continue;
+					}
+					break;
+				}
+				else
+				{
+					// REVISIT: Use a callback?
+					break;
+				}
 			}
 
 			case RxOp::RxoNegLookahead:		// (?!...) match until EndGroup and return the opposite
