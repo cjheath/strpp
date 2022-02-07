@@ -911,11 +911,11 @@ RxCompiler::compile(char*& nfa)
 				*ep++ = names.size() + 1;	// num_names
 				for (iter = names.begin(); iter != names.end(); iter++)
 					emit_string(*iter);
-				tos().contents = ep-nfa;	// Record where the first alternate must start
 				patch_offset(1+offset_max_bytes, ep-nfa);	// start_station
 
 				*ep++ = (char)RxOp::RxoCaptureStart;
 				*ep++ = 1;
+				tos().contents = ep-nfa;	// Record where the first alternate must start
 				break;
 
 			case RxOp::RxoAccept:			// Termination condition
