@@ -399,7 +399,9 @@ next:
 		printf("\n");
 #endif
 		assert(next_count < program.maxStation());
-		next_stations[next_count++] = thread;
+		if (next_count < program.maxStation())
+			next_stations[next_count++] = thread;
+		// else the compiler let us down; silently ignore this possible path and hope something else matches correctly
 	}
 };
 
