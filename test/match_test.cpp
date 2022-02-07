@@ -100,7 +100,7 @@ matcher_test	matcher_tests[] =
 	{ "\\*",	"*",			0, 1 },
 	{ "\\+",	"+",			0, 1 },
 	{ "\\?",	"?",			0, 1 },
-//	{ "{",		"{",			0, 1 },		// FAILS with a crash!
+	{ "{",		0,			0, 1 },
 	{ "}",		"}",			0, 1 },
 	{ "\\.",	".",			0, 1 },
 	{ "\\^",	"^",			0, 1 },
@@ -290,6 +290,11 @@ int automated_tests()
 			printf("\t{ %s\t\"%s\",\t%d, %d },\n", test_case->regex, test_case->target, test_case->offset, test_case->length);
 
 		scanned_ok = rx.compile(nfa);
+		if (!scanned_ok)
+		{
+			printf("%s: /%s/: %s\n", test_case->target != 0 ? "Fail" : "Pass", test_case->regex, rx.ErrorMessage());
+			return test_case->target == 0;	// Bad news if we expected it to succeed
+		}
 
 		start_recording_allocations();
 		{
