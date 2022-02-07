@@ -1,3 +1,5 @@
 *.swp
 *.o
-test?*
+*_test
+*.a
+build
