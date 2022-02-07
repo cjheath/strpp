@@ -175,10 +175,11 @@ compiler_test	compiler_tests[] =
 	{ "(abc)?",				"S\"\x0A\x08\x02\x01\x01(\x01""A\x0E""CaCbCc#A\x19.J\x09", 0 },
 	{ "(abc)*",				"S&\x0A\x08\x02\x01\x01(\x01""A\x12""CaCbCcJ\x13#A\x1D.J\x09", 0 },
 	{ "(abc)+",				"S\"\x0A\x08\x02\x01\x01(\x01""CaCbCcA\x0F#A\x19.J\x09", 0 },
-	{ "(a|b?|c*|d+)*",			"SR\x0A\x0A\x02\x01\x01(\x01""A>A\x0A""CaJ.A\x0E""A\x06""CbJ\x1E""A\x12""A\x0A""CcJ\x0DJ\x0A""CdA\x07JA#AI.J\x09", 0 },
+	{ "(a|b?|c*|d+)*",			"SR\x0A\x0A\x02\x01\x01(\x01""A>A\x0A""CaJ.A\x0E""A\x06""CbJ\x1E""A\x12""A\x0A""CcJ\x0BJ\x0A""CdA\x07J?#AI.J\x09", 0 },
 
 	{ "((((a*)*)*)*)*",			"S>\x0A\x04\x05\x01\x01(\x01""A*A\"A\x1A""A\x12""A\x0A""CaJ\x0BJ\x13J\x1BJ#J+#A5.J\x09", 0},
-
+	{ "(((((a*)*)*)*)*)*",			"SF\x0A\x04\x06\x01\x01(\x01""A2A*A\"A\x1A""A\x12""A\x0A""CaJ\x0BJ\x13J\x1BJ#J+J3#A=.J\x09", 0 },
+ 
 	{ "?",	0, "Repeating a repetition is disallowed" },
 	{ "*",	0, "Repeating a repetition is disallowed" },
 	{ "+",	0, "Repeating a repetition is disallowed" },
@@ -208,7 +209,7 @@ compiler_test	compiler_tests[] =
 
  { 0,	"--- Named groups ---", 0 },
 	{ "(?<a>b)",				"S\"\x0E\x04\x02\x02\x02\x01""a(\x01(\x01""Cb)\x01#A\x15.J\x09", 0 },
-	{ "(?<foo>a|b?|c*|d+){2,5}",		"Sd\x12\x0E\x02\x02\x02\x03""foo(\x01Z(\x01""A\x0A""CaJ.A\x0E""A\x06""CbJ\x1E""A\x12""A\x0A""CcJ\x0DJ\x0A""CdA\x07)\x01R\x03\x06G#AS.J\x09", 0 },
+	{ "(?<foo>a|b?|c*|d+){2,5}",		"Sd\x12\x0E\x02\x02\x02\x03""foo(\x01Z(\x01""A\x0A""CaJ.A\x0E""A\x06""CbJ\x1E""A\x12""A\x0A""CcJ\x0BJ\x0A""CdA\x07)\x01R\x03\x06G#AS.J\x09", 0 },
 
  { 0,	"--- Function calls ---", 0 },
 	{ "(?&a)(?<a>b)",			"S&\x0E\x06\x02\x02\x02\x01""a(\x01U\x01(\x01""Cb)\x01#A\x19.J\x09", 0 },
@@ -228,7 +229,7 @@ void	show_expectation(const char* regex, const char* nfa, const char* error_mess
 	re.transform(
 		[&](const UTF8*& cp, const UTF8* ep) -> StrVal
 		{
-			UCS4    ch = UTF8Get(cp);       // Get UCS4 character
+			UCS4	ch = UTF8Get(cp);	// Get UCS4 character
 			StrVal	charval(ch);
 			if (ch == '\\')
 				return double_backslash;

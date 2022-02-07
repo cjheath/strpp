@@ -1080,18 +1080,27 @@ RxCompiler::compile(char*& nfa)
 					insert_split(last_atom_start-nfa);
 					*ep++ = (char)RxOp::RxoJump;
 					cp = ep;	// Remember where we put the jump offset
-					emit_offset(ep, last_atom_start - ep);
-					cp -= patch_offset(last_atom_start+1-nfa, ep-nfa);
-					if (cp < ep)	// that shrank, the jump is now incorrec, do it again
-					{
-						ep = cp;
-						cp -= emit_offset(ep, last_atom_start - ep);
-						if (cp < ep)					// That shrank, so patch the Split again
-						{		// ep is the new target of the split
-							cp = last_atom_start+1;
-							emit_offset(cp, ep-nfa);		// Rewrite it. It won't shrink this time
-						}
-					}
+
+					/*
+					 * The offset in the split has the same magnitude as the negative one in the jump,
+					 * but zigzag coding means the negative integer is one more than the positive.
+					 * It might therefore take one more byte (at the boundary of UTF8 coding).
+					 */
+					CharBytes	fwd_bytes = offset_max_bytes, rev_bytes = offset_max_bytes, last_rev;
+					int		delta;		// offset value for the Split
+					int		rev_delta;	// offset value for the Jump
+					do {
+						// last_atom_start+1 is the location of the Split offset
+						// ep+rev_bytes is our guess at its target
+						delta = (ep+rev_bytes) - (last_atom_start+1);	// The forward split offset
+						fwd_bytes = UTF8Len(zigzag(delta));
+						rev_delta = last_atom_start - (ep-(offset_max_bytes-fwd_bytes));
+						last_rev = rev_bytes;
+						rev_bytes = UTF8Len(zigzag(rev_delta));
+					} while (rev_bytes < last_rev);
+
+					patch_offset(last_atom_start+1-nfa, ep+rev_bytes-nfa);
+					emit_offset(ep, rev_delta);
 				}
 				else if (instr.repetition.min == 0 && instr.repetition.max == 1)
 				{

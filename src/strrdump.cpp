@@ -231,7 +231,7 @@ RxCompiler::instr_dump(const char* nfa, const char*& np)	// Disassenble NFA to s
 		min = (*np++ & 0xFF) - 1;
 		max = (*np++ & 0xFF) - 1;
 		offset_alternate = get_offset(np);
-		printf("Count(%02X) min=%d max=%d repeating at %d\n", op_num, min, max, offset_this+3+offset_alternate);
+		printf("Count(%02X) min=%d max=%d repeating at %+d->%d\n", op_num, min, max, offset_alternate, offset_this+3+offset_alternate);
 		break;
 	}
 	return true;
