@@ -2,6 +2,7 @@
  * Unit test driver for matching Regular Expressions
  */
 #include	<stdio.h>
+#include	<string.h>
 
 #define	protected	public
 #include	<strregex.h>
@@ -71,6 +72,10 @@ main(int argc, char** argv)
 		else
 			printf("\"%s\" has no regex to match\n", *argv);
 	}
+	if (program)
+		delete program;
+	if (nfa)
+		delete[] nfa;
 	return 0;
 }
 
@@ -198,6 +203,9 @@ int automated_tests()
 		char*		nfa = 0;
 		bool		scanned_ok;
 		bool		test_passed;
+
+		if (show_all_expectations)
+			printf("\t{ %s\t\"%s\",\t%d, %d },\n", test_case->regex, test_case->target, test_case->offset, test_case->length);
 
 		scanned_ok = rx.compile(nfa);
 

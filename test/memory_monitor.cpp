@@ -2,6 +2,8 @@
  * Memory leak monitoring and reporting for test programs
  */
 #include	<vector>
+#include	<stdio.h>
+#include	<stdlib.h>
 
 struct	Allocation
 {
