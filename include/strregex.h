@@ -198,6 +198,7 @@ public:
 	// Capture and counter access outside the 0..index range is ignored.
 	// This makes it possible to match a Regex without capturing all results.
 	// Even numbers are the capture start, odd numbers are the end
+	int		captureMax() const;
 	CharNum		capture(int index) const;
 
 	// Mutation API, used during matching
