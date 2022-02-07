@@ -633,6 +633,7 @@ RxResultBody::capture_set(int index, CharNum val)
 
 RxResult::RxResult(const RxProgram& program)
 : body(new RxResultBody(program))
+, cap0(0)
 {
 }
 
