@@ -428,6 +428,7 @@ RxMatch::match_at(RxStationID start, CharNum& offset)
 		decode_next:
 			RxStationID	pc = thread_p->station;
 			program.decode(pc, instr);
+			UCS4		ch = target[offset];
 
 #ifdef TRACK_RESULTS
 			printf("\tthread %d instr %d op %c", thread_p->thread_number, pc, (char)instr.op);
@@ -634,8 +635,8 @@ RxResultBody::RxResultBody(const RxResultBody& to_copy)
 void
 RxResultBody::counter_push_zero(CharNum offset)
 {
-	assert(counters_used < counter_max);
-	if (counters_used == counter_max)
+	assert(counters_used < counter_max*2);
+	if (counters_used == counter_max*2)
 		return;
 	// printf("Pushed new counter %d = 0\n", counters_used);
 	counters[counters_used++] = offset;
@@ -680,7 +681,7 @@ RxResultBody::capture(int index)
 	assert(!(index < 1 || index >= capture_max*2));		// REVISIT: Delete this when capture limiting is implemented
 	if (index < 1 || index >= capture_max*2)
 		return 0;
-	return counters[counter_max+index-1];
+	return counters[counter_max*2+index-1];
 }
 
 CharNum
@@ -689,7 +690,7 @@ RxResultBody::capture_set(int index, CharNum val)
 	assert(!(index < 1 || index >= capture_max*2));		// REVISIT: Delete this when capture limiting is implemented
 	if (index < 1 || index >= capture_max*2)
 		return 0;		// Ignore captures outside the defined range
-	return counters[counter_max+index-1] = val;
+	return counters[counter_max*2+index-1] = val;
 }
 
 RxResult::RxResult(const RxProgram& program)
