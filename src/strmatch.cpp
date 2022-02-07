@@ -374,12 +374,12 @@ next:
 			printf("\t\tRepetition at shunt %d did not proceed from offset %d\n", thread.station, offset);
 #endif
 
-		if (counter <= instr.repetition.max	// Greedily repeat
+		if ((counter <= instr.repetition.max || instr.repetition.max == 0)	// Greedily repeat
 		 && previous.offset <= offset)		// Only if we advanced
 			addthread(Thread(instr.alternate, thread.result), offset, shunts, num_shunt, instr.repetition.min);
 
 		if ((counter >= instr.repetition.min || previous.offset == offset)	// Reached minimum count, or will without advancing
-		 && counter <= instr.repetition.max)
+		 && (instr.repetition.max == 0 || counter <= instr.repetition.max))
 		{
 			RxResult	continuation = thread.result;
 			continuation.counter_pop();	// The continuing thread has no further need of the counter

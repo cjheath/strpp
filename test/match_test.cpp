@@ -87,21 +87,48 @@ struct	matcher_test {
 };
 matcher_test	matcher_tests[] =
 {
+	{ 0,	"Null expressions", 0, 0 },
+	{ "",		"a",			0, 0 },
+//	{ "|",		"a",			0, 0 },		// FAILS with a crash!
+	{ "|a|",	"a",			0, 1 },
+	{ "a||",	"a",			0, 1 },
+
+	{ 0,	"Escaped special characters", 0, 0 },
+	{ "\\|",	"|",			0, 1 },
+	{ "\\(",	"(",			0, 1 },
+	{ "\\)",	")",			0, 1 },
+	{ "\\*",	"*",			0, 1 },
+	{ "\\+",	"+",			0, 1 },
+	{ "\\?",	"?",			0, 1 },
+//	{ "{",		"{",			0, 1 },		// FAILS with a crash!
+	{ "}",		"}",			0, 1 },
+	{ "\\.",	".",			0, 1 },
+	{ "\\^",	"^",			0, 1 },
+	{ "\\$",	"$",			0, 1 },
+	{ "\\\\",	"\\",			0, 1 },
+	{ "\\-",	"-",			0, 1 },
+	{ "-",		"-",			0, 1 },
+	{ "\\_",	"_",			0, 1 },
+
 	{ 0,	"Literals", 0, 0 },
 	{ "a",		"a",			0, 1 },
 	{ "ab",		"babc",			1, 2 },
 	{ "abc",	"babcd",		1, 3 },
 
 	{ 0,	"Start and End of line", 0, 0 },
+	{ "^",		"ba",			0, 0 },
 	{ "^a",		"ba",			-1, 0 },
 	{ "^a",		"ab",			0, 1 },
 	{ "^a",		"\na",			1, 1 },
 	{ "^a",		"b\na",			2, 1 },
+	{ "$",		"ba",			2, 0 },
 	{ "a$",		"ab",			-1, 0 },
 	{ "a$",		"ba",			1, 1 },
 	{ "a$",		"bab",			-1, 0 },
 	{ "a$",		"ba\n",			1, 1 },
 	{ "a$",		"a\nb",			0, 1 },
+	{ "a|^",	"b\nc",			0, 0 },
+	{ "a|^c",	"b\nc",			2, 1 },
 
 	{ 0,	"Any character", 0, 0 },
 	{ ".",		"ba",			0, 1 },
@@ -109,8 +136,16 @@ matcher_test	matcher_tests[] =
 	{ "a.c",	"dabcd",		1, 3 },
 	{ "a.b.c",	"dadbacd",		1, 5 },
 
-	// { 0,	"Character classes", 0, 0 },
-	// { 0,	"Character properties", 0, 0 },
+	{ 0,	"Character classes", 0, 0 },
+	{ "[ace]",	"a",			0, 1 },
+	{ "[ace]",	"d",			-1, 0 },
+	{ "[abc]",	"b",			0, 1 },
+	{ "[abc]",	"c",			0, 1 },
+	{ "[abc]",	"d",			-1, 0 },
+	{ "[a-z]",	"m",			0, 1 },
+	{ "[a]",	"a",			0, 1 },
+
+	{ 0,	"Character properties", 0, 0 },
 
 	{ 0,	"Repetition", 0, 0 },
 	{ "a?",		"b",			0, 0 },
@@ -129,6 +164,8 @@ matcher_test	matcher_tests[] =
 	{ "a+",		"aa",			0, 2 },
 	{ "a+",		"ba",			1, 1 },
 	{ "a+",		"baac",			1, 2 },
+	{ "(a{2}){2}",	"baaaab",		1, 4 },
+	{ "(x{2}){2}",	"axxxxb",		1, 4 },
 
 	{ "a{2,4}",	"b",			-1, 0 },
 	{ "a{2,4}",	"aa",			0, 2 },
@@ -142,6 +179,7 @@ matcher_test	matcher_tests[] =
 	{ "a{2,4}",	"baaaac",		1, 4 },
 	{ "ba*b",	"baaab",		0, 5 },
 	{ "a{2}b",	"baaab",		2, 3 },
+	{ "a{2,}b",	"baaab",		1, 4 },		// FAILING: No match
 	{ "ba{2}b",	"baaab",		-1, 0 },
 
 	{ 0,	"Backtracking", 0, 0 },
@@ -158,7 +196,13 @@ matcher_test	matcher_tests[] =
 	{ "((a)*)*",	"aaaaa",		0, 5 },
 
 	// { 0,	"Alternates", 0, 0 },
+	{ "b|c",	"abc",			1, 1 },
+
 	// { 0,	"Non-capturing groups", 0, 0 },
+	{ "(a)",	"a",			0, 1 },
+	{ "(b)",	"ab",			1, 1 },
+	{ "(a)|b",	"ab",			0, 1 },
+
 	// { 0,	"Named groups", 0, 0 },
 	// { 0,	"Negative lookahead", 0, 0 },
 	// { 0,	"Subroutine", 0, 0 },
