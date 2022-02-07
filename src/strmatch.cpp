@@ -479,7 +479,7 @@ RxMatch::match_at(RxStationID start, CharNum& offset)
 
 			case RxOp::RxoChar:			// A specific UCS4 character
 				// REVISIT: Add case-insensitive mode behaviour
-				if (target[offset] == instr.character)
+				if (ch == instr.character)
 				{
 #ifdef TRACK_RESULTS
 					printf("succeeds\n");
@@ -494,7 +494,36 @@ RxMatch::match_at(RxStationID start, CharNum& offset)
 
 			case RxOp::RxoCharClass:		// Character class
 			case RxOp::RxoNegCharClass:		// Negated Character class
-				// REVISIT: Re-implement these by unpacking the characters one at a time
+			{
+				if (ch == 0)
+					continue;
+
+				// Check that the next characters match these ones
+				StrBody		body(instr.text.utf8, false, instr.text.bytes);
+				StrVal		expected(&body);
+				CharNum		length = expected.length();	// Count the chars in the literal
+				assert(length > 0);
+
+				bool		matches_class = false;
+				for (int i = 0; i < length; i += 2)
+					if (ch >= expected[i] && ch <= expected[i+1])
+					{
+						matches_class = true;
+						break;
+					}
+				if (matches_class != (instr.op == RxOp::RxoCharClass))
+				{
+#ifdef TRACK_RESULTS
+					printf("fails\n");
+#endif
+					continue;
+				}
+#ifdef TRACK_RESULTS
+				printf("succeeds\n");
+#endif
+				break;
+			}
+
 			case RxOp::RxoCharProperty:		// A character with a named Unicode property
 			{
 				// Check that the next characters match these ones
@@ -503,7 +532,7 @@ RxMatch::match_at(RxStationID start, CharNum& offset)
 				CharNum		length = expected.length();	// Count the chars in the literal
 				assert(length > 0);
 
-				// REVISIT: Implement these operations
+				// REVISIT: Implement this operation
 
 				break;
 			}
