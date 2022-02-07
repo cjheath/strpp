@@ -204,6 +204,8 @@ public:
 	// Mutation API, used during matching
 	RxResult&	capture_set(int index, CharNum val);
 	bool		has_counter() const;
+	int		counter_num() const;	// How many counters are in use?
+	int		counter_get(int = 0) const;	// get the nth top counter
 	void		counter_push_zero(CharNum offset);	// Push a zero counter at this offset
 	CharNum		counter_incr(CharNum offset);		// Increment and return top counter of stack
 	void		counter_pop();		// Discard the top counter of the stack

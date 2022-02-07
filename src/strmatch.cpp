@@ -23,6 +23,8 @@ public:
 	~RxResultBody() { if (counters) delete[] counters; }
 
 	bool		has_counter() const { return counters_used > 0; }
+	int		counter_num() const { return counters_used/2; }
+	int		counter_get(int i) const { return counters[counters_used - i*2 - 1]; }
 	void		counter_push_zero(CharNum offset);
 	CharNum		counter_incr(CharNum offset);
 	void		counter_pop();
@@ -655,11 +657,11 @@ RxResultBody::counter_incr(CharNum offset)
 void
 RxResultBody::counter_pop()
 {
-	assert(counters_used > 0);
-	if (counters_used == 0)
+	assert(counters_used > 1);
+	if (counters_used <= 1)
 		return;
 	// printf("Discarding counter %d (was %d)\n", counters_used-1, counters[counters_used-1]);
-	counters_used--;
+	counters_used -= 2;
 }
 
 const RxResult::Counter
@@ -771,6 +773,18 @@ bool
 RxResult::has_counter() const
 {
 	return body && body->has_counter();
+}
+
+int
+RxResult::counter_num() const	// How many counters are in use?
+{
+	return body ? body->counter_num() : 0;
+}
+
+int
+RxResult::counter_get(int i) const	// get the nth top counter
+{
+	return body ? body->counter_get(i) : 0;
 }
 
 void
