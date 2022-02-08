@@ -1,5 +1,7 @@
 /*
  * Simple greeting test with emoji manipulation and case conversion
+ *
+ * (c) Copyright Clifford Heath 2022. See LICENSE file for usage rights.
  */
 #include        <stdio.h>
 #include        "strpp.h"

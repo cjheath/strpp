@@ -1,5 +1,8 @@
 /*
- * Unicode String regular expression diagnostic dump
+ * Unicode Strings
+ * Regular expression diagnostic dump functions.
+ *
+ * (c) Copyright Clifford Heath 2022. See LICENSE file for usage rights.
  */
 #include	<strregex.h>
 #include	<string.h>
@@ -7,16 +10,16 @@
 void
 RxCompiler::dump(const char* nfa) const		// Dump NFA to stdout
 {
-	hexdump(nfa);
+	dumpHex(nfa);
 
 	const	UTF8*	np;
 	for (np = nfa; np < nfa+nfa_size;)
-		if (!instr_dump(nfa, np))
+		if (!dumpInstruction(nfa, np))
 			break;
 }
 
 void
-RxCompiler::hexdump(const char* nfa) const		// Dump binary code to stdout
+RxCompiler::dumpHex(const char* nfa) const		// Dump binary code to stdout
 {
 	const	UTF8*	np;
 	for (np = nfa; np < nfa+nfa_size; np++)
@@ -25,7 +28,7 @@ RxCompiler::hexdump(const char* nfa) const		// Dump binary code to stdout
 }
 
 bool
-RxCompiler::instr_dump(const char* nfa, const char*& np)	// Disassenble NFA to stdout
+RxCompiler::dumpInstruction(const char* nfa, const char*& np)	// Disassenble NFA to stdout
 {
 	int		num_names;
 	StrVal		name;

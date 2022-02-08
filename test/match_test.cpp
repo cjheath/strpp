@@ -1,5 +1,8 @@
 /*
- * Unit test driver for matching Regular Expressions
+ * Unicode Strings
+ * Unit test driver for the Regular Expression matcher
+ *
+ * (c) Copyright Clifford Heath 2022. See LICENSE file for usage rights.
  */
 #include	<stdio.h>
 #include	<string.h>
@@ -41,7 +44,7 @@ main(int argc, char** argv)
 				re = re.shorter(1);
 			printf("Compiling \"%s\"\n", re.asUTF8());
 
-			RxCompiler	rx(re, (RxFeature)(RxFeature::AllFeatures | RxFeature::ExtendedRE));
+			RxCompiler	rx(re, (RxFeature)((int32_t)RxFeature::AllFeatures | (int32_t)RxFeature::ExtendedRE));
 			bool		scanned_ok;
 			delete nfa;
 			nfa = 0;
@@ -59,7 +62,7 @@ main(int argc, char** argv)
 		else if (program)
 		{
 			StrVal		target(*argv);
-			RxResult	result = program->match_after(target);
+			RxResult	result = program->matchAfter(target);
 
 			if (result.succeeded())
 			{
@@ -89,7 +92,7 @@ matcher_test	matcher_tests[] =
 {
 	{ 0,	"Null expressions", 0, 0 },
 	{ "",		"a",			0, 0 },
-//	{ "|",		"a",			0, 0 },		// FAILS with more active threads than budgeted
+	{ "|",		"a",			0, 0 },		// FAILS with more active threads than budgeted
 	{ "|a|",	"a",			0, 1 },
 	{ "a||",	"a",			0, 1 },
 
@@ -197,7 +200,8 @@ matcher_test	matcher_tests[] =
 	{ "((x{2}){2}){2}",	"axxxxxxxxb",	1, 8 },
 	{ "(((x{2}){2}){2}){2}",	"axxxxxxxxxxxxxxxxxxb",	1, 16 },
 //	{ "((((x{2}){2}){2}){2}){2}",	"axxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxb",	1, 32 },	// Fails. Probably a duplicate thread issue. Care factor?
-	{ "((((((((((x{2}){2}){2}){2}){2}){2}){2}){2}){2}))",	"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",	-1, 512 },	// Counters 9 deep
+	{ "(((((((x{2}){2}){2}){2}){2}){2}){2}){2}",	"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",	-1, 256 },	// Counters 8 deep
+	{ "((((((((x{2}){2}){2}){2}){2}){2}){2}){2}){2}",	0,	-1, 0 },	// Nesting 9 deep, Counters 9 deep
 
 	{ "a{2,4}",	"b",			-1, 0 },
 	{ "a{2,4}",	"aa",			0, 2 },
@@ -295,7 +299,7 @@ int automated_tests()
 			return true;
 		}
 
-		RxCompiler	rx(test_case->regex, (RxFeature)(RxFeature::AllFeatures | RxFeature::ExtendedRE));
+		RxCompiler	rx(test_case->regex, (RxFeature)((int32_t)RxFeature::AllFeatures | (int32_t)RxFeature::ExtendedRE));
 		char*		nfa = 0;
 		bool		scanned_ok;
 		bool		test_passed;
@@ -315,7 +319,7 @@ int automated_tests()
 			RxProgram	program(nfa);
 			StrVal		target(test_case->target);
 			StrVal		target_escaped = escape(target);
-			RxResult	result = program.match_after(target);
+			RxResult	result = program.matchAfter(target);
 
 			bool		success_ok = result.succeeded() == (test_case->offset >= 0);	// Is success status as expected?
 			bool		offset_ok = !result.succeeded() || result.offset() == test_case->offset;

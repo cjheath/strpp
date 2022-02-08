@@ -18,6 +18,8 @@
  * The bytes after the first always have most significant two bits == "10",
  * which never occurs in the first byte - thus it's possible to jump into
  * the middle of a UTF8 string and reliably find the start of a character.
+ *
+ * (c) Copyright Clifford Heath 2022. See LICENSE file for usage rights.
  */
 #include	<assert.h>
 

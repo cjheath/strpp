@@ -1,5 +1,8 @@
 /*
+ * Unicode Strings
  * Test the re-assembly of contiguous slices
+ *
+ * (c) Copyright Clifford Heath 2022. See LICENSE file for usage rights.
  */
 #include        <stdio.h>
 

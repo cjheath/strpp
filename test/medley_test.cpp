@@ -1,3 +1,9 @@
+/*
+ * Unicode Strings
+ * A medley of String tests
+ *
+ * (c) Copyright Clifford Heath 2022. See LICENSE file for usage rights.
+ */
 #include	"strpp.h"
 
 #include	<string.h>

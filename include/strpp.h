@@ -1,7 +1,7 @@
 #if !defined(STRPP_H)
 #define STRPP_H
 /*
- * String Value library.
+ * Unicode Strings
  * - By-value semantics with mutation
  * - Thread-safe content sharing and garbage collection using atomic reference counting
  * - Substring support using "slices" (substrings using shared content)
@@ -11,6 +11,8 @@
  *
  * Not yet:
  * - Unicode normalization (de/composition), see https://en.wikipedia.org/wiki/Unicode_equivalence
+ *
+ * (c) Copyright Clifford Heath 2022. See LICENSE file for usage rights.
  */
 #include	<stdlib.h>
 #include	<stdint.h>

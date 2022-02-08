@@ -7,6 +7,8 @@
  * Truncation of 16 zero bits yields UTF-16
  * Truncation of 24 zero bits yields Latin-1 (ISO-8859-1)
  * Truncation of 25 zero bits yields ASCII
+ *
+ * (c) Copyright Clifford Heath 2022. See LICENSE file for usage rights.
  */
 #include	<assert.h>
 

@@ -1,5 +1,7 @@
 /*
- * String Value library.
+ * Unicode Strings
+ *
+ * String Value library:
  * - By-value semantics with mutation
  * - Thread-safe content sharing and garbage collection using atomic reference counting
  * - Substring support using "slices" (substrings using shared content)
@@ -9,6 +11,8 @@
  *
  * A shared string is never mutated. Mutation is allowed when only one reference exists.
  * Mutating methods clone (unshare) a shared string before making changes.
+ *
+ * (c) Copyright Clifford Heath 2022. See LICENSE file for usage rights.
  */
 #include	<strpp.h>
 

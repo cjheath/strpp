@@ -1,37 +1,43 @@
 /*
- * Unicode String regular expressions - the Matcher
+ * Unicode Strings
+ * Regular expressions - the Matcher
+ *
+ * (c) Copyright Clifford Heath 2022. See LICENSE file for usage rights.
  */
 #include	<strregex.h>
 #include	<string.h>
 #include	<utility>
 
 /*
- * To make it easy to pass around and modify result sets, we use a reference counted body.
+ * To make it easy to pass around and modify capture sets, we use a reference counted body.
  * These never get changed except when the reference count is one (1), and get deleted
  * when the ref_count decrements to zero.
  *
  * These objects are not publicly visible. The end-user API is in RxResult.
+ *
+ * A single allocated array contains both counters and captures
+ * Each counter has two values: an input offset (where the count started) and a counter value
  */
-class RxResultBody
+class RxCaptures
 : public RefCounted
 {
 public:
-	RxResultBody(short c_max, short p_max);		// Needed when we want to truncate the captures
-	RxResultBody(const RxProgram& _program)	// program is needed to initialise counter_max&capture_max
-			: RxResultBody(_program.maxCounter(), _program.maxCapture()) {}
-	RxResultBody(const RxResultBody& _to_copy);	// Used by RxResult::Unshare
-	~RxResultBody() { if (counters) delete[] counters; }
+	RxCaptures(short c_max, short p_max);		// Needed when we want to truncate the captures
+	RxCaptures(const RxProgram& _program)	// program is needed to initialise counter_max&capture_max
+			: RxCaptures(_program.maxCounter(), _program.maxCapture()) {}
+	RxCaptures(const RxCaptures& _to_copy);	// Used by RxResult::Unshare
+	~RxCaptures() { if (counters) delete[] counters; }
 
-	int		counter_num() const { return counters_used/2; }
-	int		counter_get(int i) const { return counters[counters_used - i*2 - 1]; }
-	void		counter_push_zero(CharNum offset);
-	CharNum		counter_incr(CharNum offset);
-	void		counter_pop();
-	const RxResult::Counter	counter_top();
+	int		counterNum() const { return counters_used/2; }
+	int		counterGet(int i) const { return counters[counters_used - i*2 - 1]; }
+	void		counterPushZero(CharNum offset);
+	CharNum		counterIncr(CharNum offset);
+	void		counterPop();
+	const RxResult::Counter	counterTop();
 
 	int		captureMax() const;
 	CharNum		capture(int index);
-	CharNum		capture_set(int index, CharNum val);
+	CharNum		captureSet(int index, CharNum val);
 
 	// REVISIT: Add function call results
 
@@ -61,7 +67,7 @@ public:
 	RxMatch(const RxProgram& _program, StrVal _target);
 	~RxMatch();
 
-	const RxResult	match_at(RxStationID start, CharNum& offset);
+	const RxResult	matchAt(RxStationID start, CharNum& offset);
 
 private:
 	const RxProgram& program;		// The NFA to execute
@@ -118,18 +124,18 @@ RxProgram::~RxProgram()
 }
 
 const RxResult
-RxProgram::match_after(StrVal target, CharNum offset) const
+RxProgram::matchAfter(StrVal target, CharNum offset) const
 {
 	RxMatch		match(*this, target);
-	RxResult	result = match.match_at(searchStation(), offset);
+	RxResult	result = match.matchAt(searchStation(), offset);
 	return result;
 }
 
 const RxResult
-RxProgram::match_at(StrVal target, CharNum offset) const
+RxProgram::matchAt(StrVal target, CharNum offset) const
 {
 	RxMatch		match(*this, target);
-	RxResult	result = match.match_at(startStation(), offset);
+	RxResult	result = match.matchAt(startStation(), offset);
 	return result;
 }
 
@@ -287,20 +293,20 @@ RxMatch::addthread(Thread thread, CharNum offset, CharNum* shunts, CharNum num_s
 		if (next_stations[i].station == thread.station)
 		{
 			if ((max_duplicates_allowed			// Check for an exact duplicate first
-				&& thread.result.counters_same(next_stations[i].result))
+				&& thread.result.countersSame(next_stations[i].result))
 			 || ++duplicates > max_duplicates_allowed)	// Or too many duplicates
 			{
 				// REVISIT: Should we have a policy of deleting the duplicate with the lowest count?
 
 #ifdef TRACK_RESULTS
 				printf("\t\tthread %d at %d is a duplicate", thread.thread_number, thread.station);
-				if (thread.result.has_counter()) printf(" (count %d)", thread.result.counter_top().count);
+				if (thread.result.hasCounter()) printf(" (count %d)", thread.result.counterTop().count);
 				printf(" of thread %d", next_stations[i].thread_number);
-				if (next_stations[i].result.has_counter())
+				if (next_stations[i].result.hasCounter())
 				{
 					printf(" (counters");
-					for (int i = 0; i < next_stations[i].result.counter_num(); i++)
-						printf(" %d", next_stations[i].result.counter_get(i));
+					for (int i = 0; i < next_stations[i].result.counterNum(); i++)
+						printf(" %d", next_stations[i].result.counterGet(i));
 					printf(")");
 				}
 				printf("\n");
@@ -349,7 +355,7 @@ next:
 #ifdef TRACK_RESULTS
 		printf("\t\tthread %d saves start %d=%d\n", thread.thread_number, instr.capture_number, offset);
 #endif
-		thread.result = thread.result.capture_set(instr.capture_number*2, offset);
+		thread.result = thread.result.captureSet(instr.capture_number*2, offset);
 		goto next;
 
 	case RxOp::RxoCaptureEnd:
@@ -357,19 +363,19 @@ next:
 #ifdef TRACK_RESULTS
 		printf("\t\tthread %d saves end %d=%d\n", thread.thread_number, instr.capture_number, offset);
 #endif
-		thread.result = thread.result.capture_set(instr.capture_number*2+1, offset);
+		thread.result = thread.result.captureSet(instr.capture_number*2+1, offset);
 		break;
 
 	case RxOp::RxoZero:
-		thread.result.counter_push_zero(offset);
+		thread.result.counterPushZero(offset);
 		thread = Thread(instr.next, thread.result);
 		goto next;
 
 	case RxOp::RxoCount:	// This instruction follows a repeated item, so the pre-incremented counter tells how many we've passed
 	{
-		RxResult::Counter	previous = thread.result.counter_top();
+		RxResult::Counter	previous = thread.result.counterTop();
 
-		short	counter = thread.result.counter_incr(offset);
+		short	counter = thread.result.counterIncr(offset);
 
 		// Don't repeat unless the offset has increased since the last repeat (instead, just continue with next).
 #ifdef TRACK_RESULTS
@@ -385,7 +391,7 @@ next:
 		 && (instr.repetition.max == 0 || counter <= instr.repetition.max))
 		{
 			RxResult	continuation = thread.result;
-			continuation.counter_pop();	// The continuing thread has no further need of the counter
+			continuation.counterPop();	// The continuing thread has no further need of the counter
 			addthread(Thread(instr.next, continuation), offset, shunts, num_shunt, instr.repetition.min);
 		}
 		thread.result.clear();
@@ -397,11 +403,11 @@ next:
 		printf("\t\t... adding thread %d at instr %d, offset %d with captures ", thread.thread_number, thread.station, offset);
 		for (int i = 0; i < thread.result.captureMax(); i++)
 			printf("%s(%d,%d)", i ? ", " : "", thread.result.capture(i*2), thread.result.capture(i*2+1));
-		if (thread.result.has_counter())
+		if (thread.result.hasCounter())
 		{
 			printf(" (counters");
-			for (int i = 0; i < thread.result.counter_num(); i++)
-				printf(" %d", thread.result.counter_get(i));
+			for (int i = 0; i < thread.result.counterNum(); i++)
+				printf(" %d", thread.result.counterGet(i));
 			printf(")");
 		}
 		printf("\n");
@@ -418,7 +424,7 @@ next:
  * Populate the RxMatch where necessary.
  */
 const RxResult
-RxMatch::match_at(RxStationID start, CharNum& offset)
+RxMatch::matchAt(RxStationID start, CharNum& offset)
 {
 	Thread*		thread_p;
 	RxDecoded	instr;
@@ -446,8 +452,8 @@ RxMatch::match_at(RxStationID start, CharNum& offset)
 			printf("\tthread %d instr %d op %c", thread_p->thread_number, pc, (char)instr.op);
 			if (instr.op == RxOp::RxoChar)
 				printf(" '%c'", instr.character & 0xFF);
-			if (thread_p->result.has_counter())
-				printf(", counter %d", thread_p->result.counter_top().count);
+			if (thread_p->result.hasCounter())
+				printf(", counter %d", thread_p->result.counterTop().count);
 			printf(": ");
 #endif
 			switch (instr.op)	// break from here to continue with instr.next, continue to ignore it.
@@ -462,7 +468,7 @@ RxMatch::match_at(RxStationID start, CharNum& offset)
 				{		// Got a better result
 					result = thread_p->result;	// Make a new reference to this RxResult
 					thread_p->result.clear();	// Clear the old reference
-					result.capture_set(1, offset);	// Before we finalise it
+					result.captureSet(1, offset);	// Before we finalise it
 #ifdef TRACK_RESULTS
 					printf("accepts selected (%d, %d)\n", new_result_start, offset);
 				}
@@ -585,7 +591,7 @@ RxMatch::match_at(RxStationID start, CharNum& offset)
 			{
 				CharNum 	start_offset = offset;	// Remember the target offset and reset it for each alternate
 				const char*	next_p = nfa_p-1 + UTF8Get(nfa_p) + 1;	// Start of this instr, plus size, plus the EndGroup
-				if (match_at(match, bt, nfa_p, offset))
+				if (matchAt(match, bt, nfa_p, offset))
 					return RxResult();
 				// Not matched, as requested, so continue with the next instruction at the current offset
 				offset = start_offset;
@@ -602,7 +608,7 @@ RxMatch::match_at(RxStationID start, CharNum& offset)
 				// Match the subroutine group and push_back subroutineMatches
 				RxMatch		m;
 				// REVISIT: Implement RxoSubroutineCall
-				// match_at(...
+				// matchAt(...
 				return RxResult();
 			}
 #endif
@@ -633,11 +639,6 @@ RxMatch::match_at(RxStationID start, CharNum& offset)
 			thread_p->result.clear();
 		}
 
-// REVISIT: Should not now be necessary, because we clear as we go
-//		// Wipe old result references, we already copied the ones we need into next_stations:
-//		for (Thread* thread_p = current_stations; thread_p < current_stations+current_count; thread_p++)
-//			assert((RxResultBody*)thread_p->result.body == (RxResultBody*)0);
-
 		std::swap(current_stations, next_stations);
 		current_count = next_count;
 		next_count = 0;
@@ -653,7 +654,7 @@ RxMatch::match_at(RxStationID start, CharNum& offset)
 	return result;
 }
 
-RxResultBody::RxResultBody(short c_max, short p_max)
+RxCaptures::RxCaptures(short c_max, short p_max)
 : counter_max(c_max)
 , capture_max(p_max)
 , counters(new CharNum[(counter_max+capture_max)*2-1])
@@ -662,7 +663,7 @@ RxResultBody::RxResultBody(short c_max, short p_max)
 	memset(counters, 0, sizeof(CharNum)*((counter_max+capture_max)*2-1));
 }
 
-RxResultBody::RxResultBody(const RxResultBody& to_copy)
+RxCaptures::RxCaptures(const RxCaptures& to_copy)
 : counter_max(to_copy.counter_max)
 , capture_max(to_copy.capture_max)
 , counters(new CharNum[(counter_max+capture_max)*2-1])
@@ -672,7 +673,7 @@ RxResultBody::RxResultBody(const RxResultBody& to_copy)
 }
 
 void
-RxResultBody::counter_push_zero(CharNum offset)
+RxCaptures::counterPushZero(CharNum offset)
 {
 	assert(counters_used < counter_max*2);
 	if (counters_used == counter_max*2)
@@ -683,7 +684,7 @@ RxResultBody::counter_push_zero(CharNum offset)
 }
 
 CharNum
-RxResultBody::counter_incr(CharNum offset)
+RxCaptures::counterIncr(CharNum offset)
 {
 	assert(counters_used > 0);
 	// printf("Incrementing counter %d = %d\n", counters_used-1, counters[counters_used-1]+1);
@@ -692,7 +693,7 @@ RxResultBody::counter_incr(CharNum offset)
 }
 
 void
-RxResultBody::counter_pop()
+RxCaptures::counterPop()
 {
 	assert(counters_used > 1);
 	if (counters_used <= 1)
@@ -702,20 +703,20 @@ RxResultBody::counter_pop()
 }
 
 const RxResult::Counter
-RxResultBody::counter_top()
+RxCaptures::counterTop()
 {
 	assert(counters_used > 0);
 	return {counters[counters_used-1], counters[counters_used-2]};
 }
 
 int
-RxResultBody::captureMax() const
+RxCaptures::captureMax() const
 {
 	return capture_max;
 }
 
 CharNum
-RxResultBody::capture(int index)
+RxCaptures::capture(int index)
 {
 	assert(!(index < 1 || index >= capture_max*2));		// REVISIT: Delete this when capture limiting is implemented
 	if (index < 1 || index >= capture_max*2)
@@ -724,7 +725,7 @@ RxResultBody::capture(int index)
 }
 
 CharNum
-RxResultBody::capture_set(int index, CharNum val)
+RxCaptures::captureSet(int index, CharNum val)
 {
 	assert(!(index < 1 || index >= capture_max*2));		// REVISIT: Delete this when capture limiting is implemented
 	if (index < 1 || index >= capture_max*2)
@@ -733,26 +734,26 @@ RxResultBody::capture_set(int index, CharNum val)
 }
 
 RxResult::RxResult(const RxProgram& program)
-: body(new RxResultBody(program))
+: captures(new RxCaptures(program))
 , cap0(0)
 {
 }
 
 RxResult::RxResult()		// Failed result
-: body(0)
+: captures(0)
 , cap0(0)
 {
 }
 
 RxResult::RxResult(const RxResult& s1)
-: body(s1.body)
+: captures(s1.captures)
 , cap0(s1.cap0)
 {	// Normal copy constructor
 }
 
 RxResult& RxResult::operator=(const RxResult& s1)
 {
-	body = s1.body;
+	captures = s1.captures;
 	cap0 = s1.cap0;
 	return *this;
 }
@@ -760,17 +761,17 @@ RxResult& RxResult::operator=(const RxResult& s1)
 void
 RxResult::clear()
 {
-	body = (RxResultBody*)0;	// Clear the reference and its refcount
+	captures = (RxCaptures*)0;	// Clear the reference and its refcount
 	cap0 = 0;
 }
 
 void
 RxResult::Unshare()
 {
-	assert(body);
-	if (body.GetRefCount() <= 1)
+	assert(captures);
+	if (captures.GetRefCount() <= 1)
 		return;
-	body = new RxResultBody(*body);	// Copy the result body before making changes
+	captures = new RxCaptures(*captures);	// Copy the result captures before making changes
 }
 
 RxResult::~RxResult()
@@ -780,7 +781,7 @@ RxResult::~RxResult()
 int
 RxResult::captureMax() const
 {
-	return body ? body->captureMax() : 1;
+	return captures ? captures->captureMax() : 1;
 }
 
 CharNum
@@ -788,73 +789,73 @@ RxResult::capture(int index) const
 {
 	if (index == 0)
 		return cap0;
-	assert(body);
-	return body->capture(index);
+	assert(captures);
+	return captures->capture(index);
 }
 
 RxResult&
-RxResult::capture_set(int index, CharNum val)
+RxResult::captureSet(int index, CharNum val)
 {
 	if (index == 0)
 	{
 		cap0 = val;
 		return *this;
 	}
-	assert(body);
+	assert(captures);
 	Unshare();
-	body->capture_set(index, val);
+	captures->captureSet(index, val);
 	return *this;
 }
 
 bool
-RxResult::counters_same(RxResult& other) const
+RxResult::countersSame(RxResult& other) const
 {
-	if (counter_num() != other.counter_num())
+	if (counterNum() != other.counterNum())
 		return false;
-	for (int i = 0; i < counter_num(); i++)
-		if (counter_get(i) != other.counter_get(i))
+	for (int i = 0; i < counterNum(); i++)
+		if (counterGet(i) != other.counterGet(i))
 			return false;
 	return true;
 }
 
 int
-RxResult::counter_num() const	// How many counters are in use?
+RxResult::counterNum() const	// How many counters are in use?
 {
-	return body ? body->counter_num() : 0;
+	return captures ? captures->counterNum() : 0;
 }
 
 int
-RxResult::counter_get(int i) const	// get the nth top counter
+RxResult::counterGet(int i) const	// get the nth top counter
 {
-	return body ? body->counter_get(i) : 0;
+	return captures ? captures->counterGet(i) : 0;
 }
 
 void
-RxResult::counter_push_zero(CharNum offset)	// Push a zero counter
+RxResult::counterPushZero(CharNum offset)	// Push a zero counter
 {
 	Unshare();
-	assert(body);
-	body->counter_push_zero(offset);
+	assert(captures);
+	captures->counterPushZero(offset);
 }
 
 CharNum
-RxResult::counter_incr(CharNum offset)	// Increment and return top counter of stack
+RxResult::counterIncr(CharNum offset)	// Increment and return top counter of stack
 {
 	Unshare();
-	assert(body);
-	return body->counter_incr(offset);
+	assert(captures);
+	return captures->counterIncr(offset);
 }
 
 void
-RxResult::counter_pop()		// Discard the top counter of the stack
+RxResult::counterPop()		// Discard the top counter of the stack
 {
 	Unshare();
-	assert(body);
-	body->counter_pop();
+	assert(captures);
+	captures->counterPop();
 }
 
 const RxResult::Counter
-RxResult::counter_top()
+RxResult::counterTop()
 {
-	return body->counter_top();
+	return captures->counterTop();
 }

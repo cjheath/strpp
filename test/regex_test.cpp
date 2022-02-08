@@ -1,5 +1,8 @@
 /*
- * Unit test driver for compiling Regular Expressions
+ * Unicode Strings
+ * Unit test driver for the Regular Expression compiler
+ *
+ * (c) Copyright Clifford Heath 2022. See LICENSE file for usage rights.
  */
 #include	<stdio.h>
 #include	<ctype.h>
@@ -31,7 +34,7 @@ main(int argc, char** argv)
 
 	for (--argc, ++argv; argc > 0; argc--, argv++)
 	{
-		RxCompiler	rx(*argv, (RxFeature)(RxFeature::AllFeatures | RxFeature::ExtendedRE));
+		RxCompiler	rx(*argv, (RxFeature)((int32_t)RxFeature::AllFeatures | (int32_t)RxFeature::ExtendedRE));
 		char*		nfa;
 		bool		scanned_ok;
 
@@ -283,7 +286,7 @@ int automated_tests()
 			return true;
 		}
 
-		RxCompiler	rx(ct->regex, (RxFeature)(RxFeature::AllFeatures | RxFeature::ExtendedRE));
+		RxCompiler	rx(ct->regex, (RxFeature)((int32_t)RxFeature::AllFeatures | (int32_t)RxFeature::ExtendedRE));
 		char*		nfa = 0;
 		bool		scanned_ok;
 

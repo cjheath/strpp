@@ -1,6 +1,8 @@
 /*
  * Unicode case conversion tables, taken from the Unicode 3 specification, circa 2001.
  * There is no case conversion outside the 0..0xFFFF range, so we don't use UCS4 here.
+ *
+ * (c) Copyright Clifford Heath 2022. See LICENSE file for usage rights.
  */
 
 static struct

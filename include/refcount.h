@@ -1,7 +1,9 @@
 #if !defined(REFCOUNT_H)
 #define REFCOUNT_H
 /*
- * Reference counting with delete on last release
+ * Thread-safe reference counting with delete on last release
+ *
+ * (c) Copyright Clifford Heath 2022. See LICENSE file for usage rights.
  */
 #include	<atomic>
 class	RefCounted
