@@ -3,44 +3,54 @@
 #
 
 CXX	=	g++
+CXXFLAGS =	-std=c++11
 
+# DEBUG	=	-g -DTRACK_RESULTS
+DEBUG	=	-Os	# -DSTRVAL_65K
+
+HDRS	=	char_encoding.h		\
+		refcount.h		\
+		strpp.h 		\
+		strregex.h
 SRCS	=	char_encoding.cpp	\
 		strmatch.cpp		\
 		strpp.cpp		\
 		strrdump.cpp		\
 		strregex.cpp
-_OBJS	=	$(SRCS:.cpp=.o)
-OBJS	=	$(patsubst %,build/%,$(_OBJS))
 LIB	=	libstrpp.a
 TESTS	=	match_test regex_test
 
-# DEBUG	=	-g -DTRACK_RESULTS
-DEBUG	=	-Os	# -DSTRVAL_65K
+_OBJS	=	$(SRCS:.cpp=.o)
+OBJS	=	$(patsubst %,build/%,$(_OBJS))
 
-vpath %.cpp src
+vpath	%.cpp	src:test
+vpath	%.h	include
 
 all:	lib
 
-lib:	libstrpp.a
+lib:	$(LIB)
 $(LIB):	build $(OBJS)
 	$(AR) cr $@ $(OBJS)
 
 tests:	$(TESTS)
 
-%_test:	lib test/%_test.cpp
-	$(CXX) $(DEBUG) -std=c++11 -Iinclude -Itest -o $@ test/$@.cpp test/memory_monitor.cpp libstrpp.a
+%:	%.cpp $(LIB)
+	$(CXX) $(DEBUG) $(CXXFLAGS) -Iinclude -Itest -o $@ $< test/memory_monitor.cpp $(LIB)
 
-build/%.o:	%.cpp
-	$(CXX) $(DEBUG) -std=c++11 -Iinclude -Isrc -o $@ -c $<
+build/%.o:	%.cpp $(HDRS)
+	$(CXX) $(DEBUG) $(CXXFLAGS) -Iinclude -Isrc -o $@ -c $<
+
+%.o:	%.cpp $(HDRS)
+	$(CXX) $(DEBUG) $(CXXFLAGS) -Iinclude -Isrc -o $@ -c $<
 
 build:
 	@mkdir build
 
 clean:
 	rm -f $(OBJS) $(TESTS)
+	@rmdir build 2>/dev/null || true
 
 clobber:	clean
 	rm -f $(LIB)
-	@rmdir build 2>/dev/null || true
 
 .PHONY:	all lib clean tests clean clobber
