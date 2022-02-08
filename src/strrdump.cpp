@@ -64,14 +64,15 @@ RxCompiler::dumpInstruction(const char* nfa, const char*& np)	// Disassenble NFA
 			assert(*nfa++ == (char)RxOp::RxoStart);
 			get_offset(nfa);	// start_station
 			get_offset(nfa);	// search_station
-			UTF8Get(nfa);		// station_count
-			nfa++;			// max_nesting
+			UTF8Get(nfa);		// max_station
+			nfa++;			// max_counter
+			nfa++;			// max_capture
 			int	num_names = (*nfa++ & 0xFF) - 1;
 			if (i < 0 || i >= num_names)
 				return "BAD NAME NUMBER";
 			CharBytes	byte_count;
 			while (--i > 0)
-			{		// Skip the preceding names
+			{			// Skip the preceding names
 				byte_count = UTF8Get(nfa);
 				nfa += byte_count;
 			}
@@ -189,7 +190,7 @@ RxCompiler::dumpInstruction(const char* nfa, const char*& np)	// Disassenble NFA
 	case RxOp::RxoSubroutineCall:		// Subroutine call to a named group
 		group_num = (*np++ & 0xFF) - 1;
 		name = get_name(nfa, group_num).asUTF8();
-		printf("SubroutineCall(%02X) call to '%.*s'(%d)\n", op_num, byte_count, name.asUTF8(), group_num);
+		printf("SubroutineCall(%02X) call to '%s'(%d)\n", op_num, name.asUTF8(), group_num);
 		break;
 
 	case RxOp::RxoEndGroup:			// End of a group
@@ -210,7 +211,7 @@ RxCompiler::dumpInstruction(const char* nfa, const char*& np)	// Disassenble NFA
 		offset_next = UTF8Get(np);
 		group_num = (*np++ & 0xFF) - 1;
 		name = get_name(nfa, group_num);
-		printf("ERROR: NamedCapture(%02X) '%.*s'(%d), offset=(%+d)->%d should not be emitted\n", op_num, byte_count, name.asUTF8(), group_num, offset_next, offset_this+offset_next);
+		printf("ERROR: NamedCapture(%02X) '%s'(%d), offset=(%+d)->%d should not be emitted\n", op_num, name.asUTF8(), group_num, offset_next, offset_this+offset_next);
 		break;
 
 	case RxOp::RxoLiteral:			// A specific string
