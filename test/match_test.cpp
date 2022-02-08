@@ -50,7 +50,7 @@ main(int argc, char** argv)
 			nfa = 0;
 			if (!rx.compile(nfa))
 			{
-				printf("Regex scan failed: %s\n", rx.ErrorMessage());
+				printf("Regex scan failed: %s\n", rx.errorMessage());
 				program = 0;
 				continue;
 			}
@@ -310,7 +310,7 @@ int automated_tests()
 		scanned_ok = rx.compile(nfa);
 		if (!scanned_ok)
 		{
-			printf("%s: /%s/: %s\n", test_case->target != 0 ? "Fail" : "Pass", test_case->regex, rx.ErrorMessage());
+			printf("%s: /%s/: %s\n", test_case->target != 0 ? "Fail" : "Pass", test_case->regex, rx.errorMessage());
 			return test_case->target == 0;	// Bad news if we expected it to succeed
 		}
 

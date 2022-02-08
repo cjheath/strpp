@@ -114,59 +114,60 @@ bool RxCompiler::scanRegex(const std::function<bool(const RxToken& instr)> func)
 			};
 
 	ok = func(RxToken(RxOp::RxoStart));
+	if (!ok) error_offset = i;
 	for (; ok && i < re.length(); i++)
 	{
-		switch (ch = re[i])	// Breaking from this switch indicates an error and stops the scan
+		switch (ch = re[i])
 		{
 		case '^':
 			if (!supported(RxFeature::BOL))
 				goto simple_char;
-			if (!(ok = flush())) continue;
+			if (!(ok = flush())) break;
 			ok = func(RxToken(RxOp::RxoBOL));
-			continue;
+			break;
 
 		case '$':
 			if (!supported(RxFeature::EOL))
 				goto simple_char;
-			if (!(ok = flush())) continue;
+			if (!(ok = flush())) break;
 			ok = func(RxToken(RxOp::RxoEOL));
-			continue;
+			break;
 
 		case '.':
 			if (enabled(RxFeature::AnyIsQuest))
 				goto simple_char;	// if using ?, . is a simple char
-			if (!(ok = flush())) continue;
+			if (!(ok = flush())) break;
 			ok = func(RxToken(RxOp::RxoAny));
-			continue;
+			break;
 
 		case '?':
-			if (!(ok = flush())) continue;
+			if (!(ok = flush())) break;
 			if (enabled(RxFeature::AnyIsQuest))
 				ok = func(RxToken(RxOp::RxoAny));	// Shell-style any-char wildcard
 			else
 				ok = func(RxToken(RxOp::RxoRepetition, 0, 1));	// Previous elem is optional
-			continue;
+			break;
 
 		case '*':
 			if (!supported(RxFeature::ZeroOrMore))
 				goto simple_char;
-			if (!(ok = flush())) continue;
+			if (!(ok = flush())) break;
 			if (enabled(RxFeature::ZeroOrMoreAny))
 				ok = func(RxToken(RxOp::RxoAny));
 			ok = func(RxToken(RxOp::RxoRepetition, 0, 0));
-			continue;
+			break;
 
 		case '+':
 			if (!supported(RxFeature::OneOrMore))
 				goto simple_char;
-			if (!(ok = flush())) continue;
+			if (!(ok = flush())) break;
 			ok = func(RxToken(RxOp::RxoRepetition, 1, 0));
-			continue;
+			break;
 
 		case '{':
 			if (!supported(RxFeature::CountRepetition))
 				goto simple_char;
-			if (!(ok = flush())) continue;
+			if (!(ok = flush())) break;
 			param = re.substr(++i);
 			min = max = 0;
 			// Find the end of the first number:
@@ -201,7 +202,7 @@ bool RxCompiler::scanRegex(const std::function<bool(const RxToken& instr)> func)
 				max = min;		// Exact repetition count
 
 			ok = func(RxToken(RxOp::RxoRepetition, min, max));
-			continue;
+			break;
 
 		case '\\':		// Escape sequence
 			switch (ch = re[++i])
@@ -261,15 +262,15 @@ bool RxCompiler::scanRegex(const std::function<bool(const RxToken& instr)> func)
 			case 'h':			// Hexdigit
 				if (!enabled(RxFeature::Shorthand))
 					goto simple_escape;
-				if (!(ok = flush())) continue;
+				if (!(ok = flush())) break;
 				// REVISIT: Also support \w, etc
 				ok = func(RxToken(RxOp::RxoCharProperty, StrVal(ch)));
-				continue;
+				break;
 
 			case 'p':			// Posix character type
 				if (!enabled(RxFeature::PropertyChars))
 					goto simple_escape;
-				if (!(ok = flush())) continue;
+				if (!(ok = flush())) break;
 				if (re[++i] != '{')
 				{
 		bad_posix:		error_message = "Illegal Posix character specification";
@@ -282,7 +283,7 @@ bool RxCompiler::scanRegex(const std::function<bool(const RxToken& instr)> func)
 				param = param.substr(0, close); // Truncate name to before '}'
 				i += close+1;	// Now pointing at the '}'
 				ok = func(RxToken(RxOp::RxoCharProperty, param));
-				continue;
+				break;
 
 			default:
 		simple_escape:
@@ -291,19 +292,19 @@ bool RxCompiler::scanRegex(const std::function<bool(const RxToken& instr)> func)
 				switch (re[i+1])	// Can't delay if this escape is repeated or optional
 				{	// Note this is conservative; these repetitions might not be enabled
 				case '*': case '+': case '?': case '{':
-					if (!(ok = flush())) continue;	// So flush it first
+					if (!(ok = flush())) break;	// So flush it first
 				}
 				if (delayed.numBytes() >= RxMaxLiteral)
-					if (!(ok = flush())) continue;	// Limit length of delayed text
+					if (!(ok = flush())) break;	// Limit length of delayed text
 				delayed += ch;
-				continue;
+				break;
 			}
 			break;
 
 		case '[':		// Character class
 			if (!supported(RxFeature::CharClasses))
 				goto simple_char;
-			if (!(ok = flush())) continue;
+			if (!(ok = flush())) break;
 
 			/*
 			 * A Character class is compiled as a string containing pairs of characters.
@@ -354,7 +355,7 @@ bool RxCompiler::scanRegex(const std::function<bool(const RxToken& instr)> func)
 				goto bad_class;
 
 			ok = func(RxToken(char_class_negated ? RxOp::RxoNegCharClass : RxOp::RxoCharClass, param));
-			continue;
+			break;
 
 	bad_class:	error_message = "Bad character class";
 			break;
@@ -362,19 +363,19 @@ bool RxCompiler::scanRegex(const std::function<bool(const RxToken& instr)> func)
 		case '|':
 			if (!supported(RxFeature::Alternates))
 				goto simple_char;
-			if (!(ok = flush())) continue;
+			if (!(ok = flush())) break;
 			ok = func(RxToken(RxOp::RxoAlternate));
-			continue;
+			break;
 
 		case '(':
 			if (!supported(RxFeature::Group))
 				goto simple_char;
-			if (!(ok = flush())) continue;
+			if (!(ok = flush())) break;
 			if (!enabled(ParenFeatures)
 			 || re[i+1] != '?')					// or this one is plain
 			{		// Anonymous group
 				ok = func(RxToken(RxOp::RxoNonCapturingGroup));
-				continue;
+				break;
 			}
 
 			i += 2;	// Skip the '(?'
@@ -390,17 +391,17 @@ bool RxCompiler::scanRegex(const std::function<bool(const RxToken& instr)> func)
 				param = param.substr(0, close);		// Truncate name to before >
 				i += close;	// Point at the >
 				ok = func(RxToken(RxOp::RxoNamedCapture, param));
-				continue;
+				break;
 			}
 			else if (supported(RxFeature::NonCapture) && re[i] == ':')	// Noncapturing group
 			{
 				ok = func(RxToken(RxOp::RxoNonCapturingGroup));
-				continue;
+				break;
 			}
 			else if (supported(RxFeature::NegLookahead) && re[i] == '!') // Negative Lookahead
 			{
 				ok = func(RxToken(RxOp::RxoNegLookahead));
-				continue;
+				break;
 			}
 			else if (re[i] == '&')				// Subroutine
 			{
@@ -411,21 +412,18 @@ bool RxCompiler::scanRegex(const std::function<bool(const RxToken& instr)> func)
 				param = param.substr(0, close); // Truncate name to before >
 				ok = func(RxToken(RxOp::RxoSubroutineCall, param));
 				i += close;	// Now pointing at the ')'
-				continue;
-			}
-			else
-			{
-				error_message = "Illegal group type";
 				break;
 			}
-			continue;
+			else
+				error_message = "Illegal group type";
+			break;
 
 		case ')':
 			if (!enabled(RxFeature::Group))
 				goto simple_char;
-			if (!(ok = flush())) continue;
+			if (!(ok = flush())) break;
 			ok = func(RxToken(RxOp::RxoEndGroup));
-			continue;
+			break;
 
 		case ' ': case '\t': case '\n': case '\r':
 			if (!enabled(RxFeature::ExtendedRE))
@@ -433,24 +431,24 @@ bool RxCompiler::scanRegex(const std::function<bool(const RxToken& instr)> func)
 			if (re[i+1] == '#')	// Comment to EOL
 				while (++i < re.length() && re[i] != '\n')
 					;
-			continue;
+			break;
 			
 		default:
 		simple_char:
 			switch (re[i+1])	// Can't delay if this escape is repeated or optional
 			{	// Note this is conservative; these repetitions might not be enabled
 			case '*': case '+': case '?': case '{':
-				if (!(ok = flush())) continue;	// So flush it first
+				if (!(ok = flush())) break;	// So flush it first
 			}
 
 			if (delayed.numBytes() >= RxMaxLiteral)
-				if (!(ok = flush())) continue;	// Limit length of delayed text
+				if (!(ok = flush())) break;	// Limit length of delayed text
 
 			delayed += re.substr(i, 1);
-			continue;
+			break;
 		}
-
-		break;
+		if (!ok || error_message)
+			error_offset = i;
 	}
 	if (ok)
 		ok = flush();
@@ -512,6 +510,7 @@ RxCompiler::compile(char*& nfa)
 	UTF8*		ep;			// NFA output pointer, not used until 2nd pass
 
 	error_message = 0;			// Start with a bit of optimism
+	error_offset = 0;
 
 	/*
 	 * In first pass, we must count how many offsets and how many other bytes are needed to store the NFA

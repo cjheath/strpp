@@ -85,7 +85,7 @@ enum class RxOp: char
 	RxoCaptureEnd = ')',	// Save end
 };
 
-#define	RxMaxNesting		8	// Maximum nesting depth for groups
+#define	RxMaxNesting		12	// Maximum nesting depth for groups
 
 struct RxRepetitionRange
 {
@@ -110,7 +110,8 @@ public:
 	bool		scanRegex(const std::function<bool(const RxToken& instr)> func);
 	bool		compile(char*& nfa);
 
-	const char*	ErrorMessage() const { return error_message; }
+	const char*	errorMessage() const { return error_message; }
+	int		errorOffset() const { return error_offset; }
 
 	void		dump(const char* nfa) const;	// Dump NFA to stdout
 	void		dumpHex(const char* nfa) const;	// Dump binary code to stdout
@@ -121,6 +122,7 @@ protected:
 	RxFeature	features_enabled;	// Features that are not enabled are normally ignored
 	RxFeature	features_rejected;	// but these features cause an error if used
 	const char*	error_message;		// An error from compiling
+	int		error_offset;
 	CharBytes	nfa_size;		// Number of bytes allocated. It is likely that not all are used
 
 	bool		supported(RxFeature);	// Set error message and return false on rejected feature use

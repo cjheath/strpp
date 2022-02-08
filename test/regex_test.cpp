@@ -47,11 +47,11 @@ main(int argc, char** argv)
 
 		if (!scanned_ok)
 		{
-			printf("Regex scan failed: %s\n", rx.ErrorMessage());
+			printf("Regex scan failed: %s\n", rx.errorMessage());
 			continue;
 		}
 		if (show_all_expectations)
-			show_expectation(*argv, nfa, rx.ErrorMessage());
+			show_expectation(*argv, nfa, rx.errorMessage());
 
 		if (nfa)
 		{
@@ -297,8 +297,8 @@ int automated_tests()
 		bool	return_code_pass = (ct->expected_message == 0) == scanned_ok;	// Failure was reported if expected
 		bool	nfa_presence_pass = (ct->expected_nfa != 0) == (nfa != 0);	// NFA was returned if one was expected
 		bool	nfa_pass = !ct->expected_nfa || 0 == strcmp(nfa, ct->expected_nfa);	// NFA was correct if expected
-		bool	error_message_presence_pass = (ct->expected_message != 0) == (rx.ErrorMessage() != 0);	// Message was returned if expected
-		bool	error_message_pass = !ct->expected_message || 0 == strcmp(ct->expected_message, rx.ErrorMessage());	// Message was correct if expected
+		bool	error_message_presence_pass = (ct->expected_message != 0) == (rx.errorMessage() != 0);	// Message was returned if expected
+		bool	error_message_pass = !ct->expected_message || 0 == strcmp(ct->expected_message, rx.errorMessage());	// Message was correct if expected
 		bool	test_pass = return_code_pass && nfa_presence_pass && nfa_pass && error_message_presence_pass && error_message_pass;
 
 		// Report Pass/Fixed/Pending/Fail:
@@ -306,21 +306,21 @@ int automated_tests()
 			printf("Pass: %s\n", ct->regex);
 		else if (test_pass)
 			printf("Pass (with expected error): %s\n", ct->regex);
-		else if (ct->expected_message && scanned_ok && nfa_pass && rx.ErrorMessage() == 0)
+		else if (ct->expected_message && scanned_ok && nfa_pass && rx.errorMessage() == 0)
 			printf("Fixed: %s\n", ct->regex);
 		else if (ct->expected_message)
 			printf("Pending: %s\n", ct->regex);
 		else
 			printf(
 				"Fail (%s)%s, (returned %s): %s\n",
-				rx.ErrorMessage() ? rx.ErrorMessage() : "<no message returned>",
+				rx.errorMessage() ? rx.errorMessage() : "<no message returned>",
 				error_message_presence_pass ? "" : " unexpected",
 				scanned_ok ? "ok" : "fail",
 				ct->regex
 			);
 
 		if (!test_pass || show_all_expectations)
-			show_expectation(ct->regex, nfa, rx.ErrorMessage());
+			show_expectation(ct->regex, nfa, rx.errorMessage());
 
 		// On incorrect NFA, dump what we got:
 		if (nfa && (!nfa_pass || verbose))

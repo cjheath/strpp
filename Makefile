@@ -5,8 +5,9 @@
 CXX	=	g++
 CXXFLAGS =	-std=c++11
 
-# DEBUG	=	-g -DTRACK_RESULTS
 DEBUG	=	-Os	# -DSTRVAL_65K
+# DEBUG	=	-g
+# DEBUG	=	-g -DTRACK_RESULTS
 
 HDRS	=	char_encoding.h		\
 		refcount.h		\
@@ -18,7 +19,7 @@ SRCS	=	char_encoding.cpp	\
 		strrdump.cpp		\
 		strregex.cpp
 LIB	=	libstrpp.a
-TESTS	=	match_test regex_test
+TESTS	=	match_test regex_test re_self_test
 
 _OBJS	=	$(SRCS:.cpp=.o)
 OBJS	=	$(patsubst %,build/%,$(_OBJS))
@@ -37,10 +38,10 @@ tests:	$(TESTS)
 %:	%.cpp $(LIB)
 	$(CXX) $(DEBUG) $(CXXFLAGS) -Iinclude -Itest -o $@ $< test/memory_monitor.cpp $(LIB)
 
-build/%.o:	%.cpp $(HDRS)
+build/%.o:	%.cpp $(HDRS) Makefile
 	$(CXX) $(DEBUG) $(CXXFLAGS) -Iinclude -Isrc -o $@ -c $<
 
-%.o:	%.cpp $(HDRS)
+%.o:	%.cpp $(HDRS) Makefile
 	$(CXX) $(DEBUG) $(CXXFLAGS) -Iinclude -Isrc -o $@ -c $<
 
 build:
