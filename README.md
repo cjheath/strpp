@@ -4,14 +4,14 @@ A value-oriented Unicode string library with reference-counting to manage shared
 
 ## Unicode strings
 
-- By-value semantics (use StrRef like int, no explicit allocation, pass by reference/pointer, etc)
+- By-value semantics (use StrVal like int, no explicit allocation, pass by reference/pointer, etc)
 - Copies and substrings (aka slices) are free (do not copy the data)
 - All strings are stored as UTF-8
 - All references to individual characters are UCS4 (UTF-32, aka Runes)
 - All string indexing is by character position not byte offsets
 - Efficient string scanning and indexing through internal use of bookmarks
 - Content sharing is thread-safe and SMP safe using atomic reference counting and garbage collection
-- Any StrRef may be mutated - it will safely make a private copy of any shared data
+- Any StrVal may be mutated - it will safely make a private copy of any shared data
 
 ## Regular Expressions
 - Literal strings

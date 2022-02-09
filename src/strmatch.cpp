@@ -45,12 +45,12 @@ public:
 	CharNum		capture(int index);
 	CharNum		captureSet(int index, CharNum val);
 
-	// REVISIT: Add function call results
+	// REVISIT: Add an RxCaptures array if needed for function call results
 
 private:
-	short		counter_max;
 	short		capture_max;	// Each capture has a start and an end, so we allocate double
-	short		counters_used;
+	unsigned char	counter_max;	// Each counter has a text offset and the counter value
+	unsigned char	counters_used;	// No more than RxMaxNesting counters can be needed
 	CharNum*	counters;	// captures and counters stored in the same array
 };
 
@@ -71,6 +71,7 @@ class RxMatch
 
 public:
 	RxMatch(const RxProgram& _program, StrVal _target);
+	RxMatch(const RxMatch& _tocopy);
 	~RxMatch();
 
 	const RxResult	matchAt(RxStationID start, CharNum& offset);
@@ -81,9 +82,9 @@ private:
 	RxResult	result;			// Result from the successful thread
 
 	// Concurrent threads of execution:
-	Thread*		current_stations;
+	Thread*		current_stations;	// The threads we're currently evaluating
 	RxStationID	current_count;		// How many of the above are populated
-	Thread*		next_stations;
+	Thread*		next_stations;		// The threads that lead on from here
 	RxStationID	next_count;		// How many of the above are populated
 	void		addthread(Thread thread, CharNum offset, CharNum *shunts, CharNum num_shunt, CharNum max_duplicates_allowed = 0);
 };
@@ -252,6 +253,17 @@ RxMatch::RxMatch(const RxProgram& _program, StrVal _target)
 	next_count = 0;
 }
 
+RxMatch::RxMatch(const RxMatch& _tocopy)
+: program(_tocopy.program)
+, target(_tocopy.target)
+{
+	int	i = program.maxStation();
+	current_stations = new Thread[i];
+	current_count = 0;
+	next_stations = new Thread[i];
+	next_count = 0;
+}
+
 RxMatch::~RxMatch()
 {
 	delete[] current_stations;
@@ -267,13 +279,13 @@ RxMatch::Thread::Thread(RxStationID s, RxResult r)
 {}
 
 #ifdef TRACK_RESULTS
-int	RxMatch::Thread::next_thread;
+int	RxMatch::Thread::next_thread;	// Sequential thread numbering to aid in debug traces
 #endif
 
 void
 RxMatch::addthread(Thread thread, CharNum offset, CharNum* shunts, CharNum num_shunt, CharNum max_duplicates_allowed)
 {
-	// Recursion control, prevents looping over loops
+	// Recursion control, prevents stack explosion on empty loops
 	for (int i = 0; i < num_shunt; i++)
 		if (shunts[i] == thread.station)
 		{
@@ -390,6 +402,20 @@ next:
 			RxResult	continuation = thread.result;
 			continuation.counterPop();	// The continuing thread has no further need of the counter
 			addthread(Thread(instr.next, continuation), offset, shunts, num_shunt, instr.repetition.min);
+		}
+		thread.result.clear();
+	}
+		break;
+
+	case RxOp::RxoNegLookahead:		// (?!...)
+	{
+		RxMatch		match(*this);
+		RxResult	result = match.matchAt(instr.next, offset);	// REVISIT: Arrange to not keep captures here
+
+		if (!result)
+		{
+			// Not matched, as requested, so continue with the next instruction at the current offset
+			addthread(Thread(instr.alternate, thread.result), offset, shunts, num_shunt, instr.repetition.min);
 		}
 		thread.result.clear();
 	}
@@ -565,24 +591,6 @@ RxMatch::matchAt(RxStationID start, CharNum& offset)
 				break;
 			}
 
-			case RxOp::RxoNegLookahead:		// (?!...) match until EndGroup and return the opposite
-				// REVISIT: Implement RxoSubroutineCall. Until then, act like the negative lookahead has succeeded
-				thread_p->station = instr.next;
-				goto decode_next;
-#if 0
-			{
-				CharNum 	start_offset = offset;	// Remember the target offset and reset it for each alternate
-				const char*	next_p = nfa_p-1 + UTF8Get(nfa_p) + 1;	// Start of this instr, plus size, plus the EndGroup
-				if (matchAt(match, bt, nfa_p, offset))
-					return RxResult();
-				// Not matched, as requested, so continue with the next instruction at the current offset
-				offset = start_offset;
-				nfa_p = next_p;
-				thread_p->result.clear();
-				continue;
-			}
-#endif
-
 			case RxOp::RxoSubroutineCall:		// Subroutine call to a named group
 				break;	// REVISIT: Implement RxoSubroutineCall. Until then, act like the subroutine has completed
 #if 0
@@ -613,6 +621,7 @@ RxMatch::matchAt(RxStationID start, CharNum& offset)
 			case RxOp::RxoCaptureEnd:
 			case RxOp::RxoZero:
 			case RxOp::RxoCount:
+			case RxOp::RxoNegLookahead:		// (?!...) match until EndGroup and return the opposite
 				assert(0 == "Should not happen");
 				return RxResult();
 			}
