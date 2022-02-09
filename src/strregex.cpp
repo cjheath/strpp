@@ -42,7 +42,6 @@
  */
 
 #define	ParenFeatures		((RxFeature)((int32_t)RxFeature::Capture|(int32_t)RxFeature::NonCapture|(int32_t)RxFeature::NegLookahead|(int32_t)RxFeature::Subroutine))
-#define	RxMaxLiteral		100	// Long literals in the NFA will be split after this many bytes
 
 class RxToken
 {
@@ -231,7 +230,7 @@ bool RxCompiler::scanRegex(const std::function<bool(const RxToken& instr)> func)
 			case 'x':			// Hex byte (1 or 2 hex digits follow)
 				if (!enabled(RxFeature::HexChar))
 					goto simple_escape;
-				// REVISIT: Support \x{XX}
+				// REVISIT: Support \x{XX}?
 				param = re.substr(++i, 2);
 				ch = param.asInt32(&int_error, 16, &scanned);
 				if ((int_error && int_error != STRERR_TRAIL_TEXT) || scanned == 0)
@@ -245,7 +244,7 @@ bool RxCompiler::scanRegex(const std::function<bool(const RxToken& instr)> func)
 			case 'u':			// Unicode (1-5 hex digits follow)
 				if (!enabled(RxFeature::UnicodeChar))
 					goto simple_escape;
-				// REVISIT: Support \u{XX}
+				// REVISIT: Support \u{XX}?
 				param = re.substr(++i, 5);
 				ch = param.asInt32(&int_error, 16, &scanned);
 				if ((int_error && int_error != STRERR_TRAIL_TEXT) || scanned == 0)
@@ -294,8 +293,6 @@ bool RxCompiler::scanRegex(const std::function<bool(const RxToken& instr)> func)
 				case '*': case '+': case '?': case '{':
 					if (!(ok = flush())) break;	// So flush it first
 				}
-				if (delayed.numBytes() >= RxMaxLiteral)
-					if (!(ok = flush())) break;	// Limit length of delayed text
 				delayed += ch;
 				break;
 			}
@@ -309,8 +306,7 @@ bool RxCompiler::scanRegex(const std::function<bool(const RxToken& instr)> func)
 			/*
 			 * A Character class is compiled as a string containing pairs of characters.
 			 * Each pair determines an (inclusive) subrange of UCS4 characters.
-			 * LATER: Character Property groups use non-Unicode UCS4 characters to denote the group.
-			 * REVISIT: methods for allocating property group codes are under consideration
+			 * REVISIT: Use a non-Unicode UCS4 character to store a Character Property group number
 			 */
 			char_class_negated = re[++i] == '^';
 			if (char_class_negated)
@@ -328,20 +324,21 @@ bool RxCompiler::scanRegex(const std::function<bool(const RxToken& instr)> func)
 			}
 			while (ch != '\0' && ch != ']')
 			{
-				// REVISIT: Add support for Posix groups or Unicode Properties
-				if (ch == '\\')		// Any single Unicode char can be escaped. REVISIT for other escapes
+				if (ch == '\\')		// Any single Unicode char can be escaped
 				{
 					if ((ch = re[++i]) == '\0')
 						goto bad_class; // RE ends with the backslash
 					// REVISIT: Support \escapes in character classes? Which ones?
 				}
 
+				// REVISIT: Add support for Posix groups or Unicode Properties
+
 				param += ch;	// Start of range pair
 				if (re[i+1] == '-' && re[i+2] != ']')	// Allow a single - before the closing ]
 				{		// Character range
 					if ((ch = re[i += 2]) == '\0')
 						goto bad_class;
-					if (ch == '\\')		// Any single Unicode char can be escaped. REVISIT for other escapes
+					if (ch == '\\')		// Any single Unicode char can be escaped
 					{
 						if ((ch = re[++i]) == '\0')
 							goto bad_class; // RE ends with the backslash
@@ -440,9 +437,6 @@ bool RxCompiler::scanRegex(const std::function<bool(const RxToken& instr)> func)
 			case '*': case '+': case '?': case '{':
 				if (!(ok = flush())) break;	// So flush it first
 			}
-
-			if (delayed.numBytes() >= RxMaxLiteral)
-				if (!(ok = flush())) break;	// Limit length of delayed text
 
 			delayed += re.substr(i, 1);
 			break;
@@ -689,15 +683,14 @@ RxCompiler::compile(char*& nfa)
 				break;
 
 			case RxOp::RxoAlternate:		// |
-				// REVISIT: Is this needed only after an empty alternate? Why? Can we even detect that here?
-				station_count++;		// Apparently needed only for /|/; REVISIT: Audit station_count estimates
-
 				offsets_required++;
 				if (tos().start)		// First alternate: Emit Jump, insert Split before the group contents
 				{
 					tos().start = 0;	// After first alternate now
 					bytes_required++;
 					offsets_required += 2;
+					// REVISIT: This fixes a test for matching /|/. Is it needed only after an empty alternate? Why? Can we even detect that here?
+					station_count++;		// Apparently needed only for /|/; REVISIT: Audit station_count estimates
 				}
 				else				// non-first alternate. Emit RxoJump, insert RxoSplit after previous Jump
 				{
@@ -930,7 +923,7 @@ RxCompiler::compile(char*& nfa)
 				emit_padded_offset(ep);		// search_station; will be patched on RxoAccept
 				emit_padded_offset(ep);		// start_station
 				emit_offset(ep, station_count);
-				*ep++ = max_nesting;		// REVISIT: Not all nesting involves repetition that needs counters
+				*ep++ = max_nesting;		// REVISIT: Not all nesting involves repetition that needs counters. But how to count nested repetitions?
 				*ep++ = names.size() + 1;	// max_capture; 0 is the overall match, first group starts at 1
 				*ep++ = names.size() + 1;	// num_names
 				for (iter = names.begin(); iter != names.end(); iter++)

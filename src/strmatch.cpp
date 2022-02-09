@@ -1,12 +1,18 @@
 /*
  * Unicode Strings
- * Regular expressions - the Matcher
+ * Regular expressions - the matcher
  *
  * (c) Copyright Clifford Heath 2022. See LICENSE file for usage rights.
  */
 #include	<strregex.h>
 #include	<string.h>
 #include	<utility>
+
+#ifdef	TRACK_RESULTS
+#define	TRACK(arglist)	printf arglist
+#else
+#define	TRACK(arglist)	
+#endif
 
 /*
  * To make it easy to pass around and modify capture sets, we use a reference counted body.
@@ -111,10 +117,8 @@ RxProgram::RxProgram(const char* _nfa, bool take_ownership)
 		names.push_back(StrVal(nfa_p, byte_count));
 		nfa_p += byte_count;
 	}
-#ifdef TRACK_RESULTS
-	printf("search_station %d start_station %d max_station %d max_counter %d max_capture %d, num_names %d, next %d\n",
-		search_station, start_station, max_station, max_counter, max_capture, (int)names.size(), (int)(nfa_p-nfa));
-#endif
+	TRACK(("search_station %d start_station %d max_station %d max_counter %d max_capture %d, num_names %d, next %d\n",
+		search_station, start_station, max_station, max_counter, max_capture, (int)names.size(), (int)(nfa_p-nfa)));
 	assert(start_station == nfa_p-nfa);
 }
 
@@ -259,10 +263,11 @@ RxMatch::Thread::Thread(RxStationID s, RxResult r)
 , result(r)
 #ifdef TRACK_RESULTS
 , thread_number(s ? ++next_thread : 0)
+#endif
 {}
+
+#ifdef TRACK_RESULTS
 int	RxMatch::Thread::next_thread;
-#else
-{}
 #endif
 
 void
@@ -272,17 +277,13 @@ RxMatch::addthread(Thread thread, CharNum offset, CharNum* shunts, CharNum num_s
 	for (int i = 0; i < num_shunt; i++)
 		if (shunts[i] == thread.station)
 		{
-#ifdef TRACK_RESULTS
-			printf("\t\tthread %d would recurse\n", thread.thread_number);
-#endif
+			TRACK(("\t\tthread %d would recurse\n", thread.thread_number));
 			return;
 		}
 	assert(num_shunt < RxMaxNesting);
 	if (num_shunt == RxMaxNesting)
 	{
-#ifdef TRACK_RESULTS
-		printf("\t\tthread %d would exceed nesting limit\n", thread.thread_number);
-#endif
+		TRACK(("\t\tthread %d would exceed nesting limit\n", thread.thread_number));
 		return;
 	}
 	shunts[num_shunt++] = thread.station;
@@ -296,20 +297,22 @@ RxMatch::addthread(Thread thread, CharNum offset, CharNum* shunts, CharNum num_s
 				&& thread.result.countersSame(next_stations[i].result))
 			 || ++duplicates > max_duplicates_allowed)	// Or too many duplicates
 			{
-				// REVISIT: Should we have a policy of deleting the duplicate with the lowest count?
+				// The above condition is not perfect - it fails with 5x nested counted repetitions for example.
+				// Failing to find a solution in such a pathological case doesn't bother me.
+				// Should we have a policy of deleting the duplicate with the lowest count?
 
 #ifdef TRACK_RESULTS
-				printf("\t\tthread %d at %d is a duplicate", thread.thread_number, thread.station);
-				if (thread.result.hasCounter()) printf(" (count %d)", thread.result.counterTop().count);
-				printf(" of thread %d", next_stations[i].thread_number);
+				TRACK(("\t\tthread %d at %d is a duplicate", thread.thread_number, thread.station));
+				if (thread.result.hasCounter()) TRACK((" (count %d)", thread.result.counterTop().count));
+				TRACK((" of thread %d", next_stations[i].thread_number));
 				if (next_stations[i].result.hasCounter())
 				{
-					printf(" (counters");
+					TRACK((" (counters"));
 					for (int i = 0; i < next_stations[i].result.counterNum(); i++)
-						printf(" %d", next_stations[i].result.counterGet(i));
-					printf(")");
+						TRACK((" %d", next_stations[i].result.counterGet(i)));
+					TRACK((")"));
 				}
-				printf("\n");
+				TRACK(("\n"));
 #endif
 				return;		// We already have this thread
 			}
@@ -345,24 +348,20 @@ next:
 		goto next;
 
 	case RxOp::RxoSplit:
-		// REVISIT: We need greedy and non-greedy versions of RxoSplit, with these in opposite order (same for RxoCount?)
+		// REVISIT: For non-greedy repetition, we need these addthread calls in opposite order (same for RxoCount)
 		addthread(Thread(instr.alternate, thread.result), offset, shunts, num_shunt);
 		addthread(Thread(instr.next, thread.result), offset, shunts, num_shunt);
 		break;
 
 	case RxOp::RxoCaptureStart:
 		thread.station = instr.next;
-#ifdef TRACK_RESULTS
-		printf("\t\tthread %d saves start %d=%d\n", thread.thread_number, instr.capture_number, offset);
-#endif
+		TRACK(("\t\tthread %d saves start %d=%d\n", thread.thread_number, instr.capture_number, offset));
 		thread.result = thread.result.captureSet(instr.capture_number*2, offset);
 		goto next;
 
 	case RxOp::RxoCaptureEnd:
 		thread.station = instr.next;
-#ifdef TRACK_RESULTS
-		printf("\t\tthread %d saves end %d=%d\n", thread.thread_number, instr.capture_number, offset);
-#endif
+		TRACK(("\t\tthread %d saves end %d=%d\n", thread.thread_number, instr.capture_number, offset));
 		thread.result = thread.result.captureSet(instr.capture_number*2+1, offset);
 		break;
 
@@ -378,10 +377,8 @@ next:
 		short	counter = thread.result.counterIncr(offset);
 
 		// Don't repeat unless the offset has increased since the last repeat (instead, just continue with next).
-#ifdef TRACK_RESULTS
 		if (previous.offset == offset)
-			printf("\t\tRepetition at shunt %d did not proceed from offset %d\n", thread.station, offset);
-#endif
+			TRACK(("\t\tRepetition at shunt %d did not proceed from offset %d\n", thread.station, offset));
 
 		if ((counter <= instr.repetition.max || instr.repetition.max == 0)	// Greedily repeat
 		 && previous.offset <= offset)		// Only if we advanced
@@ -400,17 +397,17 @@ next:
 
 	default:
 #ifdef TRACK_RESULTS
-		printf("\t\t... adding thread %d at instr %d, offset %d with captures ", thread.thread_number, thread.station, offset);
+		TRACK(("\t\t... adding thread %d at instr %d, offset %d with captures ", thread.thread_number, thread.station, offset));
 		for (int i = 0; i < thread.result.captureMax(); i++)
-			printf("%s(%d,%d)", i ? ", " : "", thread.result.capture(i*2), thread.result.capture(i*2+1));
+			TRACK(("%s(%d,%d)", i ? ", " : "", thread.result.capture(i*2), thread.result.capture(i*2+1)));
 		if (thread.result.hasCounter())
 		{
-			printf(" (counters");
+			TRACK((" (counters"));
 			for (int i = 0; i < thread.result.counterNum(); i++)
-				printf(" %d", thread.result.counterGet(i));
-			printf(")");
+				TRACK((" %d", thread.result.counterGet(i)));
+			TRACK((")"));
 		}
-		printf("\n");
+		TRACK(("\n"));
 #endif
 		assert(next_count < program.maxStation());
 		if (next_count < program.maxStation())
@@ -438,9 +435,7 @@ RxMatch::matchAt(RxStationID start, CharNum& offset)
 	next_count = 0;
 	for (; current_count > 0 && offset <= target.length(); offset++)
 	{
-#ifdef TRACK_RESULTS
-		printf("\ncycle at offset %d with %d threads looking at '%s'\n", offset, current_count, target.substr(offset, 1).asUTF8());
-#endif
+		TRACK(("\ncycle at offset %d with %d threads looking at '%s'\n", offset, current_count, target.substr(offset, 1).asUTF8()));
 		for (thread_p = current_stations; thread_p < current_stations+current_count; thread_p++)
 		{
 		decode_next:
@@ -449,12 +444,12 @@ RxMatch::matchAt(RxStationID start, CharNum& offset)
 			UCS4		ch = target[offset];
 
 #ifdef TRACK_RESULTS
-			printf("\tthread %d instr %d op %c", thread_p->thread_number, pc, (char)instr.op);
+			TRACK(("\tthread %d instr %d op %c", thread_p->thread_number, pc, (char)instr.op));
 			if (instr.op == RxOp::RxoChar)
-				printf(" '%c'", instr.character & 0xFF);
+				TRACK((" '%c'", instr.character & 0xFF));
 			if (thread_p->result.hasCounter())
-				printf(", counter %d", thread_p->result.counterTop().count);
-			printf(": ");
+				TRACK((", counter %d", thread_p->result.counterTop().count));
+			TRACK((": "));
 #endif
 			switch (instr.op)	// break from here to continue with instr.next, continue to ignore it.
 			{
@@ -469,14 +464,10 @@ RxMatch::matchAt(RxStationID start, CharNum& offset)
 					result = thread_p->result;	// Make a new reference to this RxResult
 					thread_p->result.clear();	// Clear the old reference
 					result.captureSet(1, offset);	// Before we finalise it
-#ifdef TRACK_RESULTS
-					printf("accepts selected (%d, %d)\n", new_result_start, offset);
+					TRACK(("accepts selected (%d, %d)\n", new_result_start, offset));
 				}
 				else
-					printf("accepts but not preferred (%d, %d)\n", new_result_start, offset);
-#else
-				}
-#endif
+					TRACK(("accepts but not preferred (%d, %d)\n", new_result_start, offset));
 			}
 				continue;
 
@@ -485,14 +476,10 @@ RxMatch::matchAt(RxStationID start, CharNum& offset)
 				// REVISIT: Add except-newline mode behaviour
 				if (offset < target.length())
 				{
-#ifdef TRACK_RESULTS
-					printf("succeeds\n");
-#endif
+					TRACK(("succeeds\n"));
 					break;
 				}
-#ifdef TRACK_RESULTS
-				printf("fails\n");
-#endif
+				TRACK(("fails\n"));
 				thread_p->result.clear();
 				continue;
 
@@ -500,14 +487,10 @@ RxMatch::matchAt(RxStationID start, CharNum& offset)
 				// REVISIT: Add case-insensitive mode behaviour
 				if (ch == instr.character)
 				{
-#ifdef TRACK_RESULTS
-					printf("succeeds\n");
-#endif
+					TRACK(("succeeds\n"));
 					break;
 				}
-#ifdef TRACK_RESULTS
-				printf("fails\n");
-#endif
+				TRACK(("fails\n"));
 				thread_p->result.clear();
 				continue;			// Dead-end this thread
 
@@ -532,14 +515,10 @@ RxMatch::matchAt(RxStationID start, CharNum& offset)
 					}
 				if (matches_class != (instr.op == RxOp::RxoCharClass))
 				{
-#ifdef TRACK_RESULTS
-					printf("fails\n");
-#endif
+					TRACK(("fails\n"));
 					continue;
 				}
-#ifdef TRACK_RESULTS
-				printf("succeeds\n");
-#endif
+				TRACK(("succeeds\n"));
 				break;
 			}
 
@@ -558,33 +537,36 @@ RxMatch::matchAt(RxStationID start, CharNum& offset)
 					case 's':
 						if (UCS4IsWhite(ch))
 							break;
+						TRACK(("succeeds\n"));
 						continue;
 
 					case 'd':	// digit
 						if (UCS4Digit(ch) >= 0)
 							break;
+						TRACK(("succeeds\n"));
 						continue;
 
 					case 'h':	// hex digit
 						if (UCS4Digit(ch) >= 0 || (ch >= 'a' && ch <= 'f') || (ch >= 'A' && ch <= 'F'))
 							break;
+						TRACK(("succeeds\n"));
 						continue;
 
-					// REVISIT: Implement more built-in CharProperties
+					// REVISIT: Implement more built-in CharProperties?
 					default:
-						continue;
+						break;
 					}
-					break;
 				}
 				else
 				{
 					// REVISIT: Use a callback?
-					break;
 				}
+				TRACK(("fails\n"));
+				break;
 			}
 
 			case RxOp::RxoNegLookahead:		// (?!...) match until EndGroup and return the opposite
-				// REVISIT: Act like the negative lookahead has succeeded
+				// REVISIT: Implement RxoSubroutineCall. Until then, act like the negative lookahead has succeeded
 				thread_p->station = instr.next;
 				goto decode_next;
 #if 0
@@ -602,12 +584,11 @@ RxMatch::matchAt(RxStationID start, CharNum& offset)
 #endif
 
 			case RxOp::RxoSubroutineCall:		// Subroutine call to a named group
-				break;	// REVISIT: Act like the subroutine has completed
+				break;	// REVISIT: Implement RxoSubroutineCall. Until then, act like the subroutine has completed
 #if 0
 			{
 				// Match the subroutine group and push_back subroutineMatches
 				RxMatch		m;
-				// REVISIT: Implement RxoSubroutineCall
 				// matchAt(...
 				return RxResult();
 			}
@@ -646,7 +627,7 @@ RxMatch::matchAt(RxStationID start, CharNum& offset)
 
 	// If we have a result, it's in `result`.
 	// If not, we ran out of threads that could move forward, or ran out of input to move forward on.
-	// REVISIT: Might it be useful to know on which Station(s) we ran out of input?
+	// REVISIT: Might it be useful to know on which Station(s) we ran out of input? Or callback to get more?
 
 	// Wipe old result references, we already copied the one we chose:
 	for (thread_p = current_stations; thread_p < current_stations+current_count; thread_p++)
@@ -678,7 +659,7 @@ RxCaptures::counterPushZero(CharNum offset)
 	assert(counters_used < counter_max*2);
 	if (counters_used == counter_max*2)
 		return;
-	// printf("Pushed new counter %d = 0\n", counters_used);
+	// TRACK(("Pushed new counter %d = 0\n", counters_used));
 	counters[counters_used++] = offset;
 	counters[counters_used++] = 0;
 }
@@ -687,7 +668,7 @@ CharNum
 RxCaptures::counterIncr(CharNum offset)
 {
 	assert(counters_used > 0);
-	// printf("Incrementing counter %d = %d\n", counters_used-1, counters[counters_used-1]+1);
+	// TRACK(("Incrementing counter %d = %d\n", counters_used-1, counters[counters_used-1]+1));
 	counters[counters_used-2] = offset;
 	return ++counters[counters_used-1];
 }
@@ -698,7 +679,7 @@ RxCaptures::counterPop()
 	assert(counters_used > 1);
 	if (counters_used <= 1)
 		return;
-	// printf("Discarding counter %d (was %d)\n", counters_used-1, counters[counters_used-1]);
+	// TRACK(("Discarding counter %d (was %d)\n", counters_used-1, counters[counters_used-1]));
 	counters_used -= 2;
 }
 

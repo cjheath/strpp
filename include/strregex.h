@@ -141,8 +141,9 @@ class RxProgram
 {
 public:
 	~RxProgram();
-	RxProgram(const char* nfa, bool take_ownership = false);		// REVISIT: Add option flags? Like no-capture, etc?
+	RxProgram(const char* nfa, bool take_ownership = false);
 
+	// REVISIT: Add option flags? Like no-capture, case insensitive, etc?
 	const RxResult	matchAfter(StrVal target, CharNum offset = 0) const;
 	const RxResult	matchAt(StrVal target, CharNum offset = 0) const;
 
