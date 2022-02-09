@@ -6,6 +6,7 @@
  */
 #include	<stdio.h>
 #include	<ctype.h>
+#include	<string.h>
 
 #define	protected	public
 #include	<strregex.h>
