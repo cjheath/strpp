@@ -19,16 +19,16 @@
  * These never get changed except when the reference count is one (1), and get deleted
  * when the ref_count decrements to zero.
  *
- * These objects are not publicly visible. The end-user API is in RxResult.
+ * These objects are not publicly visible. The end-user API is in RxResult, which copies the references.
  *
- * A single allocated array contains both counters and captures
- * Each counter has two values: an input offset (where the count started) and a counter value
+ * A single allocated array contains both counters and captures.
+ * Each counter uses two values: an input offset (where the count started) and a counter value
  */
 class RxCaptures
 : public RefCounted
 {
 public:
-	RxCaptures(short c_max, short p_max);		// Needed when we want to truncate the captures
+	RxCaptures(short c_max, short p_max);
 	RxCaptures(const RxProgram& _program)	// program is needed to initialise counter_max&capture_max
 			: RxCaptures(_program.maxCounter(), _program.maxCapture()) {}
 	RxCaptures(const RxCaptures& _to_copy);	// Used by RxResult::Unshare
@@ -429,7 +429,7 @@ RxMatch::matchAt(RxStationID start, CharNum& offset)
 
 	// Start where directed, and step forward one character at a time, following all threads until successful or there are no threads left
 	next_count = 0;
-	addthread(Thread(start, RxResult(program)), offset, shunts, 0);
+	addthread(Thread(start, RxResult(program.maxCounter(), program.maxCapture())), offset, shunts, 0);
 	std::swap(current_stations, next_stations);
 	current_count = next_count;
 	next_count = 0;
@@ -714,8 +714,8 @@ RxCaptures::captureSet(int index, CharNum val)
 	return counters[counter_max*2+index-1] = val;
 }
 
-RxResult::RxResult(const RxProgram& program)
-: captures(new RxCaptures(program))
+RxResult::RxResult(short c_max, short p_max)
+: captures(new RxCaptures(c_max, p_max))
 , cap0(0)
 {
 }

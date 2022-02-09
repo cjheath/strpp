@@ -169,7 +169,8 @@ private:
 	std::vector<StrVal>	names;
 };
 
-class RxCaptures;	// RefCounted shared capture and counter values
+class	RxCaptures;	// RefCounted shared capture and counter values
+class	RxMatch;
 
 /*
  * The result from regex matching: captures, function-call results.
@@ -183,8 +184,8 @@ public:
 		CharNum		offset;		// The text offset at the start of the last repetition
 	};
 	~RxResult();
-	RxResult();
-	RxResult(const RxProgram& program);
+	RxResult();				// Construct a non-Result (failure)
+	RxResult(short counter_max, short capture_max);
 	RxResult(const RxResult& s1);
 	RxResult& operator=(const RxResult& s1);
 	void		clear();
