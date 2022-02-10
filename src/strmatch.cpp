@@ -205,8 +205,9 @@ RxProgram::decode(RxStationID station, RxDecoded& instr) const
 		break;
 
 	case RxOp::RxoJump:
-		instr.next = (nfa_p-nfa);
-		instr.next += zagzig(UTF8Get(nfa_p));
+		instr.alternate = (nfa_p-nfa);
+		instr.alternate += zagzig(UTF8Get(nfa_p));
+		instr.next = nfa_p-nfa;
 		return;
 
 	case RxOp::RxoSplit:
@@ -356,7 +357,7 @@ next:
 		break;
 
 	case RxOp::RxoJump:
-		thread.station = instr.next;
+		thread.station = instr.alternate;
 		goto next;
 
 	case RxOp::RxoSplit:
