@@ -61,6 +61,7 @@ RxCompiler::dumpInstruction(const char* nfa, const char*& np)	// Disassenble NFA
 	auto	get_name =
 		[&](const char* nfa, int i) -> StrVal
 		{
+			if (i == 0) return "";
 			assert(*nfa++ == (char)RxOp::RxoStart);
 			get_offset(nfa);	// start_station
 			get_offset(nfa);	// search_station
@@ -68,7 +69,7 @@ RxCompiler::dumpInstruction(const char* nfa, const char*& np)	// Disassenble NFA
 			nfa++;			// max_counter
 			nfa++;			// max_capture
 			int	num_names = (*nfa++ & 0xFF) - 1;
-			if (i < 0 || i >= num_names)
+			if (i <= 0 || i > num_names)
 				return "BAD NAME NUMBER";
 			CharBytes	byte_count;
 			while (--i > 0)
@@ -160,12 +161,14 @@ RxCompiler::dumpInstruction(const char* nfa, const char*& np)	// Disassenble NFA
 
 	case RxOp::RxoCaptureStart:
 		group_num = (*np++ & 0xFF) - 1;
-		printf("CaptureStart(%02X) group %d\n", op_num, group_num);
+		name = get_name(nfa, group_num);
+		printf("CaptureStart(%02X) group '%s'(%d)\n", op_num, name.asUTF8(), group_num);
 		break;
 
 	case RxOp::RxoCaptureEnd:
 		group_num = (*np++ & 0xFF) - 1;
-		printf("CaptureEnd(%02X) group %d\n", op_num, group_num);
+		name = get_name(nfa, group_num);
+		printf("CaptureEnd(%02X) group '%s'(%d)\n", op_num, name.asUTF8(), group_num);
 		break;
 
 	case RxOp::RxoNegLookahead:		// (?!...)
@@ -188,7 +191,7 @@ RxCompiler::dumpInstruction(const char* nfa, const char*& np)	// Disassenble NFA
 		break;
 
 	case RxOp::RxoSubroutineCall:		// Subroutine call to a named group
-		group_num = (*np++ & 0xFF) - 1;
+		group_num = (*np++ & 0xFF);	// We don't add one to these because you can't call group 0
 		name = get_name(nfa, group_num).asUTF8();
 		printf("SubroutineCall(%02X) call to '%s'(%d)\n", op_num, name.asUTF8(), group_num);
 		break;

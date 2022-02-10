@@ -26,7 +26,7 @@ A value-oriented Unicode string library with reference-counting to manage shared
 - Non-capturing groups (abc) or (?:abc)
 - Named capture groups (?<foo>abc)
 - Extended regular expression syntax (skips whitespace and #comment-to-eol)
-- Negative Lookahead (?!abc) (TBD)
+- Negative Lookahead (?!abc)
 - Subroutine calls (?&foo) (TBD)
 - Optional: "Any" excludes newline (TBD)
 - Optional: * means .* as in the shell (TBD)

@@ -489,7 +489,7 @@ RxCompiler::compile(char*& nfa)
 	// and to close off the group, including finalising a chain of alternates.
 	struct Stack {
 		RxOp		op;
-		uint8_t		group_num;
+		uint8_t		group_num;	// 0 = the whole NFA. 1 is the first named group
 		CharBytes	start;		// Index in NFA to group-start opcode (2nd pass) or boolean (1st pass)
 		CharBytes	contents;	// Index in NFA to the start of the group contents
 		CharBytes	last_jump;	// Index in NFA to the Jump at the end of the most recent alternate. Signals an alternate chain.
@@ -940,7 +940,7 @@ RxCompiler::compile(char*& nfa)
 				ep--;
 				fixup_alternates();
 
-				// The CaptureEnd is build-in to Accept handling
+				// The CaptureEnd is built-in to Accept handling
 				// *ep++ = (char)RxOp::RxoCaptureEnd;
 				// *ep++ = 0;
 
@@ -991,9 +991,9 @@ RxCompiler::compile(char*& nfa)
 				break;
 
 			case RxOp::RxoNamedCapture:		// (?<name>...)
-				push(instr.op, next_group++);
+				push(instr.op, ++next_group);
 				ep[-1] = (char)RxOp::RxoCaptureStart;
-				*ep++ = next_group-1;
+				*ep++ = next_group;
 				tos().contents = ep-nfa;	// Record where the first alternate must start
 				break;
 
