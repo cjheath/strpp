@@ -103,7 +103,7 @@ matcher_test	matcher_tests[] =
 	{ "\\*",	"*",			0, 1 },
 	{ "\\+",	"+",			0, 1 },
 	{ "\\?",	"?",			0, 1 },
-	{ "{",		0,			0, 1 },
+	{ "{",		0,			0, 1 },		// "}"
 	{ "}",		"}",			0, 1 },
 	{ "\\.",	".",			0, 1 },
 	{ "\\^",	"^",			0, 1 },
@@ -177,7 +177,7 @@ matcher_test	matcher_tests[] =
 	{ "\\h",	"xgz",			-1, 0 },
 	{ "\\h",	"xGz",			-1, 0 },
 	// REVISIT: Implement property callbacks and add test cases here
-	// { "\\p{Braille}",	
+	// "\\p{Braille}",	
 
 	{ 0,	"Repetition", 0, 0 },
 	{ "a?",		"b",			0, 0 },
@@ -226,12 +226,12 @@ matcher_test	matcher_tests[] =
 	{ "b(a{2,3})(a{2,3})",	"baaaaa",	0, 6 },
 
 	/* REVISIT: Non-greedy repetition (not implemented)
-	{ "a*?"
-	{ "a+?"
-	{ "a??"
-	{ "a{2}?"
-	{ "a{2,3}?"
-	{ "a{2,}?"
+	"a*?"
+	"a+?"
+	"a??"
+	"a{2}?"
+	"a{2,3}?"
+	"a{2,}?"
 	*/
 
 	{ 0,	"Resolving ambiguous paths", 0, 0 },
@@ -256,7 +256,14 @@ matcher_test	matcher_tests[] =
 	{ "(a)|b",	"ab",			0, 1 },
 
 	// { 0,	"Named groups", 0, 0 },
+
 	// { 0,	"Negative lookahead", 0, 0 },
+	{ "((?!a)[a-z])*",	"abcd",		0, 0 },
+	{ "((?!a)[a-z])+",	"abcd",		1, 3 },
+	{ "((?!ac)[a-z])+",	"abcdbacd",	0, 5 },
+	{ "((?!cd)[a-e][c-f])+",	"abcdeefdccdf", 1, 8 },		// Note the occurrence of the stopping expression 'cd' out of alignment with the pairs
+	{ "((?!dc)[a-e][c-f])+",	"abcdeefcdcddcf", 1, 10 },
+
 	// { 0,	"Subroutine", 0, 0 },
 };
 

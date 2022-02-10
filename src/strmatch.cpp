@@ -409,14 +409,18 @@ next:
 
 	case RxOp::RxoNegLookahead:		// (?!...)
 	{
+		TRACK(("\t\tthread %d evaluating negative lookahead at %d, text %d '%c'\n", thread.thread_number, thread.station, offset, target[offset]&0xFF));
 		RxMatch		match(*this);
 		RxResult	result = match.matchAt(instr.next, offset);	// REVISIT: Arrange to not keep captures here
 
 		if (!result)
 		{
 			// Not matched, as requested, so continue with the next instruction at the current offset
+			TRACK(("\t\thread %d negative lookahead failed, so we can continue at offset %d\n", thread.thread_number, offset));
 			addthread(Thread(instr.alternate, thread.result), offset, shunts, num_shunt, instr.repetition.min);
 		}
+		else
+			TRACK(("\t\thread %d negative lookahead succeeded, abandon ship\n", thread.thread_number));
 		thread.result.clear();
 	}
 		break;
