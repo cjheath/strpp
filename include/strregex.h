@@ -153,6 +153,7 @@ public:
 	int		maxCounter() const { return max_counter; }
 	int		maxCapture() const { return max_capture; }
 	void		decode(RxStationID, RxDecoded&) const;
+	StrVal		group_name(int group_number) const;
 
 private:
 	// The NFA, and whether we should delete the data:

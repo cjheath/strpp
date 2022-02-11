@@ -130,6 +130,14 @@ RxProgram::~RxProgram()
 	if (nfa && nfa_owned) delete(nfa);
 }
 
+StrVal
+RxProgram::group_name(int group_number) const
+{
+	if (group_number > 0 && group_number <= names.size())
+		return names[group_number-1];
+	return "";
+}
+
 const RxResult
 RxProgram::matchAfter(StrVal target, CharNum offset) const
 {

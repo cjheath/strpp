@@ -102,7 +102,8 @@ RxCompiler::dumpInstruction(const char* nfa, const char*& np)	// Disassenble NFA
 		int station_count = UTF8Get(np);
 		int max_nesting = (*np++ & 0xFF);
 		int max_capture = (*np++ & 0xFF);
-		printf("NFA Start(%02X), search->%d, start->%d, station_count=%d, max_nesting=%d, max_capture=%d",
+		printf("NFA Start(%c %02X), search->%d, start->%d, station_count=%d, max_nesting=%d, max_capture=%d",
+			(char)op_num,
 			op_num,
 			search_station,
 			start_station,
@@ -126,54 +127,54 @@ RxCompiler::dumpInstruction(const char* nfa, const char*& np)	// Disassenble NFA
 		break;
 
 	case RxOp::RxoAccept:			// Termination condition
-		printf("Accept(%02X)\n", op_num);
+		printf("Accept(%c %02X)\n", (char)op_num, op_num);
 		break;
 
 	case RxOp::RxoChar:			// Literal character
 	{
 		const char*	cp = np;
 		ucs4char = UTF8Get(np);
-		printf("Char(%02X) %d='%.*s'\n", op_num, ucs4char, (int)(np-cp), cp);
+		printf("Char(%c %02X) %d='%.*s'\n", (char)op_num, op_num, ucs4char, (int)(np-cp), cp);
 	}
 		break;
 
 	case RxOp::RxoBOL:			// Beginning of Line
-		printf("BOL(%02X)\n", op_num);
+		printf("BOL(%c %02X)\n", (char)op_num, op_num);
 		break;
 
 	case RxOp::RxoEOL:			// End of Line
-		printf("EOL(%02X)\n", op_num);
+		printf("EOL(%d %02X)\n", (char)op_num, op_num);
 		break;
 
 	case RxOp::RxoAny:			// Any single char
-		printf("Any(%02X)\n", op_num);
+		printf("Any(%c %02X)\n", (char)op_num, op_num);
 		break;
 
 	case RxOp::RxoJump:
 		offset_next = get_offset(np);
-		printf("Jump(%02X) %+d->%d\n", op_num, offset_next, offset_this+1+offset_next);
+		printf("Jump(%c %02X) %+d->%d\n", (char)op_num, op_num, offset_next, offset_this+1+offset_next);
 		break;
 
 	case RxOp::RxoSplit:
 		offset_alternate = get_offset(np);
-		printf("Split(%02X) %+d->%d\n", op_num, offset_alternate, offset_this+1+offset_alternate);
+		printf("Split(%c %02X) %+d->%d\n", (char)op_num, op_num, offset_alternate, offset_this+1+offset_alternate);
 		break;
 
 	case RxOp::RxoCaptureStart:
 		group_num = (*np++ & 0xFF) - 1;
 		name = get_name(nfa, group_num);
-		printf("CaptureStart(%02X) group '%s'(%d)\n", op_num, name.asUTF8(), group_num);
+		printf("CaptureStart(%c %02X) group '%s'(%d)\n", (char)op_num, op_num, name.asUTF8(), group_num);
 		break;
 
 	case RxOp::RxoCaptureEnd:
 		group_num = (*np++ & 0xFF) - 1;
 		name = get_name(nfa, group_num);
-		printf("CaptureEnd(%02X) group '%s'(%d)\n", op_num, name.asUTF8(), group_num);
+		printf("CaptureEnd(%c %02X) group '%s'(%d)\n", (char)op_num, op_num, name.asUTF8(), group_num);
 		break;
 
 	case RxOp::RxoNegLookahead:		// (?!...)
 		offset_next = get_offset(np);
-		printf("NegLookahead(%02X) bypass=(%+d)->%d\n", op_num, offset_next, offset_this+1+offset_next);
+		printf("NegLookahead(%c %02X) bypass=(%+d)->%d\n", (char)op_num, op_num, offset_next, offset_this+1+offset_next);
 		break;
 
 	case RxOp::RxoCharProperty:		// A char with a named Unicode property
@@ -186,14 +187,14 @@ RxCompiler::dumpInstruction(const char* nfa, const char*& np)	// Disassenble NFA
 		op_name = "NegCharClass";
 	string:
 		byte_count = UTF8Get(np);
-		printf("%s(%02X), '%.*s'\n", op_name, op_num, byte_count, np);
+		printf("%s(%c %02X), '%.*s'\n", op_name, (char)op_num, op_num, byte_count, np);
 		np += byte_count;
 		break;
 
 	case RxOp::RxoSubroutineCall:		// Subroutine call to a named group
 		group_num = (*np++ & 0xFF);	// We don't add one to these because you can't call group 0
 		name = get_name(nfa, group_num).asUTF8();
-		printf("SubroutineCall(%02X) call to '%s'(%d)\n", op_num, name.asUTF8(), group_num);
+		printf("SubroutineCall(%c %02X) call to '%s'(%d)\n", (char)op_num, op_num, name.asUTF8(), group_num);
 		break;
 
 	case RxOp::RxoEndGroup:			// End of a group
@@ -231,14 +232,14 @@ RxCompiler::dumpInstruction(const char* nfa, const char*& np)	// Disassenble NFA
 		break;
 
 	case RxOp::RxoZero:
-		printf("Zero(%02X)\n", op_num);
+		printf("Zero(%c %02X)\n", (char)op_num, op_num);
 		break;
 
 	case RxOp::RxoCount:
 		min = (*np++ & 0xFF) - 1;
 		max = (*np++ & 0xFF) - 1;
 		offset_alternate = get_offset(np);
-		printf("Count(%02X) min=%d max=%d repeating at %+d->%d\n", op_num, min, max, offset_alternate, offset_this+3+offset_alternate);
+		printf("Count(%c %02X) min=%d max=%d repeating at %+d->%d\n", (char)op_num, op_num, min, max, offset_alternate, offset_this+3+offset_alternate);
 		break;
 	}
 	return true;
