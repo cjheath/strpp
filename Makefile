@@ -48,7 +48,7 @@ build:
 	@mkdir build
 
 clean:
-	rm -f $(OBJS) $(TESTS)
+	rm -rf $(OBJS) $(TESTS) $(TESTS:=.dSYM)
 	@rmdir build 2>/dev/null || true
 
 clobber:	clean
