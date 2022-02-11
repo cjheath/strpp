@@ -37,7 +37,6 @@ enum class RxFeature
 	Capture		= 0x0004000,	// (?<group_name>re)
 	NonCapture	= 0x0008000,	// (?:re)
 	NegLookahead	= 0x0010000,	// (?!re)
-	Subroutine	= 0x0020000,	// (?&group_name)
 	// Line start/end
 	BOL		= 0x0040000,	// ^ beginning of line
 	EOL		= 0x0080000,	// $ end of line
@@ -72,7 +71,6 @@ enum class RxOp: char
 	RxoNegCharClass = 'N',	// Negated Character class
 	RxoAny = '.',		// Any single char
 	RxoNegLookahead = '!',	// (?!...)
-	RxoSubroutineCall = 'U', // Subroutine call to a named group
 	RxoAccept = '#',	// Termination condition
 	// These opcodes are NFA Instructions, not lexical tokens
 	RxoChar = 'C',		// A single literal character
@@ -166,7 +164,7 @@ private:
 	short		max_counter;	// Number of counters required, from NFA header
 	short		max_capture;	// Number of capture expressions in this NFA
 
-	// Names of the capture groups or subroutines, extracted from the NFA header
+	// Names of the capture groups, extracted from the NFA header
 	std::vector<StrVal>	names;
 };
 
@@ -213,9 +211,6 @@ public:
 	CharNum		counterIncr(CharNum offset);		// Increment and return top counter of stack
 	void		counterPop();		// Discard the top counter of the stack
 	const Counter	counterTop();		// Top counter value, if any
-
-	// Something to handle function-call results: mumble, mumble...
-	// std::vector<RxResult> subroutineMatches;	// Ordered by position of the subroutine call in the regexp
 
         int		resultNumber() const;	// Only used for diagnostics
 

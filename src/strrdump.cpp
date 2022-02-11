@@ -191,12 +191,6 @@ RxCompiler::dumpInstruction(const char* nfa, const char*& np)	// Disassenble NFA
 		np += byte_count;
 		break;
 
-	case RxOp::RxoSubroutineCall:		// Subroutine call to a named group
-		group_num = (*np++ & 0xFF);	// We don't add one to these because you can't call group 0
-		name = get_name(nfa, group_num).asUTF8();
-		printf("SubroutineCall(%c %02X) call to '%s'(%d)\n", (char)op_num, op_num, name.asUTF8(), group_num);
-		break;
-
 	case RxOp::RxoEndGroup:			// End of a group
 		printf("ERROR: EndGroup(%02X) should not be emitted\n", op_num);
 		break;

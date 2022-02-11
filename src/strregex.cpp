@@ -24,7 +24,6 @@
  * - Character Property(#bytes as UTF8, String) (name of the Property)
  * - BOL/EOL (Line assertions)
  * - Any
- * - Subroutine call(1-byte group number)
  * Shunts:
  * - Start(Number of stations, Maximum Counter Nesting, offset to End, Number of names, array of names as consecutive Strings)
  * - Accept
@@ -35,20 +34,20 @@
  * - Zero (push new zero counter to top of stack)
  * - Count(uchar min, uchar max, Offset to the repetition path)
  *
- * Negative lookahead requires a recursive call to the matcher. Subroutine calls do as well.
+ * Negative lookahead requires a recursive call to the matcher
  *
  * Any Instruction that consumes text is counted as a Station. Start, End, Jump, Split, Zero, Count, Success are not stations.
  * There may be as many as one parallel thread per Station in the NFA.
  */
 
-#define	ParenFeatures		((RxFeature)((int32_t)RxFeature::Capture|(int32_t)RxFeature::NonCapture|(int32_t)RxFeature::NegLookahead|(int32_t)RxFeature::Subroutine))
+#define	ParenFeatures		((RxFeature)((int32_t)RxFeature::Capture|(int32_t)RxFeature::NonCapture|(int32_t)RxFeature::NegLookahead))
 
 class RxToken
 {
 public:
 	RxOp		op;		// The instruction code
 	RxRepetitionRange repetition;	// How many repetitions?
-	StrVal		str;		// RxoNamedCapture, RxoSubroutineCall, RxoCharClass, RxoNegCharClass
+	StrVal		str;		// RxoNamedCapture, RxoCharClass, RxoNegCharClass
 
 	RxToken(RxOp _op) : op(_op) { }
 	RxToken(RxOp _op, StrVal _str) : op(_op), str(_str) { }
@@ -400,17 +399,6 @@ bool RxCompiler::scanRegex(const std::function<bool(const RxToken& instr)> func)
 				ok = func(RxToken(RxOp::RxoNegLookahead));
 				break;
 			}
-			else if (re[i] == '&')				// Subroutine
-			{
-				param = re.substr(++i);
-				close = param.find(')');
-				if (close <= 0)
-					goto bad_capture;
-				param = param.substr(0, close); // Truncate name to before >
-				ok = func(RxToken(RxOp::RxoSubroutineCall, param));
-				i += close;	// Now pointing at the ')'
-				break;
-			}
 			else
 				error_message = "Illegal group type";
 			break;
@@ -462,7 +450,7 @@ bool RxCompiler::scanRegex(const std::function<bool(const RxToken& instr)> func)
  *   + accumulate the maximum nesting of repetitions (actuall, just maximum nesting)
  *   + Count the number of Stations
  * - Allocate the data and scan through again, building the compiled NFA
- * - The RxoStart node includes the list of group names. Subroutine calls reference a group by array index
+ * - The RxoStart node includes the list of group names.
  *
  * The finished NFA is a series of packed characters and numbers. Both are packed using UTF-8 coding.
  * The opcodes are all ASCII (single UTF-8 byte)
@@ -473,8 +461,6 @@ bool RxCompiler::scanRegex(const std::function<bool(const RxToken& instr)> func)
  * variable in size, the maximum required space is reserved, so patching involves shuffling the rest
  * of the NFA down to meet it. This must be done in such away that other offsets aren't affected, or
  * those are also patched.
- *
- * This problem doesn't occur with subroutine calls since those go via the names table.
  *
  * The first pass involves two counts that affect the allocation size:
  * - the number of offset numbers to encode, and
@@ -646,13 +632,6 @@ RxCompiler::compile(char*& nfa)
 
 				bytes_required += 2;		// RxoCaptureStart, group#
 				goto str_param;			// This string will be in the names table of RxoStart
-
-			case RxOp::RxoSubroutineCall:		// Subroutine call to a named group
-				// The named subroutine might not yet have been declared, so we can't check it
-				station_count++;
-				is_atom = true;
-				bytes_required += 1;		// We will store the index in the names array
-				break;
 
 			case RxOp::RxoEndGroup:			// End of a group
 				if (nesting <= 0)
@@ -1031,23 +1010,6 @@ RxCompiler::compile(char*& nfa)
 				this_atom_start = nfa+tos().start;
 				nesting--;
 				break;		// Don't break and set last_atom_start wrongly
-
-			case RxOp::RxoSubroutineCall:		// Subroutine call to a named group
-			{
-				int i = 1;
-				for (iter = names.begin(); iter != names.end(); iter++, i++)
-				{
-					if (*iter == instr.str)
-						break;
-				}
-				if (i > names.size())
-				{
-					error_message = "Function call to undeclared group";
-					return false;
-				}
-				*ep++ = i;
-				break;
-			}
 
 			case RxOp::RxoAlternate:		// |
 				ep--;	// Don't output RxoAlternate

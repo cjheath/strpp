@@ -263,8 +263,6 @@ matcher_test	matcher_tests[] =
 	{ "((?!ac)[a-z])+",	"abcdbacd",	0, 5 },
 	{ "((?!cd)[a-e][c-f])+",	"abcdeefdccdf", 1, 8 },		// Note the occurrence of the stopping expression 'cd' out of alignment with the pairs
 	{ "((?!dc)[a-e][c-f])+",	"abcdeefcdcddcf", 1, 10 },
-
-	// { 0,	"Subroutine", 0, 0 },
 };
 
 StrVal

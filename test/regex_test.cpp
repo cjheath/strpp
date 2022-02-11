@@ -219,12 +219,7 @@ compiler_test	compiler_tests[] =
 	{ "(?<foo>a|b?|c*|d+){2,5}",		"Sd\x12\x10\x02\x02\x02\x03""foo(\x01Z(\x02""A\x0A""CaJ.A\x0E""A\x06""CbJ\x1E""A\x12""A\x0A""CcJ\x0BJ\x0A""CdA\x07)\x02R\x03\x06G#AS.J\x09", 0 },
 
  { 0,	"--- Function calls ---", 0 },
-	{ "(?&a)(?<a>b)",			"S&\x0E\x06\x02\x02\x02\x01""a(\x01U\x01(\x02""Cb)\x02#A\x19.J\x09", 0 },
-	{ "(?<a>b)(?&a)",			"S&\x0E\x06\x02\x02\x02\x01""a(\x01(\x02""Cb)\x02U\x01#A\x19.J\x09", 0 },
-	{ "(?<a>b(?<c>d)e(?&a)?)(?&c)",		"SB\x12\x0C\x03\x03\x03\x01""a\x01""c(\x01(\x02""Cb(\x03""Cd)\x03""CeA\x06U\x01)\x02U\x02#A1.J\x09", 0 },
-
-	{ "(?&a)",	0, "Function call to undeclared group" },
-	{ "(?<a>b(?<c>d)e(?&a))(?&b)",	0, "Function call to undeclared group" },
+	{ "(?&a)(?<a>b)",			0, "Illegal group type" },
 };
 
 
@@ -296,7 +291,7 @@ int automated_tests()
 		// Check expectations
 		bool	return_code_pass = (ct->expected_message == 0) == scanned_ok;	// Failure was reported if expected
 		bool	nfa_presence_pass = (ct->expected_nfa != 0) == (nfa != 0);	// NFA was returned if one was expected
-		bool	nfa_pass = !ct->expected_nfa || 0 == strcmp(nfa, ct->expected_nfa);	// NFA was correct if expected
+		bool	nfa_pass = !ct->expected_nfa || (nfa && 0 == strcmp(nfa, ct->expected_nfa));	// NFA was correct if expected
 		bool	error_message_presence_pass = (ct->expected_message != 0) == (rx.errorMessage() != 0);	// Message was returned if expected
 		bool	error_message_pass = !ct->expected_message || 0 == strcmp(ct->expected_message, rx.errorMessage());	// Message was correct if expected
 		bool	test_pass = return_code_pass && nfa_presence_pass && nfa_pass && error_message_presence_pass && error_message_pass;

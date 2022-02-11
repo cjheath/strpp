@@ -169,7 +169,6 @@ struct RxDecoded
 		} text;
 		RxStationID	alternate;	// RxoSplit, RxoCount
 		short		capture_number;	// RxoCaptureStart, RxoCaptureEnd (0..maxCapture)
-		short		group_number;	// RxoSubroutineCall
 	};
 	RxRepetitionRange repetition;		// RxoCount
 };
@@ -208,10 +207,6 @@ RxProgram::decode(RxStationID station, RxDecoded& instr) const
 	case RxOp::RxoNegLookahead:
 		instr.alternate = (nfa_p-nfa);	// Where to continue if the lookahead allows it
 		instr.alternate += zagzig(UTF8Get(nfa_p));
-		break;
-
-	case RxOp::RxoSubroutineCall:
-		instr.group_number = *(unsigned char*)nfa_p++;		// group number 1 is the first name
 		break;
 
 	case RxOp::RxoJump:
@@ -607,17 +602,6 @@ RxMatch::matchAt(RxStationID start, CharNum& offset)
 				TRACK(("fails\n"));
 				break;
 			}
-
-			case RxOp::RxoSubroutineCall:		// Subroutine call to a named group
-				break;	// REVISIT: Implement RxoSubroutineCall. Until then, act like the subroutine has completed
-#if 0
-			{
-				// Match the subroutine group and push_back subroutineMatches
-				RxMatch		m;
-				// matchAt(...
-				return RxResult();
-			}
-#endif
 
 			// Compiler opcodes that aren't part of the VM:
 			case RxOp::RxoNull:
