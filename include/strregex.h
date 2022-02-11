@@ -190,10 +190,11 @@ public:
 	RxResult& operator=(const RxResult& s1);
 	void		clear();
 
-	bool		succeeded() { return (RxCaptures*)captures != 0; }
+	bool		succeeded() const;
 	operator	bool() { return succeeded(); }
-	CharNum		offset() const { return capture(0); }
-	CharNum		length() const { return capture(1)-capture(0); }
+
+	CharNum		offset() const { return cap0; }
+	CharNum		length() const { return succeeded() ? cap1-cap0 : 0; }
 
 	// Capture and counter access outside the 0..index range is ignored.
 	// This makes it possible to match a Regex without capturing all results.
@@ -212,15 +213,13 @@ public:
 	void		counterPop();		// Discard the top counter of the stack
 	const Counter	counterTop();		// Top counter value, if any
 
-	// Something to handle function-call results:
-	// mumble, mumble...
+	// Something to handle function-call results: mumble, mumble...
 	// std::vector<RxResult> subroutineMatches;	// Ordered by position of the subroutine call in the regexp
 
         int		resultNumber() const;	// Only used for diagnostics
 
 private:
-	// Storing capture-zero (start of match) here saves many RxCaptures allocations:
-	CharNum		cap0;
+	CharNum		cap0, cap1;		// Start and end of match
 	Ref<RxCaptures> captures;
 	void		Unshare();
 };

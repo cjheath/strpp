@@ -14,6 +14,8 @@
 #define	TRACK(arglist)	
 #endif
 
+#define	NORESULT	(~(CharNum)0)
+
 /*
  * To make it easy to pass around and modify capture sets, we use a reference counted body.
  * These never get changed except when the reference count is one (1), and get deleted
@@ -655,10 +657,10 @@ RxMatch::matchAt(RxStationID start, CharNum& offset)
 RxCaptures::RxCaptures(short c_max, short p_max)
 : counter_max(c_max)
 , capture_max(p_max)
-, counters(new CharNum[(counter_max+capture_max)*2-1])
+, counters(new CharNum[(counter_max+capture_max-1)*2])
 , counters_used(0)
 {
-	memset(counters, 0, sizeof(CharNum)*((counter_max+capture_max)*2-1));
+	memset(counters, 0, sizeof(CharNum)*((counter_max+capture_max-1)*2));
 }
 
 RxCaptures::RxCaptures(const RxCaptures& to_copy)
@@ -667,7 +669,7 @@ RxCaptures::RxCaptures(const RxCaptures& to_copy)
 , counters(new CharNum[(counter_max+capture_max)*2-1])
 , counters_used(to_copy.counters_used)
 {
-	memcpy(counters, to_copy.counters, sizeof(CharNum)*((counter_max+capture_max)*2-1));
+	memcpy(counters, to_copy.counters, sizeof(CharNum)*((counter_max+capture_max-1)*2));
 }
 
 void
@@ -717,35 +719,38 @@ CharNum
 RxCaptures::capture(int index)
 {
 	assert(!(index < 1 || index >= capture_max*2));		// REVISIT: Delete this when capture limiting is implemented
-	if (index < 1 || index >= capture_max*2)
-		return 0;
-	return counters[counter_max*2+index-1];
+	if (index < 2 || index >= capture_max*2)
+		return 0;		// Captures 0 and 1 are stored in RxResult
+	return counters[counter_max*2+index-2];
 }
 
 CharNum
 RxCaptures::captureSet(int index, CharNum val)
 {
 	assert(!(index < 1 || index >= capture_max*2));		// REVISIT: Delete this when capture limiting is implemented
-	if (index < 1 || index >= capture_max*2)
+	if (index < 2 || index >= capture_max*2)
 		return 0;		// Ignore captures outside the defined range
-	return counters[counter_max*2+index-1] = val;
+	return counters[counter_max*2+index-2] = val;
 }
 
 RxResult::RxResult(short c_max, short p_max)
 : captures(new RxCaptures(c_max, p_max))
 , cap0(0)
+, cap1(NORESULT)
 {
 }
 
 RxResult::RxResult()		// Failed result
 : captures(0)
 , cap0(0)
+, cap1(NORESULT)
 {
 }
 
 RxResult::RxResult(const RxResult& s1)
 : captures(s1.captures)
 , cap0(s1.cap0)
+, cap1(s1.cap1)
 {	// Normal copy constructor
 }
 
@@ -753,6 +758,7 @@ RxResult& RxResult::operator=(const RxResult& s1)
 {
 	captures = s1.captures;
 	cap0 = s1.cap0;
+	cap1 = s1.cap1;
 	return *this;
 }
 
@@ -761,13 +767,20 @@ RxResult::clear()
 {
 	captures = (RxCaptures*)0;	// Clear the reference and its refcount
 	cap0 = 0;
+	cap1 = NORESULT;
+}
+
+bool
+RxResult::succeeded() const
+{
+	// Many RxResult will have a cap0, but only successful ones set cap1
+	return cap1 != NORESULT;
 }
 
 void
 RxResult::Unshare()
 {
-	assert(captures);
-	if (captures.GetRefCount() <= 1)
+	if (captures && captures.GetRefCount() <= 1)
 		return;
 	captures = new RxCaptures(*captures);	// Copy the result captures before making changes
 }
@@ -785,8 +798,8 @@ RxResult::captureMax() const
 CharNum
 RxResult::capture(int index) const
 {
-	if (index == 0)
-		return cap0;
+	if (index <= 1)
+		return index ? (cap1 != NORESULT ? cap1 : 0) : cap0;
 	if (!captures)
 		return 0;
 	assert(captures);
@@ -796,9 +809,12 @@ RxResult::capture(int index) const
 RxResult&
 RxResult::captureSet(int index, CharNum val)
 {
-	if (index == 0)
+	if (index <= 1)
 	{
-		cap0 = val;
+		if (index == 0)
+			cap0 = val;
+		else
+			cap1 = val;
 		return *this;
 	}
 	assert(captures);
