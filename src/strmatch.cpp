@@ -227,8 +227,10 @@ RxProgram::decode(RxStationID station, RxDecoded& instr) const
 		instr.capture_number = *(unsigned char*)nfa_p++ - 1;
 		break;
 
-	case RxOp::RxoNull:			// These opcodes are never in the NFA
-	case RxOp::RxoLiteral:
+	case RxOp::RxoNull:
+		break;
+
+	case RxOp::RxoLiteral:			// These opcodes are never in the NFA
 	case RxOp::RxoNonCapturingGroup:
 	case RxOp::RxoNamedCapture:
 	case RxOp::RxoAlternate:
@@ -627,6 +629,7 @@ RxMatch::matchAt(RxStationID start, CharNum& offset)
 			case RxOp::RxoZero:
 			case RxOp::RxoCount:
 			case RxOp::RxoNegLookahead:		// (?!...) match until EndGroup and return the opposite
+				TRACK(("Surprising op %02x\n", (char)instr.op&0xFF));
 				assert(0 == "Should not happen");
 				return RxResult();
 			}
@@ -784,6 +787,8 @@ RxResult::capture(int index) const
 {
 	if (index == 0)
 		return cap0;
+	if (!captures)
+		return 0;
 	assert(captures);
 	return captures->capture(index);
 }
