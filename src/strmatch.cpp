@@ -91,7 +91,7 @@ private:
 	void		addthread(Thread thread, CharNum offset, CharNum *shunts, CharNum num_shunt, CharNum max_duplicates_allowed = 0);
 };
 
-static int zagzig(int i)
+static int32_t zagzig(int32_t i)
 {
 	return (i>>1) * ((i&01) ? -1 : 1);
 }

@@ -741,13 +741,13 @@ RxCompiler::compile(char*& nfa)
 	ep = nfa;
 
 	auto	zigzag =
-		[](int i) -> CharBytes
+		[](int32_t i) -> CharBytes
 		{
-			return (abs(i)<<1) | (i < 0 ? 1 : 0);
+			return (CharBytes)(abs(i)<<1) | (i < 0 ? 1 : 0);
 		};
 
 	auto	zagzig =
-		[](int i) -> int
+		[](int32_t i) -> int32_t
 		{
 			return (i>>1) * ((i&01) ? -1 : 1);
 		};
@@ -764,9 +764,9 @@ RxCompiler::compile(char*& nfa)
 
 	// Emit an offset, advancing np, and returning the number of UTF8 bytes emitted
 	auto	get_offset =
-		[&](const char*& np) -> CharBytes
+		[&](const char*& np) -> int32_t
 		{
-			return (CharBytes)zagzig(UTF8Get(np));
+			return zagzig(UTF8Get(np));
 		};
 
 	// Emit a zigzag integer, but always advance np by offset_max_bytes
