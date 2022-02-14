@@ -42,10 +42,10 @@ enum class RxFeature
 	EOL		= 0x0080000,	// $ end of line
 	AllFeatures	= 0x00FFFFF,
 	// Options relevant to regexp interpretation
-	AnyIsQuest	= 0x01000000,	// ? means any char (so cannot be ZeroOrOneQuest)
-	ZeroOrMoreAny	= 0x02000000,	// * means zero or more any, aka .*
-	AnyIncludesNL	= 0x04000000,	// Any character includes newline
-	CaseInsensitive	= 0x08000000,	// Perform case-insensitive match
+	AnyIsQuest	= 0x01000000,	// ? means any char (so cannot be ZeroOrOneQuest) (TBD)
+	ZeroOrMoreAny	= 0x02000000,	// * means zero or more any, aka .* (TBD)
+	AnyExcludesNL	= 0x04000000,	// Any character excludes newline (TBD)
+	CaseInsensitive	= 0x08000000,	// Perform case-insensitive match (TBD)
 //	Digraphs	= 0x10000000,	// e.g. ll in Spanish, ss in German, ch in Czech
 	ExtendedRE	= 0x20000000,	// Whitespace allowed, but may be matched by \s
 };
@@ -104,8 +104,9 @@ public:
 	RxCompiler(StrVal re, RxFeature features = RxFeature::AllFeatures, RxFeature reject_features = RxFeature::NoFeature);
 
 	// Lexical scanner and compiler for a regular expression. Returns false if error_message gets set.
-	// The compiler allocates memory for the nfa, which you should delete using "delete[] nfa".
 	bool		scanRegex(const std::function<bool(const RxToken& instr)> func);
+
+	// The compiler allocates memory for the nfa, which you should delete using "delete[] nfa".
 	bool		compile(char*& nfa);
 
 	const char*	errorMessage() const { return error_message; }
@@ -141,7 +142,7 @@ public:
 	~RxProgram();
 	RxProgram(const char* nfa, bool take_ownership = false);
 
-	// REVISIT: Add option flags? Like no-capture, case insensitive, etc?
+	// REVISIT: Add option flags, like no-capture, case insensitive, etc?
 	const RxResult	matchAfter(StrVal target, CharNum offset = 0) const;
 	const RxResult	matchAt(StrVal target, CharNum offset = 0) const;
 

@@ -14,10 +14,10 @@ HDRS	=	char_encoding.h		\
 		strpp.h 		\
 		strregex.h
 SRCS	=	char_encoding.cpp	\
-		strmatch.cpp		\
+		rxmatch.cpp		\
 		strpp.cpp		\
-		strrdump.cpp		\
-		strregex.cpp
+		rxdump.cpp		\
+		rxcompile.cpp
 LIB	=	libstrpp.a
 TESTS	=	match_test regex_test
 
