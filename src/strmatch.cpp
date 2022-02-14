@@ -14,7 +14,7 @@
 #define	TRACK(arglist)	
 #endif
 
-#define	NORESULT	(~(CharNum)0)
+#define	NORESULT	((CharNum)~0)
 
 /*
  * To make it easy to pass around and modify capture sets, we use a reference counted body.
