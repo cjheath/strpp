@@ -61,8 +61,8 @@ class RxMatch
 	// It is possible there can be as many threads as Stations in the program.
 	// Each cycle traverses an array of current threads, building an array for the next cycle.
 	struct Thread {
-		Thread() : station(0), result() {}
-		Thread(RxStationID s, RxResult r);
+		Thread();
+		Thread(RxStationID s, RxResult r, const Thread* predecessor = 0);
 		RxStationID	station;
 		RxResult	result;
 #ifdef TRACK_RESULTS
@@ -84,9 +84,9 @@ private:
 	RxResult	result;			// Result from the successful thread
 
 	// Concurrent threads of execution:
-	Thread*		current_stations;	// The threads we're currently evaluating
+	Thread*		current_threads;	// The threads we're currently evaluating
 	RxStationID	current_count;		// How many of the above are populated
-	Thread*		next_stations;		// The threads that lead on from here
+	Thread*		next_threads;		// The threads that lead on from here
 	RxStationID	next_count;		// How many of the above are populated
 	void		addthread(Thread thread, CharNum offset, CharNum *shunts, CharNum num_shunt, CharNum max_duplicates_allowed = 0);
 };
@@ -255,9 +255,9 @@ RxMatch::RxMatch(const RxProgram& _program, StrVal _target)
 , target(_target)
 {
 	int	i = program.maxStation();
-	current_stations = new Thread[i];
+	current_threads = new Thread[i];
 	current_count = 0;
-	next_stations = new Thread[i];
+	next_threads = new Thread[i];
 	next_count = 0;
 }
 
@@ -266,28 +266,36 @@ RxMatch::RxMatch(const RxMatch& _tocopy)
 , target(_tocopy.target)
 {
 	int	i = program.maxStation();
-	current_stations = new Thread[i];
+	current_threads = new Thread[i];
 	current_count = 0;
-	next_stations = new Thread[i];
+	next_threads = new Thread[i];
 	next_count = 0;
 }
 
 RxMatch::~RxMatch()
 {
-	delete[] current_stations;
-	delete[] next_stations;
+	delete[] current_threads;
+	delete[] next_threads;
 }
 
-RxMatch::Thread::Thread(RxStationID s, RxResult r)
+RxMatch::Thread::Thread()
+: station(0)
+, result()
+#ifdef TRACK_RESULTS
+, thread_number(0)
+#endif
+{}
+
+RxMatch::Thread::Thread(RxStationID s, RxResult r, const Thread* predecessor)
 : station(s)
 , result(r)
 #ifdef TRACK_RESULTS
-, thread_number(s ? ++next_thread : 0)
+, thread_number(predecessor ? predecessor->thread_number : (s ? ++next_thread : 0))
 #endif
 {}
 
 #ifdef TRACK_RESULTS
-int	RxMatch::Thread::next_thread;	// Sequential thread numbering to aid in debug traces
+int	RxMatch::Thread::next_thread = 0;	// Sequential thread numbering to aid in debug traces
 #endif
 
 void
@@ -311,10 +319,10 @@ RxMatch::addthread(Thread thread, CharNum offset, CharNum* shunts, CharNum num_s
 	int	duplicates = 0;
 	for (int i = 0; i < next_count; i++)
 	{
-		if (next_stations[i].station == thread.station)
+		if (next_threads[i].station == thread.station)
 		{
 			if ((max_duplicates_allowed			// Check for an exact duplicate first
-				&& thread.result.countersSame(next_stations[i].result))
+				&& thread.result.countersSame(next_threads[i].result))
 			 || ++duplicates > max_duplicates_allowed)	// Or too many duplicates
 			{
 				// The above condition is not perfect - it fails with 5x nested counted repetitions for example.
@@ -324,12 +332,12 @@ RxMatch::addthread(Thread thread, CharNum offset, CharNum* shunts, CharNum num_s
 #ifdef TRACK_RESULTS
 				TRACK(("\t\tthread %d at %d is a duplicate", thread.thread_number, thread.station));
 				if (thread.result.hasCounter()) TRACK((" (count %d)", thread.result.counterTop().count));
-				TRACK((" of thread %d", next_stations[i].thread_number));
-				if (next_stations[i].result.hasCounter())
+				TRACK((" of thread %d", next_threads[i].thread_number));
+				if (next_threads[i].result.hasCounter())
 				{
 					TRACK((" (counters"));
-					for (int i = 0; i < next_stations[i].result.counterNum(); i++)
-						TRACK((" %d", next_stations[i].result.counterGet(i)));
+					for (int i = 0; i < next_threads[i].result.counterNum(); i++)
+						TRACK((" %d", next_threads[i].result.counterGet(i)));
 					TRACK((")"));
 				}
 				TRACK(("\n"));
@@ -370,7 +378,7 @@ next:
 	case RxOp::RxoSplit:
 		// REVISIT: For non-greedy repetition, we need these addthread calls in opposite order (same for RxoCount)
 		addthread(Thread(instr.alternate, thread.result), offset, shunts, num_shunt);
-		addthread(Thread(instr.next, thread.result), offset, shunts, num_shunt);
+		addthread(Thread(instr.next, thread.result, &thread), offset, shunts, num_shunt);
 		break;
 
 	case RxOp::RxoCaptureStart:
@@ -387,7 +395,7 @@ next:
 
 	case RxOp::RxoZero:
 		thread.result.counterPushZero(offset);
-		thread = Thread(instr.next, thread.result);
+		thread = Thread(instr.next, thread.result, &thread);
 		goto next;
 
 	case RxOp::RxoCount:	// This instruction follows a repeated item, so the pre-incremented counter tells how many we've passed
@@ -409,7 +417,7 @@ next:
 		{
 			RxResult	continuation = thread.result;
 			continuation.counterPop();	// The continuing thread has no further need of the counter
-			addthread(Thread(instr.next, continuation), offset, shunts, num_shunt, instr.repetition.min);
+			addthread(Thread(instr.next, continuation, &thread), offset, shunts, num_shunt, instr.repetition.min);
 		}
 		thread.result.clear();
 	}
@@ -424,8 +432,8 @@ next:
 		if (!result)
 		{
 			// Not matched, as requested, so continue with the next instruction at the current offset
-			TRACK(("\t\thread %d negative lookahead failed, so we can continue at offset %d\n", thread.thread_number, offset));
-			addthread(Thread(instr.alternate, thread.result), offset, shunts, num_shunt, instr.repetition.min);
+			TRACK(("\t\tthread %d negative lookahead failed, so we can continue at offset %d\n", thread.thread_number, offset));
+			addthread(Thread(instr.alternate, thread.result, &thread), offset, shunts, num_shunt, instr.repetition.min);
 		}
 		else
 			TRACK(("\t\thread %d negative lookahead succeeded, abandon ship\n", thread.thread_number));
@@ -435,7 +443,7 @@ next:
 
 	default:
 #ifdef TRACK_RESULTS
-		TRACK(("\t\t... adding thread %d at instr %d, offset %d with captures ", thread.thread_number, thread.station, offset));
+		TRACK(("\t\t... thread %d at instr %d, offset %d with captures ", thread.thread_number, thread.station, offset));
 		for (int i = 0; i < thread.result.captureMax(); i++)
 			TRACK(("%s(%d,%d)", i ? ", " : "", thread.result.capture(i*2), thread.result.capture(i*2+1)));
 		if (thread.result.hasCounter())
@@ -449,7 +457,7 @@ next:
 #endif
 		assert(next_count < program.maxStation());
 		if (next_count < program.maxStation())
-			next_stations[next_count++] = thread;
+			next_threads[next_count++] = thread;
 		// else the compiler let us down; silently ignore this possible path and hope something else matches correctly
 	}
 };
@@ -468,13 +476,13 @@ RxMatch::matchAt(RxStationID start, CharNum& offset)
 	// Start where directed, and step forward one character at a time, following all threads until successful or there are no threads left
 	next_count = 0;
 	addthread(Thread(start, RxResult(program.maxCounter(), program.maxCapture())), offset, shunts, 0);
-	std::swap(current_stations, next_stations);
+	std::swap(current_threads, next_threads);
 	current_count = next_count;
 	next_count = 0;
 	for (; current_count > 0 && offset <= target.length(); offset++)
 	{
 		TRACK(("\ncycle at offset %d with %d threads looking at '%s'\n", offset, current_count, target.substr(offset, 1).asUTF8()));
-		for (thread_p = current_stations; thread_p < current_stations+current_count; thread_p++)
+		for (thread_p = current_threads; thread_p < current_threads+current_count; thread_p++)
 		{
 		decode_next:
 			RxStationID	pc = thread_p->station;
@@ -627,11 +635,11 @@ RxMatch::matchAt(RxStationID start, CharNum& offset)
 				assert(0 == "Should not happen");
 				return RxResult();
 			}
-			addthread(Thread(instr.next, thread_p->result), offset+1, shunts, 0);
+			addthread(Thread(instr.next, thread_p->result, thread_p), offset+1, shunts, 0);
 			thread_p->result.clear();
 		}
 
-		std::swap(current_stations, next_stations);
+		std::swap(current_threads, next_threads);
 		current_count = next_count;
 		next_count = 0;
 	}
@@ -641,7 +649,7 @@ RxMatch::matchAt(RxStationID start, CharNum& offset)
 	// REVISIT: Might it be useful to know on which Station(s) we ran out of input? Or callback to get more?
 
 	// Wipe old result references, we already copied the one we chose:
-	for (thread_p = current_stations; thread_p < current_stations+current_count; thread_p++)
+	for (thread_p = current_threads; thread_p < current_threads+current_count; thread_p++)
 		thread_p->result.clear();
 	return result;
 }
