@@ -484,10 +484,10 @@ RxMatch::matchAt(RxStationID start, CharNum& offset)
 		TRACK(("\ncycle at offset %d with %d threads looking at '%s'\n", offset, current_count, target.substr(offset, 1).asUTF8()));
 		for (thread_p = current_threads; thread_p < current_threads+current_count; thread_p++)
 		{
-		decode_next:
 			RxStationID	pc = thread_p->station;
 			program.decode(pc, instr);
 			UCS4		ch = target[offset];
+			bool		ok = true;		// Set false if this instruction fails
 
 #ifdef TRACK_RESULTS
 			TRACK(("\tthread %d instr %d op %c", thread_p->thread_number, pc, (char)instr.op));
@@ -510,43 +510,36 @@ RxMatch::matchAt(RxStationID start, CharNum& offset)
 					result = thread_p->result;	// Make a new reference to this RxResult
 					thread_p->result.clear();	// Clear the old reference
 					result.captureSet(1, offset);	// Before we finalise it
-					TRACK(("accepts selected (%d, %d)\n", new_result_start, offset));
+					TRACK(("accepts selected (%d, %d), ", new_result_start, offset));
 				}
 				else
-					TRACK(("accepts but not preferred (%d, %d)\n", new_result_start, offset));
+					TRACK(("accepts but not preferred (%d, %d), ", new_result_start, offset));
+				ok = false;
+				break;
 			}
-				continue;
 
 			case RxOp::RxoAny:			// Any single char
 				// As long as we aren't at the end, all is good
 				// REVISIT: Add except-newline mode behaviour
 				if (offset < target.length())
-				{
-					TRACK(("succeeds\n"));
 					break;
-				}
-				TRACK(("fails\n"));
-				thread_p->result.clear();
-				continue;
+				ok = false;
+				break;
 
 			case RxOp::RxoChar:			// A specific UCS4 character
 				// REVISIT: Add case-insensitive mode behaviour
 				if (ch == instr.character)
-				{
-					TRACK(("succeeds\n"));
 					break;
-				}
-				TRACK(("fails\n"));
-				thread_p->result.clear();
-				continue;			// Dead-end this thread
+				ok = false;
+				break;
 
 			case RxOp::RxoCharClass:		// Character class
 			case RxOp::RxoNegCharClass:		// Negated Character class
 			{
 				if (ch == 0)
 				{
-					thread_p->result.clear();
-					continue;	// End of string
+					ok = false;
+					break;
 				}
 
 				// Check that the next characters match these ones
@@ -563,12 +556,7 @@ RxMatch::matchAt(RxStationID start, CharNum& offset)
 						break;
 					}
 				if (matches_class != (instr.op == RxOp::RxoCharClass))
-				{
-					TRACK(("fails\n"));
-					thread_p->result.clear();
-					continue;
-				}
-				TRACK(("succeeds\n"));
+					ok = false;
 				break;
 			}
 
@@ -585,25 +573,19 @@ RxMatch::matchAt(RxStationID start, CharNum& offset)
 					switch (expected[0])
 					{
 					case 's':
-						if (UCS4IsWhite(ch))
-							break;
-						TRACK(("fails\n"));
-						thread_p->result.clear();
-						continue;
+						if (!UCS4IsWhite(ch))
+							ok = false;
+						break;
 
 					case 'd':	// digit
-						if (UCS4Digit(ch) >= 0)
-							break;
-						TRACK(("fails\n"));
-						thread_p->result.clear();
-						continue;
+						if (UCS4Digit(ch) < 0)
+							ok = false;
+						break;
 
 					case 'h':	// hex digit
-						if (UCS4Digit(ch) >= 0 || (ch >= 'a' && ch <= 'f') || (ch >= 'A' && ch <= 'F'))
-							break;
-						TRACK(("fails\n"));
-						thread_p->result.clear();
-						continue;
+						if (UCS4Digit(ch) < 0 && !(ch >= 'a' && ch <= 'f') && !(ch >= 'A' && ch <= 'F'))
+							ok = false;
+						break;
 
 					// REVISIT: Implement more built-in CharProperties?
 					default:
@@ -614,7 +596,6 @@ RxMatch::matchAt(RxStationID start, CharNum& offset)
 				{
 					// REVISIT: Use a callback?
 				}
-				TRACK(("succeeds\n"));
 				break;
 			}
 
@@ -642,7 +623,14 @@ RxMatch::matchAt(RxStationID start, CharNum& offset)
 				assert(0 == "Should not happen");
 				return RxResult();
 			}
-			addthread(Thread(instr.next, thread_p->result, thread_p), offset+1, shunts, 0);
+
+			if (ok)
+			{		// This instruction succeeded, so continue with the next one
+				TRACK(("succeeds\n"));
+				addthread(Thread(instr.next, thread_p->result, thread_p), offset+1, shunts, 0);
+			}
+			else
+				TRACK(("ends\n"));		// This thread cannot continue
 			thread_p->result.clear();
 		}
 
