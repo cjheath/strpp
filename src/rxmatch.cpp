@@ -544,7 +544,10 @@ RxMatch::matchAt(RxStationID start, CharNum& offset)
 			case RxOp::RxoNegCharClass:		// Negated Character class
 			{
 				if (ch == 0)
-					continue;
+				{
+					thread_p->result.clear();
+					continue;	// End of string
+				}
 
 				// Check that the next characters match these ones
 				StrBody		body(instr.text.utf8, false, instr.text.bytes);
@@ -562,6 +565,7 @@ RxMatch::matchAt(RxStationID start, CharNum& offset)
 				if (matches_class != (instr.op == RxOp::RxoCharClass))
 				{
 					TRACK(("fails\n"));
+					thread_p->result.clear();
 					continue;
 				}
 				TRACK(("succeeds\n"));
@@ -583,19 +587,22 @@ RxMatch::matchAt(RxStationID start, CharNum& offset)
 					case 's':
 						if (UCS4IsWhite(ch))
 							break;
-						TRACK(("succeeds\n"));
+						TRACK(("fails\n"));
+						thread_p->result.clear();
 						continue;
 
 					case 'd':	// digit
 						if (UCS4Digit(ch) >= 0)
 							break;
-						TRACK(("succeeds\n"));
+						TRACK(("fails\n"));
+						thread_p->result.clear();
 						continue;
 
 					case 'h':	// hex digit
 						if (UCS4Digit(ch) >= 0 || (ch >= 'a' && ch <= 'f') || (ch >= 'A' && ch <= 'F'))
 							break;
-						TRACK(("succeeds\n"));
+						TRACK(("fails\n"));
+						thread_p->result.clear();
 						continue;
 
 					// REVISIT: Implement more built-in CharProperties?
@@ -607,7 +614,7 @@ RxMatch::matchAt(RxStationID start, CharNum& offset)
 				{
 					// REVISIT: Use a callback?
 				}
-				TRACK(("fails\n"));
+				TRACK(("succeeds\n"));
 				break;
 			}
 
