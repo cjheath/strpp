@@ -180,8 +180,8 @@ class RxResult
 {
 public:
 	struct	Counter {
-		CharNum		count;		// The number of repetitions seen so far
 		CharNum		offset;		// The text offset at the start of the last repetition
+		CharNum		count;		// The number of repetitions seen so far
 	};
 	~RxResult();
 	RxResult();				// Construct a non-Result (failure)

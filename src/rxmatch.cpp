@@ -34,10 +34,10 @@ public:
 	RxCaptures(const RxProgram& _program)	// program is needed to initialise counter_max&capture_max
 			: RxCaptures(_program.maxCounter(), _program.maxCapture()) {}
 	RxCaptures(const RxCaptures& _to_copy);	// Used by RxResult::Unshare
-	~RxCaptures() { if (counters) delete[] counters; }
+	~RxCaptures() { }
 
 	int		counterNum() const { return counters_used/2; }
-	int		counterGet(int i) const { return counters[counters_used - i*2 - 1]; }
+	int		counterGet(int i) const { return reserved() ? values[counterBase()+counters_used - i*2 - 1] : 0; }
 	void		counterPushZero(CharNum offset);
 	CharNum		counterIncr(CharNum offset);
 	void		counterPop();
@@ -49,11 +49,16 @@ public:
 
 	// REVISIT: Add an RxCaptures array if needed for function call results
 
+protected:
+	bool		reserved() const { return values.size() > 0; }
+	void		reserve();	// If the initial memory allocation hasn't taken place, do it
+
 private:
+	int		counterBase() const { return capture_max*2-2; }
 	short		capture_max;	// Each capture has a start and an end, so we allocate double
 	unsigned char	counter_max;	// Each counter has a text offset and the counter value
 	unsigned char	counters_used;	// No more than RxMaxNesting counters can be needed
-	CharNum*	counters;	// captures and counters stored in the same array
+	std::vector<CharNum>	values;	// captures and counters stored in the same array
 };
 
 class RxMatch
@@ -652,48 +657,55 @@ RxMatch::matchAt(RxStationID start, CharNum& offset)
 RxCaptures::RxCaptures(short c_max, short p_max)
 : counter_max(c_max)
 , capture_max(p_max)
-, counters(new CharNum[(counter_max+capture_max-1)*2])
 , counters_used(0)
 {
-	memset(counters, 0, sizeof(CharNum)*((counter_max+capture_max-1)*2));
+}
+
+void
+RxCaptures::reserve()	// If the initial memory allocation hasn't taken place, do it
+{
+	if (!reserved())
+		values.resize((capture_max-1)*2 + counter_max*2, 0);
 }
 
 RxCaptures::RxCaptures(const RxCaptures& to_copy)
 : counter_max(to_copy.counter_max)
 , capture_max(to_copy.capture_max)
-, counters(new CharNum[(counter_max+capture_max)*2-1])
 , counters_used(to_copy.counters_used)
 {
-	memcpy(counters, to_copy.counters, sizeof(CharNum)*((counter_max+capture_max-1)*2));
+	values = to_copy.values;
 }
 
 void
 RxCaptures::counterPushZero(CharNum offset)
 {
+	reserve();
 	assert(counters_used < counter_max*2);
 	if (counters_used == counter_max*2)
 		return;
 	// TRACK(("Pushed new counter %d = 0\n", counters_used));
-	counters[counters_used++] = offset;
-	counters[counters_used++] = 0;
+	values.at(counterBase()+counters_used++) = offset;
+	values.at(counterBase()+counters_used++) = 0;
 }
 
 CharNum
 RxCaptures::counterIncr(CharNum offset)
 {
+	reserve();
 	assert(counters_used > 0);
-	// TRACK(("Incrementing counter %d = %d\n", counters_used-1, counters[counters_used-1]+1));
-	counters[counters_used-2] = offset;
-	return ++counters[counters_used-1];
+	// TRACK(("Incrementing counter %d = %d\n", counters_used-1, values.at(counterBase()+counters_used-1)+1));
+	values.at(counterBase()+counters_used-2) = offset;
+	return ++values.at(counterBase()+counters_used-1);
 }
 
 void
 RxCaptures::counterPop()
 {
+	reserve();
 	assert(counters_used > 1);
 	if (counters_used <= 1)
 		return;
-	// TRACK(("Discarding counter %d (was %d)\n", counters_used-1, counters[counters_used-1]));
+	// TRACK(("Discarding counter %d (was %d)\n", counters_used-1, values.at(counterBase()+counters_used-1)));
 	counters_used -= 2;
 }
 
@@ -701,7 +713,7 @@ const RxResult::Counter
 RxCaptures::counterTop()
 {
 	assert(counters_used > 0);
-	return {counters[counters_used-1], counters[counters_used-2]};
+	return {values.at(counterBase()+counters_used-2), values.at(counterBase()+counters_used-1)};
 }
 
 int
@@ -714,9 +726,9 @@ CharNum
 RxCaptures::capture(int index)
 {
 	assert(!(index < 1 || index >= capture_max*2));		// REVISIT: Delete this when capture limiting is implemented
-	if (index < 2 || index >= capture_max*2)
+	if (index < 2 || index >= capture_max*2 || !reserved())
 		return 0;		// Captures 0 and 1 are stored in RxResult
-	return counters[counter_max*2+index-2];
+	return values.at(index-2);
 }
 
 CharNum
@@ -725,7 +737,8 @@ RxCaptures::captureSet(int index, CharNum val)
 	assert(!(index < 1 || index >= capture_max*2));		// REVISIT: Delete this when capture limiting is implemented
 	if (index < 2 || index >= capture_max*2)
 		return 0;		// Ignore captures outside the defined range
-	return counters[counter_max*2+index-2] = val;
+	reserve();
+	return values.at(index-2) = val;
 }
 
 RxResult::RxResult(short c_max, short p_max)
