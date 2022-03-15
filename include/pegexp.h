@@ -20,6 +20,10 @@
  *	!A	Continue only if A fails
  *	anychar	match that non-operator character
  *	\char	match the escaped character (including the operators, 0 b e f n r t, and any other char)
+ *	\a	alpha
+ *	\d	digit
+ *	\h	hexadecimal
+ *	\w	word (alpha or digit)
  *	\177	match the specified octal character
  *	\xXX	match the specified hexadecimal (0-9a-fA-F)
  *	\x{1-2}	match the specified hexadecimal (0-9a-fA-F)
@@ -39,12 +43,15 @@
  * You should use negative assertions to control inappropriate greed.
  */
 #include	<stdint.h>
+#include	<ctype.h>
 
 typedef	const char*	PegexpPC;
 
 template<typename TextPtr = const char*, typename Char = char>
 class Pegexp {
 	PegexpPC		pegexp;
+	bool			IsAlpha(char c) { return isalpha(c); }
+	bool			IsDigit(char c) { return isdigit(c); }
 
 public:
 	Pegexp(PegexpPC _pegexp) : pegexp(_pegexp) {}
@@ -244,8 +251,29 @@ protected:
 		case '\\':	// Escaped literal char
 			state.pc--;
 			rc = escaped_char(state.pc);
-			if (rc != *state.text)
-				return false;
+			switch (rc)
+			{
+			case 'a':			// Alphabetic
+				if (!IsAlpha(*state.text))
+					return false;
+				break;
+			case 'd':			// Digit
+				if (!IsDigit(*state.text))
+					return false;
+				break;
+			case 'h':			// Hexadecimal
+				if (!IsDigit(*state.text) && !(*state.text >= 'a' && *state.text <= 'f') && !(*state.text >= 'A' && *state.text <= 'F'))
+					return false;
+				break;
+			case 'w':			// Alphabetic or digit
+				if (!IsAlpha(*state.text) && !IsDigit(*state.text))
+					return false;
+				break;
+			default:			// Other escaped character, exact match
+				if (rc != *state.text)
+					return false;
+			}
+
 			if (*state.text != '\0')	// Don't run past the terminating NUL, even if it matches
 				state.text++;
 			return true;
