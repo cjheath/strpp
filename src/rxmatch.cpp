@@ -369,7 +369,8 @@ next:
 		break;
 
 	case RxOp::RxoEOL:			// End of Line
-		if (offset == target.length() || target[offset] == '\n')
+		if (offset == target.length()	// REVISIT: If the input can be extended, this condition will become false
+		 || target[offset] == '\n')
 		{
 			thread.station = instr.next;
 			goto next;
@@ -492,7 +493,12 @@ RxMatch::matchAt(RxStationID start, CharNum& offset)
 			RxStationID	pc = thread_p->station;
 			program.decode(pc, instr);
 			UCS4		ch = target[offset];
-			bool		ok = true;		// Set false if this instruction fails
+			enum {
+				failed,
+				eof,
+				succeeded,
+				accepted
+			}		step_status = succeeded;
 
 #ifdef TRACK_RESULTS
 			TRACK(("\tthread %d instr %d op %c", thread_p->thread_number, pc, (char)instr.op));
@@ -505,37 +511,22 @@ RxMatch::matchAt(RxStationID start, CharNum& offset)
 			switch (instr.op)	// break from here to continue with instr.next, continue to ignore it.
 			{
 			case RxOp::RxoAccept:			// Termination condition
-			{
-				CharNum	new_result_start = thread_p->result.offset();
-				if (!result.succeeded()			// We don't have any result yet
-				 || new_result_start < result.offset()	// New result starts earlier
-				 || (offset-new_result_start > result.length()		// New result is longer
-				  && new_result_start == result.offset()))		// and starts at the same place
-				{		// Got a better result
-					result = thread_p->result;	// Make a new reference to this RxResult
-					thread_p->result.clear();	// Clear the old reference
-					result.captureSet(1, offset);	// Before we finalise it
-					TRACK(("accepts selected (%d, %d), ", new_result_start, offset));
-				}
-				else
-					TRACK(("accepts but not preferred (%d, %d), ", new_result_start, offset));
-				ok = false;
+				step_status = accepted;
 				break;
-			}
 
 			case RxOp::RxoAny:			// Any single char
 				// As long as we aren't at the end, all is good
 				// REVISIT: Add except-newline mode behaviour
-				if (offset < target.length())
+				if (ch != 0)
 					break;
-				ok = false;
+				step_status = eof;
 				break;
 
 			case RxOp::RxoChar:			// A specific UCS4 character
 				// REVISIT: Add case-insensitive mode behaviour
 				if (ch == instr.character)
 					break;
-				ok = false;
+				step_status = failed;
 				break;
 
 			case RxOp::RxoCharClass:		// Character class
@@ -543,7 +534,7 @@ RxMatch::matchAt(RxStationID start, CharNum& offset)
 			{
 				if (ch == 0)
 				{
-					ok = false;
+					step_status = eof;
 					break;
 				}
 
@@ -561,12 +552,18 @@ RxMatch::matchAt(RxStationID start, CharNum& offset)
 						break;
 					}
 				if (matches_class != (instr.op == RxOp::RxoCharClass))
-					ok = false;
+					step_status = failed;
 				break;
 			}
 
 			case RxOp::RxoCharProperty:		// A character with a named Unicode property
 			{
+				if (ch == 0)
+				{
+					step_status = eof;
+					break;
+				}
+
 				// Check that the next characters match these ones
 				StrBody		body(instr.text.utf8, false, instr.text.bytes);
 				StrVal		expected(&body);
@@ -579,17 +576,17 @@ RxMatch::matchAt(RxStationID start, CharNum& offset)
 					{
 					case 's':
 						if (!UCS4IsWhite(ch))
-							ok = false;
+							step_status = failed;
 						break;
 
 					case 'd':	// digit
 						if (UCS4Digit(ch) < 0)
-							ok = false;
+							step_status = failed;
 						break;
 
 					case 'h':	// hex digit
 						if (UCS4Digit(ch) < 0 && !(ch >= 'a' && ch <= 'f') && !(ch >= 'A' && ch <= 'F'))
-							ok = false;
+							step_status = failed;
 						break;
 
 					// REVISIT: Implement more built-in CharProperties?
@@ -629,13 +626,36 @@ RxMatch::matchAt(RxStationID start, CharNum& offset)
 				return RxResult();
 			}
 
-			if (ok)
-			{		// This instruction succeeded, so continue with the next one
+			switch (step_status)
+			{
+			case failed:			// Instruction failed, this thread cannot continue
+			case eof:			// failed because the input string ended
+				TRACK(("ends\n"));
+				break;
+
+			case succeeded:			// This instruction succeeded, so continue with the next one
 				TRACK(("succeeds\n"));
 				addthread(Thread(instr.next, thread_p->result, thread_p), offset+1, shunts, 0);
+				break;
+
+			case accepted:			// This thread has matched
+			{
+				CharNum	new_result_start = thread_p->result.offset();
+				if (!result.succeeded()			// We don't have any result yet
+				 || new_result_start < result.offset()	// New result starts earlier
+				 || (offset-new_result_start > result.length()		// New result is longer
+				  && new_result_start == result.offset()))		// and starts at the same place
+				{		// Got a better result
+					result = thread_p->result;	// Make a new reference to this RxResult
+					thread_p->result.clear();	// Clear the old reference
+					result.captureSet(1, offset);	// Before we finalise it
+					TRACK(("accepts selected (%d, %d), ", new_result_start, offset));
+				}
+				else
+					TRACK(("accepts but not preferred (%d, %d), ", new_result_start, offset));
+				break;
 			}
-			else
-				TRACK(("ends\n"));		// This thread cannot continue
+			}
 			thread_p->result.clear();
 		}
 

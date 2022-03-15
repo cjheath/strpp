@@ -23,8 +23,8 @@ SRCS	=	char_encoding.cpp	\
 		strpp.cpp		
 
 LIB	=	libstrpp.a
-TESTS	=	match_test		\
-		regex_test		\
+TESTS	=	rxmatch_test		\
+		rxcompile_test		\
 		pegexp_test		\
 		utf8pointer_test
 #		greeting_test
