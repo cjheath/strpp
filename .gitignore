@@ -3,3 +3,5 @@
 *_test
 *.a
 build
+extra
+.vscode

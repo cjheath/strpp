@@ -1,0 +1,175 @@
+# Literal matches
+-			-		+0	-
+a			a		+0	a
+ab			babc		+1	ab
+abc			babcd		+1	abc
+^			ba		+0	
+^a			ba		failed
+^a			ab		+0	a
+$			ba		+2	
+a$			ab		failed
+a$			ba		+1	a
+a$			bab		failed
+.			ba		+0	b
+a.			bac		+1	ac
+a.c			dabcd		+1	abc
+a.b.c			dadbacd		+1	adbac
+
+# Character classes
+[ace]			a		+0	a
+[ace]			d		failed
+[abc]			b		+0	b
+[abc]			c		+0	c
+[abc]			d		failed
+[a-z]			m		+0	m
+[a]			a		+0	a
+[^ace]			b		+0	b
+[^ace]			c		failed
+[^0-9]			c		+0	c
++[^0-9]			049cb012	+3	cb
+[-ace]			-		+0	-
+[ace-]			-		failed
+
+# Simple Repetitions
+?a			b		+0	
+?a			a		+0	a
+?a			aa		+0	a
+?a			ba		+0	
+*a			b		+0	
+*a			a		+0	a
+*a			aa		+0	aa
+*a			ba		+0	
+*a			baac		+0	
++a			b		failed
++a			a		+0	a
++a			aa		+0	aa
++a			ba		+1	a
++a			baac		+1	aa
+*bab			baaab		+3	ab
+*baa			baaaab		+0	baa
+
+# Grouping
+(a)			a		+0	a
+(b)			ab		+1	b
+()			b		+0	
+
+# Alternates
+a|b			b		failed
+a|b			ab		+0	ab		# a is not an alternate so gets matched first
+|b			b		+0	b
+|a|b			a		+0	a
+|a|b			b		+0	b
+|(a)|b			ab		+0	a
+|ab|cd			a		failed
+|ab|cd			ab		+0	ab
+|ab|cd			cd		+0	cd
+|ab|cd			bc		failed
+
+(|a|b)			b		+0	b
+(|a|b)			a		+0	a
+(|a|+b)			bb		+0	bb
+(|a|+b)			bbbb		+0	bbbb
+(|a|+b)			bbbc		+0	bbb
+(|a|+b)			abbbc		+0	a
+(|a|+b)			dbbbc		+1	bbb
+
++(|ab|cd)		cdab		+0	cdab
++(|ab|cd)		abcd		+0	abcd
++(|ab|cd)		abcdab		+0	abcdab
++(|ab|cd)		abcdcdab	+0	abcdcdab
++(|ab|cdef)		abcdefcdab	+0	abcdef
++(|ab|cd|ef)		abcdefcdab	+0	abcdefcdab
+
+# Possessive behaviour
+*aaa			baaaab		failed
+a(|bc|b)c		abcc		+0	abcc
+a(|bc|b)c		abc		failed
+?aa			a		failed
+a(|bc|b)+c		abcbc		failed
+a(|b|bc)+c		abcbc		+0	abc
+*(x)c			abcbc		+2	c
+*(*(a))			aaaaa		+0	aaaaa
+|b|c			abc		+1	b
+a(bc|b)c		abcc		failed
+
+# Special character escapes
+\\b					+0	
+\\t			a		failed
+\\r					+0	
+\\r					+0	
+\\e					+0	
+\\f					+0	
+\\x0D					+0	
+\\x{D}0			0		+0	0
+\\010					+0	
+\\10					+0	
+\\u0011					failed
+\\u0010					+0	
+\\u{10}0		0		+0	0
+\\y			y		+0	y
+
+# Character classes
+[a-z]			d		+0	d
+[a-z]			0		failed
+[^a-z]			0		+0	0
+[^a-z]x			0x		+0	0x
+[a-z]x			0x		failed
+[a-z]x			fx		+0	fx
+[f]x			fx		+0	fx
+[^f]x			fx		failed
+[a-z]			0		failed
+[a-z]			g		+0	g
+[ga-z]			g		+0	g
+[ga-zg]			g		+0	g
+[^ga-zg]		g		failed
+[^a-z]			g		failed
+[a-z]			g		+0	g
+[0-9]			g		failed
+[g0-9]			g		+0	g
+[-9]			-		+0	-
+[-9]			9		+0	9
+[-9]			]		failed
+[-9]			[		failed
+[--9]			[		failed
+[--9]			-		+0	-
+[--9]			+		failed
+[--9]			8		+0	8
+[^--9]			8		failed
+[^--9]			+		+0	+
+[^-9]			+		+0	+
+[^-9]			-		failed
+[^-9]			+		+0	+
++[-\\]]X		--]X		+0	--]X
++[-\]]]X		-]]X		+0	-]]X
++[\\]]X			-]]X		+1	]]X
++[]]X			-]]X		failed
++[^\\]]X		-]]X		failed
++[^\\]]X		-]]-X		failed
++[^\\]]X		-X		failed
++[^a]X			bX		failed
+
+# Assertions
+!(a)b			b		+0	b
+!(a)c			b		failed
+!(aa)(|a|b)		a		+0	a
+!(aa)*(|a|b)		ab		+0	ab
+!(aa)*(|a|b)		abaabb		+0	abaabb
+!a(|a|b)		a		failed
+!a(|a|b)		b		+0	b
+!a[a-z]	b		+0		b
+!aa			a		failed
+!ab			b		+0	b
+!d(|a|+b)		dbbbc		+1	bbb
+(!a|a|b)		b		+0	b
+(!a|a|b))		b		failed
+(!d|a|+b)		bbbc		+0	bbb
+(!d|a|+b)		dbbbc		+1	bbb
+(|a|+b)			dbbbc		+1	bbb
+*(!(a)[a-z])		abcd		+0	
+*(!(aa)|a|b)		abaabb		+0	ab
+*(!a[a-z])		a		+0	
+*(!a[a-z])		b		+0	b
++(!(a)[a-z])		abcd		+1	bcd
++(!(ac)[a-z])		abcdbacd	+0	abcdb
++(!(cd)[a-e][c-f])	abcdeefdccdf	+1	bcdeefdc
++(!(dc)[a-e][c-f])	abcdeefcdcddcf	+1	bcdeefcdcd
