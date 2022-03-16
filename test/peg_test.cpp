@@ -20,13 +20,19 @@ main(int argc, const char** argv)
 		{ "s",		"*(!<blankline><space>)",			},	// Any whitespace but not a blankline
 		{ "TOP",	"*<space>*<rule>"				},	// Start; a repetition of zero or more rules
 		{ "rule",	"<name><s>=<s><alternates><blankline>*<space>"	},	// Rule: a name assigned one or more alternates
-		{ "alternates",	"|+(\\|<s>*<repetition>)|*<repetition>"		},	// Alternates: Either one repetition or more each prefixed by |
-		{ "repetition",	"?((|\\?|\\*|\\+|\\!)<s>)<atom>"		},
-		{ "atom",	"|\\.|<name>|<literal>|<class>|\\(<s>+<alternates>\\)<s>" },
-		{ "name",	"(|\\a|_)*(|\\w|_)<s>"				},
+		{ "alternates",	"|+(\\|<s>*<repetition>)"				// Alternates: either a list of alternates each prefixed by |
+				"|*<repetition>"				},	// or just one alternate
+		{ "repetition",	"(|[?*+!&]|)<s><atom>"				},	// zero or one, zero or more, one or more, none, and
+		{ "atom",	"|\\."							// Any character
+				"|<name>"						// call to another rule
+				"|<literal>"						// A literal
+				"|<class>"						// A character class
+				"|\\(<s>+<alternates>\\)<s>"				// A parenthesised group
+		},
+		{ "name",	"(|\\a|_)*(|\\w|_)<s>"				},	// \a = any letter, \w = any letter or digit
 		{ "literal",	"'*(!'<lit_char>)'<s>"				},
 		{ "lit_char",
-				"|\\\\?[0-3][0-7]?[0-7]"				// octal constant
+				"|\\\\?[0-3][0-7]?[0-7]"				// octal character constant
 				"|\\\\x\\h?\\h"						// hexadecimal constant \x12
 				"|\\\\x{+\\h}"						// hexadecimal constant \x{...}
 				"|\\\\u?[01]\\h?\\h?\\h?\\h"				// Unicode character \u1234
