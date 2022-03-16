@@ -55,23 +55,27 @@ class Pegexp {
 
 public:
 	Pegexp(PegexpPC _pegexp) : pegexp(_pegexp) {}
+	PegexpPC		code() const { return pegexp; }
 
+	struct State;
+	typedef	bool 		(*CalloutFn)(State& state);
 	struct State {
 		PegexpPC	pc;		// Current location in the pegexp
 		TextPtr		text;		// Current text we're looking at
 		TextPtr		target;		// Original start of the string
-		bool		(*callout)(PegexpPC pegexp, TextPtr& text);
+		CalloutFn	callout;
+		void*		closure;
 	};
-	typedef	bool 	(*callout_fn)(PegexpPC pegexp, TextPtr& text);
 
-	int		match(TextPtr& text, callout_fn callout = 0)
+	int		match(TextPtr& text, CalloutFn callout = 0, void* closure = 0)
 	{
 		TextPtr	trial = text;		// The first search starts here
 		State	state = {
 				.pc = pegexp,		// The expression to match
 				.text = text,		// Start point in text
 				.target = text,		// Needed to stop ^ referencing text[-1]
-				.callout = callout	// Where to send callouts, when implemented
+				.callout = callout,	// Where to send callouts, when implemented
+				.closure = closure
 			};
 		do {
 			state.pc = pegexp;
@@ -90,6 +94,23 @@ public:
 		// pegexp points to the part of the expression that failed. Is this useful?
 		text = 0;
 		return -1;
+	}
+
+	int		match_here(TextPtr& text, CalloutFn callout = 0, void* closure = 0)
+	{
+		State	state = {
+				.pc = pegexp,		// The expression to match
+				.text = text,		// Start point in text
+				.target = text,		// Needed to stop ^ referencing text[-1]
+				.callout = callout,	// Where to send callouts, when implemented
+				.closure = closure
+			};
+		bool success = match_here(state);
+		if (!success)
+			return -1;
+		int	length = state.text - state.target;
+		state.text -= length;
+		return length;
 	}
 
 	bool		match_here(State& state)
@@ -298,18 +319,23 @@ protected:
 			return true;
 
 		case '|':	// Alternates
-			do {
-				if (!match_alternate(state))
-				{		// This alternate failed, find the next
-					state.pc = skip_atom(skip_from);
-					continue;
+		{
+			state.pc--;
+			const TextPtr	revert = state.text;	// We always return to the current text
+			while (*state.pc == '|')	// There's another alternate
+			{
+				state.pc++;
+				state.text = revert;
+				if (match_alternate(state))
+				{		// This alternate matched, skip to the end of these alternates
+					while (*state.pc == '|')	// We reached the next alternate
+						skip_atom(state.pc);
+					return true;
 				}
-				// This alternate matched, skip to the end of these alternates
-				while (*state.pc == '|')
-					skip_atom(state.pc);
-				return true;
-			} while (*state.pc == '|');	// There's another alternate
+				state.pc = skip_atom(skip_from);
+			}
 			return false;
+		}
 
 		case '&':	// Positive lookahead assertion
 		case '!':	// Negative lookahead assertion
@@ -321,7 +347,8 @@ protected:
 			return succeed;
 		}
 
-		// case '<':	// REVISIT: Implement callouts
+		case '<':	// Implement callouts
+			return state.callout(state);
 		}
 	}
 
@@ -409,6 +436,11 @@ protected:
 		case '&':	// Positive lookahead assertion
 		case '!':	// Negative lookahead assertion
 			skip_atom(pc);
+			break;
+
+		case '<':	// Callout
+			while (*pc != '\0' && *pc++ != '>')
+				;
 			break;
 
 		default:

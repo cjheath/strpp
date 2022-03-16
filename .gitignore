@@ -1,6 +1,7 @@
 *.swp
 *.o
 *_test
+*_test.dSYM
 *.a
 build
 extra

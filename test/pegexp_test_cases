@@ -64,6 +64,7 @@ a|b			ab		+0	ab		# a is not an alternate so gets matched first
 |ab|cd			ab		+0	ab
 |ab|cd			cd		+0	cd
 |ab|cd			bc		failed
+|aa|ab			ab		+0	ab
 
 (|a|b)			b		+0	b
 (|a|b)			a		+0	a
