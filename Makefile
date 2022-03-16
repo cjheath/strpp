@@ -10,6 +10,7 @@ DEBUG	=	-Os $(COPT)	# -DSTRVAL_65K
 # DEBUG	=	-g -DTRACK_RESULTS $(COPT)
 
 HDRS	=	char_encoding.h		\
+		peg.h			\
 		pegexp.h		\
 		refcount.h		\
 		strpp.h 		\
@@ -25,6 +26,7 @@ SRCS	=	char_encoding.cpp	\
 LIB	=	libstrpp.a
 TESTS	=	rxmatch_test		\
 		rxcompile_test		\
+		peg_test		\
 		pegexp_test		\
 		utf8pointer_test
 #		greeting_test

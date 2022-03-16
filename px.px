@@ -1,0 +1,50 @@
+// Pegexp grammar; a prefix Backus-Naur form.
+
+// REVISIT: Add capture markers
+
+EOF		= !.
+
+// Whitespace may include an end-of-line, or a //comment to eol, but not a blank line (two newlines separated by nothing but whitespace)
+blankline	= '\n' *[ \t\r] (|'\n' | EOF)		// A line containing no printing characters (ends with newline or EOF)
+
+space		=| [ \t\r\n] | '//' *[^\n]		// Any single whitespace
+
+s		= *( !blankline space )			// Any space not including a blankline
+
+TOP		= *space *rule
+
+rule		= name s '=' s alternates blankline *space
+
+alternates	=| +('|' s *repetition)			// List of alternates
+		| *repetition				// Or just one alternate
+
+repetition	= (|
+			[?*+!]				// zero or one, zero or more, one or more, none
+		    | '{' s *'\d' s ?(',' s *'\d' s) '}' // Counted repetition
+		    |					// No repeat
+		) atom
+
+atom		=| '.'					// Any character
+		| name					// call to another rule
+		| literal				// A literal
+		| class					// A character class
+		| '(' s +alternates ')' s		// A parenthesised group
+
+// Character categories here: \a = any letter, \w = any letter or digit
+name		= (|'\a' |'_') *(|'\w' |'_') s
+
+literal		= ['] *(!['] literal_char) ['] s
+
+literal_char	=| '\\' ?[0-3] [0-7] ?[0-7]
+		| '\\x\h' ?'\h'				// hex character \x12
+		| '\\x{' +'\h' '}'			// hex character \x{...}
+		| '\\u' ?[01] '\h' ?'\h' ?'\h' ?'\h'	// Unicode character \u1234
+		| '\\u{' +'\h' '}'	 		// Unicode character \u{...}
+		| '\\' [^\\n]				// Other special escape except newline
+		| [^\\\n]				// any normal character except backslash or newline
+
+class		= '[' ?'^' ?'-' +class_part ']' s
+
+class_part	= !']' class_char ?( '-' !']' class_char )
+
+class_char	= ![-\]] literal_char
