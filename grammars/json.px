@@ -1,0 +1,15 @@
+// JSON grammar in Px. See http://json.org/ and ECMA-262 Ed.5
+
+s		= *[ \t\r\n]				// Zero or more space characters
+
+TOP		= s (| object |array |string |'true' |'false' |'null' |number ) s
+
+object		= '{' *(|(string ':' TOP *(',' string ':' TOP)) | s) '}'
+
+array		= '[' (|(TOP *(',' TOP)) |s) ']'
+
+string		= s ["] *(|[^"\\\u{0}-\u{1F}] |escape) ["] s
+
+escape		= [\\] (|["/\\bfnrt] | 'u' [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] )
+
+number		= ?'-' (|'0' | [1-9] *[0-9]) ?('.' +[0-9]) ?([eE] ?[-+] +[0-9])
