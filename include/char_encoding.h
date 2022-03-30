@@ -25,7 +25,7 @@
 
 typedef char		UTF8;		// We don't assume un/signed
 typedef uint16_t	UTF16;		// Used in Unicode 2, and 3 with surrogates
-typedef	uint32_t	UCS4;		// A UCS4 character, aka UTF-32, aka Rune
+typedef	char32_t	UCS4;		// A UCS4 character, aka UTF-32, aka Rune
 
 /*
  * Access to some character property tables is declared below.

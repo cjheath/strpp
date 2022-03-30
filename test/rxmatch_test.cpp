@@ -285,7 +285,7 @@ escape(StrVal str)
 			case 0x1F:	return "^~";
 			default:
 				if (ch < ' ')
-					return StrVal("^")+(ch+'@');
+					return StrVal("^")+char32_t(ch+'@');
 				return ch;
 			}
 		}
