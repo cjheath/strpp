@@ -59,6 +59,13 @@ inline bool	UCS4IsLatin1(UCS4 ch) { return ch < 0x00000100; }
 inline bool	UCS4IsUTF16(UCS4 ch) { return ch < 0x00010000; }
 inline bool	UCS4IsUnicode(UCS4 ch) { return ch < 0x00110000; }
 
+// Overloads of ctype functions. Those better not be macros!
+inline bool	isalpha(UCS4 c) { return UCS4IsAlphabetic(c); }
+inline bool	isdigit(UCS4 c) { return UCS4IsDecimal(c); }
+inline UCS4	toupper(UCS4 c) { return UCS4ToUpper(c); }
+inline UCS4	tolower(UCS4 c) { return UCS4ToLower(c); }
+inline bool	isspace(UCS4 c) { return UCS4IsWhite(c); }
+
 inline bool
 UTF8Is1st(UTF8 ch)
 {
