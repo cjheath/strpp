@@ -17,7 +17,7 @@ class Peg {
 	typedef	Pegexp<TextPtr, Char>	PegexpT;
 public:
 	typedef struct {
-		const TextPtr	name;
+		const char*	name;
 		PegexpT		expression;
 	} Rule;
 

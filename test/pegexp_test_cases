@@ -15,21 +15,6 @@ a.			bac		+1	ac
 a.c			dabcd		+1	abc
 a.b.c			dadbacd		+1	adbac
 
-# Character classes
-[ace]			a		+0	a
-[ace]			d		failed
-[abc]			b		+0	b
-[abc]			c		+0	c
-[abc]			d		failed
-[a-z]			m		+0	m
-[a]			a		+0	a
-[^ace]			b		+0	b
-[^ace]			c		failed
-[^0-9]			c		+0	c
-+[^0-9]			049cb012	+3	cb
-[-ace]			-		+0	-
-[ace-]			-		failed
-
 # Simple Repetitions
 ?a			b		+0	
 ?a			a		+0	a
@@ -109,7 +94,40 @@ a(bc|b)c		abcc		failed
 \\u{10}0		0		+0	0
 \\y			y		+0	y
 
+# Character properties:
+\\a			-		failed
+\\a			z		+0	z
+\\a			7		failed
+\\d			a		failed
+\\d			5		+0	5
+# \\d			〤		failed			# Hangzhou Numeral Four, U-3024; test not run in Unicode mode
+\\h			g		failed
+\\h			a		+0	a
+\\h			A		+0	A
+\\h			5		+0	5
+# \\h			〤		failed			# Hangzhou Numeral Four, U-3024; test not run in Unicode mode
+# Can't test \\s in this script; tested manually
+\\w			-		failed
+\\w			s		+0	s
+\\w			Z		+0	Z
+\\w			7		+0	7
+
 # Character classes
+[ace]			a		+0	a
+[ace]			d		failed
+[abc]			b		+0	b
+[abc]			c		+0	c
+[abc]			d		failed
+[a-z]			m		+0	m
+[a]			a		+0	a
+[^ace]			b		+0	b
+[^ace]			c		failed
+[^0-9]			c		+0	c
++[^0-9]			049cb012	+3	cb
+[-ace]			-		+0	-
+[ace-]			-		failed
+
+# Ranges and other magic in Character classes
 [a-z]			d		+0	d
 [a-z]			0		failed
 [^a-z]			0		+0	0
@@ -148,6 +166,27 @@ a(bc|b)c		abcc		failed
 +[^\\]]X		-]]-X		failed
 +[^\\]]X		-X		failed
 +[^a]X			bX		failed
+
+# Character properties in classes
+[\\a]			-		failed
+[\\a]			z		+0	z
+[\\a]			7		failed
+[\\d]			a		failed
+[\\d]			5		+0	5
+# [\\d]			〤		failed			# Hangzhou Numeral Four, U-3024; test not run in Unicode mode
+[\\h]			g		failed
+[\\h]			a		+0	a
+[\\h]			A		+0	A
+[\\h]			5		+0	5
+# [\\h]			〤		failed			# Hangzhou Numeral Four, U-3024; test not run in Unicode mode
+# Can't test \\s in this script; tested manually
+[\\w]			-		failed
+[\\w]			s		+0	s
+[\\w]			Z		+0	Z
+[\\w]			7		+0	7
+[\\a-]			-		+0	-		# A char property cannot start a range
+[^\\a]			-		+0	-
+[^\\a]			z		failed
 
 # Assertions
 !(a)b			b		+0	b

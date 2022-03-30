@@ -211,7 +211,16 @@ protected:
 		while (*state.pc != '\0' && *state.pc != ']')
 		{
 			Char	c1;
-			// REVISIT: if (*state.pc == '\\' && *++state.pc in "adhws") then match the character properties and don't allow a subrange
+
+			// Handle actual properties, not other escapes
+			if (*state.pc == '\\' && isalpha(state.pc[1]))
+			{
+				state.pc++;
+				if (char_property(state.pc, *state.text))
+					in_class = true;
+				continue;
+			}
+
 			c1 = literal_char(state.pc);
 			if (*state.pc == '-')
 			{

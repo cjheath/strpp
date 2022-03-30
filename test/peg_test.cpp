@@ -22,7 +22,8 @@ typedef	Peg<>			TestPeg;
 int
 main(int argc, const char** argv)
 {
-	Peg<>::Rule	rules[] = {
+	using R = TestPeg::Rule;
+	TestPeg::Rule	rules[] = {
 		{ "blankline",	"\\n*[ \\t\\r](|\\n|!.)"			},	// A line containing no printing characters
 		{ "space",	"|[ \\t\\r\\n]|//*[^\\n]",			},	// Any single whitespace
 		{ "s",		"*(!<blankline><space>)",			},	// Any whitespace but not a blankline
