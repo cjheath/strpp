@@ -23,6 +23,7 @@
  *	\a	alpha
  *	\d	digit
  *	\h	hexadecimal
+ *	\s	whitespace
  *	\w	word (alpha or digit)
  *	\177	match the specified octal character
  *	\xXX	match the specified hexadecimal (0-9a-fA-F)
@@ -43,6 +44,7 @@
  * You should use negative assertions to control inappropriate greed.
  */
 #include	<stdint.h>
+#include	<stdlib.h>
 #include	<ctype.h>
 
 typedef	const char*	PegexpPC;
@@ -50,8 +52,6 @@ typedef	const char*	PegexpPC;
 template<typename TextPtr = const char*, typename Char = char>
 class Pegexp {
 	PegexpPC		pegexp;
-	bool			IsAlpha(char c) { return isalpha(c); }
-	bool			IsDigit(char c) { return isdigit(c); }
 
 public:
 	Pegexp(PegexpPC _pegexp) : pegexp(_pegexp) {}
@@ -64,7 +64,7 @@ public:
 		TextPtr		text;		// Current text we're looking at
 		TextPtr		target;		// Original start of the string
 		CalloutFn	callout;
-		void*		closure;
+		void*		closure;	// User context for the callout
 	};
 
 	int		match(TextPtr& text, CalloutFn callout = 0, void* closure = 0)
@@ -109,7 +109,7 @@ public:
 		if (!success)
 			return -1;
 		int	length = state.text - state.target;
-		state.text -= length;
+		state.text = text;
 		return length;
 	}
 
@@ -136,7 +136,7 @@ public:
 	}
 
 protected:
-	Char		escaped_char(PegexpPC& pc)
+	Char		literal_char(PegexpPC& pc)
 	{
 		Char		rc = *pc++;
 		bool		braces = false;
@@ -211,12 +211,13 @@ protected:
 		while (*state.pc != '\0' && *state.pc != ']')
 		{
 			Char	c1;
-			c1 = escaped_char(state.pc);
+			// REVISIT: if (*state.pc == '\\' && *++state.pc in "adhws") then match the character properties and don't allow a subrange
+			c1 = literal_char(state.pc);
 			if (*state.pc == '-')
 			{
 				Char	c2;
 				state.pc++;
-				c2 = escaped_char(state.pc);
+				c2 = literal_char(state.pc);
 				in_class |= (*state.text >= c1 && *state.text <= c2);
 			}
 			else
@@ -231,6 +232,21 @@ protected:
 		if (in_class)
 			state.text++;
 		return in_class;
+	}
+
+	bool		char_property(PegexpPC& pc, Char ch)
+	{
+		switch (char32_t esc = *pc++)
+		{
+		case 'a':	return isalpha(ch);			// Alphabetic
+		case 'd':	return isdigit(ch);			// Digit
+		case 'h':	return isdigit(ch) || (ch >= 'a' && ch <= 'f') || (ch >= 'A' && ch <= 'F');	// Hexadecimal
+		case 's':	return isspace(ch);
+		case 'w':	return isalpha(ch) || isdigit(ch);	// Alphabetic or digit
+		default:	pc -= 2;	// oops, not a property
+				esc = literal_char(pc);
+				return esc == ch;			// Other escaped character, exact match
+		}
 	}
 
 	/*
@@ -270,30 +286,8 @@ protected:
 			return true;
 
 		case '\\':	// Escaped literal char
-			state.pc--;
-			rc = escaped_char(state.pc);
-			switch (rc)
-			{
-			case 'a':			// Alphabetic
-				if (!IsAlpha(*state.text))
-					return false;
-				break;
-			case 'd':			// Digit
-				if (!IsDigit(*state.text))
-					return false;
-				break;
-			case 'h':			// Hexadecimal
-				if (!IsDigit(*state.text) && !(*state.text >= 'a' && *state.text <= 'f') && !(*state.text >= 'A' && *state.text <= 'F'))
-					return false;
-				break;
-			case 'w':			// Alphabetic or digit
-				if (!IsAlpha(*state.text) && !IsDigit(*state.text))
-					return false;
-				break;
-			default:			// Other escaped character, exact match
-				if (rc != *state.text)
-					return false;
-			}
+			if (!char_property(state.pc, *state.text))
+				return false;
 
 			if (*state.text != '\0')	// Don't run past the terminating NUL, even if it matches
 				state.text++;
@@ -402,7 +396,8 @@ protected:
 		switch (*pc++)
 		{
 		case '\\':	// Escaped literal char
-			(void)escaped_char(pc);
+			pc--;
+			(void)literal_char(pc);
 			break;
 
 		case '[':	// Skip char class
@@ -410,11 +405,11 @@ protected:
 				pc++;
 			while (*pc != '\0' && *pc != ']')
 			{
-				(void)escaped_char(pc);
+				(void)literal_char(pc);
 				if (*pc == '-')
 				{
 					pc++;
-					(void)escaped_char(pc);
+					(void)literal_char(pc);
 				}
 			}
 			if (*pc == ']')
@@ -448,6 +443,7 @@ protected:
 
 		// As-yet unimplemented features:
 		// case '{':	// REVISIT: Implement counted repetition
+		// Other unused special characters: ~`@#%_;:
 		}
 		return pc;
 	}
