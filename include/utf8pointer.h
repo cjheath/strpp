@@ -19,11 +19,10 @@ public:
 	~UTF8P() {};
 	UTF8P&		operator=(const UTF8* s)	// Assignment
 			{ data = s; return *this; }
-	//operator const UTF8*() { return data; }	// Access the UTF8 bytes
 	operator const char*() { return static_cast<const char*>(data); }	// Access the UTF8 bytes
-
 	UCS4		operator*()		// Dereference to char under the pointer
 			{ const UTF8* s = data; return UTF8Get(s); }
+
 	static int	len(UCS4 ch)		// Length in bytes of this UCS4 character
 			{ return UTF8Len(ch); }
 	int		len()			// length in bytes of character under the pointer
