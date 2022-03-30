@@ -4,12 +4,20 @@
  *
  * Copyright 2022 Clifford Heath. ALL RIGHTS RESERVED SUBJECT TO ATTACHED LICENSE.
  */
+#include	<char_encoding.h>
 #include	<peg.h>
+#include	<utf8pointer.h>
 
 #include	<stdio.h>
 #include	<sys/stat.h>
 #include	<unistd.h>
 #include	<fcntl.h>
+
+#if	defined(PEG_UNICODE)
+typedef	Peg<UTF8P, UCS4>	TestPeg;
+#else
+typedef	Peg<>			TestPeg;
+#endif
 
 int
 main(int argc, const char** argv)
@@ -44,7 +52,6 @@ main(int argc, const char** argv)
 		{ "class_part",	"!]<class_char>?(-!]<class_char>)"		},
 		{ "class_char",	"![-\\]]<lit_char>"				},
 	};
-	Peg<>	peg(rules, sizeof(rules)/sizeof(rules[0]));
 
 	// Open the file and get its size
 	int		fd;
@@ -63,7 +70,8 @@ main(int argc, const char** argv)
 	}
 	px[stat.st_size] = '\0';
 
-	int	bytes_parsed = peg.parse(px);
+	TestPeg		peg(rules, sizeof(rules)/sizeof(rules[0]));
+	int		bytes_parsed = peg.parse(px);
 	printf("Parsed %d bytes\n", bytes_parsed);
 
 	return 0;

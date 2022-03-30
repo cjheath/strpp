@@ -32,7 +32,7 @@ public:
 				});
 			}
 
-	int	parse(const char* text)
+	int	parse(TextPtr text)
 			{
 				Rule*	top = lookup("TOP");
 				if (!top)
@@ -53,7 +53,7 @@ public:
 					name, rules, num_rule, sizeof(rules[0]),
 					[](const void* key, const void* r2) {
 						const char*	key_name = (const char*)key;
-						const TextPtr	rule_name = ((const Rule*)r2)->name;
+						const char*	rule_name = ((const Rule*)r2)->name;
 						int		len = strlen(rule_name);
 
 						int		cval = strncmp(key_name, rule_name, len);
@@ -89,7 +89,7 @@ public:
 					if (frame.rule == sub_rule
 					 && frame.text == state.text)
 					{
-						printf("Left recursion detected on %s at `%.10s`\n", frame.rule->name, state.text);
+						printf("Left recursion detected on %s at `%.10s`\n", frame.rule->name, (const char*)state.text);
 						for (int j = 0; j < nesting.size(); j++)
 							printf("%s%s", nesting[j].rule->name, j < nesting.size() ? "->" : "\n");
 						return false;
@@ -98,11 +98,14 @@ public:
 				nesting.push_back({sub_rule, state.text});
 
 				typename PegexpT::State		substate = state;
+				substate.target = substate.text;		// Know where this subexpression began
 				substate.pc = sub_rule->expression.code();
-				// printf("Calling %s at `%.10s...` (pegexp `%s`)\n", sub_rule->name, state.text, sub_rule->expression.code());
+#if defined(PEG_TRACE)
+				printf("Calling %s at `%.10s...` (pegexp `%s`)\n", sub_rule->name, (const char*)state.text, sub_rule->expression.code());
+#endif
 				bool	success = sub_rule->expression.match_here(substate);
 
-#if 0
+#if defined(PEG_TRACE)
 				for (int j = 0; j < nesting.size(); j++)
 					printf("%s%s", nesting[j].rule->name, j < nesting.size() ? "->" : " ");
 #endif
@@ -112,9 +115,9 @@ public:
 
 					state.pc = brangle+1;
 					state.text = substate.text;
-#if 0
-					printf("MATCH `%.*s`\n", (int)(state.text-from), from);
-					printf("continuing at text `%.10s`...\n", state.text);
+#if defined(PEG_TRACE)
+					printf("MATCH `%.*s`\n", (int)(state.text-from), (const char*)from);
+					printf("continuing at text `%.10s`...\n", (const char*)state.text);
 				}
 				else
 				{

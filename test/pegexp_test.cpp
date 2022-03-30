@@ -9,12 +9,12 @@
  */
 #define	PEGEXP_UNICODE	1
 
-#include	<pegexp.h>
-#include	<stdio.h>
-
 #if	defined(PEGEXP_UNICODE)
 #include	<utf8pointer.h>
 #endif
+
+#include	<pegexp.h>
+#include	<stdio.h>
 
 // Pegexp matching engine for UTF8 strings
 typedef	Pegexp<UTF8P, UCS4>	PegexpUTF8;
