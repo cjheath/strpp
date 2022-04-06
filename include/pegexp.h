@@ -49,8 +49,33 @@
 
 typedef	const char*	PegexpPC;
 
-template<typename TextPtr = const char*, typename Char = char>
-class Pegexp {
+/*
+ * Wrap a const char* to adapt it as a PEG parser input.
+ * Every operation here works as for a char*, but it also supports at_eof() to detect the terminator.
+ */
+class	NullTCharP
+{
+private:
+	const char*	data;
+public:
+	NullTCharP() : data(0) {}				// Null constructor
+	NullTCharP(const char* s) : data(s) {}			// Normal constructor
+	NullTCharP(NullTCharP& c) : data(c.data) {}		// Copy constructor
+	NullTCharP(const NullTCharP& c) : data(c.data) {}	// Copy constructor
+	~NullTCharP() {};
+	NullTCharP&		operator=(const char* s)	// Assignment
+				{ data = s; return *this; }
+	operator const char*()					// Access the char under the pointer
+				{ return static_cast<const char*>(data); }
+	char			operator*()			// Dereference to char under the pointer
+				{ return *data; }
+	bool			at_eof() { return **this == '\0'; }
+	NullTCharP		operator++(int)	{ return data++; }
+};
+
+template<typename TextPtr = NullTCharP, typename Char = char>
+class Pegexp
+{
 	PegexpPC		pegexp;
 
 public:
@@ -90,7 +115,7 @@ public:
 				text = state.text-length;
 				return length;
 			}
-		} while (*trial++ != '\0');
+		} while (!trial.at_eof() && trial++);
 		// pegexp points to the part of the expression that failed. Is this useful?
 		text = 0;
 		return -1;
@@ -236,7 +261,7 @@ protected:
 			state.pc++;
 		if (negated)
 			in_class = !in_class;
-		if (*state.text == '\0')	// End of string never matches
+		if (state.text.at_eof())	// End of input never matches
 			in_class = false;
 		if (in_class)
 			state.text++;
@@ -277,29 +302,27 @@ protected:
 			return true;
 
 		case '^':	// Start of line
-			return state.text == state.target || state.text[-1] == '\0';
+			return state.text == state.target || state.text[-1] == '\n';
 
-		case '$':	// End of line or end of state.text
-			return *state.text == '\0' || *state.text == '\n';
+		case '$':	// End of line or end of input
+			return state.text.at_eof() || *state.text == '\n';
 
 		case '.':	// Any character
-			if ('\0' == *state.text)
-				return false;		// No more chars are available
+			if (state.text.at_eof())
+				return false;		// No more data available
 			state.text++;
 			return true;
 
 		default:	// Literal character
-			if (rc != *state.text)
+			if (state.text.at_eof() || rc != *state.text)
 				return false;
-			state.text++;			// Cannot be the terminating NUL because rc != '\0'
+			state.text++;
 			return true;
 
 		case '\\':	// Escaped literal char
-			if (!char_property(state.pc, *state.text))
+			if (state.text.at_eof() || !char_property(state.pc, *state.text))
 				return false;
-
-			if (*state.text != '\0')	// Don't run past the terminating NUL, even if it matches
-				state.text++;
+			state.text++;
 			return true;
 
 		case '[':	// Character class
@@ -335,6 +358,7 @@ protected:
 						skip_atom(state.pc);
 					return true;
 				}
+				// If we want to know the furthest text looked at, we should save that from state.text here.
 				state.pc = skip_atom(skip_from);
 			}
 			return false;

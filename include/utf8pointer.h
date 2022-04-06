@@ -23,6 +23,8 @@ public:
 	UCS4		operator*()		// Dereference to char under the pointer
 			{ const UTF8* s = data; return UTF8Get(s); }
 
+	bool		at_eof() { return **this == '\0'; }
+
 	static int	len(UCS4 ch)		// Length in bytes of this UCS4 character
 			{ return UTF8Len(ch); }
 	int		len()			// length in bytes of character under the pointer
@@ -44,15 +46,15 @@ public:
 	UTF8P		operator-(int i)	{ UTF8P t(*this); t += -i; return t; }
 
 	// incr/decr functions:
-	UTF8P&		preincr()	{ const UTF8* s = data; UTF8Get(s); data = (const UTF8*)s; return *this; }
 	UTF8P		postincr()	{ UTF8P save(*this); ++*this; return save; }
-	UTF8P&		predecr()	{ data = (const UTF8*)UTF8Backup(data); return *this; }
+	UTF8P&		preincr()	{ const UTF8* s = data; UTF8Get(s); data = (const UTF8*)s; return *this; }
 	UTF8P		postdecr()	{ UTF8P save(*this); --*this; return save; }
+	UTF8P&		predecr()	{ data = (const UTF8*)UTF8Backup(data); return *this; }
 
 	// incr/decr operators:
-	UTF8P&		operator++()	{ return preincr(); }
 	UTF8P		operator++(int)	{ return postincr(); }
-	UTF8P&		operator--()	{ return predecr(); }
+	UTF8P&		operator++()	{ return preincr(); }
 	UTF8P		operator--(int)	{ return postdecr(); }
+	UTF8P&		operator--()	{ return predecr(); }
 };
 #endif	// UTF8POINTER_H
