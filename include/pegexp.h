@@ -53,32 +53,32 @@ typedef	const char*	PegexpPC;
  * Wrap a const char* to adapt it as a PEG parser input.
  * Every operation here works as for a char*, but it also supports at_eof() to detect the terminator.
  */
-class	NullTCharP
+class	TextPtrChar
 {
 private:
 	const char*	data;
 public:
-	NullTCharP() : data(0) {}				// Null constructor
-	NullTCharP(const char* s) : data(s) {}			// Normal constructor
-	NullTCharP(NullTCharP& c) : data(c.data) {}		// Copy constructor
-	NullTCharP(const NullTCharP& c) : data(c.data) {}	// Copy constructor
-	~NullTCharP() {};
-	NullTCharP&		operator=(const char* s)	// Assignment
+	TextPtrChar() : data(0) {}				// Null constructor
+	TextPtrChar(const char* s) : data(s) {}			// Normal constructor
+	TextPtrChar(TextPtrChar& c) : data(c.data) {}		// Copy constructor
+	TextPtrChar(const TextPtrChar& c) : data(c.data) {}	// Copy constructor
+	~TextPtrChar() {};
+	TextPtrChar&		operator=(const char* s)	// Assignment
 				{ data = s; return *this; }
 	operator const char*()					// Access the char under the pointer
 				{ return static_cast<const char*>(data); }
 	char			operator*()			// Dereference to char under the pointer
 				{ return *data; }
 	bool			at_eof() { return **this == '\0'; }
-	NullTCharP		operator++(int)	{ return data++; }
+	TextPtrChar		operator++(int)	{ return data++; }
 };
 
-template<typename TextPtr = NullTCharP, typename Char = char>
+template<typename TextPtr = TextPtrChar, typename Char = char>
 class Pegexp
 {
+public:
 	PegexpPC		pegexp;
 
-public:
 	Pegexp(PegexpPC _pegexp) : pegexp(_pegexp) {}
 	PegexpPC		code() const { return pegexp; }
 
@@ -294,7 +294,7 @@ protected:
 	bool		match_atom(State& state)
 	{
 		PegexpPC		skip_from = state.pc;
-		switch (uint32_t rc = *state.pc++)
+		switch (char rc = *state.pc++)
 		{
 		case '\0':	// End of expression
 			state.pc--;
@@ -426,7 +426,7 @@ protected:
 
 	const PegexpPC	skip_atom(PegexpPC& pc)
 	{
-		switch (*pc++)
+		switch (char rc = *pc++)
 		{
 		case '\\':	// Escaped literal char
 			pc--;
@@ -481,4 +481,5 @@ protected:
 		return pc;
 	}
 };
+
 #endif	// PEGEXP_H

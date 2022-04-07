@@ -16,9 +16,6 @@
 #include	<pegexp.h>
 #include	<stdio.h>
 
-// Pegexp matching engine for UTF8 strings
-typedef	Pegexp<UTF8P, UCS4>	PegexpUTF8;
-
 int
 main(int argc, const char** argv)
 {
@@ -31,11 +28,11 @@ main(int argc, const char** argv)
 	for (const char** subject = argv+2; subject < argv+argc; subject++)
 	{
 #if	defined(PEGEXP_UNICODE)
-		UTF8P   	text(*subject);
-		PegexpUTF8	pegexp(argv[1]);
+		UTF8P   		text(*subject);
+		Pegexp<UTF8P, UCS4>	pegexp(argv[1]);
 #else
-		const char*	text(*subject);
-		Pegexp<>	pegexp(argv[1]);
+		TextPtrChar		text(*subject);
+		Pegexp<>		pegexp(argv[1]);
 #endif
 
 		int		length = pegexp.match(text);

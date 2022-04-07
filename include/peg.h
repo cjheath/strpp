@@ -12,7 +12,9 @@
 #include	<pegexp.h>
 #include	<vector>
 
-template<typename TextPtr = NullTCharP, typename Char = char>
+template<typename TextPtr = TextPtrChar, typename Char = char>	class Peg;
+
+template<typename TextPtr, typename Char>
 class Peg {
 	typedef	Pegexp<TextPtr, Char>	PegexpT;
 public:
