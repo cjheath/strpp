@@ -15,9 +15,30 @@
 template<typename TextPtr = TextPtrChar, typename Char = char>	class Peg;
 
 template<typename TextPtr, typename Char>
-class Peg {
-	typedef	Pegexp<TextPtr, Char>	PegexpT;
+class Peg
+{
 public:
+	class PegexpT : public Pegexp<TextPtr, Char>
+	{
+		Peg<TextPtr, Char>*	peg;
+	public:
+		PegexpT(PegexpPC _pegexp) : Pegexp<TextPtr, Char>(_pegexp) {}
+
+		void		set_closure(Peg<TextPtr, Char>* _peg) { peg = _peg; }
+		virtual bool	match_extended(PegState<TextPtr, Char>& state)
+		{
+			return peg->callout(state);
+		}
+
+		// Null extension; treat extensions like literal characters
+		virtual void	skip_extended(PegexpPC& pc)
+		{
+			if (*pc++ == '<')
+				while (*pc != '\0' && *pc++ != '>')
+					;
+		}
+	};
+
 	typedef struct {
 		const char*	name;
 		PegexpT		expression;
@@ -44,7 +65,8 @@ public:
 				}
 
 				nesting.push_back({top, text});
-				int	length = top->expression.match_here(text, callout_thunk, (void*)this);
+				top->expression.set_closure(this);
+				int	length = top->expression.match_here(text);
 				nesting.pop_back();
 				return length;
 			}
@@ -69,8 +91,10 @@ public:
 				return rule;
 			}
 
-	bool		callout(typename PegexpT::State& state)
+	bool		callout(PegState<TextPtr, Char>& state)
 			{
+				state.pc++;	// Skip the '<'
+
 				// Find the end of the rule name.
 				const char*	brangle = strchr(state.pc, '>');
 				if (!brangle)
@@ -99,12 +123,13 @@ public:
 				}
 				nesting.push_back({sub_rule, state.text});
 
-				typename PegexpT::State		substate = state;
+				PegState<TextPtr, Char>		substate = state;
 				substate.target = substate.text;		// Know where this subexpression began
 				substate.pc = sub_rule->expression.code();
 #if defined(PEG_TRACE)
 				printf("Calling %s at `%.10s...` (pegexp `%s`)\n", sub_rule->name, (const char*)state.text, sub_rule->expression.code());
 #endif
+				sub_rule->expression.set_closure(this);
 				bool	success = sub_rule->expression.match_here(substate);
 
 #if defined(PEG_TRACE)
@@ -138,10 +163,5 @@ protected:
 		TextPtr	text;
 	} Nesting;
 	std::vector<Nesting>	nesting;
-
-	static	bool	callout_thunk(typename PegexpT::State& state)
-			{
-				return ((Peg<TextPtr, Char>*)state.closure)->callout(state);
-			}
 };
 #endif	// PEG_H

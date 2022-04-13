@@ -25,8 +25,8 @@ main(int argc, const char** argv)
 	using R = TestPeg::Rule;
 	TestPeg::Rule	rules[] = {
 		{ "blankline",	"\\n*[ \\t\\r](|\\n|!.)"			},	// A line containing no printing characters
-		{ "space",	"|[ \\t\\r\\n]|//*[^\\n]",			},	// Any single whitespace
-		{ "s",		"*(!<blankline><space>)",			},	// Any whitespace but not a blankline
+		{ "space",	"|[ \\t\\r\\n]|//*[^\\n]"			},	// Any single whitespace
+		{ "s",		"*(!<blankline><space>)"			},	// Any whitespace but not a blankline
 		{ "TOP",	"*<space>*<rule>"				},	// Start; a repetition of zero or more rules
 		{ "rule",	"<name><s>=<s><alternates><blankline>*<space>"	},	// Rule: a name assigned one or more alternates
 		{ "alternates",	"|+(\\|<s>*<repetition>)"				// Alternates: either a list of alternates each prefixed by |

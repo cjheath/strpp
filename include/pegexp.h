@@ -32,9 +32,9 @@
  *	\u{1-5}	match the specified 1-5 digit Unicode character (only if compiled for Unicode support)
  *	[a-z]	Normal character class (a literal hyphen may occur at start)
  *	[^a-z]	Negated character class. Characters may include the \escapes listed above
+ *	<	Call the extended_match function
  * NOT YET IMPLEMENTED:
  *	{n,m}	match from n (default 0) to m (default unlimited) repetitions of the following expression.
- *	<name>	Call the callout function passing the specified name.
  *	Captures.
  *
  * Note: Possessive alternates and possessive repetition will never backtrack.
@@ -67,40 +67,40 @@ public:
 				{ data = s; return *this; }
 	operator const char*()					// Access the char under the pointer
 				{ return static_cast<const char*>(data); }
+	bool			operator==(const TextPtrChar& o) // REVISIT: Used instead of at_bof()
+				{ return data == o.data; }
 	char			operator*()			// Dereference to char under the pointer
 				{ return *data; }
 	bool			at_eof() { return **this == '\0'; }
 	TextPtrChar		operator++(int)	{ return data++; }
 };
 
+template <typename TextPtr = TextPtrChar, typename Char = char>
+class PegState
+{
+public:
+	PegexpPC	pc;		// Current location in the pegexp
+	TextPtr		text;		// Current text we're looking at
+	TextPtr		target;		// Original start of the string
+};
+
 template<typename TextPtr = TextPtrChar, typename Char = char>
 class Pegexp
 {
+	using		State = PegState<TextPtr, Char>;
 public:
-	PegexpPC		pegexp;
+	PegexpPC	pegexp;
 
 	Pegexp(PegexpPC _pegexp) : pegexp(_pegexp) {}
-	PegexpPC		code() const { return pegexp; }
+	PegexpPC	code() const { return pegexp; }
 
-	struct State;
-	typedef	bool 		(*CalloutFn)(State& state);
-	struct State {
-		PegexpPC	pc;		// Current location in the pegexp
-		TextPtr		text;		// Current text we're looking at
-		TextPtr		target;		// Original start of the string
-		CalloutFn	callout;
-		void*		closure;	// User context for the callout
-	};
-
-	int		match(TextPtr& text, CalloutFn callout = 0, void* closure = 0)
+	int		match(TextPtr& text)
 	{
 		TextPtr	trial = text;		// The first search starts here
 		State	state = {
 				.pc = pegexp,		// The expression to match
 				.text = text,		// Start point in text
-				.target = text,		// Needed to stop ^ referencing text[-1]
-				.callout = callout,	// Where to send callouts, when implemented
-				.closure = closure
+				.target = text		// Needed to stop ^ referencing text[-1]
 			};
 		do {
 			state.pc = pegexp;
@@ -121,14 +121,12 @@ public:
 		return -1;
 	}
 
-	int		match_here(TextPtr& text, CalloutFn callout = 0, void* closure = 0)
+	int		match_here(TextPtr& text)
 	{
 		State	state = {
 				.pc = pegexp,		// The expression to match
 				.text = text,		// Start point in text
-				.target = text,		// Needed to stop ^ referencing text[-1]
-				.callout = callout,	// Where to send callouts, when implemented
-				.closure = closure
+				.target = text		// Needed to stop ^ referencing text[-1]
 			};
 		bool success = match_here(state);
 		if (!success)
@@ -283,6 +281,15 @@ protected:
 		}
 	}
 
+	// Null extension; treat extensions like literal characters
+	virtual bool	match_extended(State& state)
+	{
+		if (state.text.at_eof() || *state.pc != *state.text)
+			return false;
+		state.text++;
+		return true;
+	}
+
 	/*
 	 * The guts of the algorithm. Match one atom against the current text.
 	 *
@@ -374,8 +381,9 @@ protected:
 			return succeed;
 		}
 
-		case '<':	// Implement callouts
-			return state.callout(state);
+		case '<':	// Implement extended commands
+			state.pc--;
+			return match_extended(state);
 		}
 	}
 
@@ -424,6 +432,17 @@ protected:
 		return true;
 	}
 
+	// Null extension; treat extensions like literal characters
+	virtual void	skip_extended(PegexpPC& pc)
+	{
+		pc++;
+#if 0
+		if (*pc++ == '<')
+			while (*pc != '\0' && *pc++ != '>')
+				;
+#endif
+	}
+
 	const PegexpPC	skip_atom(PegexpPC& pc)
 	{
 		switch (char rc = *pc++)
@@ -466,9 +485,9 @@ protected:
 			skip_atom(pc);
 			break;
 
-		case '<':	// Callout
-			while (*pc != '\0' && *pc++ != '>')
-				;
+		case '<':	// Extension
+			pc--;
+			skip_extended(pc);
 			break;
 
 		default:
