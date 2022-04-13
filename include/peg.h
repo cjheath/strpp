@@ -22,12 +22,16 @@ public:
 	{
 		Peg<TextPtr, Char>*	peg;
 	public:
+		using	Result = PegResult<PegState<TextPtr, Char>>;
 		PegexpT(PegexpPC _pegexp) : Pegexp<TextPtr, Char>(_pegexp) {}
 
 		void		set_closure(Peg<TextPtr, Char>* _peg) { peg = _peg; }
-		virtual bool	match_extended(PegState<TextPtr, Char>& state)
+		virtual Result	match_extended(PegState<TextPtr, Char>& state)
 		{
-			return peg->callout(state);
+			if (*state.pc == '<')
+				return peg->recurse(state);
+			else
+				return Pegexp<TextPtr, Char>::match_literal(state);
 		}
 
 		// Null extension; treat extensions like literal characters
@@ -38,6 +42,7 @@ public:
 					;
 		}
 	};
+	using	Result = typename PegexpT::Result;
 
 	typedef struct {
 		const char*	name;
@@ -91,7 +96,7 @@ public:
 				return rule;
 			}
 
-	bool		callout(PegState<TextPtr, Char>& state)
+	Result		recurse(PegState<TextPtr, Char>& state)
 			{
 				state.pc++;	// Skip the '<'
 
@@ -105,7 +110,7 @@ public:
 				{
 					printf("failed to find rule `%.*s`\n", (int)(brangle-state.pc), state.pc);
 					// REVISIT: Call a PEG callout to enable custom-coded rules?
-					return false;
+					return Result::fail();
 				}
 
 				// Check for left recursion:
@@ -118,7 +123,7 @@ public:
 						printf("Left recursion detected on %s at `%.10s`\n", frame.rule->name, (const char*)state.text);
 						for (int j = 0; j < nesting.size(); j++)
 							printf("%s%s", nesting[j].rule->name, j < nesting.size() ? "->" : "\n");
-						return false;
+						return Result::fail();
 					}
 				}
 				nesting.push_back({sub_rule, state.text});
@@ -130,7 +135,7 @@ public:
 				printf("Calling %s at `%.10s...` (pegexp `%s`)\n", sub_rule->name, (const char*)state.text, sub_rule->expression.code());
 #endif
 				sub_rule->expression.set_closure(this);
-				bool	success = sub_rule->expression.match_here(substate);
+				Result	success = sub_rule->expression.match_here(substate);
 
 #if defined(PEG_TRACE)
 				for (int j = 0; j < nesting.size(); j++)

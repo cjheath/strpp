@@ -32,7 +32,8 @@
  *	\u{1-5}	match the specified 1-5 digit Unicode character (only if compiled for Unicode support)
  *	[a-z]	Normal character class (a literal hyphen may occur at start)
  *	[^a-z]	Negated character class. Characters may include the \escapes listed above
- *	<	Call the extended_match function
+ *	! ` @ # % _ ; : <	Call the extended_match function
+ *	control-character	Call the extended_match function
  * NOT YET IMPLEMENTED:
  *	{n,m}	match from n (default 0) to m (default unlimited) repetitions of the following expression.
  *	Captures.
@@ -52,6 +53,7 @@ typedef	const char*	PegexpPC;
 /*
  * Wrap a const char* to adapt it as a PEG parser input.
  * Every operation here works as for a char*, but it also supports at_eof() to detect the terminator.
+ * More pointer-ish methods are possible, but this is limited to the methods needed for Pegexp.
  */
 class	TextPtrChar
 {
@@ -84,11 +86,25 @@ public:
 	TextPtr		target;		// Original start of the string
 };
 
-template<typename TextPtr = TextPtrChar, typename Char = char>
+// Your custom PegResult class can accumulate details about the matching. This version is a minimal stub.
+template <typename State = PegState<TextPtrChar, char>>
+class PegResult
+{
+	bool			succeeded;
+	PegResult(bool _match) : succeeded(_match) {}
+public:
+	PegResult(const PegResult& c) : succeeded(c.succeeded) {}
+	static PegResult	fail() { return PegResult(false); }
+	static PegResult	succeed(State& state) { return PegResult(true); }	// Ignore the state
+	void			append(PegResult<State>& addend) {}
+	operator bool() { return succeeded; }
+};
+
+template<typename TextPtr = TextPtrChar, typename Char = char, typename Result = PegResult<PegState<TextPtr, Char>>>
 class Pegexp
 {
-	using		State = PegState<TextPtr, Char>;
 public:
+	using		State = PegState<TextPtr, Char>;
 	PegexpPC	pegexp;
 
 	Pegexp(PegexpPC _pegexp) : pegexp(_pegexp) {}
@@ -100,7 +116,7 @@ public:
 		State	state = {
 				.pc = pegexp,		// The expression to match
 				.text = text,		// Start point in text
-				.target = text		// Needed to stop ^ referencing text[-1]
+				.target = text		// Remember start point so ^ doesn't reference target[-1]
 			};
 		do {
 			state.pc = pegexp;
@@ -121,6 +137,7 @@ public:
 		return -1;
 	}
 
+	// REVISIT: Change to allow returning Result
 	int		match_here(TextPtr& text)
 	{
 		State	state = {
@@ -128,7 +145,7 @@ public:
 				.text = text,		// Start point in text
 				.target = text		// Needed to stop ^ referencing text[-1]
 			};
-		bool success = match_here(state);
+		Result	success = match_here(state);
 		if (!success)
 			return -1;
 		int	length = state.text - state.target;
@@ -136,15 +153,21 @@ public:
 		return length;
 	}
 
-	bool		match_here(State& state)
+	Result		match_here(State& state)
 	{
 		if (*state.pc == '\0' || *state.pc == ')')
-			return true;
-		do {
-			if (!match_atom(state))
-				return false;
-		} while (*state.pc != '\0' && *state.pc != ')');
-		return true;
+			return Result::succeed(state);
+		Result	r = match_atom(state);
+		if (!r)
+			return r;	// Failure
+		while (*state.pc != '\0' && *state.pc != ')')
+		{
+			Result	n = match_atom(state);
+			if (!n)
+				return n;	// Failure
+			r.append(n);
+		}
+		return r;
 	}
 
 	static int	unhex(Char c)
@@ -224,7 +247,7 @@ protected:
 		return rc;
 	}
 
-	bool		char_class(State& state)
+	Result		char_class(State& state)
 	{
 		bool	negated;
 		if ((negated = (*state.pc == '^')))
@@ -261,9 +284,10 @@ protected:
 			in_class = !in_class;
 		if (state.text.at_eof())	// End of input never matches
 			in_class = false;
+		Result	r = in_class ? Result::succeed(state) : Result::fail();
 		if (in_class)
 			state.text++;
-		return in_class;
+		return r;
 	}
 
 	bool		char_property(PegexpPC& pc, Char ch)
@@ -282,12 +306,21 @@ protected:
 	}
 
 	// Null extension; treat extensions like literal characters
-	virtual bool	match_extended(State& state)
+	virtual Result	match_extended(State& state)
 	{
 		if (state.text.at_eof() || *state.pc != *state.text)
-			return false;
+			return Result::fail();
 		state.text++;
-		return true;
+		return Result::succeed(state);
+	}
+
+	Result		match_literal(State& state)
+	{
+		bool	match;
+		char	rc = *state.pc++;
+		if ((match = (!state.text.at_eof() && rc == *state.text)))
+			state.text++;
+		return match ? Result::succeed(state) : Result::fail();
 	}
 
 	/*
@@ -298,39 +331,42 @@ protected:
 	 *
 	 * If it returns false, state.pc has still been advanced but state.text is unchanged
 	 */
-	bool		match_atom(State& state)
+	Result		match_atom(State& state)
 	{
 		PegexpPC		skip_from = state.pc;
+		bool			match = false;
 		switch (char rc = *state.pc++)
 		{
 		case '\0':	// End of expression
 			state.pc--;
 		case ')':	// End of group
-			return true;
+			match = true;
+			break;
 
 		case '^':	// Start of line
-			return state.text == state.target || state.text[-1] == '\n';
+			match = state.text == state.target || state.text[-1] == '\n';
+			break;
 
 		case '$':	// End of line or end of input
-			return state.text.at_eof() || *state.text == '\n';
+			match = state.text.at_eof() || *state.text == '\n';
+			break;
 
 		case '.':	// Any character
-			if (state.text.at_eof())
-				return false;		// No more data available
-			state.text++;
-			return true;
+			if ((match = !state.text.at_eof()))
+				state.text++;
+			break;
 
 		default:	// Literal character
-			if (state.text.at_eof() || rc != *state.text)
-				return false;
-			state.text++;
-			return true;
+			if (rc > 0 && rc < ' ')		// Control characters
+				goto extended;
+			if ((match = (!state.text.at_eof() && rc == *state.text)))
+				state.text++;
+			break;
 
 		case '\\':	// Escaped literal char
-			if (state.text.at_eof() || !char_property(state.pc, *state.text))
-				return false;
-			state.text++;
-			return true;
+			if ((match = (!state.text.at_eof() && char_property(state.pc, *state.text))))
+				state.text++;
+			break;
 
 		case '[':	// Character class
 			return char_class(state);
@@ -338,18 +374,20 @@ protected:
 		case '?':	// Zero or one
 		case '*':	// Zero or more
 		case '+':	// One or more
-			return match_repeat(state, rc == '+' ? 1 : 0, rc == '?' ? 1 : 0);
 		// case '{':	// REVISIT: Implement counted repetition
+			return match_repeat(state, rc == '+' ? 1 : 0, rc == '?' ? 1 : 0);
 
 		case '(':	// Parenthesised group
 			if (!match_here(state))
 			{
-				state.pc = skip_atom(skip_from);	// Advance state.pc to after the ')' so repetition works
-				return false;
+				// Advance state.pc to after the ')' so repetition ends, but knows where to go next
+				state.pc = skip_atom(skip_from);
+				return Result::fail();
 			}
 			if (*state.pc != '\0')		// Don't advance past group if it was not closed
 				state.pc++;		// Skip the ')'
-			return true;
+			match = true;
+			break;
 
 		case '|':	// Alternates
 		{
@@ -363,28 +401,40 @@ protected:
 				{		// This alternate matched, skip to the end of these alternates
 					while (*state.pc == '|')	// We reached the next alternate
 						skip_atom(state.pc);
-					return true;
+					match = true;
+					break;
 				}
 				// If we want to know the furthest text looked at, we should save that from state.text here.
 				state.pc = skip_atom(skip_from);
 			}
-			return false;
+			break;
 		}
 
 		case '&':	// Positive lookahead assertion
 		case '!':	// Negative lookahead assertion
 		{
 			const TextPtr	revert = state.text;	// We always return to the current text
-			bool		succeed = (rc == '!') != match_atom(state);
+			match = (rc == '!') != (bool)match_atom(state);
 			state.pc = skip_atom(skip_from);	// Advance state.pc to after the assertion
 			state.text = revert;
-			return succeed;
+			break;
 		}
 
-		case '<':	// Implement extended commands
+		// Extended commands:
+		case '~':
+		case '`':
+		case '@':
+		case '#':
+		case '%':
+		case '_':
+		case ';':
+		case ':':
+		case '<':
+		extended:
 			state.pc--;
 			return match_extended(state);
 		}
+		return match ? Result::succeed(state) : Result::fail();
 	}
 
 	bool		match_alternate(State& state)
@@ -396,7 +446,7 @@ protected:
 		return true;
 	}
 
-	bool		match_repeat(State& state, int min, int max)
+	Result		match_repeat(State& state, int min, int max)
 	{
 		TextPtr		iter_start;
 		const PegexpPC	repeat_pc = state.pc;
@@ -409,7 +459,7 @@ protected:
 			if (!match_atom(state))
 			{
 				state.text = iter_start;
-				return false;
+				return Result::fail();
 			}
 			repetitions++;
 		}
@@ -423,24 +473,19 @@ protected:
 				state.pc = repeat_pc;
 				skip_atom(state.pc);
 				state.text = iter_start;
-				return true;
+				return Result::succeed(state);
 			}
 			if (state.text == iter_start)
 				break;	// We didn't advance, so don't keep trying. Can happen e.g. on *()
 			repetitions++;
 		}
-		return true;
+		return Result::succeed(state);
 	}
 
 	// Null extension; treat extensions like literal characters
 	virtual void	skip_extended(PegexpPC& pc)
 	{
 		pc++;
-#if 0
-		if (*pc++ == '<')
-			while (*pc != '\0' && *pc++ != '>')
-				;
-#endif
 	}
 
 	const PegexpPC	skip_atom(PegexpPC& pc)
@@ -485,17 +530,28 @@ protected:
 			skip_atom(pc);
 			break;
 
+		// Extended commands:
+		case '~':
+		case '`':
+		case '@':
+		case '#':
+		case '%':
+		case '_':
+		case ';':
+		case ':':
 		case '<':	// Extension
+		extended:
 			pc--;
 			skip_extended(pc);
 			break;
 
 		default:
+			if (rc > 0 && rc < ' ')		// Control characters
+				goto extended;
 			break;
 
 		// As-yet unimplemented features:
 		// case '{':	// REVISIT: Implement counted repetition
-		// Other unused special characters: ~`@#%_;:
 		}
 		return pc;
 	}
