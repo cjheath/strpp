@@ -86,18 +86,29 @@ public:
 	TextPtr		target;		// Original start of the string
 };
 
-// Your custom PegResult class can accumulate details about the matching. This version is a minimal stub.
+/*
+ * Your custom PegResult class can accumulate details about the matching.
+ * This version is a minimal stub.
+ */
 template <typename State = PegState<TextPtrChar, char>>
 class PegResult
 {
 	bool			succeeded;
 	PegResult(bool _match) : succeeded(_match) {}
 public:
+	PegResult() : succeeded(false) {}
 	PegResult(const PegResult& c) : succeeded(c.succeeded) {}
-	static PegResult	fail() { return PegResult(false); }
+	PegResult&		operator=(const PegResult& c) { succeeded = c.succeeded; return *this; }
+	operator bool() { return succeeded; }
+
+	/*
+	 * Here's the methods you want to replace.
+	 * fail() can remember what rule and text we reached, for example
+	 * succeed() can save the text to be appended() to as the sequence continues
+	 */
+	static PegResult	fail(State& state) { return PegResult(false); }		// Ignore the state
 	static PegResult	succeed(State& state) { return PegResult(true); }	// Ignore the state
 	void			append(PegResult<State>& addend) {}
-	operator bool() { return succeeded; }
 };
 
 template<typename TextPtr = TextPtrChar, typename Char = char, typename Result = PegResult<PegState<TextPtr, Char>>>
@@ -250,6 +261,7 @@ protected:
 	Result		char_class(State& state)
 	{
 		bool	negated;
+		State	start_state(state);
 		if ((negated = (*state.pc == '^')))
 			state.pc++;
 
@@ -284,7 +296,7 @@ protected:
 			in_class = !in_class;
 		if (state.text.at_eof())	// End of input never matches
 			in_class = false;
-		Result	r = in_class ? Result::succeed(state) : Result::fail();
+		Result	r = in_class ? Result::succeed(state) : Result::fail(start_state);
 		if (in_class)
 			state.text++;
 		return r;
@@ -309,18 +321,20 @@ protected:
 	virtual Result	match_extended(State& state)
 	{
 		if (state.text.at_eof() || *state.pc != *state.text)
-			return Result::fail();
+			return Result::fail(state);
 		state.text++;
 		return Result::succeed(state);
 	}
 
 	Result		match_literal(State& state)
 	{
-		bool	match;
+		State	start_state(state);
 		char	rc = *state.pc++;
+
+		bool	match;
 		if ((match = (!state.text.at_eof() && rc == *state.text)))
 			state.text++;
-		return match ? Result::succeed(state) : Result::fail();
+		return match ? Result::succeed(state) : Result::fail(start_state);
 	}
 
 	/*
@@ -333,8 +347,9 @@ protected:
 	 */
 	Result		match_atom(State& state)
 	{
-		PegexpPC		skip_from = state.pc;
-		bool			match = false;
+		State		start_state(state);
+		PegexpPC	skip_from = state.pc;
+		bool		match = false;
 		switch (char rc = *state.pc++)
 		{
 		case '\0':	// End of expression
@@ -378,11 +393,12 @@ protected:
 			return match_repeat(state, rc == '+' ? 1 : 0, rc == '?' ? 1 : 0);
 
 		case '(':	// Parenthesised group
+			start_state.pc = state.pc;
 			if (!match_here(state))
 			{
 				// Advance state.pc to after the ')' so repetition ends, but knows where to go next
 				state.pc = skip_atom(skip_from);
-				return Result::fail();
+				return Result::fail(start_state);
 			}
 			if (*state.pc != '\0')		// Don't advance past group if it was not closed
 				state.pc++;		// Skip the ')'
@@ -393,21 +409,23 @@ protected:
 		{
 			state.pc--;
 			const TextPtr	revert = state.text;	// We always return to the current text
+			Result		last_failure;
 			while (*state.pc == '|')	// There's another alternate
 			{
 				state.pc++;
 				state.text = revert;
+				start_state = state;
 				if (match_alternate(state))
 				{		// This alternate matched, skip to the end of these alternates
 					while (*state.pc == '|')	// We reached the next alternate
 						skip_atom(state.pc);
-					match = true;
-					break;
+					return Result::succeed(state);
 				}
+				last_failure = Result::fail(start_state);
 				// If we want to know the furthest text looked at, we should save that from state.text here.
 				state.pc = skip_atom(skip_from);
 			}
-			break;
+			return last_failure;
 		}
 
 		case '&':	// Positive lookahead assertion
@@ -434,7 +452,7 @@ protected:
 			state.pc--;
 			return match_extended(state);
 		}
-		return match ? Result::succeed(state) : Result::fail();
+		return match ? Result::succeed(state) : Result::fail(start_state);
 	}
 
 	bool		match_alternate(State& state)
@@ -448,34 +466,34 @@ protected:
 
 	Result		match_repeat(State& state, int min, int max)
 	{
-		TextPtr		iter_start;
+		State		start_state(state);
 		const PegexpPC	repeat_pc = state.pc;
 		int		repetitions = 0;
 
 		while (repetitions < min)
 		{
 			state.pc = repeat_pc;
-			iter_start = state.text;
+			start_state.text = state.text;
 			if (!match_atom(state))
 			{
-				state.text = iter_start;
-				return Result::fail();
+				state.text = start_state.text;
+				return Result::fail(start_state);
 			}
 			repetitions++;
 		}
 		while (max == 0 || repetitions < max)
 		{
-			iter_start = state.text;
-			state.pc = repeat_pc;
+			start_state.text = state.text;
+			state.pc = start_state.pc;
 			if (!match_atom(state))
 			{
 				// Ensure that state.pc is now pointing at the following expression
-				state.pc = repeat_pc;
+				state.pc = start_state.pc;
+				state.text = start_state.text;
 				skip_atom(state.pc);
-				state.text = iter_start;
 				return Result::succeed(state);
 			}
-			if (state.text == iter_start)
+			if (state.text == start_state.text)
 				break;	// We didn't advance, so don't keep trying. Can happen e.g. on *()
 			repetitions++;
 		}

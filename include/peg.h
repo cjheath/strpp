@@ -18,15 +18,16 @@ template<typename TextPtr, typename Char>
 class Peg
 {
 public:
+	using	State = PegState<TextPtr, Char>;
 	class PegexpT : public Pegexp<TextPtr, Char>
 	{
 		Peg<TextPtr, Char>*	peg;
 	public:
-		using	Result = PegResult<PegState<TextPtr, Char>>;
+		using	Result = PegResult<State>;
 		PegexpT(PegexpPC _pegexp) : Pegexp<TextPtr, Char>(_pegexp) {}
 
 		void		set_closure(Peg<TextPtr, Char>* _peg) { peg = _peg; }
-		virtual Result	match_extended(PegState<TextPtr, Char>& state)
+		virtual Result	match_extended(State& state)
 		{
 			if (*state.pc == '<')
 				return peg->recurse(state);
@@ -68,6 +69,9 @@ public:
 					printf("failed to find rule TOP\n");
 					return false;
 				}
+#if defined(PEG_TRACE)
+				printf("Calling %s at `%.10s...` (pegexp `%s`)\n", top->name, (const char*)text, top->expression.code());
+#endif
 
 				nesting.push_back({top, text});
 				top->expression.set_closure(this);
@@ -96,8 +100,9 @@ public:
 				return rule;
 			}
 
-	Result		recurse(PegState<TextPtr, Char>& state)
+	Result		recurse(State& state)
 			{
+				State	start_state(state);
 				state.pc++;	// Skip the '<'
 
 				// Find the end of the rule name.
@@ -110,7 +115,7 @@ public:
 				{
 					printf("failed to find rule `%.*s`\n", (int)(brangle-state.pc), state.pc);
 					// REVISIT: Call a PEG callout to enable custom-coded rules?
-					return Result::fail();
+					return Result::fail(start_state);
 				}
 
 				// Check for left recursion:
@@ -123,25 +128,24 @@ public:
 						printf("Left recursion detected on %s at `%.10s`\n", frame.rule->name, (const char*)state.text);
 						for (int j = 0; j < nesting.size(); j++)
 							printf("%s%s", nesting[j].rule->name, j < nesting.size() ? "->" : "\n");
-						return Result::fail();
+						return Result::fail(start_state);
 					}
 				}
 				nesting.push_back({sub_rule, state.text});
 
-				PegState<TextPtr, Char>		substate = state;
-				substate.target = substate.text;		// Know where this subexpression began
+				State		substate = state;
 				substate.pc = sub_rule->expression.code();
 #if defined(PEG_TRACE)
 				printf("Calling %s at `%.10s...` (pegexp `%s`)\n", sub_rule->name, (const char*)state.text, sub_rule->expression.code());
 #endif
 				sub_rule->expression.set_closure(this);
-				Result	success = sub_rule->expression.match_here(substate);
+				Result	result = sub_rule->expression.match_here(substate);
 
 #if defined(PEG_TRACE)
 				for (int j = 0; j < nesting.size(); j++)
 					printf("%s%s", nesting[j].rule->name, j < nesting.size() ? "->" : " ");
 #endif
-				if (success)
+				if (result)
 				{
 					TextPtr	from = state.text;
 
@@ -150,14 +154,14 @@ public:
 #if defined(PEG_TRACE)
 					printf("MATCH `%.*s`\n", (int)(state.text-from), (const char*)from);
 					printf("continuing at text `%.10s`...\n", (const char*)state.text);
-				}
-				else
-				{
-					printf("FAIL\n");
 #endif
 				}
+#if defined(PEG_TRACE)
+				else
+					printf("FAIL\n");
+#endif
 				nesting.pop_back();
-				return success;
+				return result;
 			}
 
 protected:
