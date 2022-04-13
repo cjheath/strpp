@@ -31,24 +31,27 @@ main(int argc, const char** argv)
 		{ "rule",	"<name><s>=<s><alternates><blankline>*<space>"	},	// Rule: a name assigned one or more alternates
 		{ "alternates",	"|+(\\|<s>*<repetition>)"				// Alternates: either a list of alternates each prefixed by |
 				"|*<repetition>"				},	// or just one alternate
-		{ "repetition",	"(|[?*+!&]|)<s><atom>"				},	// zero or one, zero or more, one or more, none, and
+		{ "repetition",	"?[?*+!&]<s><atom>"				},	// zero or one, zero or more, one or more, none, and
 		{ "atom",	"|\\."							// Any character
 				"|<name>"						// call to another rule
+				"|<property>"						// A character property
 				"|<literal>"						// A literal
 				"|<class>"						// A character class
 				"|\\(<s>+<alternates>\\)<s>"				// A parenthesised group
 		},
-		{ "name",	"(|\\a|_)*(|\\w|_)<s>"				},	// \a = any letter, \w = any letter or digit
+		{ "name",	"[\\a_]*[\\w_]<s>"				},
 		{ "literal",	"'*(!'<lit_char>)'<s>"				},
 		{ "lit_char",
-				"|\\\\?[0-3][0-7]?[0-7]"				// octal character constant
-				"|\\\\x\\h?\\h"						// hexadecimal constant \x12
-				"|\\\\x{+\\h}"						// hexadecimal constant \x{...}
-				"|\\\\u?[01]\\h?\\h?\\h?\\h"				// Unicode character \u1234
-				"|\\\\u{+\\h}"						// Unicode character \u{...}
-				"|\\\\[^\\n]"						// Other special escape except newline
+				"|\\\\(|?[0-3][0-7]?[0-7]"				// octal character constant
+				      "|x\\h?\\h"					// hexadecimal constant \x12
+				      "|x{+\\h}"					// hexadecimal constant \x{...}
+				      "|u?[01]\\h?\\h?\\h?\\h"				// Unicode character \u1234
+				      "|u{+\\h}"					// Unicode character \u{...}
+				      "|[^\\n]"						// Other special escape except newline
+				     ")"
 				"|[^\\\\\\n]"						// any normal character except backslash or newline
 		},
+		{ "property",	"\\\\[adhsw]<s>"				},	// alpha, digit, hexadecimal, whitespace, word (alpha or digit)
 		{ "class",	"\\[?\\^?-+<class_part>]<s>"			},	// A character class
 		{ "class_part",	"!]<class_char>?(-!]<class_char>)"		},
 		{ "class_char",	"![-\\]]<lit_char>"				},

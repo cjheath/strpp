@@ -18,29 +18,32 @@ rule		= name s '=' s alternates blankline *space
 alternates	=| +('|' s *repetition)			// Either a list of alternates
 		| *repetition				// or just one alternate
 
-repetition	= (| [?*+!&]				// zero or one, zero or more, one or more, none
-		// | '{' s *'\d' s ?(',' s *'\d' s) '}' // Counted repetition; not yet
-		   |					// No repeat
-		  ) s atom
+repetition	= ?[?*+!&] s				// zero or one, zero or more, one or more, none
+		  atom
 
 atom		=| '.'					// Any character
 		| name					// call to another rule
 		| literal				// A literal
+		| property				// A character property
 		| class					// A character class
 		| '(' s +alternates ')' s		// A parenthesised group
 
-// Character categories here: \a = any letter, \w = any letter or digit
-name		= (|'\a' |'_') *(|'\w' |'_') s
+// Character properties here: \a = any letter, \w = any letter or digit
+name		= [\a_] *[\w_] s
 
 literal		= ['] *(!['] literal_char) ['] s
 
-literal_char	=| '\\' ?[0-3] [0-7] ?[0-7]		// octal character constant
-		| '\\x\h' ?'\h'				// hex character \x12
-		| '\\x{' +'\h' '}'			// hex character \x{...}
-		| '\\u' ?[01] '\h' ?'\h' ?'\h' ?'\h'	// Unicode character \u1234
-		| '\\u{' +'\h' '}'	 		// Unicode character \u{...}
-		| '\\' [^\\n]				// other special escape except newline
+literal_char	=| '\\' (
+			| ?[0-3] [0-7] ?[0-7]		// octal character constant
+			| 'x\h' ?\h			// hex character \x12
+			| 'x{' +\h '}'			// hex character \x{...}
+			| 'u' ?[01] \h ?\h ?\h ?\h	// Unicode character \u12345
+			| 'u{' +\h '}'	 		// Unicode character \u{...}
+			| [^\\n]			// other special escape except newline
+			)
 		| [^\\\n]				// any normal character except backslash or newline
+
+property	= '\\' [adhsw] s			// alpha, digit, hexadecimal, whitespace, word (alpha or digit)
 
 class		= '[' ?'^' ?'-' +class_part ']' s	// A character class
 
