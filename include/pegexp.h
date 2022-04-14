@@ -65,15 +65,15 @@ public:
 	TextPtrChar(TextPtrChar& c) : data(c.data) {}		// Copy constructor
 	TextPtrChar(const TextPtrChar& c) : data(c.data) {}	// Copy constructor
 	~TextPtrChar() {};
-	TextPtrChar&		operator=(const char* s)	// Assignment
-				{ data = s; return *this; }
+	TextPtrChar&		operator=(TextPtrChar s)	// Assignment
+				{ data = s.data; return *this; }
 	operator const char*()					// Access the char under the pointer
 				{ return static_cast<const char*>(data); }
 	bool			operator==(const TextPtrChar& o) // REVISIT: Used instead of at_bof()
 				{ return data == o.data; }
 	char			operator*()			// Dereference to char under the pointer
 				{ return *data; }
-	bool			at_eof() { return **this == '\0'; }
+	bool			at_eof() { return *data == '\0'; }
 	TextPtrChar		operator++(int)	{ return data++; }
 };
 
@@ -83,7 +83,8 @@ class PegState
 public:
 	PegexpPC	pc;		// Current location in the pegexp
 	TextPtr		text;		// Current text we're looking at
-	TextPtr		target;		// Original start of the string
+	TextPtr		origin;		// Original start of the string
+	bool		origin_is_bot;	// Is start of string considered start of line?
 };
 
 /*
@@ -93,75 +94,73 @@ public:
 template <typename State = PegState<TextPtrChar, char>>
 class PegResult
 {
-	bool			succeeded;
-	PegResult(bool _match) : succeeded(_match) {}
 public:
 	PegResult() : succeeded(false) {}
-	PegResult(const PegResult& c) : succeeded(c.succeeded) {}
-	PegResult&		operator=(const PegResult& c) { succeeded = c.succeeded; return *this; }
+	PegResult(const PegResult& c) : succeeded(c.succeeded), state(c.state) {}
+	PegResult&		operator=(const PegResult& c) { succeeded = c.succeeded; state = c.state; return *this; }
 	operator bool() { return succeeded; }
 
 	/*
 	 * Here's the methods you want to replace.
 	 * fail() can remember what rule and text we reached, for example
-	 * succeed() can save the text to be appended() to as the sequence continues
+	 * succeed() can save the text to be extended() to as the sequence continues
 	 */
-	static PegResult	fail(State& state) { return PegResult(false); }		// Ignore the state
-	static PegResult	succeed(State& state) { return PegResult(true); }	// Ignore the state
-	void			append(PegResult<State>& addend) {}
+	static PegResult	fail(State& state) { return PegResult(false, state); }		// Ignore the state
+	static PegResult	succeed(State& state) { return PegResult(true, state); }	// Ignore the state
+	void			extend(PegResult<State>& addend) { state.pc = addend.state.pc; state.text = addend.state.text; }
+
+	State			state;
+private:
+	bool			succeeded;
+	PegResult(bool _match, State _state) : succeeded(_match), state(_state) {}
 };
 
-template<typename TextPtr = TextPtrChar, typename Char = char, typename Result = PegResult<PegState<TextPtr, Char>>>
+template<typename TextPtr = TextPtrChar, typename Char = char, typename R = PegResult<PegState<TextPtr, Char>>>
 class Pegexp
 {
 public:
 	using		State = PegState<TextPtr, Char>;
+	using		Result = R;
 	PegexpPC	pegexp;
 
 	Pegexp(PegexpPC _pegexp) : pegexp(_pegexp) {}
 	PegexpPC	code() const { return pegexp; }
 
-	int		match(TextPtr& text)
+	Result		match(TextPtr& text)
 	{
-		TextPtr	trial = text;		// The first search starts here
+		TextPtr	trial = text;			// The first search starts here
 		State	state = {
 				.pc = pegexp,		// The expression to match
 				.text = text,		// Start point in text
-				.target = text		// Remember start point so ^ doesn't reference target[-1]
+				.origin = text,		// Remember start point so ^ doesn't reference origin[-1]
+				.origin_is_bot = true	// Is origin considered start-of-line?
 			};
+		Result	result;
 		do {
 			state.pc = pegexp;
-			state.text = trial;
+			state.origin = state.text = trial;
 
-			if (match_here(state))
-			{		// The matching section is between trial and state.text
-				if (*state.pc != '\0')	// The pegexp has a syntax error, e.g. an extra )
-					break;
-
-				int	length = state.text - trial;
-				text = state.text-length;
-				return length;
+			result = match_here(state);
+			if (result)
+			{
+				if (*result.state.pc != '\0')	// The pegexp has a syntax error, e.g. an extra )
+					return Result::fail(result.state);
+				return result;
 			}
+			state.origin_is_bot = (*state.origin == '\n');
 		} while (!trial.at_eof() && trial++);
-		// pegexp points to the part of the expression that failed. Is this useful?
-		text = 0;
-		return -1;
+		return result;
 	}
 
-	// REVISIT: Change to allow returning Result
-	int		match_here(TextPtr& text)
+	Result		match_here(TextPtr& text)
 	{
 		State	state = {
 				.pc = pegexp,		// The expression to match
 				.text = text,		// Start point in text
-				.target = text		// Needed to stop ^ referencing text[-1]
+				.origin = text,		// Needed to stop ^ referencing text[-1]
+				.origin_is_bot = true	// Is origin considered start-of-line?
 			};
-		Result	success = match_here(state);
-		if (!success)
-			return -1;
-		int	length = state.text - state.target;
-		state.text = text;
-		return length;
+		return match_here(state);
 	}
 
 	Result		match_here(State& state)
@@ -176,7 +175,7 @@ public:
 			Result	n = match_atom(state);
 			if (!n)
 				return n;	// Failure
-			r.append(n);
+			r.extend(n);
 		}
 		return r;
 	}
@@ -262,6 +261,7 @@ protected:
 	{
 		bool	negated;
 		State	start_state(state);
+		start_state.pc--;
 		if ((negated = (*state.pc == '^')))
 			state.pc++;
 
@@ -296,10 +296,9 @@ protected:
 			in_class = !in_class;
 		if (state.text.at_eof())	// End of input never matches
 			in_class = false;
-		Result	r = in_class ? Result::succeed(state) : Result::fail(start_state);
 		if (in_class)
 			state.text++;
-		return r;
+		return in_class ? Result::succeed(state) : Result::fail(start_state);
 	}
 
 	bool		char_property(PegexpPC& pc, Char ch)
@@ -359,7 +358,7 @@ protected:
 			break;
 
 		case '^':	// Start of line
-			match = state.text == state.target || state.text[-1] == '\n';
+			match = state.text > state.origin ? state.text[-1] == '\n' : state.origin_is_bot;
 			break;
 
 		case '$':	// End of line or end of input

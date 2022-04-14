@@ -61,23 +61,20 @@ public:
 				});
 			}
 
-	int	parse(TextPtr text)
+	Result	parse(TextPtr text)
 			{
 				Rule*	top = lookup("TOP");
-				if (!top)
-				{
-					printf("failed to find rule TOP\n");
-					return false;
-				}
+				assert(top);
+
 #if defined(PEG_TRACE)
 				printf("Calling %s at `%.10s...` (pegexp `%s`)\n", top->name, (const char*)text, top->expression.code());
 #endif
 
 				nesting.push_back({top, text});
 				top->expression.set_closure(this);
-				int	length = top->expression.match_here(text);
+				typename PegexpT::Result result = top->expression.match_here(text);
 				nesting.pop_back();
-				return length;
+				return result;
 			}
 
 	Rule*	lookup(const char* name)
@@ -113,8 +110,10 @@ public:
 				Rule*	sub_rule = lookup(state.pc);
 				if (!sub_rule)
 				{
+#if defined(PEG_TRACE)
 					printf("failed to find rule `%.*s`\n", (int)(brangle-state.pc), state.pc);
 					// REVISIT: Call a PEG callout to enable custom-coded rules?
+#endif
 					return Result::fail(start_state);
 				}
 
@@ -125,9 +124,11 @@ public:
 					if (frame.rule == sub_rule
 					 && frame.text == state.text)
 					{
+#if defined(PEG_TRACE)
 						printf("Left recursion detected on %s at `%.10s`\n", frame.rule->name, (const char*)state.text);
 						for (int j = 0; j < nesting.size(); j++)
 							printf("%s%s", nesting[j].rule->name, j < nesting.size() ? "->" : "\n");
+#endif
 						return Result::fail(start_state);
 					}
 				}
@@ -149,7 +150,9 @@ public:
 				{
 					TextPtr	from = state.text;
 
-					state.pc = brangle+1;
+					state.pc = brangle;
+					if (*state.pc == '>')	// Could be NUL on ill-formed input
+						state.pc++;
 					state.text = substate.text;
 #if defined(PEG_TRACE)
 					printf("MATCH `%.*s`\n", (int)(state.text-from), (const char*)from);

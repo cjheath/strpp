@@ -16,6 +16,14 @@
 #include	<pegexp.h>
 #include	<stdio.h>
 
+#if	defined(PEGEXP_UNICODE)
+using	Source = UTF8P;
+using	PegexpT = Pegexp<UTF8P, UCS4>;
+#else
+using	Source = typename char;
+using	PegexpT = typename Pegexp<>;
+#endif
+
 int
 main(int argc, const char** argv)
 {
@@ -27,18 +35,15 @@ main(int argc, const char** argv)
 
 	for (const char** subject = argv+2; subject < argv+argc; subject++)
 	{
-#if	defined(PEGEXP_UNICODE)
-		UTF8P   		text(*subject);
-		Pegexp<UTF8P, UCS4>	pegexp(argv[1]);
-#else
-		TextPtrChar		text(*subject);
-		Pegexp<>		pegexp(argv[1]);
-#endif
+		Source			text(*subject);
+		PegexpT			pegexp(argv[1]);
 
-		int		length = pegexp.match(text);
+		PegexpT::Result		result = pegexp.match(text);
+		int			length = result ? result.state.text-result.state.origin : -1;
+
 		fprintf(stdout, "%s\t%s\t", argv[1], *subject);
 		if (length >= 0)
-			fprintf(stdout, "+%d\t%.*s\n", (int)(text - *subject), length, static_cast<const char*>(text));
+			fprintf(stdout, "+%d\t%.*s\n", (int)(result.state.origin-text), length, static_cast<const char*>(result.state.origin));
 		else
 			fprintf(stdout, "failed\n");
 	}

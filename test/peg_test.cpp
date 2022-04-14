@@ -75,7 +75,9 @@ main(int argc, const char** argv)
 	px[stat.st_size] = '\0';
 
 	TestPeg		peg(rules, sizeof(rules)/sizeof(rules[0]));
-	int		bytes_parsed = peg.parse(px);
+	typename TestPeg::Result	result = peg.parse(px);
+
+	int		bytes_parsed = result ? result.state.text-result.state.origin : 0;
 	printf("Parsed %d bytes\n", bytes_parsed);
 
 	return 0;

@@ -17,8 +17,8 @@ public:
 	UTF8P(UTF8P& c) : data(c.data) {}	// Copy constructor
 	UTF8P(const UTF8P& c) : data(c.data) {}	// Copy constructor
 	~UTF8P() {};
-	UTF8P&		operator=(const UTF8* s)	// Assignment
-			{ data = s; return *this; }
+	UTF8P&		operator=(UTF8P s)	// Assignment
+			{ data = s.data; return *this; }
 	operator const char*() { return static_cast<const char*>(data); }	// Access the UTF8 bytes
 	UCS4		operator*()		// Dereference to char under the pointer
 			{ const UTF8* s = data; return UTF8Get(s); }

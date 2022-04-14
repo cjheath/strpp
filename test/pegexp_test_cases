@@ -201,7 +201,7 @@ a(bc|b)c		abcc		failed
 !ab			b		+0	b
 !d(|a|+b)		dbbbc		+1	bbb
 (!a|a|b)		b		+0	b
-(!a|a|b))		b		failed
+(!a|a|b))		a		failed
 (!d|a|+b)		bbbc		+0	bbb
 (!d|a|+b)		dbbbc		+1	bbb
 (|a|+b)			dbbbc		+1	bbb
