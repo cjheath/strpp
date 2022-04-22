@@ -144,7 +144,7 @@ public:
 				return result;
 			}
 		} while (!text.at_eof() && text++);
-		return result;
+		return result;	// This will show where we last failed
 	}
 
 	State		match_here(TextPtr& text)

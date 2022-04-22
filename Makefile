@@ -48,13 +48,19 @@ $(LIB):	build $(OBJS)
 
 tests:	$(TESTS)
 
-test:	run_pegexp_test run_peg_test
+test:	run_pegexp_test run_peg_test run_peg_size_test
 
 run_pegexp_test: pegexp_test
 	test/run_pegexp_test < test/pegexp_test.cases
 
 run_peg_test: peg_test
 	peg_test grammars/px.px
+
+run_peg_size_test:
+	@rm peg_size_test.o 2>/dev/null || true
+	@$(MAKE) peg_size_test.o
+	@size peg_size_test.o
+	@rm peg_size_test.o
 
 %:	%.cpp $(LIB)
 	$(CXX) $(DEBUG) $(CXXFLAGS) -Iinclude -Itest -o $@ $< test/memory_monitor.cpp $(LIB)
