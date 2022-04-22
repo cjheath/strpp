@@ -48,6 +48,14 @@ $(LIB):	build $(OBJS)
 
 tests:	$(TESTS)
 
+test:	run_pegexp_test run_peg_test
+
+run_pegexp_test: pegexp_test
+	test/run_pegexp_test < test/pegexp_test.cases
+
+run_peg_test: peg_test
+	peg_test grammars/px.px
+
 %:	%.cpp $(LIB)
 	$(CXX) $(DEBUG) $(CXXFLAGS) -Iinclude -Itest -o $@ $< test/memory_monitor.cpp $(LIB)
 
@@ -67,4 +75,4 @@ clean:
 clobber:	clean
 	rm -f $(LIB)
 
-.PHONY:	all lib clean tests clean clobber
+.PHONY:	all lib clean test tests clean clobber

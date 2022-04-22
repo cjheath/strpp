@@ -10,20 +10,22 @@
 class	UTF8P
 {
 private:
-	const UTF8*		data;
+	const UTF8*	data;
+	const UTF8*	origin;
 public:
-	UTF8P() : data(0) {}			// Null constructor
-	UTF8P(const UTF8* s) : data(s) {}	// Normal constructor
-	UTF8P(UTF8P& c) : data(c.data) {}	// Copy constructor
-	UTF8P(const UTF8P& c) : data(c.data) {}	// Copy constructor
+	UTF8P() : data(0), origin(0) {}			// Null constructor
+	UTF8P(const UTF8* s) : data(s), origin(s) {}	// Normal constructor
+	UTF8P(UTF8P& c) : data(c.data), origin(c.origin) {}	// Copy constructor
+	UTF8P(const UTF8P& c) : data(c.data), origin(c.origin) {}	// Copy constructor
 	~UTF8P() {};
 	UTF8P&		operator=(UTF8P s)	// Assignment
-			{ data = s.data; return *this; }
+			{ data = s.data; origin = s.origin; return *this; }
 	operator const char*() { return static_cast<const char*>(data); }	// Access the UTF8 bytes
 	UCS4		operator*()		// Dereference to char under the pointer
 			{ const UTF8* s = data; return UTF8Get(s); }
 
 	bool		at_eof() { return **this == '\0'; }
+	bool		at_bot() { return data == origin; }
 
 	static int	len(UCS4 ch)		// Length in bytes of this UCS4 character
 			{ return UTF8Len(ch); }
@@ -37,8 +39,8 @@ public:
 	// Add and subtract integers:
 	UTF8P&		operator+=(int i)
 			{	const UTF8* s = data;
-				while (i > 0) { UTF8Get(s); i--;}		// Advance
-				while (i < 0) { s = UTF8Backup(s); i++;}	// Or backup
+				while (i > 0 && !at_eof()) { UTF8Get(s); i--;}		// Advance
+				while (i < 0 && !at_bot()) { s = UTF8Backup(s); i++;}	// Or backup
 				data = (const UTF8*)s; return *this;
 			}
 	UTF8P		operator+(int i)	{ UTF8P t(*this); t += i; return t; }
@@ -47,9 +49,9 @@ public:
 
 	// incr/decr functions:
 	UTF8P		postincr()	{ UTF8P save(*this); ++*this; return save; }
-	UTF8P&		preincr()	{ const UTF8* s = data; UTF8Get(s); data = (const UTF8*)s; return *this; }
+	UTF8P&		preincr()	{ const UTF8* s = data; !at_eof() && UTF8Get(s); data = (const UTF8*)s; return *this; }
 	UTF8P		postdecr()	{ UTF8P save(*this); --*this; return save; }
-	UTF8P&		predecr()	{ data = (const UTF8*)UTF8Backup(data); return *this; }
+	UTF8P&		predecr()	{ !at_bot() && (data = (const UTF8*)UTF8Backup(data)); return *this; }
 
 	// incr/decr operators:
 	UTF8P		operator++(int)	{ return postincr(); }

@@ -1,7 +1,6 @@
 /*
  * Px PEG parser defined using pegular expression rules
  *
- *
  * Copyright 2022 Clifford Heath. ALL RIGHTS RESERVED SUBJECT TO ATTACHED LICENSE.
  */
 #include	<char_encoding.h>
@@ -22,7 +21,7 @@ protected:
 	StrVal		s;
 public:
 	PegCapture() {}
-	PegCapture& operator+=(PegCapture& a) { s += a.s; return *this; }
+	PegCapture& operator+=(PegCapture& a) { return *this; }
 };
 
 #if	defined(PEG_UNICODE)
@@ -87,10 +86,10 @@ main(int argc, const char** argv)
 	px[stat.st_size] = '\0';
 
 	TestPeg		peg(rules, sizeof(rules)/sizeof(rules[0]));
-	typename TestPeg::Result	result = peg.parse(px);
+	typename TestPeg::State	result = peg.parse(px);
 
-	int		bytes_parsed = result ? result.state.text-result.state.origin : 0;
-	printf("Parsed %d bytes\n", bytes_parsed);
+	int		bytes_parsed = result ? result.text-px : 0;
+	printf("Parsed %d bytes of %d\n", bytes_parsed, (int)stat.st_size);
 
-	return 0;
+	return bytes_parsed == stat.st_size ? 0 : 1;
 }

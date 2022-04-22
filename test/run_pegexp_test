@@ -1,0 +1,57 @@
+#! /bin/bash
+#
+# Usage: pegexp_run_test < pegexp_test_cases
+#
+
+verbose=0
+if [ "$1" = "-v" ]
+then
+	verbose=$1
+	verbose_echo=echo
+	shift
+else
+	verbose_echo=:
+fi
+
+failures=0
+while IFS="	" read pegexp text offset result comment
+do
+	if [ "$pegexp" = '' ]
+	then		# Blank line
+		$verbose_echo
+	elif [ "${pegexp%%# *}" = '' ]
+	then		# Comment line
+		$verbose_echo "$pegexp $text	$offset	$result	$comment"
+	else
+		./pegexp_test -v "$pegexp" "$text" |
+		(
+			IFS="	" read pegexp1 text1 offset1 result1;
+
+			if [ "$verbose" = "-v" ]
+			then
+				$verbose_echo "$pegexp1	$text1	$offset1	$result1	$comment" |
+					expand -t 32,48,56,64 |unexpand -a
+			fi
+
+			if [ "$offset" != "$offset1" -o "$result" != "$result1" ]
+			then
+				echo "ECHOING BECAUSE FAILED"
+				if [ "$verbose" != "-v" ]
+				then
+					echo "$pegexp1	$text1	$offset1	$result1	$comment" |
+						expand -t 32,48,56,64 |unexpand -a
+				fi
+				echo "Test Failed, got $offset1 $result1 should be $offset $result"
+				exit 1
+			fi
+			exit 0
+		)
+
+		result=$?
+		if [ "$result" -ne 0 ]
+		then
+			((failures=($failures+1)))
+		fi
+	fi
+done
+echo $failures failures

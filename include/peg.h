@@ -18,17 +18,16 @@ template<typename TextPtr, typename Char, typename Capture>
 class Peg
 {
 public:
-	using	State = PegState<TextPtr, Char>;
+	using	State = PegState<TextPtr, Char, Capture>;
 	class PegexpT : public Pegexp<TextPtr, Char, Capture>
 	{
 		Peg<TextPtr, Char, Capture>*	peg;
 	public:
 		using	Pegexp = Pegexp<TextPtr, Char, Capture>;
-		using	Result = typename Pegexp::Result;
 		PegexpT(PegexpPC _pegexp) : Pegexp(_pegexp) {}
 
 		void		set_closure(Peg<TextPtr, Char, Capture>* _peg) { peg = _peg; }
-		virtual Result	match_extended(State& state)
+		virtual State	match_extended(State& state)
 		{
 			if (*state.pc == '<')
 				return peg->recurse(state);
@@ -44,7 +43,6 @@ public:
 					;
 		}
 	};
-	using	Result = typename PegexpT::Result;
 
 	typedef struct {
 		const char*	name;
@@ -62,7 +60,7 @@ public:
 				});
 			}
 
-	Result	parse(TextPtr text)
+	State	parse(TextPtr text)
 			{
 				Rule*	top = lookup("TOP");
 				assert(top);
@@ -73,7 +71,7 @@ public:
 
 				nesting.push_back({top, text});
 				top->expression.set_closure(this);
-				typename PegexpT::Result result = top->expression.match_here(text);
+				State	result = top->expression.match_here(text);
 				nesting.pop_back();
 				return result;
 			}
@@ -98,7 +96,7 @@ public:
 				return rule;
 			}
 
-	Result		recurse(State& state)
+	State		recurse(State& state)
 			{
 				State	start_state(state);
 				state.pc++;	// Skip the '<'
@@ -115,7 +113,7 @@ public:
 					printf("failed to find rule `%.*s`\n", (int)(brangle-state.pc), state.pc);
 					// REVISIT: Call a PEG callout to enable custom-coded rules?
 #endif
-					return Result::fail(start_state);
+					return State::fail(start_state);
 				}
 
 				// Check for left recursion:
@@ -130,7 +128,7 @@ public:
 						for (int j = 0; j < nesting.size(); j++)
 							printf("%s%s", nesting[j].rule->name, j < nesting.size() ? "->" : "\n");
 #endif
-						return Result::fail(start_state);
+						return State::fail(start_state);
 					}
 				}
 				nesting.push_back({sub_rule, state.text});
@@ -141,7 +139,7 @@ public:
 				printf("Calling %s at `%.10s...` (pegexp `%s`)\n", sub_rule->name, (const char*)state.text, sub_rule->expression.code());
 #endif
 				sub_rule->expression.set_closure(this);
-				Result	result = sub_rule->expression.match_here(substate);
+				State	result = sub_rule->expression.match_here(substate);
 
 #if defined(PEG_TRACE)
 				for (int j = 0; j < nesting.size(); j++)
