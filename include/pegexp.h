@@ -47,6 +47,7 @@
 #include	<stdint.h>
 #include	<stdlib.h>
 #include	<ctype.h>
+#include	<refcount.h>
 
 typedef	const char*	PegexpPC;
 
@@ -87,17 +88,25 @@ public:
 	bool		origin_is_bot;	// Is start of string considered start of line?
 };
 
+class	NullCapture
+: public RefCounted
+{
+public:
+	NullCapture() {}
+	NullCapture& operator+=(NullCapture&) { return *this; }
+};
+
 /*
  * Your custom PegResult class can accumulate details about the matching.
  * This version is a minimal stub.
  */
-template <typename State = PegState<TextPtrChar, char>>
+template <typename State = PegState<TextPtrChar, char>, typename Capture = NullCapture>
 class PegResult
 {
 public:
 	PegResult() : succeeded(false) {}
-	PegResult(const PegResult& c) : succeeded(c.succeeded), state(c.state) {}
-	PegResult&		operator=(const PegResult& c) { succeeded = c.succeeded; state = c.state; return *this; }
+	PegResult(const PegResult& c) : succeeded(c.succeeded), state(c.state), capture(c.capture) {}
+	PegResult&		operator=(const PegResult& c) { succeeded = c.succeeded; state = c.state; capture = c.capture; return *this; }
 	operator bool() { return succeeded; }
 
 	/*
@@ -107,15 +116,21 @@ public:
 	 */
 	static PegResult	fail(State& state) { return PegResult(false, state); }		// Ignore the state
 	static PegResult	succeed(State& state) { return PegResult(true, state); }	// Ignore the state
-	void			extend(PegResult<State>& addend) { state.pc = addend.state.pc; state.text = addend.state.text; }
+	void			extend(PegResult<State, Capture>& addend)
+				{
+					state.pc = addend.state.pc;		// What part of the Pegexp are we at?
+					state.text = addend.state.text;		// What part of the input are we at?
+					(*capture) += *addend.capture;		// Explicit indirection is needed for template expansion, wtf?
+				}
 
 	State			state;
-private:
+	Ref<Capture>    	capture;
+protected:
 	bool			succeeded;
 	PegResult(bool _match, State _state) : succeeded(_match), state(_state) {}
 };
 
-template<typename TextPtr = TextPtrChar, typename Char = char, typename R = PegResult<PegState<TextPtr, Char>>>
+template<typename TextPtr = TextPtrChar, typename Char = char, typename Capture = NullCapture, typename R = PegResult<PegState<TextPtr, Char>, Capture>>
 class Pegexp
 {
 public:

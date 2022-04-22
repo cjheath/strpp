@@ -12,27 +12,28 @@
 #include	<pegexp.h>
 #include	<vector>
 
-template<typename TextPtr = TextPtrChar, typename Char = char>	class Peg;
+template<typename TextPtr = TextPtrChar, typename Char = char, typename Capture = NullCapture>	class Peg;
 
-template<typename TextPtr, typename Char>
+template<typename TextPtr, typename Char, typename Capture>
 class Peg
 {
 public:
 	using	State = PegState<TextPtr, Char>;
-	class PegexpT : public Pegexp<TextPtr, Char>
+	class PegexpT : public Pegexp<TextPtr, Char, Capture>
 	{
-		Peg<TextPtr, Char>*	peg;
+		Peg<TextPtr, Char, Capture>*	peg;
 	public:
-		using	Result = PegResult<State>;
-		PegexpT(PegexpPC _pegexp) : Pegexp<TextPtr, Char>(_pegexp) {}
+		using	Pegexp = Pegexp<TextPtr, Char, Capture>;
+		using	Result = typename Pegexp::Result;
+		PegexpT(PegexpPC _pegexp) : Pegexp(_pegexp) {}
 
-		void		set_closure(Peg<TextPtr, Char>* _peg) { peg = _peg; }
+		void		set_closure(Peg<TextPtr, Char, Capture>* _peg) { peg = _peg; }
 		virtual Result	match_extended(State& state)
 		{
 			if (*state.pc == '<')
 				return peg->recurse(state);
 			else
-				return Pegexp<TextPtr, Char>::match_literal(state);
+				return Pegexp::match_literal(state);
 		}
 
 		// Null extension; treat extensions like literal characters

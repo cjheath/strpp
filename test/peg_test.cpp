@@ -13,10 +13,22 @@
 #include	<unistd.h>
 #include	<fcntl.h>
 
+#include	<strpp.h>
+
+class	PegCapture
+: public RefCounted
+{
+protected:
+	StrVal		s;
+public:
+	PegCapture() {}
+	PegCapture& operator+=(PegCapture& a) { s += a.s; return *this; }
+};
+
 #if	defined(PEG_UNICODE)
-typedef	Peg<UTF8P, UCS4>	TestPeg;
+typedef	Peg<UTF8P, UCS4, PegCapture>	TestPeg;
 #else
-typedef	Peg<>			TestPeg;
+typedef	Peg<TextPtrChar, char, PegCapture>	TestPeg;
 #endif
 
 int
