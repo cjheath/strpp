@@ -43,6 +43,10 @@
  * Once a repetition has been made, it will never be unwound.
  * It is your responsibility to ensure these possessive operators never match unless it's final.
  * You should use negative assertions to control inappropriate greed.
+ *
+ * You can use any scalar data type for Char, and a pointer to it for TextPtr (even wrapping a socket).
+ * You can subclass Pegexp to override match_extended&skip_extended to handle special command characters.
+ * You can replace the default NullCapture with a capture object with features for your extended command chars.
  */
 #include	<stdint.h>
 #include	<stdlib.h>
