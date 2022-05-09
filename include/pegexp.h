@@ -401,12 +401,11 @@ protected:
 		case '|':	// Alternates
 		{
 			state.pc--;
-			const TextPtr	revert = state.text;	// We always return to the current text
 			State		last_failure;
 			while (*state.pc == '|')	// There's another alternate
 			{
 				state.pc++;
-				state.text = revert;
+				state.text = start_state.text;
 				start_state = state;
 				if (match_alternate(state))
 				{		// This alternate matched, skip to the end of these alternates
@@ -424,10 +423,9 @@ protected:
 		case '&':	// Positive lookahead assertion
 		case '!':	// Negative lookahead assertion
 		{
-			const TextPtr	revert = state.text;	// We always return to the current text
 			match = (rc == '!') != (bool)match_atom(state);
 			state.pc = skip_atom(skip_from);	// Advance state.pc to after the assertion
-			state.text = revert;
+			state.text = start_state.text;		// We always return to the current text
 			break;
 		}
 
