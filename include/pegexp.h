@@ -383,16 +383,43 @@ protected:
 		case '*':	// Zero or more
 		case '+':	// One or more
 		// case '{':	// REVISIT: Implement counted repetition
-			return match_repeat(state, rc == '+' ? 1 : 0, rc == '?' ? 1 : 0);
+		{
+			int		min = rc == '+' ? 1 : 0;
+			int		max = rc == '?' ? 1 : 0;
+			const PegexpPC	repeat_pc = state.pc;
+			int		repetitions = 0;
+
+			while (repetitions < min)
+			{
+				state.pc = repeat_pc;
+				if (!match_atom(state))
+					goto fail;
+				repetitions++;
+			}
+			while (max == 0 || repetitions < max)
+			{
+				TextPtr		repetition_start = state.text;
+				state.pc = repeat_pc;
+				if (!match_atom(state))
+				{
+					// Ensure that state.pc is now pointing at the following expression
+					state.pc = repeat_pc;
+					state.text = repetition_start;
+					skip_atom(state.pc);
+					break;
+				}
+				if (state.text == repetition_start)
+					break;	// We didn't advance, so don't keep trying. Can happen e.g. on *()
+				repetitions++;
+			}
+			match = true;
+			break;
+		}
 
 		case '(':	// Parenthesised group
 			start_state.pc = state.pc;
 			if (!match_here(state))
-			{
-				// Advance state.pc to after the ')' so repetition ends, but knows where to go next
-				state.pc = skip_atom(skip_from);
-				return State::fail(start_state);
-			}
+				break;
 			if (*state.pc != '\0')		// Don't advance past group if it was not closed
 				state.pc++;		// Skip the ')'
 			match = true;
@@ -401,23 +428,22 @@ protected:
 		case '|':	// Alternates
 		{
 			state.pc--;
-			State		last_failure;
 			while (*state.pc == '|')	// There's another alternate
 			{
 				state.pc++;
 				state.text = start_state.text;
-				start_state = state;
+				start_state.pc = state.pc;		// REVISIT: Report failure of last alternative? Or first?
 				if (match_alternate(state))
 				{		// This alternate matched, skip to the end of these alternates
 					while (*state.pc == '|')	// We reached the next alternate
 						skip_atom(state.pc);
-					return State::succeed(state);
+					match = true;
+					break;
 				}
-				last_failure = State::fail(start_state);
 				// If we want to know the furthest text looked at, we should save that from state.text here.
 				state.pc = skip_atom(skip_from);
 			}
-			return last_failure;
+			break;
 		}
 
 		case '&':	// Positive lookahead assertion
@@ -443,6 +469,7 @@ protected:
 			state.pc--;
 			return match_extended(state);
 		}
+	fail:
 		return match ? State::succeed(state) : State::fail(start_state);
 	}
 
@@ -453,42 +480,6 @@ protected:
 				return false;
 		} while (*state.pc != '\0' && *state.pc != ')' && *state.pc != '|');
 		return true;
-	}
-
-	State		match_repeat(State& state, int min, int max)
-	{
-		State		start_state(state);
-		const PegexpPC	repeat_pc = state.pc;
-		int		repetitions = 0;
-
-		while (repetitions < min)
-		{
-			state.pc = repeat_pc;
-			start_state.text = state.text;
-			if (!match_atom(state))
-			{
-				state.text = start_state.text;
-				return State::fail(start_state);
-			}
-			repetitions++;
-		}
-		while (max == 0 || repetitions < max)
-		{
-			start_state.text = state.text;
-			state.pc = start_state.pc;
-			if (!match_atom(state))
-			{
-				// Ensure that state.pc is now pointing at the following expression
-				state.pc = start_state.pc;
-				state.text = start_state.text;
-				skip_atom(state.pc);
-				return State::succeed(state);
-			}
-			if (state.text == start_state.text)
-				break;	// We didn't advance, so don't keep trying. Can happen e.g. on *()
-			repetitions++;
-		}
-		return State::succeed(state);
 	}
 
 	// Null extension; treat extensions like literal characters
