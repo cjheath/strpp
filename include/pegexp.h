@@ -251,7 +251,7 @@ protected:
 		return rc;
 	}
 
-	State		char_class(State& state)
+	bool		char_class(State& state)
 	{
 		bool	negated;
 		State	start_state(state);
@@ -292,7 +292,7 @@ protected:
 			in_class = false;
 		if (in_class)
 			state.text++;
-		return in_class ? State::succeed(state) : State::fail(start_state);
+		return in_class;
 	}
 
 	bool		char_property(PegexpPC& pc, Char ch)
@@ -377,7 +377,8 @@ protected:
 			break;
 
 		case '[':	// Character class
-			return char_class(state);
+			match = char_class(state);
+			break;
 
 		case '?':	// Zero or one
 		case '*':	// Zero or more
@@ -427,21 +428,27 @@ protected:
 
 		case '|':	// Alternates
 		{
-			state.pc--;
-			while (*state.pc == '|')	// There's another alternate
+			PegexpPC	next_alternate = state.pc-1;
+			while (*next_alternate == '|')	// There's another alternate
 			{
-				state.pc++;
-				state.text = start_state.text;
-				start_state.pc = state.pc;		// REVISIT: Report failure of last alternative? Or first?
-				if (match_alternate(state))
-				{		// This alternate matched, skip to the end of these alternates
-					while (*state.pc == '|')	// We reached the next alternate
+				state = start_state;
+				state.pc = next_alternate+1;
+				// REVISIT: This reports failure of the last alternative. Should it report the first?
+				start_state.pc = next_alternate+1;
+
+				// Work through all atoms of the current alternate:
+				do {
+					if (!match_atom(state))
+						break;
+				} while (!(match = *state.pc == '\0' || *state.pc == ')' || *state.pc == '|'));
+
+				if (match)
+				{		// This alternate matched, skip to the end of the alternates
+					while (*state.pc == '|')	// There's another alternate
 						skip_atom(state.pc);
-					match = true;
 					break;
 				}
-				// If we want to know the furthest text looked at, we should save that from state.text here.
-				state.pc = skip_atom(skip_from);
+				next_alternate = skip_atom(next_alternate);
 			}
 			break;
 		}
@@ -451,7 +458,7 @@ protected:
 		{
 			match = (rc == '!') != (bool)match_atom(state);
 			state.pc = skip_atom(skip_from);	// Advance state.pc to after the assertion
-			state.text = start_state.text;		// We always return to the current text
+			state.text = start_state.text;		// We always continue with the original text
 			break;
 		}
 
@@ -471,15 +478,6 @@ protected:
 		}
 	fail:
 		return match ? State::succeed(state) : State::fail(start_state);
-	}
-
-	bool		match_alternate(State& state)
-	{
-		do {
-			if (!match_atom(state))
-				return false;
-		} while (*state.pc != '\0' && *state.pc != ')' && *state.pc != '|');
-		return true;
 	}
 
 	// Null extension; treat extensions like literal characters

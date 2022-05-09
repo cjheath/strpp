@@ -34,8 +34,7 @@ TESTS	=	rxmatch_test		\
 #		memory_monitor
 #		reassembly_test
 
-_OBJS	=	$(SRCS:.cpp=.o)
-OBJS	=	$(patsubst %,build/%,$(_OBJS))
+OBJS	=	$(patsubst %,build/%,$(SRCS:.cpp=.o))
 
 vpath	%.cpp	src:test
 vpath	%.h	include
@@ -48,7 +47,7 @@ $(LIB):	build $(OBJS)
 
 tests:	$(TESTS)
 
-test:	run_pegexp_test run_peg_test run_peg_size_test
+test:	run_pegexp_test run_peg_test run_peg_size_test run_pegexp_size_test
 
 run_pegexp_test: pegexp_test
 	test/run_pegexp_test < test/pegexp_test.cases
@@ -61,6 +60,13 @@ run_peg_size_test:
 	@$(MAKE) peg_size_test.o
 	@size peg_size_test.o
 	@rm peg_size_test.o
+
+run_pegexp_size_test:
+	@rm pegexp_size_test.o 2>/dev/null || true
+	@$(MAKE) pegexp_size_test.o
+	@echo Pegexp code size:
+	@size pegexp_size_test.o
+	@rm pegexp_size_test.o
 
 %:	%.cpp $(LIB)
 	$(CXX) $(DEBUG) $(CXXFLAGS) -Iinclude -Itest -o $@ $< test/memory_monitor.cpp $(LIB)
