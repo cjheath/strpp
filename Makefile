@@ -58,6 +58,7 @@ run_peg_test: peg_test
 run_peg_size_test:
 	@rm peg_size_test.o 2>/dev/null || true
 	@$(MAKE) peg_size_test.o
+	@echo PEG code size:
 	@size peg_size_test.o
 	@rm peg_size_test.o
 

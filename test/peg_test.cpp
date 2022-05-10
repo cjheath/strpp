@@ -55,10 +55,16 @@ main(int argc, const char** argv)
 		{ "space",	"|[ \\t\\r\\n]|//*[^\\n]"			},	// Any single whitespace
 		{ "s",		"*(!<blankline><space>)"			},	// Any whitespace but not a blankline
 		{ "TOP",	"*<space>*<rule>"				},	// Start; a repetition of zero or more rules
-		{ "rule",	"<name><s>=<s><alternates><blankline>*<space>"	},	// Rule: a name assigned one or more alternates
+		{ "rule",	"<name>:rule_name<s>=<s><alternates>?<action><blankline>*<space>"	},	// Rule: a name assigned one or more alternates
+		{ "action",	"-><s><name>\\(<s>?<parameter_list>\\)<s>"	},	// Looks like "-> function_call(param, ...)"
+		{ "parameter_list", "<parameter>*(,<s><parameter>)"		},
+		{ "parameter",	"|<reference>|<literal>"			},
+		{ "reference",	"<name>*([.*]<name>"				},
+
 		{ "alternates",	"|+(\\|<s>*<repetition>)"				// Alternates: either a list of alternates each prefixed by |
 				"|*<repetition>"				},	// or just one alternate
-		{ "repetition",	"?[?*+!&]<s><atom>"				},	// zero or one, zero or more, one or more, none, and
+		{ "repetition",	"?[?*+!&]<s><atom>?<label>"			},	// zero or one, zero or more, one or more, none, and
+		{ "label",	"\\:<name>"					},	// A name for the previous atom
 		{ "atom",	"|\\."							// Any character
 				"|<name>"						// call to another rule
 				"|<property>"						// A character property

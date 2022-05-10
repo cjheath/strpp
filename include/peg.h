@@ -111,7 +111,6 @@ public:
 				{
 #if defined(PEG_TRACE)
 					printf("failed to find rule `%.*s`\n", (int)(brangle-state.pc), state.pc);
-					// REVISIT: Call a PEG callout to enable custom-coded rules?
 #endif
 					return start_state.fail();
 				}
@@ -147,12 +146,14 @@ public:
 #endif
 				if (result)
 				{
-					TextPtr	from = state.text;
+					TextPtr		from = state.text;
 
 					state.pc = brangle;
 					if (*state.pc == '>')	// Could be NUL on ill-formed input
 						state.pc++;
 					state.text = substate.text;
+					if (*state.pc != ':')	// Only save if not labelled
+						state.capture.save(sub_rule->name, from, state.text);
 #if defined(PEG_TRACE)
 					printf("MATCH `%.*s`\n", (int)(state.text-from), (const char*)from);
 					printf("continuing at text `%.10s`...\n", (const char*)state.text);
@@ -163,7 +164,9 @@ public:
 					printf("FAIL\n");
 #endif
 				nesting.pop_back();
-				return result;
+				if (!result)
+					state = start_state.fail();
+				return state;
 			}
 
 protected:

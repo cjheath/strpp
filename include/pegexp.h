@@ -113,7 +113,7 @@ public:
 
 	// If you want to add debug tracing for example, you can override these in a subclass:
 	PegState&	fail() { succeeding = false; return *this; }
-	PegState&	progress() { return *this; }
+	PegState&	progress() { succeeding = true; return *this; }
 };
 
 template<typename TextPtr = TextPtrChar, typename Char = char, typename Capture = NullCapture<TextPtr>, typename S = PegState<TextPtr, Char, Capture>>
@@ -391,6 +391,7 @@ protected:
 					state.pc = repeat_pc;
 					state.text = repetition_start;
 					skip_atom(state.pc);
+					state.progress();
 					break;
 				}
 				if (state.text == repetition_start)
@@ -458,10 +459,25 @@ protected:
 		case '<':
 		extended:
 			state.pc--;
-			return match_extended(state);
+			match = (state = match_extended(state));
+			break;
 		}
 	fail:
-		return match ? state.succeed() : start_state.fail();
+		if (!match)
+			return start_state.fail();
+
+		// Detect a label and save the matched atom
+		PegexpPC	name = 0;
+		if (*state.pc == ':')
+		{
+			name = ++state.pc;
+			while (isalpha(*state.pc) || isdigit(*state.pc) || *state.pc == '_')
+				state.pc++;
+			if (*state.pc == ':')
+				state.pc++;
+			state.capture.save(name, start_state.text, state.text);
+		}
+		return state.progress();
 	}
 
 	// Null extension; treat extensions like literal characters
@@ -534,6 +550,14 @@ protected:
 
 		// As-yet unimplemented features:
 		// case '{':	// REVISIT: Implement counted repetition
+		}
+		if (*pc == ':')
+		{		// Skip a label
+			pc++;
+			while (isalpha(*pc) || isdigit(*pc) || *pc == '_')
+				pc++;
+			if (*pc == ':')
+				pc++;
 		}
 		return pc;
 	}
