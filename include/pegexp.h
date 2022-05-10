@@ -51,7 +51,6 @@
 #include	<stdint.h>
 #include	<stdlib.h>
 #include	<ctype.h>
-#include	<refcount.h>
 
 typedef	const char*	PegexpPC;
 
@@ -83,37 +82,41 @@ public:
 	TextPtrChar		operator++(int)	{ return data++; }
 };
 
+template <typename TextPtr = TextPtrChar>
 class	NullCapture
-: public RefCounted
 {
 public:
 	NullCapture() {}
+	NullCapture(const NullCapture&) {}
+	NullCapture&	operator=(const NullCapture& c) { return *this; }
+	void		save(PegexpPC name, TextPtr from, TextPtr to) {}
 };
 
-template <typename TextPtr = TextPtrChar, typename Char = char, typename Capture = NullCapture>
+template <typename TextPtr = TextPtrChar, typename Char = char, typename Capture = NullCapture<TextPtr>>
 class PegState
 {
 public:
 	PegState()
-		: pc(0), text(0), succeeded(true), capture(0) {}
-	PegState(PegexpPC _pc, TextPtr _text, Ref<Capture> _capture)
-		: pc(_pc), text(_text), succeeded(true), capture(_capture) {}
+		: pc(0), text(0), succeeding(true), capture() {}
+	PegState(PegexpPC _pc, TextPtr _text, Capture _capture = Capture())
+		: pc(_pc), text(_text), succeeding(true), capture(_capture) {}
 	PegState(const PegState& c)
-		: pc(c.pc), text(c.text), succeeded(c.succeeded), capture(c.capture) {}
+		: pc(c.pc), text(c.text), succeeding(c.succeeding), capture(c.capture) {}
 	PegState&		operator=(const PegState& c)
-		{ pc = c.pc; text = c.text; succeeded = c.succeeded; capture = c.capture; return *this; }
-	operator bool() { return succeeded; }
+		{ pc = c.pc; text = c.text; succeeding = c.succeeding; capture = c.capture; return *this; }
+	operator bool() { return succeeding; }
 
 	PegexpPC	pc;		// Current location in the pegexp
 	TextPtr		text;		// Current text we're looking at
-	bool		succeeded;	// Is this a viable path to completion?
-	Ref<Capture>   	capture;	// What did we learn while getting here?
+	bool		succeeding;	// Is this a viable path to completion?
+	Capture   	capture;	// What did we learn while getting here?
 
-	PegState&	fail() { succeeded = false; return *this; }
-	PegState&	succeed() { return *this; }
+	// If you want to add debug tracing for example, you can override these in a subclass:
+	PegState&	fail() { succeeding = false; return *this; }
+	PegState&	progress() { return *this; }
 };
 
-template<typename TextPtr = TextPtrChar, typename Char = char, typename Capture = NullCapture, typename S = PegState<TextPtr, Char, Capture>>
+template<typename TextPtr = TextPtrChar, typename Char = char, typename Capture = NullCapture<TextPtr>, typename S = PegState<TextPtr, Char, Capture>>
 class Pegexp
 {
 public:
@@ -125,13 +128,13 @@ public:
 
 	State		match(TextPtr& text)
 	{
-		State	state(pegexp, text, 0);
+		State	state(pegexp, text);
 		State	result;
 		do {
 			// Reset for another trial:
 			state.pc = pegexp;
 			state.text = text;
-			state.succeeded = true;
+			state.succeeding = true;
 
 			result = match_here(state);
 			if (result)
@@ -146,14 +149,14 @@ public:
 
 	State		match_here(TextPtr& text)
 	{
-		State	state(pegexp, text, 0);
+		State	state(pegexp, text);
 		return match_here(state);
 	}
 
 	State		match_here(State& state)
 	{
 		if (*state.pc == '\0' || *state.pc == ')')
-			return state.succeed();
+			return state.progress();
 		State	r = match_atom(state);
 		while (r && *state.pc != '\0' && *state.pc != ')')
 			r = match_atom(state);
@@ -308,7 +311,7 @@ protected:
 			return state.fail();
 		state.text++;
 		state.pc++;
-		return state.succeed();
+		return state.progress();
 	}
 
 	/*

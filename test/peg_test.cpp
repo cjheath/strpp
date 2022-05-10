@@ -12,23 +12,39 @@
 #include	<unistd.h>
 #include	<fcntl.h>
 
+#include	<refcount.h>
 #include	<strpp.h>
 
-class	PegCapture
+#if	defined(PEG_UNICODE)
+typedef	UTF8P	PegText;
+typedef	UCS4	PegChar;
+#else
+typedef	TextPtrChar	PegText;
+typedef	char	PegChar;
+#endif
+
+class	PegCaptureBody
 : public RefCounted
 {
-protected:
 	StrVal		s;
 public:
-	PegCapture() {}
-	PegCapture& operator+=(PegCapture& a) { return *this; }
+	PegCaptureBody() {}
+	PegCaptureBody(const PegCaptureBody& c) : s(c.s) {}
 };
 
-#if	defined(PEG_UNICODE)
-typedef	Peg<UTF8P, UCS4, PegCapture>	TestPeg;
-#else
-typedef	Peg<TextPtrChar, char, PegCapture>	TestPeg;
-#endif
+class	PegCapture
+{
+	Ref<PegCaptureBody>	body;
+	void		Unshare()	// Get our own copy that we can safely mutate
+	{
+		if (body->GetRefCount() > 1)
+			body = new PegCaptureBody(*body);
+	}
+public:
+	void            save(PegexpPC name, PegText from, PegText to) {}
+};
+
+typedef	Peg<PegText, PegChar, PegCapture>	TestPeg;
 
 int
 main(int argc, const char** argv)
