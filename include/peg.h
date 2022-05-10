@@ -113,7 +113,7 @@ public:
 					printf("failed to find rule `%.*s`\n", (int)(brangle-state.pc), state.pc);
 					// REVISIT: Call a PEG callout to enable custom-coded rules?
 #endif
-					return State::fail(start_state);
+					return start_state.fail();
 				}
 
 				// Check for left recursion:
@@ -128,7 +128,7 @@ public:
 						for (int j = 0; j < nesting.size(); j++)
 							printf("%s%s", nesting[j].rule->name, j < nesting.size() ? "->" : "\n");
 #endif
-						return State::fail(start_state);
+						return start_state.fail();
 					}
 				}
 				nesting.push_back({sub_rule, state.text});

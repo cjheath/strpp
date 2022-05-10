@@ -88,7 +88,6 @@ class	NullCapture
 {
 public:
 	NullCapture() {}
-	NullCapture& operator+=(NullCapture&) { return *this; }
 };
 
 template <typename TextPtr = TextPtrChar, typename Char = char, typename Capture = NullCapture>
@@ -110,14 +109,8 @@ public:
 	bool		succeeded;	// Is this a viable path to completion?
 	Ref<Capture>   	capture;	// What did we learn while getting here?
 
-	static PegState	fail(PegState& state) { PegState s = state; s.succeeded = false; return s; }
-	static PegState	succeed(PegState& state) { return state; }
-	void		extend(PegState<TextPtr, Char, Capture>& addend)
-			{
-				pc = addend.pc;			// What part of the Pegexp are we at?
-				text = addend.text;		// What part of the input are we at?
-				(*capture) += *addend.capture;
-			}
+	PegState&	fail() { succeeded = false; return *this; }
+	PegState&	succeed() { return *this; }
 };
 
 template<typename TextPtr = TextPtrChar, typename Char = char, typename Capture = NullCapture, typename S = PegState<TextPtr, Char, Capture>>
@@ -144,7 +137,7 @@ public:
 			if (result)
 			{		// Succeeded
 				if (*result.pc != '\0')	// The pegexp has a syntax error, e.g. an extra )
-					return State::fail(result);
+					return result.fail();
 				return result;
 			}
 		} while (!text.at_eof() && text++);
@@ -160,17 +153,10 @@ public:
 	State		match_here(State& state)
 	{
 		if (*state.pc == '\0' || *state.pc == ')')
-			return State::succeed(state);
+			return state.succeed();
 		State	r = match_atom(state);
-		if (!r)
-			return r;	// Failure
-		while (*state.pc != '\0' && *state.pc != ')')
-		{
-			State	n = match_atom(state);
-			if (!n)
-				return n;	// Failure
-			r.extend(n);
-		}
+		while (r && *state.pc != '\0' && *state.pc != ')')
+			r = match_atom(state);
 		return r;
 	}
 
@@ -313,21 +299,16 @@ protected:
 	// Null extension; treat extensions like literal characters
 	virtual State	match_extended(State& state)
 	{
-		if (state.text.at_eof() || *state.pc != *state.text)
-			return State::fail(state);
-		state.text++;
-		return State::succeed(state);
+		return match_literal(state);
 	}
 
 	State		match_literal(State& state)
 	{
-		State	start_state(state);
-		char	rc = *state.pc++;
-
-		bool	match;
-		if ((match = (!state.text.at_eof() && rc == *state.text)))
-			state.text++;
-		return match ? State::succeed(state) : State::fail(start_state);
+		if (state.text.at_eof() || *state.pc != *state.text)
+			return state.fail();
+		state.text++;
+		state.pc++;
+		return state.succeed();
 	}
 
 	/*
@@ -477,7 +458,7 @@ protected:
 			return match_extended(state);
 		}
 	fail:
-		return match ? State::succeed(state) : State::fail(start_state);
+		return match ? state.succeed() : start_state.fail();
 	}
 
 	// Null extension; treat extensions like literal characters
