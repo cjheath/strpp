@@ -38,6 +38,10 @@
  *	{n,m}	match from n (default 0) to m (default unlimited) repetitions of the following expression.
  *	Captures.
  *
+ * Any atom may be followed by :name (name is a repetition of alphanum or _) optionally terminated by a :
+ * This indicates that the contents of the previous atom should be passed to the Capture with that name.
+ * The default Capture is null, but you can define a Capture that saves the value matched by that atom.
+ *
  * Note: Possessive alternates and possessive repetition will never backtrack.
  * Once an alternate has matched, no subsequent alterative will be tried in that group.
  * Once a repetition has been made, it will never be unwound.
