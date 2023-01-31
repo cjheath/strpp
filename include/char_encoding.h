@@ -63,6 +63,7 @@ inline bool	UCS4IsUnicode(UCS4 ch) { return ch < 0x00110000; }
 // Overloads of ctype functions. Those better not be macros!
 inline bool	isalpha(UCS4 c) { return UCS4IsAlphabetic(c); }
 inline bool	isdigit(UCS4 c) { return UCS4IsDecimal(c); }
+inline bool	isalnum(UCS4 c) { return UCS4IsAlphabetic(c) || UCS4IsDecimal(c); }
 inline UCS4	toupper(UCS4 c) { return UCS4ToUpper(c); }
 inline UCS4	tolower(UCS4 c) { return UCS4ToLower(c); }
 inline bool	isspace(UCS4 c) { return UCS4IsWhite(c); }
