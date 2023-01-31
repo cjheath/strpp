@@ -20,7 +20,7 @@ public:
 	~UTF8P() {};
 	UTF8P&		operator=(UTF8P s)	// Assignment
 			{ data = s.data; origin = s.origin; return *this; }
-	operator const char*() { return static_cast<const char*>(data); }	// Access the UTF8 bytes
+	operator const char*() const { return static_cast<const char*>(data); }	// Access the UTF8 bytes
 	UCS4		operator*()		// Dereference to char under the pointer
 			{ const UTF8* s = data; return UTF8Get(s); }
 
@@ -58,5 +58,7 @@ public:
 	UTF8P&		operator++()	{ return preincr(); }
 	UTF8P		operator--(int)	{ return postdecr(); }
 	UTF8P&		operator--()	{ return predecr(); }
+private:
+	UTF8P		operator-(UTF8P s)	{ return *this; }	// Prevent inadvertent subtraction
 };
 #endif	// UTF8POINTER_H
