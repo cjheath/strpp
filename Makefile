@@ -9,29 +9,36 @@ DEBUG	=	-Os $(COPT)	# -DSTRVAL_65K
 # DEBUG	=	-g $(COPT)
 # DEBUG	=	-g -DTRACK_RESULTS $(COPT)
 
-HDRS	=	char_encoding.h		\
+HDRS	=	\
+		adl.h			\
+		char_encoding.h		\
 		peg.h			\
 		pegexp.h		\
 		refcount.h		\
+		array.h			\
 		strpp.h 		\
 		strregex.h		\
 		utf8pointer.h
 
-SRCS	=	char_encoding.cpp	\
+SRCS	=	\
+		adl.cpp			\
+		char_encoding.cpp	\
 		rxcompile.cpp		\
 		rxdump.cpp		\
 		rxmatch.cpp		\
 		strpp.cpp		
 
 LIB	=	libstrpp.a
-TESTS	=	rxmatch_test		\
+TESTS	=	\
+		adl_test		\
+		rxmatch_test		\
 		rxcompile_test		\
 		peg_test		\
 		pegexp_test		\
+		array_test		\
 		utf8pointer_test
 #		greeting_test
 #		medley_test
-#		memory_monitor
 #		reassembly_test
 
 OBJS	=	$(patsubst %,build/%,$(SRCS:.cpp=.o))

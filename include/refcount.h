@@ -11,8 +11,8 @@ class	RefCounted
 public:
 	virtual		~RefCounted() { }
 			RefCounted() : ref_count(0) {}
-	void		AddRef() { (void)ref_count++; }
-	void		Release() { if (--ref_count == 0) delete this; }
+	void		AddRef() { (void)ref_count++; assert(ref_count != 0); /* Check for overflow */ }
+	void		Release() { assert(ref_count > 0); if (--ref_count == 0) delete this; }
 			// Only for debugging, may be instantly stale unless == 1:
 	int		GetRefCount() volatile const { return (int)ref_count; }
 

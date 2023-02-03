@@ -75,6 +75,10 @@ public:
 				return length() == comparand.length() && compare(comparand) == 0;
 			}
 	inline bool	operator!=(const StrVal& comparand) const { return !(*this == comparand); }
+	inline bool	operator<(const StrVal& comparand) const { return compare(comparand) < 0; }
+	inline bool	operator<=(const StrVal& comparand) const { return compare(comparand) <= 0; }
+	inline bool	operator>=(const StrVal& comparand) const { return compare(comparand) >= 0; }
+	inline bool	operator>(const StrVal& comparand) const { return compare(comparand) > 0; }
 	bool		equalCI(const StrVal& s) const		// Case independent equality
 			{ return compare(s, CompareCI) == 0; }
 
