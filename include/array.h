@@ -2,7 +2,7 @@
 #define ARRAY_H
 /*
  * Array slices:
- * - All access to an array Body is via a lightweight Slice.
+ * - All access to an array Body is via a lightweight slice.
  * - Slices should be passed by copying (cheap!) not by pointers or references.
  * - A slice is mutable, but does not affect the base array or its other slices (by-value semantics)
  * - Slices share Arrays with thread-safety and garbage collection using atomic reference counting
@@ -17,17 +17,15 @@
 
 #include	<refcount.h>
 
-// Define a type for the element position (offset) within an array or slice
-#if	defined	ARRAY_MAX_65K
-typedef	uint16_t	ArrayIndex;	// Small index, for embedded use
-#else
-typedef	uint32_t	ArrayIndex;
-#endif
+#define ArrayIndexBits	16
+typedef typename std::conditional<(ArrayIndexBits <= 16), uint16_t, uint32_t>::type  ArrayIndex;
 
-template<typename E, typename I = ArrayIndex> class	Array
+template<typename E, typename I = ArrayIndex>	class	ArrayBody;
+template<typename E, typename I = ArrayIndex, typename Body = ArrayBody<E, I>>	class	Array;
+
+template<typename E, typename I, typename Body> class	Array
 {
 public:
-	class	Body;
 	using	Element = E;
 	using	Index = I;
 
@@ -57,9 +55,17 @@ public:
 			{ return body && body->GetRefCount() > 1; }
 
 	// Access the elements:
-	Element&	operator[](int elem_num) { return body ? body->data()[offset+elem_num] : *(Element*)0; }
-	const Element&	operator[](int elem_num) const { return body ? body->data()[offset+elem_num] : *(Element*)0; }
-	const Element*	asElements() const { return body ? body->data()+offset : 0; }		// The caller must ensure to enforce bounds
+	Element		operator[](int elem_num)
+			{ assert(elem_num >= 0 && elem_num < num_elements && body);
+			  return body->data()[offset+elem_num]; }			// Returns a copy
+	const Element&	operator[](int elem_num) const
+			{ assert(elem_num >= 0 && elem_num < num_elements && body);
+			  return body->data()[offset+elem_num]; }
+	const Element*	asElements() const { return body ? body->data()+offset : 0; }	// The caller must ensure to enforce bounds
+
+			operator const Body&() const { return static_cast<const Body&>(body); }
+	const Body*	operator->() const { return body; }
+	const Body&	operator*() const { return *body; }
 
 	// Comparisons:
 	int		compare(const Array& comparand) const
@@ -82,35 +88,11 @@ public:
 					return false;
 
 				for (Index i = 0; i < num_elements && i < comparand.length(); i++)
-					if (operator[](i) != comparand[i])
+					if (!(operator[](i) == comparand[i]))
 						return false;
 				return true;
 			}
 	inline bool	operator!=(const Array& comparand) const { return !(*this == comparand); }
-
-#if 0	// Not yet implemented
-	// Linear search for an element using a match function
-	int		find(const std::function<bool(const Element* e)> match, int after = -1) const
-			{
-				Index		n = after+1;		// First Index we'll look at
-				const Element*	up = &body[n];
-				for (up < (body ? body->end() : 0); n < num_elements; n++, up++)
-					if (match(up))
-						return n;		// Found at n
-
-				return -1;				// Not found
-			}
-	int		rfind(const std::function<bool(const Element* e)> match, int before = -1) const
-			{
-				Index		n = before == -1 ? num_elements-1 : before-1;		// First Index we'll look at
-				const Element*	bp = &body[n];
-				for (bp > (body ? body->start() : 0); n >= 0; n--, bp--)
-					if (match(bp))
-						return n;		// Found at n
-
-				return -1;				// Not found
-			}
-#endif
 
 	// Extract sub-slices:
 	Array		slice(Index at, int len = -1) const
@@ -136,19 +118,24 @@ public:
 	Array		shorter(Index num_elem) const	// all elements up to tail
 			{ return slice(0, length()-num_elem); }
 
-	// Following methods usually mutate the current slice so must Unshare (copy) it.
-
-	void		remove(Index at, int len = -1)			// Delete a section from the middle
+	// Linear search for an element
+	int		find(const Element& e, int after = -1) const
 			{
-				if (len == -1)
-					len = num_elements-at;
-				if (at == num_elements)
-					return;
-				assert(num_elements-len >= at);		// Care with unsigned arithmetic
-
-				Unshare();
-				body->remove(at, len);
-				num_elements -= len;
+				const Element*	dp = body->data()+offset;	// Start of our slice
+				const Element*	ep = dp+num_elements;		// End of our slice
+				for (const Element* bp = dp + (after < 0 ? 0 : after+1); bp < ep; bp++)
+					if (*bp == e)
+						return bp-dp;
+				return -1;				// Not found
+			}
+	int		rfind(const Element& e, int before = -1) const
+			{
+				const Element*	dp = body->data()+offset;	// Start of our slice
+				const Element*	ep = dp+num_elements;		// End of our slice
+				for (const Element* bp = dp + (before < 0 ? num_elements : before)-1; bp > dp; bp--)
+					if (*bp == e)
+						return bp-dp;
+				return -1;				// Not found
 			}
 
 	Array		operator+(const Array& addend) const		// Add, producing a Slice on a new Array
@@ -169,6 +156,47 @@ public:
 				return newarray;
 			}
 
+	void		clear() { num_elements = 0; }
+	Array		drop(Index n) const
+			{
+				assert(num_elements >= n);
+				Array	dropped = *this;
+				return dropped.remove(0, n);
+			}
+
+	// Following methods usually mutate the current slice so must Unshare (copy) it.
+
+	Array&		remove(Index at, int len = -1)			// Delete a section from the middle
+			{
+				if (len == -1)
+					len = num_elements-at;
+				assert(num_elements-len >= at);		// Care with unsigned arithmetic
+				if (at == num_elements || len == 0)
+					return *this;
+
+				if (at+len == num_elements)
+				{		// Shorten this slice at the end
+					num_elements -= len;
+					return *this;
+				}
+				if (at == 0)
+				{		// Shorten this slice at the start
+					offset += len;
+					num_elements -= len;
+					return *this;
+				}
+
+				Unshare();
+				body->remove(at, len);
+				num_elements -= len;
+				return *this;
+			}
+	Element		delete_at(Index at)
+			{
+				Element	e = this->operator[](at);
+				remove(at, 1);
+				return e;
+			}
 	Array&		operator+=(const Array& addend)			// Add, Array is modified:
 			{
 				if (num_elements == 0 && !addend.noCopy())
@@ -185,15 +213,37 @@ public:
 				num_elements++;
 				return *this;
 			}
+	Array&		operator<<(const Element& addend)
+			{ return *this += addend; }
+	Array&		push(const Element& addend)
+			{ return *this += addend; }
+	Element		pull()
+			{ assert(num_elements > 0); return this->operator[](--num_elements); }
+	Element		shift()
+			{ assert(num_elements > 0); return delete_at(0); }
+	void		unshift(const Element& e)
+			{ Unshare(); body->insert(0, e); num_elements++; }
 	void		insert(Index pos, const Array& addend)
 			{
-				// Handle the rare but important case of extending a slice with a contiguous slice of the same body
-				if (pos == num_elements			// Appending at the end
-				 && (Body*)body == (Body*)addend.body	// From the same body
-				 && offset+pos == addend.offset)	// And addend starts where we end
+				if ((Body*)body == (Body*)addend.body)	// From the same body
 				{
-					num_elements += addend.length();
-					return;
+					// Handle the rare but important cases of extending a slice
+					// with a contiguous slice of the same body, at the end:
+					if (pos == num_elements			// Appending at the end
+					 && offset+pos == addend.offset)	// addend starts where we end
+					{
+						num_elements += addend.length();
+						return;
+					}
+
+					// The same thing, but at the start.
+					if (pos == 0				// Inserting at the start
+					 && addend.offset+addend.num_elements == offset)	// addend ends where we start
+					{
+						offset -= addend.length();
+						num_elements += addend.length();
+						return;
+					}
 				}
 
 				Unshare(addend.length());
@@ -202,6 +252,151 @@ public:
 			}
 	void		append(const Array& addend)
 			{ insert(num_elements, addend); }
+	void		reverse()
+			{
+				Unshare();
+				const Element*	dp = body->data()+offset;	// Start of our slice
+				const Element*	ep = dp+num_elements;		// End of our slice
+				while (ep-dp > 1)				// We haven't reached the middle yet
+				{
+					Element	e = *--ep;
+					*ep = *dp++;
+					dp[-1] = e;
+				}
+			}
+	void		delete_if(std::function<bool(const Element& e)> condition)
+			{
+				const Element*	dp = body->data()+offset;	// Start of our slice
+				const Element*	bp = dp;			// Output pointer
+				const Element*	ep = dp+num_elements;		// End of our slice
+				for (const Element* sp = dp; sp < ep; sp++, bp++)
+					if (condition(*sp))
+					{
+						if (isShared())
+						{
+							Unshare();	// This invalidates the pointers; reset them
+							dp = body->data() + (dp-sp);
+							bp = body->data() + (bp-sp);
+							ep = body->data() + (ep-sp);
+							// sp = body->data();	// Unnecessary, we won't Unshare twice
+						}
+						bp--;	// Skip this element in the output
+					}
+				if (bp < dp)
+					num_elements -= (dp-bp);
+			}
+
+	// Functional methods (these don't mutate or Unshare the subject):
+	// Linear search for an element using a match function
+	void		each(std::function<void(const Element& e)> operation) const
+			{
+				const Element*	dp = body->data()+offset;	// Start of our slice
+				const Element*	ep = dp+num_elements;		// End of our slice
+				for (const Element* bp = dp; bp < ep; bp++)
+					operation(*bp);
+			}
+	bool		all(std::function<bool(const Element& e)> condition) const	// Do all elements satisfy the condition?
+			{
+				const Element*	dp = body->data()+offset;	// Start of our slice
+				const Element*	ep = dp+num_elements;		// End of our slice
+				for (const Element* bp = dp; bp < ep; bp++)
+					if (!condition(*bp))
+						return false;
+				return true;
+			}
+	bool		any(std::function<bool(const Element& e)> condition) const	// Does any element satisfy the condition?
+			{
+				const Element*	dp = body->data()+offset;	// Start of our slice
+				const Element*	ep = dp+num_elements;		// End of our slice
+				for (const Element* bp = dp; bp < ep; bp++)
+					if (condition(*bp))
+						return true;
+				return false;
+			}
+	bool		one(std::function<bool(const Element& e)> condition) const	// Exactly one element satisfies the condition
+			{
+				const Element*	dp = body->data()+offset;	// Start of our slice
+				const Element*	ep = dp+num_elements;		// End of our slice
+				bool		found = false;
+				for (const Element* bp = dp; bp < ep; bp++)
+					if (condition(*bp))
+					{
+						if (found)
+							return false;
+						found = true;
+					}
+				return found;
+			}
+	int		find(std::function<bool(const Element& e)> match, int after = -1) const
+			{
+				const Element*	dp = body->data()+offset;	// Start of our slice
+				const Element*	ep = dp+num_elements;		// End of our slice
+				for (const Element* bp = dp + (after < 0 ? 0 : after+1); bp < ep; bp++)
+					if (match(*bp))
+						return bp-dp;
+				return -1;				// Not found
+			}
+	int		rfind(std::function<bool(const Element& e)> match, int before = -1) const
+			{
+				const Element*	dp = body->data()+offset;	// Start of our slice
+				const Element*	ep = dp+num_elements;		// End of our slice
+				for (const Element* bp = dp + (before < 0 ? num_elements : before)-1; bp > dp; bp--)
+					if (match(*bp))
+						return bp-dp;
+				return -1;				// Not found
+			}
+	int		detect(std::function<bool(const Element& e)> condition) const	// Return index of first element for which condition is true, or -1 if none
+			{ return find(condition, -1); }
+	Array		select(std::function<bool(const Element& e)> condition) const
+			{
+				Array	selected;
+				const Element*	dp = body->data()+offset;	// Start of our slice
+				const Element*	ep = dp+num_elements;		// End of our slice
+				for (const Element* bp = dp; bp < ep; bp++)
+					if (condition(*bp))
+						selected.append(*bp);
+				return selected;
+			}
+	template<typename E2, typename I2> Array<E2, I2>	map(std::function<E2(const Element& e)> map1) const
+			{
+				Array<E2, I2>	output;
+				const Element*	dp = body->data()+offset;	// Start of our slice
+				const Element*	ep = dp+num_elements;		// End of our slice
+				for (const Element* bp = dp; bp < ep; bp++)
+					output.append(map1(*bp));
+				return output;
+			}
+	template<typename J> J	inject(const J& start, std::function<J(J&, const Element& e)> injection) const
+			{
+				J	accumulator = start;
+				const Element*	dp = body->data()+offset;	// Start of our slice
+				const Element*	ep = dp+num_elements;		// End of our slice
+				for (const Element* bp = dp; bp < ep; bp++)
+					accumulator = injection(accumulator, *bp);
+				return accumulator;
+			}
+	int		bsearch(std::function<int(const Element& e> comparator) const
+			{
+				const Element*	dp = body->data()+offset;	// Start of our slice
+				Index		l = 0;
+				Index		r = num_elements;
+				while (r > l)
+				{
+					Index	m = l+(r-l+1)/2;	// Care with unsigned overflow
+					int	c = comparator(dp[m]);
+					if (c == 0)
+						return m;
+					if (c > 0)
+						r = m-1;		// The middle element was too great
+					else
+						l = m+1;		// The middle element was too small
+				}
+				return -1;
+			}
+	// REVISIT: Not yet implemented (would be O(n^2) without hashing)
+	// Array	uniq(std::function<int(const Element& e1, const Element& e2)> comparator) const;
+	// void		sort(std::function<int(const Element& e1, const Element& e2)> comparator);
+
 #if 0	// Not yet implemented
 	void		transform(const std::function<Array(const Element*& cp, const Element* ep)> xform, int after = -1)
 			{
@@ -217,125 +412,6 @@ protected:
 	bool		noCopy() const;
 
 public:
-	class	Body
-	: public RefCounted			// This object will be deleted when the ref_count decrements to zero
-	{
-	public:
-		using		Element = E;
-		using		Index = I;
-
-		~Body()
-				{
-					if (start && num_alloc > 0)
-						delete[] start;
-				}
-		Body()
-				: start(0), num_elements(0), num_alloc(0) { }
-		Body(const Element* data, bool copy, Index length, Index allocate = 0)
-				: start(0)
-				, num_elements(0)
-				, num_alloc(0)
-				{
-					if (copy)
-					{
-						if (allocate < length)
-							allocate = length;
-						resize(allocate);
-						// Copy using the copy constructor belonging to Element
-						for (Index i = 0; i < length; i++)
-							start[i] = data[i];
-						num_elements = length;
-					}
-					else
-					{
-						start = (Element*)data;	// Cast const away; copy==false implies no change will occur
-						num_elements = length;
-						AddRef();		// Cannot be deleted or resized
-					}
-				}
-
-		bool		noCopy() const { return num_alloc == 0; }	// This body or its data are transient
-
-		Element&	operator[](int elem_num) const { return start[elem_num]; }
-
-		inline Index	length() const { return num_elements; }
-		Element*	data() const { return start; }			// fast access
-		Element*	end() { return start+num_elements; }		// ptr to the trailing NUL (if any)
-
-		// Mutating methods. Must only be called when refcount <= 1 (i.e., unshared)
-		void		insert(Index pos, const Array& addend)	// Insert a substring
-				{
-					assert(ref_count <= 1);
-					resize(num_elements + addend.length());
-
-					if (num_elements > pos)		// Move data up
-						for (Index i = num_elements+pos-1; i >= pos+addend.length(); i--)
-							start[i] = start[i-addend.length()];
-					for (Index i = 0; i < addend.length(); i++)
-						start[pos+i] = addend.asElements()[i];
-					num_elements += addend.length();
-				}
-		void		remove(Index at, int len = -1)		// Delete a subslice from the middle
-				{
-					assert(ref_count <= 1);
-					assert(len >= -1);
-					assert(at >= 0);
-					assert(at < num_elements);
-
-					if (len == -1)
-						len = num_elements-at;
-					for (Index i = at; i < num_elements-len; i++)
-						start[i] = start[i+len];	// Use assignment operators
-					// Note that the len elements after num_elements will not be destroyed until the array is deleted
-					num_elements -= len;		// len says how many we deleted.
-				}
-
-#if 0	// Not yet implemented
-		/*
-		 * At every Element after the given point, the passed transform function can
-		 * extract any number of elements (up to ep) and return a replacement Array for those elements
-		 * To quit, leaving the remainder untransformed, return without advancing ep
-		 * (but a returned Array will still be inserted).
-		 * None of the returned Arrays will be retained, so they can use static Bodys (or the same Body)
-		 */
-		void		transform(const std::function<Array(const Array*& cp, const Array* ep)> xform, int after = -1);
-#endif
-
-	protected:
-		Element*	start;		// start of the character data
-		Index		num_elements;	// Number of elements
-		Index		num_alloc;	// How many elements are allocated. 0 means data is not allocated so must not be freed
-
-		void		resize(size_t minimum)	// Change the memory allocation
-				{
-					if (minimum <= num_alloc)
-						return;
-
-					minimum = ((minimum-1)|0x7)+1;	// round up to multiple of 8
-					if (num_alloc)	// Minimum growth 50% rounded up to nearest 16
-						num_alloc = ((num_alloc*3/2) | 0xF) + 1;
-					if (num_alloc < minimum)
-						num_alloc = minimum;		// Still not enough, get enough
-					Element*	newdata = new Element[num_alloc];
-					if (start)
-					{
-						for (Index i = 0; i < num_elements; i++)
-							newdata[i] = start[i];
-						delete[] start;
-					}
-					start = newdata;
-				}
-
-		Body(Body&) = delete;		// Never copy a body
-		Body& operator=(const Body& s1) // Assignment operator; ONLY for no-copy bodies
-				{
-					assert(s1.num_alloc == 0);	// Must not do this if we would make two references to allocated data
-					start = s1.start;
-					num_elements = s1.num_elements;
-					num_alloc = 0;
-					return *this;
-				}
-	};
 
 private:
 	Ref<Body>	body;		// The storage structure for the elements
@@ -350,6 +426,129 @@ private:
 				// Copy only this slice of the body's data, and reset our offset to zero
 				body = new Body(asElements(), true, num_elements, num_elements+extra);
 				offset = 0;
+			}
+};
+
+template<typename E, typename I> class	ArrayBody
+: public RefCounted			// This object will be deleted when the ref_count decrements to zero
+{
+public:
+	using		Element = E;
+	using		Index = I;
+	using		A = Array<E, I>;
+
+	~ArrayBody()
+			{
+				if (start
+				 && num_alloc > 0)		// Don't delete borrowed data
+					delete[] start;
+			}
+	ArrayBody()
+			: start(0), num_elements(0), num_alloc(0) { }
+	ArrayBody(const Element* data, bool copy, Index length, Index allocate = 0)
+			: start(0)
+			, num_elements(0)
+			, num_alloc(0)
+			{
+				if (copy)
+				{
+					if (allocate < length)
+						allocate = length;
+					resize(allocate);
+					// Copy using the copy constructor belonging to Element
+					for (Index i = 0; i < length; i++)
+						start[i] = data[i];
+					num_elements = length;
+				}
+				else
+				{
+					start = (Element*)data;	// Cast const away; copy==false implies no change will occur
+					num_elements = length;
+					AddRef();		// Cannot be deleted or resized
+				}
+			}
+
+	bool		noCopy() const { return num_alloc == 0; }	// This body or its data are transient (borrowed)
+
+	const Element&	operator[](int elem_num) const { assert(elem_num >= 0 && elem_num < num_elements); return start[elem_num]; }
+	Element&	operator[](int elem_num) { assert(elem_num >= 0 && elem_num < num_elements); return start[elem_num]; }
+
+	inline Index	length() const { return num_elements; }
+	const Element*	data() const { return start; }			// fast access
+	const Element*	end() const { return start+num_elements; }		// ptr to the trailing NUL (if any)
+
+	// Mutating methods. Must only be called when refcount <= 1 (i.e., unshared)
+	void		insert(Index pos, const A& addend)	// Insert a substring
+			{
+				assert(ref_count <= 1);
+				resize(num_elements + addend.length());
+
+				if (num_elements > pos)		// Move data up
+					for (Index i = num_elements+pos-1; i >= pos+addend.length(); i--)
+						start[i] = start[i-addend.length()];
+				for (Index i = 0; i < addend.length(); i++)
+					start[pos+i] = addend.asElements()[i];
+				num_elements += addend.length();
+			}
+	void		remove(Index at, int len = -1)		// Delete a subslice from the middle
+			{
+				assert(ref_count <= 1);
+				assert(len >= -1);
+				assert(at >= 0);
+				assert(at < num_elements);
+
+				if (len == -1)
+					len = num_elements-at;
+				for (Index i = at; i < num_elements-len; i++)
+					start[i] = start[i+len];	// Use assignment operators
+				// Note that the len elements after num_elements will not be destroyed until the array is deleted
+				num_elements -= len;		// len says how many we deleted.
+			}
+
+#if 0	// Not yet implemented
+	/*
+	 * At every Element after the given point, the passed transform function can
+	 * extract any number of elements (up to ep) and return a replacement Array for those elements
+	 * To quit, leaving the remainder untransformed, return without advancing cp
+	 * (but a returned Array will still be inserted).
+	 * None of the returned Arrays will be retained, so they can use static Bodys (or the same Body)
+	 */
+	void		transform(const std::function<A(const A*& cp, const A* ep)> xform, int after = -1);
+#endif
+
+protected:
+	Element*	start;		// start of the character data
+	Index		num_elements;	// Number of elements
+	Index		num_alloc;	// How many elements are allocated. 0 means data is not allocated so must not be freed
+
+	void		resize(size_t minimum)	// Change the memory allocation
+			{
+				if (minimum <= num_alloc)
+					return;
+
+				minimum = ((minimum-1)|0x7)+1;	// round up to multiple of 8
+				if (num_alloc)	// Minimum growth 50% rounded up to nearest 16
+					num_alloc = ((num_alloc*3/2) | 0xF) + 1;
+				if (num_alloc < minimum)
+					num_alloc = minimum;		// Still not enough, get enough
+				Element*	newdata = new Element[num_alloc];
+				if (start)
+				{
+					for (Index i = 0; i < num_elements; i++)
+						newdata[i] = start[i];
+					delete[] start;
+				}
+				start = newdata;
+			}
+
+	ArrayBody(ArrayBody&) = delete;		// Never copy a body
+	ArrayBody& operator=(const ArrayBody& s1) // Assignment operator; ONLY for no-copy bodies
+			{
+				assert(s1.num_alloc == 0);	// Must not do this if we would make two references to allocated data
+				start = s1.start;
+				num_elements = s1.num_elements;
+				num_alloc = 0;
+				return *this;
 			}
 };
 #endif
