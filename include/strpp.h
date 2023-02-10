@@ -35,7 +35,7 @@ class	StrBody;
 #define	STRERR_NO_DIGITS	2	// Number string contains only blank characters
 #define	STRERR_NUMBER_OVERFLOW	3	// The number doesn't fit in the requested type
 #define	STRERR_NOT_NUMBER	4	// The first non-blank character was non-numeric
-#define	STRERR_ILLEGAL_RADIX	5	// Use of an unsupported radic
+#define	STRERR_ILLEGAL_RADIX	5	// Use of an unsupported radix
 
 class	StrVal
 {
