@@ -4,13 +4,12 @@
  * Error numbering system.
  *
  * Each subsystem is statically allocated a 16-bit subsystem "set" number.
- * Each set contains up to 4096 messages indicated by a 12-bit code.
+ * Each set contains up to 16384 messages indicated by a 14-bit code.
  * The set number 0 corresponds to the system errno, and the msg codes are the errno codes.
  *
  * For compliance with the Microsoft error scheme, the high-order (sign) bit is always set.
- * Because Microsoft subsystems also avoid using the second-top bit, this bit is always
- * set, to keep clear of collisions with Microsoft subsystems. The next two top bits are
- * also allocated in some parts of Microsoft's culture, so we avoid using those.
+ * Because Microsoft subsystems also avoid using the second-top bit (they call it CUST),
+ * this bit is always set, to keep clear of collisions with Microsoft subsystems.
  *
  * Each message set has an associated error catalog containing the text for each message,
  * for each supported language. Binary versions of these message catalogs may be shipped
@@ -38,7 +37,7 @@ public:
 	static const int32_t	ERR_CUST = 0x4000000;	// Including this bit guarantees no collision with Microsoft subsystem codes
 
 	ErrNum(int set, int msg)
-			: errnum(ERR_FLAG | ERR_CUST | ((set & 0xFFFF) << 12) | (msg & 0xFFF)) {}
+			: errnum(ERR_FLAG | ERR_CUST | ((set & 0xFFFF) << 14) | (msg & 0x3FFF)) {}
 	ErrNum(int32_t setmsg)
 			: errnum(setmsg) { if (errnum) errnum |= (ERR_FLAG | ERR_CUST); }
 	~ErrNum() {}
@@ -47,9 +46,9 @@ public:
 	ErrNum		operator=(const ErrNum& c)
 			{ errnum = c.errnum; return *this; }
 	int		set() const
-			{ return (errnum >> 12) & 0xFFFF; }
+			{ return (errnum >> 14) & 0xFFFF; }
 	int		msg() const
-			{ return errnum & 0xFFF; }
+			{ return errnum & 0x3FFF; }
 	bool		operator==(int x) const
 			{ return errnum == x; }
 	bool		operator<(int x) const
