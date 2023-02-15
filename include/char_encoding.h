@@ -232,8 +232,8 @@ UTF8Len(const UTF8* cp)
 inline const UTF8*
 UTF8Backup(const UTF8* cp, const UTF8* limit = 0)
 {
-	if (limit == 0)
-		limit = cp-4;	// No limit
+	if (limit == 0)		// No limit provided
+		limit = cp-6;
 	if (cp-1 >= limit && UTF8Is1st(cp[-1]))
 		return cp-1;
 	if (cp-2 >= limit && UTF8Is1st(cp[-2]))
