@@ -129,12 +129,13 @@ StrVal::operator[](int charNum) const
 const UTF8*
 StrVal::asUTF8()	// Must unshare data if it's a substring with elided suffix
 {
-	const	UTF8*	ep = nthChar(num_chars);
-	if (ep < body->endChar())
+	const	UTF8*	ep = nthChar(num_chars);	// Pointer to end of this slice's data
+	if (ep < body->startChar()+body->numBytes()	// The body has more data following that
+	 || !body->isNulTerminated())			// It's a static body with no existing terminator
 	{
 		Unshare();
 		// If we are the last reference and a substring, we might not be terminated
-		*body->nthChar(num_chars, mark) = '\0';
+		*body->nthChar(num_chars, mark) = '\0';	// This uses the bookmark just set
 	}
 	return nthChar(0);
 }

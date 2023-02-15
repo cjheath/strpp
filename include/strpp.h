@@ -200,8 +200,10 @@ public:
 			}
 	CharBytes	numBytes() const { return num_bytes; }
 	UTF8*		startChar() const { return start; }		// fast access, requires no Bookmark
-	const UTF8*	endChar() { return start+num_bytes; }		// ptr to the trailing NUL (if any)
 	UTF8*		nthChar(CharNum off, StrVal::Bookmark& bm);	// ptr to start of the nth character
+	// CharBytes	charOffset(CharNum char_num);			// Byte offset of the start of char_num
+	bool		isNulTerminated() const				// If we allocated memory, it's always terminated
+			{ return num_alloc > 0 || start[num_bytes] == '\0'; }
 
 	// Mutating methods. Must only be called when refcount <= 1 (i.e., unshared)
 	void		remove(CharNum at, int len = -1);		// Delete a substring from the middle
