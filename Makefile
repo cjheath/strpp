@@ -12,6 +12,7 @@ DEBUG	=	-Os $(COPT)	# -DSTRVAL_65K
 HDRS	=	\
 		adl.h			\
 		char_encoding.h		\
+		error.h			\
 		peg.h			\
 		pegexp.h		\
 		refcount.h		\
@@ -31,6 +32,7 @@ SRCS	=	\
 LIB	=	libstrpp.a
 TESTS	=	\
 		adl_test		\
+		err_test		\
 		rxmatch_test		\
 		rxcompile_test		\
 		peg_test		\
