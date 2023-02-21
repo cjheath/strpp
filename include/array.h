@@ -62,6 +62,12 @@ public:
 			{ assert(elem_num >= 0 && elem_num < num_elements && body);
 			  return body->data()[offset+elem_num]; }
 	const Element*	asElements() const { return body ? body->data()+offset : 0; }	// The caller must ensure to enforce bounds
+	const Element&	set(int elem_num, Element& e)
+			{ assert(elem_num >= 0 && elem_num < num_elements);
+			  Unshare();
+			  (*body)[elem_num] = e;
+			  return (*body)[elem_num];
+			}
 
 			operator const Body&() const { return static_cast<const Body&>(body); }
 	const Body*	operator->() const { return body; }
@@ -375,7 +381,7 @@ public:
 					accumulator = injection(accumulator, *bp);
 				return accumulator;
 			}
-	int		bsearch(std::function<int(const Element& e> comparator) const
+	int		bsearch(std::function<int(const Element& e)> comparator) const
 			{
 				const Element*	dp = body->data()+offset;	// Start of our slice
 				Index		l = 0;
