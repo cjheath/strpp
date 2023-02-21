@@ -58,7 +58,7 @@ public:
 	UTF8P&		operator++()	{ return preincr(); }
 	UTF8P		operator--(int)	{ return postdecr(); }
 	UTF8P&		operator--()	{ return predecr(); }
-private:
-	UTF8P		operator-(UTF8P s)	{ return *this; }	// Prevent inadvertent subtraction
+	long		operator-(UTF8P s)	{ return data-s.data; }
+	long		operator-(const char* cp)	{ return data-cp; }
 };
 #endif	// UTF8POINTER_H

@@ -7,7 +7,6 @@
 #include	<pegexp.h>
 
 #if	defined(PEG_UNICODE)
-#include	<utf8pointer.h>
 typedef	Pegexp<UTF8P, UCS4>	TestPegexp;
 #else
 typedef	Pegexp<>		TestPegexp;

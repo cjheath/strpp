@@ -9,10 +9,6 @@
  */
 #define	PEGEXP_UNICODE	1
 
-#if	defined(PEGEXP_UNICODE)
-#include	<utf8pointer.h>
-#endif
-
 #include	<pegexp.h>
 #include	<stdio.h>
 #include	<string.h>

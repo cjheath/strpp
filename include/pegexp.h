@@ -55,36 +55,9 @@
 #include	<stdint.h>
 #include	<stdlib.h>
 #include	<ctype.h>
+#include	<charpointer.h>
 
 typedef	const char*	PegexpPC;
-
-/*
- * Wrap a const char* to adapt it as a PEG parser input.
- * Every operation here works as for a char*, but it also supports at_eof()/at_bot() to detect the ends.
- * More pointer-ish methods are possible, but this is limited to the methods needed for Pegexp.
- */
-class	TextPtrChar
-{
-private:
-	const char*	data;
-	const char*	origin;
-public:
-	TextPtrChar() : data(0), origin(0) {}				// Null constructor
-	TextPtrChar(const char* s) : data(s), origin(s) {}			// Normal constructor
-	TextPtrChar(TextPtrChar& c) : data(c.data), origin(c.origin) {}		// Copy constructor
-	TextPtrChar(const TextPtrChar& c) : data(c.data), origin(c.origin) {}	// Copy constructor
-	~TextPtrChar() {};
-	TextPtrChar&		operator=(TextPtrChar s)	// Assignment
-				{ data = s.data; origin = s.origin; return *this; }
-	operator const char*()					// Access the char under the pointer
-				{ return static_cast<const char*>(data); }
-	char			operator*()			// Dereference to char under the pointer
-				{ return *data; }
-
-	bool			at_eof() { return *data == '\0'; }
-	bool			at_bot() { return data == origin; }
-	TextPtrChar		operator++(int)	{ return data++; }
-};
 
 template <typename TextPtr = TextPtrChar>
 class	NullCapture
@@ -101,18 +74,19 @@ class PegState
 {
 public:
 	PegState()
-		: pc(0), text(0), succeeding(true), capture() {}
+		: pc(0), text(0), succeeding(true), at_bol(true), capture() {}
 	PegState(PegexpPC _pc, TextPtr _text, Capture _capture = Capture())
-		: pc(_pc), text(_text), succeeding(true), capture(_capture) {}
+		: pc(_pc), text(_text), succeeding(true), at_bol(true), capture(_capture) {}
 	PegState(const PegState& c)
-		: pc(c.pc), text(c.text), succeeding(c.succeeding), capture(c.capture) {}
+		: pc(c.pc), text(c.text), succeeding(c.succeeding), at_bol(c.at_bol), capture(c.capture) {}
 	PegState&		operator=(const PegState& c)
-		{ pc = c.pc; text = c.text; succeeding = c.succeeding; capture = c.capture; return *this; }
+		{ pc = c.pc; text = c.text; succeeding = c.succeeding; at_bol = c.at_bol; capture = c.capture; return *this; }
 	operator bool() { return succeeding; }
 
 	PegexpPC	pc;		// Current location in the pegexp
 	TextPtr		text;		// Current text we're looking at
 	bool		succeeding;	// Is this a viable path to completion?
+	bool		at_bol;		// Start of text or line
 	Capture   	capture;	// What did we learn while getting here?
 
 	// If you want to add debug tracing for example, you can override these in a subclass:
@@ -134,7 +108,8 @@ public:
 	{
 		State	state(pegexp, text);
 		State	result;
-		do {
+		while (true)
+		{
 			// Reset for another trial:
 			state.pc = pegexp;
 			state.text = text;
@@ -147,7 +122,11 @@ public:
 					return result.fail();
 				return result;
 			}
-		} while (!text.at_eof() && text++);
+			if (text.at_eof())
+				break;
+			state.at_bol = (*text == '\n');
+			text++;
+		}
 		return result;	// This will show where we last failed
 	}
 
@@ -284,7 +263,10 @@ protected:
 		if (state.text.at_eof())	// End of input never matches
 			in_class = false;
 		if (in_class)
+		{
+			state.at_bol = (*state.text == '\n');
 			state.text++;
+		}
 		return in_class;
 	}
 
@@ -313,6 +295,7 @@ protected:
 	{
 		if (state.text.at_eof() || *state.pc != *state.text)
 			return state.fail();
+		state.at_bol = (*state.text == '\n');
 		state.text++;
 		state.pc++;
 		return state.progress();
@@ -340,7 +323,7 @@ protected:
 			break;
 
 		case '^':	// Start of line
-			match = state.text.at_bot() ? true : state.text[-1] == '\n';
+			match = state.at_bol;
 			break;
 
 		case '$':	// End of line or end of input
@@ -349,19 +332,28 @@ protected:
 
 		case '.':	// Any character
 			if ((match = !state.text.at_eof()))
+			{
+				state.at_bol = (*state.text == '\n');
 				state.text++;
+			}
 			break;
 
 		default:	// Literal character
 			if (rc > 0 && rc < ' ')		// Control characters
 				goto extended;
 			if ((match = (!state.text.at_eof() && rc == *state.text)))
+			{
+				state.at_bol = (rc == '\n');
 				state.text++;
+			}
 			break;
 
 		case '\\':	// Escaped literal char
 			if ((match = (!state.text.at_eof() && char_property(state.pc, *state.text))))
+			{
+				state.at_bol = (*state.text == '\n');
 				state.text++;
+			}
 			break;
 
 		case '[':	// Character class

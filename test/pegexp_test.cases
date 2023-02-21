@@ -15,6 +15,24 @@ a.			bac		+1	ac
 a.c			dabcd		+1	abc
 a.b.c			dadbacd		+1	adbac
 
+# Beginning-of-line tests other than as first character
+# REVISIT: Our test rig doesn't process the \n escapes here
+# ^a			b\na		+2	a
+# ^a			b\nca		failed
+# ^a			b\n\na		+3	a
+# ^a			b\n\nca		failed
+# b^a			b\na		failed
+# b^a			ba		failed
+# \n^a			m\na		+1	\na
+# \n^a			m\nba		failed
+# [m-z\n]^a		m\na		+1	\na
+# [m-z\n]^a		m\nba		failed
+# [^m-z]^a		b\na		+1	\na
+# [^m-z]^a		b\nca		failed
+# [^m-z]^a		m\na		failed
+# .^a			b\na		+1	\na
+# .^a			b\nca		failed
+
 # Simple Repetitions
 ?a			b		+0	
 ?a			a		+0	a
