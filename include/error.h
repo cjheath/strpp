@@ -26,6 +26,7 @@
  */
 #include	<stdint.h>
 #include	<limits.h>
+#include	<errno.h>
 #if     defined(MSW)
 #include <winerror.h>
 #endif  /* MSW */
