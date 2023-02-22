@@ -67,7 +67,7 @@ typedef	const char*	PegexpPC;
  * by adding the methods current(), advance() and at_eof().
  * Default to using Guarded pointers as the cost is tiny.
  */
-template<typename TextPtr = GuardedCharPtr>
+template<typename TextPtr = GuardedCharPtr, typename PChar = char>
 class	PegexpPointerInput
 : public TextPtr
 {
@@ -76,10 +76,10 @@ public:
 	PegexpPointerInput(const TextPtr& c) : TextPtr(c) {}
 	PegexpPointerInput(const PegexpPointerInput& c) : TextPtr(c) {}
 
-	char		current() const
+	PChar		current() const
 			{ return *static_cast<TextPtr>(*this); }	// Dereference
-	void		advance()
-			{ if (!at_eof()) TextPtr::operator++(); } // Preincrement
+	PChar		advance()
+			{ if (!at_eof()) TextPtr::operator++(); return current(); } // Preincrement
 	bool		at_eof() { return current() == '\0'; }
 };
 
