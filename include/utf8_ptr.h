@@ -7,17 +7,17 @@
  */
 #include	<char_encoding.h>
 
-class	UnguardedUTF8Ptr
+class	NulGuardedUTF8Ptr
 {
 protected:
 	const UTF8*	data;
 public:
-	UnguardedUTF8Ptr() : data(0) {}			// Null constructor
-	UnguardedUTF8Ptr(const UTF8* s) : data(s) {}	// Normal constructor
-	UnguardedUTF8Ptr(UnguardedUTF8Ptr& c) : data(c.data) {}	// Copy constructor
-	UnguardedUTF8Ptr(const UnguardedUTF8Ptr& c) : data(c.data) {}	// Copy constructor
-	~UnguardedUTF8Ptr() {};
-	UnguardedUTF8Ptr& operator=(UnguardedUTF8Ptr s)	// Assignment
+	NulGuardedUTF8Ptr() : data(0) {}			// Null constructor
+	NulGuardedUTF8Ptr(const UTF8* s) : data(s) {}	// Normal constructor
+	NulGuardedUTF8Ptr(NulGuardedUTF8Ptr& c) : data(c.data) {}	// Copy constructor
+	NulGuardedUTF8Ptr(const NulGuardedUTF8Ptr& c) : data(c.data) {}	// Copy constructor
+	~NulGuardedUTF8Ptr() {};
+	NulGuardedUTF8Ptr& operator=(NulGuardedUTF8Ptr s)	// Assignment
 			{ data = s.data; return *this; }
 
 	bool		at_eof()
@@ -38,41 +38,41 @@ public:
 			{ return UTF8Is1st(*data); }
 
 	// Add and subtract integers:
-	UnguardedUTF8Ptr&	operator+=(int i)
+	NulGuardedUTF8Ptr&	operator+=(int i)
 			{	const UTF8* s = data;
 				while (i > 0 && *s != '\0') { UTF8Get(s); i--;}	// Advance
 				while (i < 0) { s = UTF8Backup(s); i++;}	// Or backup
 				data = (const UTF8*)s; return *this;
 			}
-	UnguardedUTF8Ptr	operator+(int i){ UnguardedUTF8Ptr t(*this); t += i; return t; }
-	UnguardedUTF8Ptr	operator-=(int i){ return *this += -i; }
-	UnguardedUTF8Ptr	operator-(int i){ UnguardedUTF8Ptr t(*this); t += -i; return t; }
+	NulGuardedUTF8Ptr	operator+(int i){ NulGuardedUTF8Ptr t(*this); t += i; return t; }
+	NulGuardedUTF8Ptr	operator-=(int i){ return *this += -i; }
+	NulGuardedUTF8Ptr	operator-(int i){ NulGuardedUTF8Ptr t(*this); t += -i; return t; }
 
 	// incr/decr functions:
-	UnguardedUTF8Ptr	postincr()	{ UnguardedUTF8Ptr save(*this); ++*this; return save; }
-	UnguardedUTF8Ptr&	preincr()	{ const UTF8* s = data; !at_eof() && UTF8Get(s); data = (const UTF8*)s; return *this; }
-	UnguardedUTF8Ptr	postdecr()	{ UnguardedUTF8Ptr save(*this); --*this; return save; }
-	UnguardedUTF8Ptr&	predecr()	{ data = (const UTF8*)UTF8Backup(data); return *this; }
+	NulGuardedUTF8Ptr	postincr()	{ NulGuardedUTF8Ptr save(*this); ++*this; return save; }
+	NulGuardedUTF8Ptr&	preincr()	{ const UTF8* s = data; !at_eof() && UTF8Get(s); data = (const UTF8*)s; return *this; }
+	NulGuardedUTF8Ptr	postdecr()	{ NulGuardedUTF8Ptr save(*this); --*this; return save; }
+	NulGuardedUTF8Ptr&	predecr()	{ data = (const UTF8*)UTF8Backup(data); return *this; }
 
 	// incr/decr operators:
-	UnguardedUTF8Ptr	operator++(int)	{ return postincr(); }
-	UnguardedUTF8Ptr&	operator++()	{ return preincr(); }
-	UnguardedUTF8Ptr	operator--(int)	{ return postdecr(); }
-	UnguardedUTF8Ptr&	operator--()	{ return predecr(); }
-	long		operator-(UnguardedUTF8Ptr s)	{ return data-s.data; }
+	NulGuardedUTF8Ptr	operator++(int)	{ return postincr(); }
+	NulGuardedUTF8Ptr&	operator++()	{ return preincr(); }
+	NulGuardedUTF8Ptr	operator--(int)	{ return postdecr(); }
+	NulGuardedUTF8Ptr&	operator--()	{ return predecr(); }
+	long		operator-(NulGuardedUTF8Ptr s)	{ return data-s.data; }
 	long		operator-(const char* cp)	{ return data-cp; }
 };
 
 class	GuardedUTF8Ptr
-: public UnguardedUTF8Ptr
+: public NulGuardedUTF8Ptr
 {
 protected:
 	const UTF8*	origin;
 public:
-	GuardedUTF8Ptr() : UnguardedUTF8Ptr(0), origin(0) {}			// Null constructor
-	GuardedUTF8Ptr(const UTF8* s) : UnguardedUTF8Ptr(s), origin(s) {}	// Normal constructor
-	GuardedUTF8Ptr(GuardedUTF8Ptr& c) : UnguardedUTF8Ptr(c.data), origin(c.origin) {}	// Copy constructor
-	GuardedUTF8Ptr(const GuardedUTF8Ptr& c) : UnguardedUTF8Ptr(c.data), origin(c.origin) {}	// Copy constructor
+	GuardedUTF8Ptr() : NulGuardedUTF8Ptr(0), origin(0) {}			// Null constructor
+	GuardedUTF8Ptr(const UTF8* s) : NulGuardedUTF8Ptr(s), origin(s) {}	// Normal constructor
+	GuardedUTF8Ptr(GuardedUTF8Ptr& c) : NulGuardedUTF8Ptr(c.data), origin(c.origin) {}	// Copy constructor
+	GuardedUTF8Ptr(const GuardedUTF8Ptr& c) : NulGuardedUTF8Ptr(c.data), origin(c.origin) {}	// Copy constructor
 
 	GuardedUTF8Ptr&	operator+=(int i)
 			{	const UTF8* s = data;
