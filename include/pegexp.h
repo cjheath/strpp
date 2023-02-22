@@ -65,6 +65,7 @@ typedef	const char*	PegexpPC;
 /*
  * Adapt a pointer-ish thing to be a suitable input for a Pegexp,
  * by adding the methods current(), advance() and at_eof().
+ * Default to using Guarded pointers as the cost is tiny.
  */
 template<typename TextPtr = GuardedCharPtr>
 class	PegexpPointerInput

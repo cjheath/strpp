@@ -11,17 +11,17 @@
  * (c) Copyright Clifford Heath 2023. See LICENSE file for usage rights.
  */
 
-class	NulGuardedCharPtr
+class UnGuardedCharPtr		// Base class, provides no guard rails or overhead
 {
 protected:
 	const char*	data;
 public:
-	NulGuardedCharPtr() : data(0) {}			// Null constructor
-	NulGuardedCharPtr(const char* s) : data(s) {}		// Normal constructor
-	NulGuardedCharPtr(NulGuardedCharPtr& c) : data(c.data) {} // Copy constructor
-	NulGuardedCharPtr(const NulGuardedCharPtr& c) : data(c.data) {}	// Copy constructor
-	~NulGuardedCharPtr() {}
-	NulGuardedCharPtr&	operator=(NulGuardedCharPtr s)	// Assignment
+	UnGuardedCharPtr() : data(0) {}			// Null constructor
+	UnGuardedCharPtr(const char* s) : data(s) {}		// Normal constructor
+	UnGuardedCharPtr(UnGuardedCharPtr& c) : data(c.data) {} // Copy constructor
+	UnGuardedCharPtr(const UnGuardedCharPtr& c) : data(c.data) {}	// Copy constructor
+	~UnGuardedCharPtr() {}
+	UnGuardedCharPtr&	operator=(UnGuardedCharPtr s)	// Assignment
 			{ data = s.data; return *this; }
 
 	bool		at_eof() { return *data == '\0'; }
@@ -30,6 +30,41 @@ public:
 			{ return *data; }
 	operator const char*() const			// Access the string via the pointer
 			{ return static_cast<const char*>(data); }
+
+	// Add and subtract integers:
+	UnGuardedCharPtr&	operator+=(int i)
+			{ data += i; return *this; }
+	UnGuardedCharPtr	operator+(int i){ UnGuardedCharPtr t(*this); t += i; return t; }
+	UnGuardedCharPtr	operator-=(int i){ return *this += -i; }
+	UnGuardedCharPtr	operator-(int i){ UnGuardedCharPtr t(*this); t += -i; return t; }
+
+	// incr/decr functions:
+	UnGuardedCharPtr&	preincr()	{ data++; return *this; }
+	UnGuardedCharPtr	postincr()	{ UnGuardedCharPtr save(*this); ++*this; return save; }
+
+	UnGuardedCharPtr	postdecr()	{ const char* save = data; --data; return save; }
+	UnGuardedCharPtr&	predecr()	{ data--; return *this; }
+
+	// incr/decr operators:
+	UnGuardedCharPtr	operator++(int)	{ return postincr(); }
+	UnGuardedCharPtr&	operator++()	{ return preincr(); }
+	UnGuardedCharPtr	operator--(int)	{ return postdecr(); }
+	UnGuardedCharPtr&	operator--()	{ return predecr(); }
+	long			operator-(UnGuardedCharPtr s)	{ return data-s.data; }
+	long			operator-(const char* cp)	{ return data-cp; }
+};
+
+class	NulGuardedCharPtr
+: public UnGuardedCharPtr
+{
+public:
+	NulGuardedCharPtr() : UnGuardedCharPtr(0) {}		// Null constructor
+	NulGuardedCharPtr(const char* s) : UnGuardedCharPtr(s) {} // Normal constructor
+	NulGuardedCharPtr(NulGuardedCharPtr& c) : UnGuardedCharPtr(c.data) {}		// Copy constructor
+	NulGuardedCharPtr(const NulGuardedCharPtr& c) : UnGuardedCharPtr(c.data) {}	// Copy constructor
+	~NulGuardedCharPtr() {}
+	NulGuardedCharPtr&	operator=(NulGuardedCharPtr s)	// Assignment
+			{ data = s.data; return *this; }
 
 	// Add and subtract integers:
 	NulGuardedCharPtr&	operator+=(int i)
@@ -43,18 +78,13 @@ public:
 	NulGuardedCharPtr	operator-(int i){ NulGuardedCharPtr t(*this); t += -i; return t; }
 
 	// incr/decr functions:
-	NulGuardedCharPtr	postincr()	{ NulGuardedCharPtr save(*this); ++*this; return save; }
 	NulGuardedCharPtr&	preincr()	{ const char* s = data; !at_eof() && s++; data = s; return *this; }
-	NulGuardedCharPtr	postdecr()	{ NulGuardedCharPtr save(*this); --*this; return save; }
-	NulGuardedCharPtr&	predecr()	{ data--; return *this; }
+	NulGuardedCharPtr	postincr()	{ NulGuardedCharPtr save(*this); ++*this; return save; }
 
 	// incr/decr operators:
 	NulGuardedCharPtr	operator++(int)	{ return postincr(); }
 	NulGuardedCharPtr&	operator++()	{ return preincr(); }
-	NulGuardedCharPtr	operator--(int)	{ return postdecr(); }
-	NulGuardedCharPtr&	operator--()	{ return predecr(); }
 	long			operator-(NulGuardedCharPtr s)	{ return data-s.data; }
-	long			operator-(const char* cp)	{ return data-cp; }
 };
 
 class	GuardedCharPtr
