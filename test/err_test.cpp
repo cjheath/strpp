@@ -1,5 +1,7 @@
 /*
  * Test code for errors and error numbers
+ *
+ * (c) Copyright Clifford Heath 2023. See LICENSE file for usage rights.
  */
 #include	"error.h"
 #include	<stdio.h>

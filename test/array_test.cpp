@@ -1,5 +1,7 @@
 /*
  * Simple tests for the slicedarray template
+ *
+ * (c) Copyright Clifford Heath 2023. See LICENSE file for usage rights.
  */
 
 #include	<array.h>

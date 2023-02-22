@@ -14,8 +14,8 @@ HDRS	=	\
 		char_encoding.h		\
 		charpointer.h		\
 		error.h			\
-		guarded_char_pointer.h	\
-		guarded_utf8_pointer.h	\
+		char_ptr.h		\
+		utf8_ptr.h		\
 		peg.h			\
 		pegexp.h		\
 		refcount.h		\
@@ -82,6 +82,8 @@ run_pegexp_size_test:
 
 build/%.o:	%.cpp $(HDRS) Makefile
 	$(CXX) $(DEBUG) $(CXXFLAGS) -Iinclude -Isrc -o $@ -c $<
+
+$(TESTS):	$(HDRS) Makefile
 
 %.o:	%.cpp $(HDRS) Makefile
 	$(CXX) $(DEBUG) $(CXXFLAGS) -Iinclude -Isrc -o $@ -c $<

@@ -4,7 +4,6 @@
 /*
  * Peg parser using pegular expressions
  *
- *
  * Copyright 2022 Clifford Heath. ALL RIGHTS RESERVED SUBJECT TO ATTACHED LICENSE.
  */
 #include	<stdlib.h>

@@ -9,11 +9,11 @@
  */
 #define	PEGEXP_UNICODE	1
 
-#define	protected public
-
 #include	<pegexp.h>
 #include	<stdio.h>
 #include	<string.h>
+
+#include	<utf8_ptr.h>
 
 #if	defined(PEGEXP_UNICODE)
 using	PegexpChar = UCS4;
@@ -34,8 +34,8 @@ public:
 	/* Additional methods for the test program */
 	int		operator-(const char* start)			// Length from start to current location
 			{ return rest()-start; }
-	int		operator-(const PegexpPointerInput& start)	// Length from start to current location
-			{ return rest()-start.data; }
+	int		operator-(const Source& start)			// Length from start to current location
+			{ return rest()-static_cast<const char*>(start); }
 	const char*	rest()
 			{ return Source::data; }
 };

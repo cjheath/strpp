@@ -5,7 +5,7 @@
  */
 #include	<char_encoding.h>
 #include	<peg.h>
-#include	<guarded_utf8_pointer.h>
+#include	<utf8_ptr.h>
 
 #include	<stdio.h>
 #include	<sys/stat.h>

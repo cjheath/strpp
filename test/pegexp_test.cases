@@ -1,3 +1,7 @@
+#
+# Test cases for Pegexp
+#
+# (c) Copyright Clifford Heath 2023. See LICENSE file for usage rights.
 # Literal matches
 -			-		+0	-
 a			a		+0	a

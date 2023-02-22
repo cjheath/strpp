@@ -1,18 +1,22 @@
 /*
  * Pegex code size test
  *
+ * Using guarded pointers makes no difference here, because Pegexp's never back up.
+ * Unguarded pointers still check for end-of-string.
+ *
  * Copyright 2022 Clifford Heath. ALL RIGHTS RESERVED SUBJECT TO ATTACHED LICENSE.
  */
 #include	<char_encoding.h>
 #include	<pegexp.h>
+#include	<utf8_ptr.h>
 
-// #define	PEG_UNICODE 1
+#define	PEG_UNICODE 1
 
 #if	defined(PEG_UNICODE)
-using	Source = PegexpPointerInput<GuardedUTF8Ptr>;
+using	Source = PegexpPointerInput<UnguardedUTF8Ptr>;
 typedef	Pegexp<Source, UCS4>	TestPegexp;
 #else
-using	Source = PegexpPointerInput<>;
+using	Source = PegexpPointerInput<UnguardedCharPtr>;
 typedef	Pegexp<Source>		TestPegexp;
 #endif
 

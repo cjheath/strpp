@@ -51,10 +51,13 @@
  * You can use any scalar data type for PChar, and a pointer to it for TextPtr (even wrapping a socket).
  * You can subclass Pegexp to override match_extended&skip_extended to handle special command characters.
  * You can replace the default NullCapture with a capture object with features for your extended command chars.
+ *
+ * (c) Copyright Clifford Heath 2023. See LICENSE file for usage rights.
  */
 #include	<stdint.h>
 #include	<stdlib.h>
 #include	<ctype.h>
+#include	<char_ptr.h>
 #include	<charpointer.h>
 
 typedef	const char*	PegexpPC;

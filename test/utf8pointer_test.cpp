@@ -1,5 +1,11 @@
+/*
+ * Test program for the UTF8 pointer class.
+ *
+ * (c) Copyright Clifford Heath 2023. See LICENSE file for usage rights.
+ */
+
 #include	<stdio.h>
-#include	<guarded_utf8_pointer.h>
+#include	<utf8_ptr.h>
 
 UTF8	source[] = "Hello, world";
 

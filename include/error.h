@@ -23,6 +23,8 @@
  * Message formatting applies the message template to a typed array of parameters. The
  * types can be checked to conform to the default text, even when being formatted using
  * an alternate translation.
+ *
+ * (c) Copyright Clifford Heath 2023. See LICENSE file for usage rights.
  */
 #include	<stdint.h>
 #include	<limits.h>
