@@ -10,19 +10,19 @@ DEBUG	=	-Os $(COPT)	# -DSTRVAL_65K
 # DEBUG	=	-g -DTRACK_RESULTS $(COPT)
 
 HDRS	=	\
-		adl.h			\
+		array.h			\
 		char_encoding.h		\
+		charpointer.h		\
 		error.h			\
+		guarded_char_pointer.h	\
+		guarded_utf8_pointer.h	\
 		peg.h			\
 		pegexp.h		\
 		refcount.h		\
-		array.h			\
 		strpp.h 		\
-		strregex.h		\
-		utf8pointer.h
+		strregex.h
 
 SRCS	=	\
-		adl.cpp			\
 		char_encoding.cpp	\
 		rxcompile.cpp		\
 		rxdump.cpp		\
@@ -31,13 +31,12 @@ SRCS	=	\
 
 LIB	=	libstrpp.a
 TESTS	=	\
-		adl_test		\
+		array_test		\
 		err_test		\
-		rxmatch_test		\
-		rxcompile_test		\
 		peg_test		\
 		pegexp_test		\
-		array_test		\
+		rxcompile_test		\
+		rxmatch_test		\
 		utf8pointer_test
 #		greeting_test
 #		medley_test

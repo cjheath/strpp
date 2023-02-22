@@ -48,7 +48,7 @@
  * It is your responsibility to ensure these possessive operators never match unless it's final.
  * You should use negative assertions to control inappropriate greed.
  *
- * You can use any scalar data type for Char, and a pointer to it for TextPtr (even wrapping a socket).
+ * You can use any scalar data type for PChar, and a pointer to it for TextPtr (even wrapping a socket).
  * You can subclass Pegexp to override match_extended&skip_extended to handle special command characters.
  * You can replace the default NullCapture with a capture object with features for your extended command chars.
  */
@@ -59,7 +59,29 @@
 
 typedef	const char*	PegexpPC;
 
-template <typename TextPtr = TextPtrChar>
+/*
+ * Adapt a pointer-ish thing to be a suitable input for a Pegexp,
+ * by adding the methods current(), advance() and at_eof().
+ */
+template<typename TextPtr = GuardedCharPtr>
+class	PegexpPointerInput
+: public TextPtr
+{
+public:
+	PegexpPointerInput(const char* cp) : TextPtr(cp) {}
+	PegexpPointerInput(const TextPtr& c) : TextPtr(c) {}
+	PegexpPointerInput(const PegexpPointerInput& c) : TextPtr(c) {}
+
+	char		current() const
+			{ return *static_cast<TextPtr>(*this); }	// Dereference
+	void		advance()
+			{ if (!at_eof()) TextPtr::operator++(); } // Preincrement
+	bool		at_eof() { return current() == '\0'; }
+};
+
+using	PegexpDefaultInput = PegexpPointerInput<>;
+
+template <typename TextPtr = PegexpDefaultInput>
 class	NullCapture
 {
 public:
@@ -69,7 +91,7 @@ public:
 	void		save(PegexpPC name, TextPtr from, TextPtr to) {}
 };
 
-template <typename TextPtr = TextPtrChar, typename Char = char, typename Capture = NullCapture<TextPtr>>
+template <typename TextPtr = PegexpDefaultInput, typename PChar = Char, typename Capture = NullCapture<TextPtr>>
 class PegState
 {
 public:
@@ -82,6 +104,12 @@ public:
 	PegState&		operator=(const PegState& c)
 		{ pc = c.pc; text = c.text; succeeding = c.succeeding; at_bol = c.at_bol; capture = c.capture; return *this; }
 	operator bool() { return succeeding; }
+	void		advance()
+			{		// Keep track of beginning-of-line whenever we advance
+				at_bol = (text.current() == '\n');
+				text.advance();
+				// ++text;	// Advance to the next character
+			}
 
 	PegexpPC	pc;		// Current location in the pegexp
 	TextPtr		text;		// Current text we're looking at
@@ -94,7 +122,7 @@ public:
 	PegState&	progress() { succeeding = true; return *this; }
 };
 
-template<typename TextPtr = TextPtrChar, typename Char = char, typename Capture = NullCapture<TextPtr>, typename S = PegState<TextPtr, Char, Capture>>
+template<typename TextPtr = PegexpDefaultInput, typename PChar = Char, typename Capture = NullCapture<TextPtr>, typename S = PegState<TextPtr, PChar, Capture>>
 class Pegexp
 {
 public:
@@ -104,15 +132,15 @@ public:
 	Pegexp(PegexpPC _pegexp) : pegexp(_pegexp) {}
 	PegexpPC	code() const { return pegexp; }
 
-	State		match(TextPtr& text)
+	State		match(TextPtr& start)
 	{
-		State	state(pegexp, text);
+		State	state(pegexp, start);
 		State	result;
 		while (true)
 		{
 			// Reset for another trial:
 			state.pc = pegexp;
-			state.text = text;
+			state.text = start;
 			state.succeeding = true;
 
 			result = match_here(state);
@@ -122,17 +150,17 @@ public:
 					return result.fail();
 				return result;
 			}
-			if (text.at_eof())
+			if (start.at_eof())
 				break;
-			state.at_bol = (*text == '\n');
-			text++;
+			state.advance();
+			start.advance();
 		}
 		return result;	// This will show where we last failed
 	}
 
-	State		match_here(TextPtr& text)
+	State		match_here(TextPtr& start)
 	{
-		State	state(pegexp, text);
+		State	state(pegexp, start);
 		return match_here(state);
 	}
 
@@ -146,7 +174,7 @@ public:
 		return r;
 	}
 
-	static int	unhex(Char c)
+	static int	unhex(PChar c)
 	{
 		if (c >= '0' && c <= '9')
 			return c-'0';
@@ -158,9 +186,9 @@ public:
 	}
 
 protected:
-	Char		literal_char(PegexpPC& pc)
+	PChar		literal_char(PegexpPC& pc)
 	{
-		Char		rc = *pc++;
+		PChar		rc = *pc++;
 		bool		braces = false;
 
 		if (rc == '\0')
@@ -234,13 +262,13 @@ protected:
 		bool	in_class = false;
 		while (*state.pc != '\0' && *state.pc != ']')
 		{
-			Char	c1;
+			PChar	c1;
 
 			// Handle actual properties, not other escapes
 			if (*state.pc == '\\' && isalpha(state.pc[1]))
 			{
 				state.pc++;
-				if (char_property(state.pc, *state.text))
+				if (char_property(state.pc, state.text.current()))
 					in_class = true;
 				continue;
 			}
@@ -248,13 +276,14 @@ protected:
 			c1 = literal_char(state.pc);
 			if (*state.pc == '-')
 			{
-				Char	c2;
+				PChar	c2;
 				state.pc++;
 				c2 = literal_char(state.pc);
-				in_class |= (*state.text >= c1 && *state.text <= c2);
+				PChar	ch = state.text.current();
+				in_class |= (ch >= c1 && ch <= c2);
 			}
 			else
-				in_class |= (*state.text == c1);
+				in_class |= (state.text.current() == c1);
 		}
 		if (*state.pc == ']')
 			state.pc++;
@@ -263,14 +292,11 @@ protected:
 		if (state.text.at_eof())	// End of input never matches
 			in_class = false;
 		if (in_class)
-		{
-			state.at_bol = (*state.text == '\n');
-			state.text++;
-		}
+			state.advance();
 		return in_class;
 	}
 
-	bool		char_property(PegexpPC& pc, Char ch)
+	bool		char_property(PegexpPC& pc, PChar ch)
 	{
 		switch (char32_t esc = *pc++)
 		{
@@ -293,10 +319,9 @@ protected:
 
 	State		match_literal(State& state)
 	{
-		if (state.text.at_eof() || *state.pc != *state.text)
+		if (state.text.at_eof() || *state.pc != state.text.current())
 			return state.fail();
-		state.at_bol = (*state.text == '\n');
-		state.text++;
+		state.advance();
 		state.pc++;
 		return state.progress();
 	}
@@ -327,33 +352,24 @@ protected:
 			break;
 
 		case '$':	// End of line or end of input
-			match = state.text.at_eof() || *state.text == '\n';
+			match = state.text.at_eof() || state.text.current() == '\n';
 			break;
 
 		case '.':	// Any character
 			if ((match = !state.text.at_eof()))
-			{
-				state.at_bol = (*state.text == '\n');
-				state.text++;
-			}
+				state.advance();
 			break;
 
 		default:	// Literal character
 			if (rc > 0 && rc < ' ')		// Control characters
 				goto extended;
-			if ((match = (!state.text.at_eof() && rc == *state.text)))
-			{
-				state.at_bol = (rc == '\n');
-				state.text++;
-			}
+			if ((match = (!state.text.at_eof() && rc == state.text.current())))
+				state.advance();
 			break;
 
 		case '\\':	// Escaped literal char
-			if ((match = (!state.text.at_eof() && char_property(state.pc, *state.text))))
-			{
-				state.at_bol = (*state.text == '\n');
-				state.text++;
-			}
+			if ((match = (!state.text.at_eof() && char_property(state.pc, state.text.current()))))
+				state.advance();
 			break;
 
 		case '[':	// Character class

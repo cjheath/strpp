@@ -12,21 +12,22 @@
 #include	<pegexp.h>
 #include	<vector>
 
-template<typename TextPtr = TextPtrChar, typename Char = char, typename Capture = NullCapture<TextPtrChar>>	class Peg;
+template<typename TextPtr = PegexpDefaultInput, typename PChar = char, typename Capture = NullCapture<PegexpDefaultInput>>
+class Peg;
 
-template<typename TextPtr, typename Char, typename Capture>
+template<typename TextPtr, typename PChar, typename Capture>
 class Peg
 {
 public:
-	using	State = PegState<TextPtr, Char, Capture>;
-	class PegexpT : public Pegexp<TextPtr, Char, Capture>
+	using	State = PegState<TextPtr, PChar, Capture>;
+	class PegexpT : public Pegexp<TextPtr, PChar, Capture>
 	{
-		Peg<TextPtr, Char, Capture>*	peg;
+		Peg<TextPtr, PChar, Capture>*	peg;
 	public:
-		using	Pegexp = Pegexp<TextPtr, Char, Capture>;
+		using	Pegexp = Pegexp<TextPtr, PChar, Capture>;
 		PegexpT(PegexpPC _pegexp) : Pegexp(_pegexp) {}
 
-		void		set_closure(Peg<TextPtr, Char, Capture>* _peg) { peg = _peg; }
+		void		set_closure(Peg<TextPtr, PChar, Capture>* _peg) { peg = _peg; }
 		virtual State	match_extended(State& state)
 		{
 			if (*state.pc == '<')
@@ -134,6 +135,7 @@ public:
 
 				State		substate = state;
 				substate.pc = sub_rule->expression.code();
+				// REVISIT: Not this: substate.capture = state.capture;
 #if defined(PEG_TRACE)
 				printf("Calling %s at `%.10s...` (pegexp `%s`)\n", sub_rule->name, (const char*)state.text, sub_rule->expression.code());
 #endif
@@ -152,6 +154,7 @@ public:
 					if (*state.pc == '>')	// Could be NUL on ill-formed input
 						state.pc++;
 					state.text = substate.text;
+					// REVISIT: Not this: state.capture = result.capture;
 					if (*state.pc != ':')	// Only save if not labelled
 						state.capture.save(sub_rule->name, from, state.text);
 #if defined(PEG_TRACE)

@@ -6,16 +6,20 @@
 #include	<char_encoding.h>
 #include	<pegexp.h>
 
+// #define	PEG_UNICODE 1
+
 #if	defined(PEG_UNICODE)
-typedef	Pegexp<UTF8P, UCS4>	TestPegexp;
+using	Source = PegexpPointerInput<GuardedUTF8Ptr>;
+typedef	Pegexp<Source, UCS4>	TestPegexp;
 #else
-typedef	Pegexp<>		TestPegexp;
+using	Source = PegexpPointerInput<>;
+typedef	Pegexp<Source>		TestPegexp;
 #endif
 
 int
 main(int argc, const char** argv)
 {
 	TestPegexp		pegexp(argv[1]);
-	TextPtrChar		p(argv[2]);
-	return !pegexp.match_here(p);
+	Source			p(argv[2]);
+	return pegexp.match_here(p) ? 0 : 1;
 }

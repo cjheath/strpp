@@ -5,7 +5,7 @@
  */
 #include	<char_encoding.h>
 #include	<peg.h>
-#include	<utf8pointer.h>
+#include	<guarded_utf8_pointer.h>
 
 #include	<stdio.h>
 #include	<sys/stat.h>
@@ -16,12 +16,13 @@
 #include	<strpp.h>
 
 #if	defined(PEG_UNICODE)
-typedef	UTF8P	PegText;
-typedef	UCS4	PegChar;
+using	PegChar = UCS4;
+using	PegText = PegexpPointerInput<GuardedUTF8Ptr>;
 #else
-typedef	TextPtrChar	PegText;
-typedef	char	PegChar;
+using	PegChar = char;
+using	PegText = PegexpPointerInput<>;
 #endif
+using	PegexpT = Pegexp<PegText, PegChar>;
 
 class	PegCaptureBody
 : public RefCounted

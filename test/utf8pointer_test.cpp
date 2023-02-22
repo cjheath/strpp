@@ -1,13 +1,13 @@
 #include	<stdio.h>
-#include	<utf8pointer.h>
+#include	<guarded_utf8_pointer.h>
 
 UTF8	source[] = "Hello, world";
 
 int
 main(int argc, const char** argv)
 {
-	UTF8P	hello(source);
-	UTF8P	world = hello;
+	GuardedUTF8Ptr	hello(source);
+	GuardedUTF8Ptr	world = hello;
 
 	printf("--- incr/decr ---\n");
 	// postincr
@@ -58,7 +58,7 @@ main(int argc, const char** argv)
 	printf("len(\u00E8) = %d\n", hello.len());
 	printf("is1st(hello) = %d\n", hello.is1st());
 	printf("is1st((char*)hello+1) = %s\n", (hello+1).is1st() ? "true" : "false");
-	printf("is1st(hello+1) = %s\n", UTF8P((static_cast<const char*>(hello))+1).is1st() ? "true" : "false");	// Construct a string pointing at the 2nd byte
+	printf("is1st(hello+1) = %s\n", GuardedUTF8Ptr((static_cast<const char*>(hello))+1).is1st() ? "true" : "false");	// Construct a string pointing at the 2nd byte
 
 	printf("\n--- 2-byte add and subtract ---\n");
 	printf("hello+1=%s\n", static_cast<const char*>(hello+1));		// Add integer with 2-byte

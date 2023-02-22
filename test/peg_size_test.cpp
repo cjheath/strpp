@@ -7,7 +7,7 @@
 #include	<peg.h>
 
 #if	defined(PEG_UNICODE)
-typedef	Peg<UTF8P, UCS4>	TestPeg;
+typedef	Peg<GuardedUTF8Ptr, UCS4>	TestPeg;
 #else
 typedef	Peg<>			TestPeg;
 #endif
