@@ -48,6 +48,8 @@ public:
 		CompareNatural		// Natural comparison, with numeric strings by value
 	} CompareStyle;
 
+	static const StrVal	null;
+
 	~StrVal() {}			// Destructor
 	StrVal();			// Empty string
 	StrVal(const StrVal& s1);	// Normal copy constructor
@@ -56,7 +58,6 @@ public:
 	StrVal(const UTF8* data, CharBytes length, size_t allocate = 0); // construct from length-terminated UTF8 data
 	StrVal(UCS4 character);		// construct from single-character string
 	StrVal(StrBody* body);		// New reference to same string body; used for static strings
-	static const StrVal	null;
 
 	CharBytes	numBytes() const { return nthChar(num_chars)-nthChar(0); }
 	CharNum		length() const { return num_chars; }	// Number of chars

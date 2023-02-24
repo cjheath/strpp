@@ -39,21 +39,6 @@ StrVal::StrVal(const StrVal& s1)
 {
 }
 
-// A new reference to the same StrBody
-StrVal::StrVal(StrBody* s1)
-: body(s1)
-, offset(0)
-, num_chars(s1->numChars())
-{
-}
-
-StrVal::StrVal(StrBody* s1, CharNum offs, CharNum len)
-: body(s1)
-, offset(offs)
-, num_chars(len)
-{
-}
-
 // Assignment operator
 StrVal& StrVal::operator=(const StrVal& s1)
 {
@@ -63,7 +48,7 @@ StrVal& StrVal::operator=(const StrVal& s1)
 	return *this;
 }
 
-// Null-terminated UTF8 data
+// construct by copying NUL-terminated UTF8 data
 // Don't allocate a new StrBody for an empty string
 StrVal::StrVal(const UTF8* data)
 : body(data == 0 || data[0] == '\0' ? &StrBody::nullBody : new StrBody(data, true, strlen((const char*)data)))
@@ -72,7 +57,7 @@ StrVal::StrVal(const UTF8* data)
 {
 }
 
-// Length-terminated UTF8 data
+// construct from length-terminated UTF8 data
 StrVal::StrVal(const UTF8* data, CharBytes length, size_t allocate)
 : body(0)
 , offset(0)
@@ -85,7 +70,7 @@ StrVal::StrVal(const UTF8* data, CharBytes length, size_t allocate)
 	num_chars = body->numChars();
 }
 
-// Single-character string
+// construct from single-character string
 StrVal::StrVal(UCS4 character)
 : body(0)
 , offset(0)
@@ -97,6 +82,21 @@ StrVal::StrVal(UCS4 character)
 	*op = '\0';
 	body = new StrBody(one_char, true, op-one_char, 1);
 	num_chars = 1;
+}
+
+// A new reference to the same StrBody; used for static strings
+StrVal::StrVal(StrBody* s1)
+: body(s1)
+, offset(0)
+, num_chars(s1->numChars())
+{
+}
+
+StrVal::StrVal(StrBody* s1, CharNum offs, CharNum len)
+: body(s1)
+, offset(offs)
+, num_chars(len)
+{
 }
 
 // Get our own copy of StrBody that we can safely mutate
@@ -619,8 +619,8 @@ StrVal::nthChar(CharNum char_num) const
 {
 	if (char_num < 0 || char_num > num_chars)
 		return 0;
-	Bookmark	useless;
-	return body->nthChar(offset+char_num, useless);
+	Bookmark	unsaved = mark;
+	return body->nthChar(offset+char_num, unsaved);
 }
 
 bool
@@ -712,7 +712,7 @@ StrBody::countChars()
 		num_chars++;
 	}
 	if (op < cp)
-	{			// We were rewriting, or there was a coding eror, so we now have fewer bytes
+	{			// We were rewriting, or there was a coding error, so we now have fewer bytes
 		num_bytes = op-start;
 		if (num_alloc > 0)
 			*op = '\0';
