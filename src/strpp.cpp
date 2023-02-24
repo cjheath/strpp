@@ -122,8 +122,12 @@ StrVal::Unshare()
 UCS4
 StrVal::operator[](int charNum) const
 {
+	if (charNum == num_chars)
+		return '\0';
 	const UTF8*	cp = nthChar(charNum);
-	return cp ? UTF8Get(cp) : UCS4_NONE;
+	if (!cp)
+		return UCS4_NONE;
+	return UTF8Get(cp);
 }
 
 const UTF8*
