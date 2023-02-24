@@ -71,13 +71,17 @@ inline bool	isspace(UCS4 c) { return UCS4IsWhite(c); }
 inline bool
 UTF8Is1st(UTF8 ch)
 {
-	return (ch & 0xC0) != 0x80;
+	return (ch & 0xC0) != 0x80;	// A non-1st byte is always 0b10xx_xxxx
 }
 
 // Get length of UTF8 from UCS4
 inline int
 UTF8Len(UCS4 ch)
 {
+#if defined(UTF8_SIX_BYTE)	// We don't support six-byte UTF-8 by default, for efficiency reasons
+	if (ch < 0)
+		return 6;
+#endif
 	if (ch <= 0x0000007F)	// 7 bits:
 		return 1;	// ASCII
 	if (ch <= 0x000007FF)	// 11 bits:
@@ -87,14 +91,13 @@ UTF8Len(UCS4 ch)
 	if (ch <= 0x001FFFFF)	// 21 bits
 		return 4;	// four bytes
 	assert(ch <= 0x03FFFFFF);
-#if defined(UTF8_SIX_BYTE)	// We don't support six-byte UTF-8 by defined, for efficiency reasons
+#if defined(UTF8_SIX_BYTE)	// We don't support six-byte UTF-8 by default, for efficiency reasons
 	if (ch <= 0x03FFFFFF)	// 26 bits
 		return 5;	// five bytes
-	if (ch <= 0x7FFFFFFF)	// 31 bits
-		return 6;	// six bytes
-	assert(ch <= 0x7FFFFFFF); // max UTF-8 value
-#endif
+	return 6;		// six bytes
+#else
 	return 0;		// safety.
+#endif
 }
 
 inline UCS4
@@ -106,14 +109,15 @@ UTF8Get(const UTF8*& cp)
 	{
 	case 0x00: case 0x10: case 0x20: case 0x30:
 	case 0x40: case 0x50: case 0x60: case 0x70:	// One UTF8 byte
-		ch = *cp++ & 0xFF;
+		ch = *cp++ & 0xFF;			// Use all 7 bits
 		break;
 
 	case 0x80: case 0x90: case 0xA0: case 0xB0:	// Illegal, not first byte
+		// assert(UTF8Is1st(cp[0]));		// always assert
 		break;
 
 	case 0xC0: case 0xD0:				// Two UTF8 bytes
-		assert(!UTF8Is1st(cp[1]));
+		// assert(!UTF8Is1st(cp[1]));
 		if (UTF8Is1st(cp[1]))
 			break;
 		ch = ((UCS4)(cp[0]&0x1F)<<6) | (cp[1]&0x3F);
@@ -121,7 +125,7 @@ UTF8Get(const UTF8*& cp)
 		break;
 
 	case 0xE0:					// Three UTF8 bytes
-		assert(!UTF8Is1st(cp[1]) && !UTF8Is1st(cp[2]));
+		// assert(!UTF8Is1st(cp[1]) && !UTF8Is1st(cp[2]));
 		if (UTF8Is1st(cp[1]) || UTF8Is1st(cp[2]))
 			break;
 		ch = ((UCS4)(cp[0]&0xF)<<12)
@@ -131,10 +135,10 @@ UTF8Get(const UTF8*& cp)
 		break;
 
 	case 0xF0:					// Four UTF8 bytes
-		assert(!UTF8Is1st(cp[1]) && !UTF8Is1st(cp[2]) && !UTF8Is1st(cp[3]));
+		// assert(!UTF8Is1st(cp[1]) && !UTF8Is1st(cp[2]) && !UTF8Is1st(cp[3]));
 		if (UTF8Is1st(cp[1]) || UTF8Is1st(cp[2]) || UTF8Is1st(cp[3]))
 			break;
-		if ((cp[0] & 0x0C) == 0)
+		if ((cp[0] & 0x08) == 0)
 		{
 			ch = ((UCS4)(cp[0]&0x7)<<18)
 				| ((UCS4)(cp[1]&0x3F)<<12)
@@ -144,10 +148,10 @@ UTF8Get(const UTF8*& cp)
 			break;
 		}
 #if defined(UTF8_SIX_BYTE)	// We don't support six-byte UTF-8 by default, for efficiency reasons
-		assert(!UTF8Is1st(cp[4]));
+		// assert(!UTF8Is1st(cp[4]));
 		if (UTF8Is1st(cp[4]))
 			break;
-		if ((*cp&0x0C) == 0x80)
+		if ((*cp&0x0C) == 0x08)			// 0b1111_10xx
 		{					// Five UTF8 bytes
 			ch = ((UCS4)(cp[0]&0x3)<<24)
 				| ((UCS4)(cp[1]&0x7)<<18)
@@ -157,11 +161,11 @@ UTF8Get(const UTF8*& cp)
 			cp += 5;
 		}
 		else
-		{					// Six UTF8 bytes
-			assert(!UTF8Is1st(cp[5]));
-			if (UTF8Is1st(cp[5]))
+		{					// 0b1111_11xx
+			// assert(!UTF8Is1st(cp[5]));
+			if (UTF8Is1st(cp[5]))		// Six UTF8 bytes
 				break;
-			ch = ((UCS4)(cp[0]&0x1)<<30)
+			ch = ((UCS4)(cp[0]&0x3)<<30)
 				| ((UCS4)(cp[1]&0x3)<<24)
 				| ((UCS4)(cp[2]&0x7)<<18)
 				| ((UCS4)(cp[3]&0x3F)<<12)
@@ -200,16 +204,16 @@ UTF8Len(const UTF8* cp)
 	case 0xF0:					// Four UTF8 bytes
 		if (UTF8Is1st(cp[1]) || UTF8Is1st(cp[2]) || UTF8Is1st(cp[3]))
 			goto illegal_utf8;		// Illegal trailing UTF-8 byte after 4-byte prefix
-		if ((cp[0] & 0x0C) == 0)
+		if ((cp[0] & 0x08) == 0)
 			return 4;
 #if defined(UTF8_SIX_BYTE)	// We don't support six-byte UTF-8 by default, for efficiency reasons
 		if (UTF8Is1st(cp[4]))
 			goto illegal_utf8;		// Illegal trailing UTF-8 byte after 5-byte prefix
-		if ((*cp&0x0C) == 0x80)
+		if ((*cp&0x0C) == 0x08)			// 0b1111_10xx
 		{					// Five UTF8 bytes
 			return 5;
 		}
-		else
+		else					// 0b1111_11xx
 		{					// Six UTF8 bytes
 			if (UTF8Is1st(cp[5]))
 				goto illegal_utf8;	// Illegal trailing UTF-8 byte after 6-byte prefix
@@ -309,8 +313,8 @@ UTF8Put(UTF8*& cp, UCS4 ch)
 		*cp++ = 0x80 | (UTF8)((ch >>  0) & 0x3F);
 		return;
 
-	case 6:		// 1 data bit in 1st byte, 6 in each of 5 more
-		*cp++ = 0xFC | (UTF8)((ch >> 30) & 0x01);
+	case 6:		// 2 data bits in 1st byte, 6 in each of 5 more
+		*cp++ = 0xFC | (UTF8)((ch >> 30) & 0x03);
 		*cp++ = 0x80 | (UTF8)((ch >> 24) & 0x3F);
 		*cp++ = 0x80 | (UTF8)((ch >> 18) & 0x3F);
 		*cp++ = 0x80 | (UTF8)((ch >> 12) & 0x3F);
