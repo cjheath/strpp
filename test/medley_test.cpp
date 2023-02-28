@@ -65,7 +65,7 @@ void tests()
 	printf("multilingual = %s\n", multilingual.asUTF8());
 
 	// Test the single-character constructor:
-	StrVal	each((UCS4)0x4E2A);
+	StrVal	each((UCS4)0x4E2A);		// 个 is Mandarin quantifier, more-or-less "each"
 	printf("each = %s, length: %d chars, utf8: %d bytes\n", each.asUTF8(), each.length(), each.numBytes());
 
 	// Test UTF8 compaction.

@@ -214,8 +214,7 @@ public:
 	Array&		operator+=(const Element& addend)
 			{
 				Unshare(1);
-				Body	b(&addend, false, 1, 0);	// No-copy temporary wrapper around the addend
-				body->insert(num_elements, Array(&b));
+				body->insert(num_elements, &addend, 1);
 				num_elements++;
 				return *this;
 			}
@@ -253,11 +252,11 @@ public:
 				}
 
 				Unshare(addend.length());
-				body->insert(pos, addend);
+				body->insert(pos, addend.asElements(), addend.length());
 				num_elements += addend.length();
 			}
 	void		append(const Array& addend)
-			{ insert(num_elements, addend); }
+			{ insert(num_elements, addend.asElements(), addend.length()); }
 	void		reverse()
 			{
 				Unshare();
@@ -484,17 +483,17 @@ public:
 	const Element*	end() const { return start+num_elements; }		// ptr to the trailing NUL (if any)
 
 	// Mutating methods. Must only be called when refcount <= 1 (i.e., unshared)
-	void		insert(Index pos, const A& addend)	// Insert a substring
+	void		insert(Index pos, const Element* elements, Index num)	// Insert a subarray
 			{
 				assert(ref_count <= 1);
-				resize(num_elements + addend.length());
+				resize(num_elements + num);
 
 				if (num_elements > pos)		// Move data up
-					for (Index i = num_elements+pos-1; i >= pos+addend.length(); i--)
-						start[i] = start[i-addend.length()];
-				for (Index i = 0; i < addend.length(); i++)
-					start[pos+i] = addend.asElements()[i];
-				num_elements += addend.length();
+					for (Index i = num_elements+pos-1; i >= pos+num; i--)
+						start[i] = start[i-num];
+				for (Index i = 0; i < num; i++)
+					start[pos+i] = elements[i];
+				num_elements += num;
 			}
 	void		remove(Index at, int len = -1)		// Delete a subslice from the middle
 			{
