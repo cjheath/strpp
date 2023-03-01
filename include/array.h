@@ -224,6 +224,8 @@ public:
 			{ return *this += addend; }
 	Element		pull()
 			{ assert(num_elements > 0); return this->operator[](--num_elements); }
+	Element		last()
+			{ assert(num_elements > 0); return this->operator[](num_elements-1); }
 	Element		shift()
 			{ assert(num_elements > 0); return delete_at(0); }
 	void		unshift(const Element& e)
@@ -489,10 +491,11 @@ public:
 				resize(num_elements + num);
 
 				if (num_elements > pos)		// Move data up
-					for (Index i = num_elements+pos-1; i >= pos+num; i--)
-						start[i] = start[i-num];
-				for (Index i = 0; i < num; i++)
-					start[pos+i] = elements[i];
+					for (Index i = num_elements+pos; i && i > pos+num; --i)
+						start[i-1] = start[i-1-num];
+				if (num > 0)
+					for (Index i = 0; i < num; i++)
+						start[pos+i] = elements[i];
 				num_elements += num;
 			}
 	void		remove(Index at, int len = -1)		// Delete a subslice from the middle
