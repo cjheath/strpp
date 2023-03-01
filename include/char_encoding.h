@@ -127,16 +127,18 @@ UTF8Len(UCS4 ch)
 		return 3;	// three bytes
 	if (ch <= 0x001FFFFF)	// 21 bits
 		return 4;	// four bytes
-	assert(ch <= 0x03FFFFFF);
 #if UTF8_SIX_BYTE == 1
 #if UTF8_ILLEGAL == 1
 	if (UCS4IsIllegal(ch))
 		return 1;
+#else
+	assert(ch <= 0x03FFFFFF);
 #endif
 	if (ch <= 0x03FFFFFF)	// 26 bits
 		return 5;	// five bytes
 	return 6;		// six bytes
 #else
+	assert(ch <= 0x03FFFFFF);
 	return 0;		// safety.
 #endif
 }
