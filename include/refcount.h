@@ -5,7 +5,9 @@
  *
  * (c) Copyright Clifford Heath 2022. See LICENSE file for usage rights.
  */
+#include	<assert.h>
 #include	<atomic>
+
 class	RefCounted
 {
 public:
