@@ -64,7 +64,7 @@ public:
 	~StrBodyI()	{}
 	StrBodyI()	: num_chars(0) {}
 	StrBodyI(const char* data, bool copy, Index length, Index allocate = 0)
-			: Body(data, copy, length == 0 ? strlen(data)+1 : length, allocate), num_chars(0)
+			: Body(data, copy, (length == 0 ? strlen(data) : length)+1, allocate), num_chars(0)
 			{
 				if (copy)
 					start[length] = '\0';
@@ -182,7 +182,7 @@ public:
 						*op = '\0';
 
 						// Assign this to the body in our closure
-						temp_body = StrBodyI(one_char, false, op-one_char+1, 1);
+						temp_body = StrBodyI(one_char, false, op-one_char+1);
 						return Val(&temp_body);
 					}
 				);
@@ -278,7 +278,7 @@ public:
 			, mark()
 			{
 				if (allocate <= length)
-					allocate = length+1;
+					allocate = 0;
 				body = new Body(data, true, length+1, allocate);
 				num_chars = body->numChars();
 			}
@@ -289,7 +289,7 @@ public:
 				UTF8*	op = one_char;		// Pack it into our local buffer
 				UTF8Put(op, character);
 				*op = '\0';
-				body = new Body(one_char, true, op-one_char+1, 0);
+				body = new Body(one_char, true, op-one_char+1);
 				num_chars = 1;
 			}
 	StrValI(Body* s1)		// New reference to same string body; used for static strings
@@ -419,7 +419,7 @@ public:
 			}
 	int		rfind(UCS4 ch, int before = -1) const
 			{
-				Index		n = before == -1 ? num_chars-1 : before-1;		// First Index we'll look at
+				Index		n = (before == -1 ? num_chars : before)-1;		// First Index we'll look at
 				const UTF8*	bp;
 				while ((bp = nthChar(n)) != 0)
 				{
@@ -520,7 +520,7 @@ public:
 			}
 	int		rfindNot(const StrValI& s1, int before = -1) const
 			{
-				Index		n = before == -1 ? num_chars-1 : before-1;	// First Index we'll look at
+				Index		n = (before == -1 ? num_chars : before)-1;	// First Index we'll look at
 				const UTF8*	s1start = s1.nthChar(0);
 				const UTF8*	ep = s1.nthChar(s1.length());	// Byte after the last char in s1
 				const UTF8*	bp;
@@ -685,7 +685,7 @@ private:
 				const UTF8*	ep = nthChar(num_chars);	// end of this substring
 				Index		prefix_bytes = cp - body->startChar(); // How many leading bytes of the body we are eliding
 
-				body = new Body(cp, true, ep-cp+1, 0);
+				body = new Body(cp, true, ep-cp+1);
 				mark.char_num = savemark.char_num - offset;	// Restore the bookmark
 				mark.byte_num = savemark.byte_num - prefix_bytes;
 				offset = 0;
@@ -755,7 +755,7 @@ void StrBodyI<Index>::transform(const std::function<Val(const UTF8*& cp, const U
 	num_chars = 0;
 	num_elements = 0;
 	num_alloc = 0;
-	ArrayBody<char, Index>::resize(old_num_elements+6+1);		// Start with same allocation plus one character space and NUL
+	ArrayBody<char, Index>::resize(old_num_elements+6);		// Start with same allocation plus one character space
 
 	const UTF8*	up = old_start;		// Input pointer
 	const UTF8*	ep = old_start+old_num_elements;	// Termination guard
