@@ -85,6 +85,7 @@ public:
 	NulGuardedCharPtr	operator++(int)	{ return postincr(); }
 	NulGuardedCharPtr&	operator++()	{ return preincr(); }
 	long			operator-(NulGuardedCharPtr s)	{ return data-s.data; }
+	long			operator-(const char* s)	{ return data-s; }
 };
 
 class	GuardedCharPtr
