@@ -33,6 +33,8 @@
 #include <winerror.h>
 #endif  /* MSW */
 
+#include	<refcount.h>
+
 class ErrNum
 {
 public:
@@ -52,6 +54,11 @@ public:
 			{ return (errnum >> 14) & 0xFFFF; }
 	int		msg() const
 			{ return errnum & 0x3FFF; }
+	operator int32_t() { return errnum; }
+	bool		operator==(ErrNum x) const
+			{ return errnum == x.errnum; }
+	bool		operator!=(ErrNum x) const
+			{ return errnum != x.errnum; }
 	bool		operator==(int x) const
 			{ return errnum == x; }
 	bool		operator<(int x) const
@@ -66,32 +73,51 @@ private:
 
 #define	ERRNUM(set, msg)	((int32_t)(0xC000000 | (((set) & 0xFFFF) << 12) | ((msg) & 0xFFF)))
 
+
 /*
  * A returned error has an ErrNum, the default text, and a parameter list.
- * This class has a stub implementation of parameter lists
+ * The data is returned by referencem
+ * REVISIT: This class has a stub implementation of parameter lists
  */
 class	Error
 {
+	class Body;
 public:
 	Error()
-			: num(0), params(0) {}
+			: body(0) {}
 	Error(int32_t setmsg, const char* d = 0, const void* p = 0)
-			: num(setmsg), def_text(d), params(p) {}
+			: body(new Body(setmsg, d, p)) {}	// REVISIT: Use a special allocator
 	Error&		operator=(const Error& e)
-			{ num = e.num; def_text = e.def_text; params = e.params; return *this; }
+			{ body = e.body;  return *this; }
 	Error(const Error& e)
-			: num(e.num), def_text(e.def_text), params(e.params) {}
-	operator int32_t() const
-			{ return num; }
-	const void*	parameters() const
-			{ return params; }
+			: body(e.body) {}
+	operator ErrNum() const
+			{ return body ? body->error_num() : ErrNum(0); }
 	const char*	default_text() const
-			{ return def_text; }
+			{ return body ? body->default_text() : 0; }
+	const void*	parameters() const
+			{ return body ? body->parameters() : 0; }
+	operator int32_t() { return body && body->error_num(); }
 
 private:
-	ErrNum		num;
-	const char*	def_text;
-	const void*	params;			// Placeholder for proper implementation
+	Ref<Body>	body;
+
+	class Body
+	: public RefCounted
+	{
+	public:
+		Body(ErrNum n, const char* d, const void* p)
+		: num(n), def_text(d), params(p)
+		{}
+		ErrNum		error_num() const { return num; }
+		const char*	default_text() const { return def_text; }
+		const void*	parameters() const { return params; }
+
+	protected:
+		ErrNum		num;
+		const char*	def_text;
+		const void*	params;			// Placeholder for proper implementation
+	};
 };
 
 #endif

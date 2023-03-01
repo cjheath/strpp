@@ -28,11 +28,11 @@
 typedef typename std::conditional<(StrValIndexBits <= 16), uint16_t, uint32_t>::type StrValIndex;
 
 #define	STRERR_SET		1	// Message set number for StrVal
-#define	STRERR_TRAIL_TEXT	1	// There are non-blank characters after the number
-#define	STRERR_NO_DIGITS	2	// Number string contains only blank characters
-#define	STRERR_NUMBER_OVERFLOW	3	// The number doesn't fit in the requested type
-#define	STRERR_NOT_NUMBER	4	// The first non-blank character was non-numeric
-#define	STRERR_ILLEGAL_RADIX	5	// Use of an unsupported radix
+#define	STRERR_TRAIL_TEXT	ErrNum(STRERR_SET, 1)	// There are non-blank characters after the number
+#define	STRERR_NO_DIGITS	ErrNum(STRERR_SET, 2)	// Number string contains only blank characters
+#define	STRERR_NUMBER_OVERFLOW	ErrNum(STRERR_SET, 3)	// The number doesn't fit in the requested type
+#define	STRERR_NOT_NUMBER	ErrNum(STRERR_SET, 4)	// The first non-blank character was non-numeric
+#define	STRERR_ILLEGAL_RADIX	ErrNum(STRERR_SET, 5)	// Use of an unsupported radix
 
 template<typename Index = StrValIndex> class StrValI;
 template<typename Index = StrValIndex> struct StrBookmark
