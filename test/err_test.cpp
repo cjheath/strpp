@@ -7,7 +7,7 @@
 #include	<stdio.h>
 
 /* Example of what the error catalog compiler might put into a generated include file */
-#define	ERRNUM_Something	ERRNUM(2,20)
+#define	ERRNUM_Something	ErrNum(2,20)
 #define	ERRPARMS_Something	ERRNUM_Something, "Bugger: %s"	// No parentheses!
 #define	ERR_Something(...)	Error(ERRNUM_Something, "Bugger: %s", ##__VA_ARGS__)
 
@@ -28,8 +28,6 @@ fail()
 int
 main(int argc, const char** argv)
 {
-	ErrNum	s(ERRNUM_Something);
-
 	Error	e = fail();
 	if (e == ERRNUM_Something)
 		printf("Integer comparison succeeded\n");

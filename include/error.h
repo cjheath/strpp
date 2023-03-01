@@ -41,20 +41,20 @@ public:
 	static const int32_t	ERR_FLAG = 0x8000000;	// Sign bit is used to indicate an error, allowing quick checks
 	static const int32_t	ERR_CUST = 0x4000000;	// Including this bit guarantees no collision with Microsoft subsystem codes
 
-	ErrNum(int set, int msg)
+	constexpr ErrNum()
+			: errnum(0) {}
+	constexpr ErrNum(int set, int msg)
 			: errnum(ERR_FLAG | ERR_CUST | ((set & 0xFFFF) << 14) | (msg & 0x3FFF)) {}
-	ErrNum(int32_t setmsg)
-			: errnum(setmsg) { if (errnum) errnum |= (ERR_FLAG | ERR_CUST); }
-	~ErrNum() {}
+	constexpr ErrNum(int32_t setmsg)
+			: errnum(setmsg | ERR_FLAG | ERR_CUST) {}
 	ErrNum(const ErrNum& c)
 			: errnum(c.errnum) {}
 	ErrNum		operator=(const ErrNum& c)
 			{ errnum = c.errnum; return *this; }
-	int		set() const
+	constexpr int	set() const
 			{ return (errnum >> 14) & 0xFFFF; }
-	int		msg() const
+	constexpr int	msg() const
 			{ return errnum & 0x3FFF; }
-	operator int32_t() { return errnum; }
 	bool		operator==(ErrNum x) const
 			{ return errnum == x.errnum; }
 	bool		operator!=(ErrNum x) const
@@ -65,14 +65,11 @@ public:
 			{ return errnum < x; }
 	bool		operator>(int x) const
 			{ return errnum > x; }
-	operator int32_t() const		// Allows use in switch statements
+	constexpr operator int32_t() const		// Allows use in switch statements
 			{ return errnum; }
 private:
 	int32_t		errnum;
 };
-
-#define	ERRNUM(set, msg)	((int32_t)(0xC000000 | (((set) & 0xFFFF) << 12) | ((msg) & 0xFFF)))
-
 
 /*
  * A returned error has an ErrNum, the default text, and a parameter list.
@@ -97,7 +94,7 @@ public:
 			{ return body ? body->default_text() : 0; }
 	const void*	parameters() const
 			{ return body ? body->parameters() : 0; }
-	operator int32_t() { return body && body->error_num(); }
+	operator int32_t() const { return body ? (int32_t)body->error_num() : 0; }
 
 private:
 	Ref<Body>	body;
