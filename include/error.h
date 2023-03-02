@@ -45,8 +45,8 @@ public:
 			: errnum(0) {}
 	constexpr ErrNum(int set, int msg)
 			: errnum(ERR_FLAG | ERR_CUST | ((set & 0xFFFF) << 14) | (msg & 0x3FFF)) {}
-	constexpr ErrNum(int32_t setmsg)
-			: errnum(setmsg | ERR_FLAG | ERR_CUST) {}
+	ErrNum(int32_t setmsg)
+			: errnum(setmsg ? setmsg | ERR_FLAG | ERR_CUST : 0) {}
 	ErrNum(const ErrNum& c)
 			: errnum(c.errnum) {}
 	ErrNum		operator=(const ErrNum& c)
