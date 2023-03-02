@@ -9,7 +9,7 @@
 #define		protected	public
 #define		private		public
 
-#include        "strpp.h"
+#include        <strval.h>
 
 int main()
 {

@@ -78,6 +78,7 @@ private:
  */
 class	Error
 {
+private:
 	class Body;
 public:
 	Error()

@@ -4,7 +4,7 @@
  *
  * (c) Copyright Clifford Heath 2022. See LICENSE file for usage rights.
  */
-#include	"strpp.h"
+#include	<strval.h>
 
 #include	<string.h>
 #include	<stdio.h>
@@ -16,8 +16,8 @@ int main(int argc, const char** argv)
 {
 	start_recording_allocations();
 	tests();
-	if (unfreed_allocation_count() > 0)	// No allocation should remain unfreed
-		report_allocations();
+	if (allocation_growth_count() > 0)	// No allocation should remain unfreed
+		report_allocation_growth();
 	return 0;
 }
 

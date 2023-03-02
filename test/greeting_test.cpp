@@ -4,7 +4,7 @@
  * (c) Copyright Clifford Heath 2022. See LICENSE file for usage rights.
  */
 #include        <stdio.h>
-#include        "strpp.h"
+#include        <strval.h>
 
 void greet(StrVal greeting)
 {       
@@ -13,6 +13,7 @@ void greet(StrVal greeting)
 
 	greeting.toUpper();
 	fputs(greeting.asUTF8(), stdout);
+	printf("\n");
 }
 
 int main()

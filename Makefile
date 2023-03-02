@@ -5,7 +5,7 @@
 CXX	=	g++
 CXXFLAGS =	-std=c++11
 
-DEBUG	=	-Os $(COPT)	# -DSTRVAL_65K
+DEBUG	=	-Os $(COPT)
 # DEBUG	=	-g $(COPT)
 # DEBUG	=	-g -DTRACK_RESULTS $(COPT)
 
@@ -19,28 +19,28 @@ HDRS	=	\
 		peg.h			\
 		pegexp.h		\
 		refcount.h		\
-		strpp.h 		\
+		strval.h		\
 		strregex.h
 
 SRCS	=	\
 		char_encoding.cpp	\
 		rxcompile.cpp		\
 		rxdump.cpp		\
-		rxmatch.cpp		\
-		strpp.cpp		
+		rxmatch.cpp
 
 LIB	=	libstrpp.a
 TESTS	=	\
 		array_test		\
 		err_test		\
+		greeting_test		\
+		medley_test		\
 		peg_test		\
 		pegexp_test		\
+		reassembly_test		\
 		rxcompile_test		\
 		rxmatch_test		\
+		strval_test		\
 		utf8pointer_test
-#		greeting_test
-#		medley_test
-#		reassembly_test
 
 OBJS	=	$(patsubst %,build/%,$(SRCS:.cpp=.o))
 
@@ -77,7 +77,7 @@ run_pegexp_size_test:
 	@size pegexp_size_test.o
 	@rm pegexp_size_test.o
 
-%:	%.cpp $(LIB)
+%:	%.cpp $(LIB) test/memory_monitor.cpp
 	$(CXX) $(DEBUG) $(CXXFLAGS) -Iinclude -Itest -o $@ $< test/memory_monitor.cpp $(LIB)
 
 build/%.o:	%.cpp $(HDRS) Makefile

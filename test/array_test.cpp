@@ -5,7 +5,7 @@
  */
 
 #include	<array.h>
-#include	<strpp.h>
+#include	<strval.h>
 #include	<stdio.h>
 #include	<string.h>
 

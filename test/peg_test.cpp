@@ -13,7 +13,7 @@
 #include	<fcntl.h>
 
 #include	<refcount.h>
-#include	<strpp.h>
+#include	<strval.h>
 
 #if	defined(PEG_UNICODE)
 using	PegChar = UCS4;
