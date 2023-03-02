@@ -14,7 +14,7 @@
 #define	TRACK(arglist)	
 #endif
 
-#define	NORESULT	((CharNum)~0)
+#define	NORESULT	((StrValIndex)~0)
 
 /*
  * To make it easy to pass around and modify capture sets, we use a reference counted body.
@@ -38,14 +38,14 @@ public:
 
 	int		counterNum() const { return counters_used/2; }
 	int		counterGet(int i) const { return reserved() ? values[counterBase()+counters_used - i*2 - 1] : 0; }
-	void		counterPushZero(CharNum offset);
-	CharNum		counterIncr(CharNum offset);
+	void		counterPushZero(StrValIndex offset);
+	StrValIndex 	counterIncr(StrValIndex offset);
 	void		counterPop();
 	const RxResult::Counter	counterTop();
 
 	int		captureMax() const;
-	CharNum		capture(int index);
-	CharNum		captureSet(int index, CharNum val);
+	StrValIndex 	capture(int index);
+	StrValIndex 	captureSet(int index, StrValIndex val);
 
 	// REVISIT: Add an RxCaptures array if needed for function call results
 
@@ -58,7 +58,7 @@ private:
 	short		capture_max;	// Each capture has a start and an end, so we allocate double
 	unsigned char	counter_max;	// Each counter has a text offset and the counter value
 	unsigned char	counters_used;	// No more than RxMaxNesting counters can be needed
-	std::vector<CharNum>	values;	// captures and counters stored in the same array
+	std::vector<StrValIndex>	values;	// captures and counters stored in the same array
 };
 
 class RxMatch
@@ -81,7 +81,7 @@ public:
 	RxMatch(const RxMatch& _tocopy);
 	~RxMatch();
 
-	const RxResult	matchAt(RxStationID start, CharNum& offset);
+	const RxResult	matchAt(RxStationID start, StrValIndex& offset);
 
 private:
 	const RxProgram& program;		// The NFA to execute
@@ -93,7 +93,7 @@ private:
 	RxStationID	current_count;		// How many of the above are populated
 	Thread*		next_threads;		// The threads that lead on from here
 	RxStationID	next_count;		// How many of the above are populated
-	void		addthread(Thread thread, CharNum offset, CharNum *shunts, CharNum num_shunt, CharNum max_duplicates_allowed = 0);
+	void		addthread(Thread thread, StrValIndex offset, StrValIndex *shunts, StrValIndex num_shunt, StrValIndex max_duplicates_allowed = 0);
 };
 
 static int32_t zagzig(int32_t i)
@@ -121,7 +121,7 @@ RxProgram::RxProgram(const char* _nfa, bool take_ownership)
 	int	num_names = (*nfa_p++ & 0xFF)-1;
 	for (int i = 0; i < num_names; i++)
 	{
-		CharBytes	byte_count = UTF8Get(nfa_p);
+		StrValIndex	byte_count = UTF8Get(nfa_p);
 		names.push_back(StrVal(nfa_p, byte_count));
 		nfa_p += byte_count;
 	}
@@ -144,7 +144,7 @@ RxProgram::group_name(int group_number) const
 }
 
 const RxResult
-RxProgram::matchAfter(StrVal target, CharNum offset) const
+RxProgram::matchAfter(StrVal target, StrValIndex offset) const
 {
 	RxMatch		match(*this, target);
 	RxResult	result = match.matchAt(searchStation(), offset);
@@ -152,7 +152,7 @@ RxProgram::matchAfter(StrVal target, CharNum offset) const
 }
 
 const RxResult
-RxProgram::matchAt(StrVal target, CharNum offset) const
+RxProgram::matchAt(StrVal target, StrValIndex offset) const
 {
 	RxMatch		match(*this, target);
 	RxResult	result = match.matchAt(startStation(), offset);
@@ -169,7 +169,7 @@ struct RxDecoded
 	union {
 		UCS4		character;	// RxoChar
 		struct {			// RxoCharClass, RxoNegCharClass, RxoCharProperty
-			CharBytes	bytes;
+			StrValIndex	bytes;
 			const UTF8*	utf8;
 		} text;
 		RxStationID	alternate;	// RxoSplit, RxoCount
@@ -304,7 +304,7 @@ int	RxMatch::Thread::next_thread = 0;	// Sequential thread numbering to aid in d
 #endif
 
 void
-RxMatch::addthread(Thread thread, CharNum offset, CharNum* shunts, CharNum num_shunt, CharNum max_duplicates_allowed)
+RxMatch::addthread(Thread thread, StrValIndex offset, StrValIndex* shunts, StrValIndex num_shunt, StrValIndex max_duplicates_allowed)
 {
 	// Recursion control, prevents stack explosion on empty loops
 	for (int i = 0; i < num_shunt; i++)
@@ -473,11 +473,11 @@ next:
  * Populate the RxMatch where necessary.
  */
 const RxResult
-RxMatch::matchAt(RxStationID start, CharNum& offset)
+RxMatch::matchAt(RxStationID start, StrValIndex& offset)
 {
 	Thread*		thread_p;
 	RxDecoded	instr;
-	CharNum		shunts[RxMaxNesting];	// Controls recursion in addthread
+	StrValIndex 	shunts[RxMaxNesting];	// Controls recursion in addthread
 
 	// Start where directed, and step forward one character at a time, following all threads until successful or there are no threads left
 	next_count = 0;
@@ -541,7 +541,7 @@ RxMatch::matchAt(RxStationID start, CharNum& offset)
 				// Check that the next characters match these ones
 				StrBody		body(instr.text.utf8, false, instr.text.bytes);
 				StrVal		expected(&body);
-				CharNum		length = expected.length();	// Count the chars in the literal
+				StrValIndex 	length = expected.length();	// Count the chars in the literal
 				assert(length > 0);
 
 				bool		matches_class = false;
@@ -567,7 +567,7 @@ RxMatch::matchAt(RxStationID start, CharNum& offset)
 				// Check that the next characters match these ones
 				StrBody		body(instr.text.utf8, false, instr.text.bytes);
 				StrVal		expected(&body);
-				CharNum		length = expected.length();	// Count the chars in the literal
+				StrValIndex 	length = expected.length();	// Count the chars in the literal
 				assert(length > 0);
 
 				if (length == 1)
@@ -640,7 +640,7 @@ RxMatch::matchAt(RxStationID start, CharNum& offset)
 
 			case accepted:			// This thread has matched
 			{
-				CharNum	new_result_start = thread_p->result.offset();
+				StrValIndex new_result_start = thread_p->result.offset();
 				if (!result.succeeded()			// We don't have any result yet
 				 || new_result_start < result.offset()	// New result starts earlier
 				 || (offset-new_result_start > result.length()		// New result is longer
@@ -697,7 +697,7 @@ RxCaptures::RxCaptures(const RxCaptures& to_copy)
 }
 
 void
-RxCaptures::counterPushZero(CharNum offset)
+RxCaptures::counterPushZero(StrValIndex offset)
 {
 	reserve();
 	assert(counters_used < counter_max*2);
@@ -708,8 +708,8 @@ RxCaptures::counterPushZero(CharNum offset)
 	values.at(counterBase()+counters_used++) = 0;
 }
 
-CharNum
-RxCaptures::counterIncr(CharNum offset)
+StrValIndex
+RxCaptures::counterIncr(StrValIndex offset)
 {
 	reserve();
 	assert(counters_used > 0);
@@ -742,7 +742,7 @@ RxCaptures::captureMax() const
 	return capture_max;
 }
 
-CharNum
+StrValIndex
 RxCaptures::capture(int index)
 {
 	assert(!(index < 1 || index >= capture_max*2));		// REVISIT: Delete this when capture limiting is implemented
@@ -751,8 +751,8 @@ RxCaptures::capture(int index)
 	return values.at(index-2);
 }
 
-CharNum
-RxCaptures::captureSet(int index, CharNum val)
+StrValIndex
+RxCaptures::captureSet(int index, StrValIndex val)
 {
 	assert(!(index < 1 || index >= capture_max*2));		// REVISIT: Delete this when capture limiting is implemented
 	if (index < 2 || index >= capture_max*2)
@@ -823,7 +823,7 @@ RxResult::captureMax() const
 	return captures ? captures->captureMax() : 1;
 }
 
-CharNum
+StrValIndex
 RxResult::capture(int index) const
 {
 	if (index <= 1)
@@ -835,7 +835,7 @@ RxResult::capture(int index) const
 }
 
 RxResult&
-RxResult::captureSet(int index, CharNum val)
+RxResult::captureSet(int index, StrValIndex val)
 {
 	if (index <= 1)
 	{
@@ -875,15 +875,15 @@ RxResult::counterGet(int i) const	// get the nth top counter
 }
 
 void
-RxResult::counterPushZero(CharNum offset)	// Push a zero counter
+RxResult::counterPushZero(StrValIndex offset)	// Push a zero counter
 {
 	Unshare();
 	assert(captures);
 	captures->counterPushZero(offset);
 }
 
-CharNum
-RxResult::counterIncr(CharNum offset)	// Increment and return top counter of stack
+StrValIndex
+RxResult::counterIncr(StrValIndex offset)	// Increment and return top counter of stack
 {
 	Unshare();
 	assert(captures);

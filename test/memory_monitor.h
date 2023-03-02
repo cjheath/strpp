@@ -7,5 +7,5 @@
  */
 
 void	start_recording_allocations();
-void	report_allocations();
-int	unfreed_allocation_count();
+void	report_allocation_growth();
+int	allocation_growth_count();

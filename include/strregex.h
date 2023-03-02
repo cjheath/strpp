@@ -6,7 +6,7 @@
  *
  * (c) Copyright Clifford Heath 2022. See LICENSE file for usage rights.
  */
-#include	<strpp.h>
+#include	<strval.h>
 #include	<vector>
 
 /*
@@ -122,13 +122,13 @@ protected:
 	RxFeature	features_rejected;	// but these features cause an error if used
 	const char*	error_message;		// An error from compiling
 	int		error_offset;
-	CharBytes	nfa_size;		// Number of bytes allocated. It is likely that not all are used
+	StrValIndex	nfa_size;		// Number of bytes allocated. It is likely that not all are used
 
 	bool		supported(RxFeature);	// Set error message and return false on rejected feature use
 	bool		enabled(RxFeature) const; // Return true if the specified feature is enabled
 };
 
-typedef	CharNum	RxStationID;	// A station in the NFA (as a byte offset from the start)
+typedef	StrValIndex RxStationID;	// A station in the NFA (as a byte offset from the start)
 struct		RxDecoded;	// A decoded NFA instruction
 class		RxResult;	// The result of a regex match
 
@@ -143,8 +143,8 @@ public:
 	RxProgram(const char* nfa, bool take_ownership = false);
 
 	// REVISIT: Add option flags, like no-capture, case insensitive, etc?
-	const RxResult	matchAfter(StrVal target, CharNum offset = 0) const;
-	const RxResult	matchAt(StrVal target, CharNum offset = 0) const;
+	const RxResult	matchAfter(StrVal target, StrValIndex offset = 0) const;
+	const RxResult	matchAt(StrVal target, StrValIndex offset = 0) const;
 
 	RxStationID	startStation() const { return start_station; }
 	RxStationID	searchStation() const { return search_station; }
@@ -180,8 +180,8 @@ class RxResult
 {
 public:
 	struct	Counter {
-		CharNum		offset;		// The text offset at the start of the last repetition
-		CharNum		count;		// The number of repetitions seen so far
+		StrValIndex	offset;		// The text offset at the start of the last repetition
+		StrValIndex	count;		// The number of repetitions seen so far
 	};
 	~RxResult();
 	RxResult();				// Construct a non-Result (failure)
@@ -193,30 +193,30 @@ public:
 	bool		succeeded() const;
 	operator	bool() { return succeeded(); }
 
-	CharNum		offset() const { return cap0; }
-	CharNum		length() const { return succeeded() ? cap1-cap0 : 0; }
+	StrValIndex	offset() const { return cap0; }
+	StrValIndex	length() const { return succeeded() ? cap1-cap0 : 0; }
 
 	// Capture and counter access outside the 0..index range is ignored.
 	// This makes it possible to match a Regex without capturing all results.
 	// Even numbers are the capture start, odd numbers are the end
 	int		captureMax() const;
-	CharNum		capture(int index) const;
+	StrValIndex	capture(int index) const;
 
 	// Mutation API, used during matching
-	RxResult&	captureSet(int index, CharNum val);
+	RxResult&	captureSet(int index, StrValIndex val);
 	int		counterNum() const;	// How many counters are in use?
 	bool		hasCounter() const { return counterNum() > 0; }
 	bool		countersSame(RxResult& other) const;
 	int		counterGet(int = 0) const;		// get the nth top counter
-	void		counterPushZero(CharNum offset);	// Push a zero counter at this offset
-	CharNum		counterIncr(CharNum offset);		// Increment and return top counter of stack
+	void		counterPushZero(StrValIndex offset);	// Push a zero counter at this offset
+	StrValIndex	counterIncr(StrValIndex offset);	// Increment and return top counter of stack
 	void		counterPop();		// Discard the top counter of the stack
 	const Counter	counterTop();		// Top counter value, if any
 
         int		resultNumber() const;	// Only used for diagnostics
 
 private:
-	CharNum		cap0, cap1;		// Start and end of match
+	StrValIndex	cap0, cap1;		// Start and end of match
 	Ref<RxCaptures> captures;
 	void		Unshare();
 };

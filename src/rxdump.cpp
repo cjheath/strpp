@@ -32,7 +32,7 @@ RxCompiler::dumpInstruction(const char* nfa, const char*& np)	// Disassenble NFA
 {
 	int		num_names;
 	StrVal		name;
-	CharBytes	byte_count;		// Used for sizing string storage
+	StrValIndex	byte_count;		// Used for sizing string storage
 	int		offset_this;
 	int		offset_next;
 	int		offset_alternate;
@@ -53,9 +53,9 @@ RxCompiler::dumpInstruction(const char* nfa, const char*& np)	// Disassenble NFA
 
 	// Emit an offset, advancing np, and returning the number of UTF8 bytes emitted
 	auto	get_offset =
-		[&](const char*& np) -> CharBytes
+		[&](const char*& np) -> StrValIndex
 		{
-			return (CharBytes)zagzig(UTF8Get(np));
+			return (StrValIndex)zagzig(UTF8Get(np));
                 };
 
 	auto	get_name =
@@ -71,7 +71,7 @@ RxCompiler::dumpInstruction(const char* nfa, const char*& np)	// Disassenble NFA
 			int	num_names = (*nfa++ & 0xFF) - 1;
 			if (i <= 0 || i > num_names)
 				return "BAD NAME NUMBER";
-			CharBytes	byte_count;
+			StrValIndex	byte_count;
 			while (--i > 0)
 			{			// Skip the preceding names
 				byte_count = UTF8Get(nfa);
@@ -134,7 +134,7 @@ RxCompiler::dumpInstruction(const char* nfa, const char*& np)	// Disassenble NFA
 	{
 		const char*	cp = np;
 		ucs4char = UTF8Get(np);
-		printf("Char(%c %02X) %d='%.*s'\n", (char)op_num, op_num, ucs4char, (int)(np-cp), cp);
+		printf("Char(%c %02X) 0x%X='%.*s'\n", (char)op_num, op_num, ucs4char, (int)(np-cp), cp);
 	}
 		break;
 

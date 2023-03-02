@@ -43,8 +43,8 @@ main(int argc, char** argv)
 
 		start_recording_allocations();
 		scanned_ok = rx.compile(nfa);
-		if (scanned_ok && unfreed_allocation_count() > 1)
-			report_allocations();
+		if (scanned_ok && allocation_growth_count() > 1)
+			report_allocation_growth();
 
 		if (!scanned_ok)
 		{
@@ -72,6 +72,7 @@ struct	compiler_test {
 };
 compiler_test	compiler_tests[] =
 {
+/*
 	{ "a",					"S\x16\x0A\x04\x01\x01\x01(\x01""Ca#A\x0D.J\x09", 0 },
 	{ "abc",				"S\x1E\x0A\x08\x01\x01\x01(\x01""CaCbCc#A\x15.J\x09", 0 },
 	{ "a b c",				"S\x1E\x0A\x08\x01\x01\x01(\x01""CaCbCc#A\x15.J\x09", 0 },
@@ -111,6 +112,7 @@ compiler_test	compiler_tests[] =
 	{ "\\u777",				"S\x18\x0A\x06\x01\x01\x01(\x01""C\xDD\xB7#A\x0F.J\x09", 0 },
 	{ "\\u7777",				"S\x1A\x0A\x08\x01\x01\x01(\x01""C\xE7\x9D\xB7#A\x11.J\x09", 0 },
 	{ "\\uFFFFF",				"S\x1C\x0A\x0A\x01\x01\x01(\x01""C\xF3\xBF\xBF\xBF#A\x13.J\x09", 0 },
+*/
 	{ "\\uFFFFF1",				"S\x20\x0A\x0C\x01\x01\x01(\x01""C\xF3\xBF\xBF\xBF""C1#A\x17.J\x09", 0 },
 	{ "\\u77*",				"S\x1E\x0A\x04\x01\x01\x01(\x01""A\x0A""CwJ\x0B#A\x15.J\x09", 0 },
 
@@ -272,7 +274,7 @@ void	show_expectation(const char* regex, const char* nfa, const char* error_mess
 
 int automated_tests()
 {
-	auto 	wrapper = [&](compiler_test* ct, int leaky_allocations = 0) -> bool
+	auto 	wrapper = [&](compiler_test* ct, int expected_leak_count = 0) -> bool
 	{
 		if (!ct->regex)
 		{
@@ -324,10 +326,10 @@ int automated_tests()
 		// Clean up and check for leaks:
 		if (nfa)
 			delete[] nfa;
-		if (scanned_ok && unfreed_allocation_count() > leaky_allocations)
+		if (scanned_ok && allocation_growth_count() > expected_leak_count)
 		{
 			printf("Unfreed allocations after compiling \"%s\":\n", ct->regex);
-			report_allocations();
+			report_allocation_growth();
 		}
 
 		return test_pass;

@@ -295,7 +295,7 @@ escape(StrVal str)
 
 int automated_tests()
 {
-	auto 	wrapper = [&](matcher_test* test_case, int leaky_allocations = 0) -> bool
+	auto 	wrapper = [&](matcher_test* test_case, int expected_leak_count = 0) -> bool
 	{
 		if (!test_case->regex)
 		{
@@ -349,10 +349,10 @@ int automated_tests()
 				delete[] nfa;
 		}
 
-		if (scanned_ok && unfreed_allocation_count() > leaky_allocations)
+		if (scanned_ok && allocation_growth_count() > expected_leak_count)
 		{
 			printf("Unfreed allocations after matching \"%s\":\n", test_case->regex);
-			report_allocations();
+			report_allocation_growth();
 		}
 
 		return test_passed;

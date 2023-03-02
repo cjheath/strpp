@@ -95,8 +95,8 @@ bool RxCompiler::scanRegex(const std::function<bool(const RxToken& instr)> func)
 	UCS4		ch;		// A single character to match
 	StrVal		param;		// A string argument
 	int		close;		// String offset of the character ending a param
-	int		int_error = 0;
-	CharNum		scanned;
+	ErrNum		int_error;
+	StrValIndex 	scanned;
 	bool		ok = true;
 	int		min, max;
 	bool		char_class_negated;
@@ -476,9 +476,9 @@ RxCompiler::compile(char*& nfa)
 	struct Stack {
 		RxOp		op;
 		uint8_t		group_num;	// 0 = the whole NFA. 1 is the first named group
-		CharBytes	start;		// Index in NFA to group-start opcode (2nd pass) or boolean (1st pass)
-		CharBytes	contents;	// Index in NFA to the start of the group contents
-		CharBytes	last_jump;	// Index in NFA to the Jump at the end of the most recent alternate. Signals an alternate chain.
+		StrValIndex	start;		// Index in NFA to group-start opcode (2nd pass) or boolean (1st pass)
+		StrValIndex	contents;	// Index in NFA to the start of the group contents
+		StrValIndex	last_jump;	// Index in NFA to the Jump at the end of the most recent alternate. Signals an alternate chain.
 	} stack[RxMaxNesting];
 	int		nesting = 0;		// Stack pointer
 	auto		tos = [&]() -> Stack& { return stack[nesting-1]; };	// Top of stack is stack[nesting-1]
@@ -495,13 +495,13 @@ RxCompiler::compile(char*& nfa)
 	/*
 	 * In first pass, we must count how many offsets and how many other bytes are needed to store the NFA
 	 */
-	CharBytes	bytes_required = 0;	// Count how many bytes we will need
-	CharBytes	offsets_required = 0;	// Count how many UTF8-encoded offsets we will need (these may vary in size)
+	StrValIndex	bytes_required = 0;	// Count how many bytes we will need
+	StrValIndex	offsets_required = 0;	// Count how many UTF8-encoded offsets we will need (these may vary in size)
 	// Adjust for the size of a string to be emitted
 	auto	add_string_size =
 		[&](StrVal str)
 		{
-			CharBytes	utf8_count;	// Used for sizing string storage
+			StrValIndex	utf8_count;	// Used for sizing string storage
 			(void)str.asUTF8(utf8_count);
 			bytes_required += UTF8Len(utf8_count);	// Length encoded as UTF-8
 			bytes_required += utf8_count;	// UTF8 bytes
@@ -509,7 +509,7 @@ RxCompiler::compile(char*& nfa)
 	auto	add_string_storage =			// Just the string bytes, excluding the length
 		[&](StrVal str)
 		{
-			CharBytes	utf8_count;	// Used for sizing string storage
+			StrValIndex	utf8_count;	// Used for sizing string storage
 			(void)str.asUTF8(utf8_count);
 			bytes_required += utf8_count;	// UTF8 bytes
 		};
@@ -728,7 +728,7 @@ RxCompiler::compile(char*& nfa)
 
 	// What is a maximum sufficient size (in bytes) of an offset, if all offsets were the maximum 4 bytes?
 	// Note that zig-zag encoding means an offset may be twice the maximum size of the NFA.
-	CharBytes	offset_max_bytes = UTF8Len(2*(bytes_required+offsets_required*4));	// Upper limit on offset size
+	StrValIndex	offset_max_bytes = UTF8Len(2*(bytes_required+offsets_required*4));	// Upper limit on offset size
 	offset_max_bytes = UTF8Len(2*(bytes_required+offsets_required*offset_max_bytes));	/// Based on actual offset size
 
 	// The maximum size of the nfa is thus (bytes_required+offsets_required*offset_max_bytes)
@@ -741,9 +741,9 @@ RxCompiler::compile(char*& nfa)
 	ep = nfa;
 
 	auto	zigzag =
-		[](int32_t i) -> CharBytes
+		[](int32_t i) -> StrValIndex
 		{
-			return (CharBytes)(abs(i)<<1) | (i < 0 ? 1 : 0);
+			return (StrValIndex)(abs(i)<<1) | (i < 0 ? 1 : 0);
 		};
 
 	auto	zagzig =
@@ -754,12 +754,12 @@ RxCompiler::compile(char*& nfa)
 
 	// Emit an offset, advancing np, and returning the number of UTF8 bytes emitted
 	auto	emit_offset =
-		[&](char*& np, int offset) -> CharBytes
+		[&](char*& np, int offset) -> StrValIndex
 		{
 			char*	cp = np;
 
 			UTF8Put(np, zigzag(offset));
-			return (CharBytes)(np-cp);
+			return (StrValIndex)(np-cp);
 		};
 
 	// Emit an offset, advancing np, and returning the number of UTF8 bytes emitted
@@ -784,7 +784,7 @@ RxCompiler::compile(char*& nfa)
 		[&](StrVal str)
 		{
 			const UTF8*	sp;		// The UTF8 bytes of a string we'll copy into the NFA
-			CharBytes	utf8_count;	// Used for sizing string storage
+			StrValIndex	utf8_count;	// Used for sizing string storage
 			sp = str.asUTF8(utf8_count);	// Get the bytes and byte count
 			UTF8Put(ep, utf8_count);	// Encode the byte count as UTF-8
 			memcpy(ep, sp, utf8_count);	// Output the bytes to the NFA
@@ -792,10 +792,10 @@ RxCompiler::compile(char*& nfa)
 		};
 
 	auto	patch_value_at =
-		[&](CharBytes patch_location, int value) -> int
+		[&](StrValIndex patch_location, int value) -> int
 		{
-			CharBytes	byte_count = UTF8Len(zigzag(value));
-			CharBytes	shrinkage = offset_max_bytes - byte_count;
+			StrValIndex	byte_count = UTF8Len(zigzag(value));
+			StrValIndex	shrinkage = offset_max_bytes - byte_count;
 
 			// printf("Patching %d with value %d (offs to %d), with %d shrinkage\n", patch_location, value, (patch_location+value), shrinkage);
 
@@ -811,7 +811,7 @@ RxCompiler::compile(char*& nfa)
 		};
 
 	auto	patch_offset =
-		[&](CharBytes patch_location, CharBytes offset_to) -> int
+		[&](StrValIndex patch_location, StrValIndex offset_to) -> int
 		{
 			/*
 			 * We reserved offset_max_bytes at patch_location for an offset to the current location.
@@ -822,8 +822,8 @@ RxCompiler::compile(char*& nfa)
 			 * taking one fewer bytes, a process that can only happen once(?).
 			 */
 			int		offset = offset_to - patch_location;
-			CharBytes	byte_count = UTF8Len(zigzag(offset));
-			CharBytes	shrinkage = offset_max_bytes - byte_count;
+			StrValIndex	byte_count = UTF8Len(zigzag(offset));
+			StrValIndex	shrinkage = offset_max_bytes - byte_count;
 			if (byte_count < offset_max_bytes	// We'll shuffle
 			 && patch_location < offset_to)		// And the patch location is prior to the target
 				offset -= shrinkage;		// The offset is now smaller
@@ -832,7 +832,7 @@ RxCompiler::compile(char*& nfa)
 		};
 
 	auto	insert_split =
-		[&](CharBytes location)
+		[&](StrValIndex location)
 		{		// The new split is 1 byte & 1 offset. Make room for it
 			char*	new_split = nfa+location;
 			memmove(new_split+1+offset_max_bytes, new_split, ep-new_split);
@@ -854,7 +854,7 @@ RxCompiler::compile(char*& nfa)
 			 * The last Jump points nowhere, but there is one more Split at the start of the
 			 * group contents.
 			 */
-			CharBytes	jump = tos().last_jump;	// location of the offset inside the last Jump
+			StrValIndex	jump = tos().last_jump;	// location of the offset inside the last Jump
 
 			for (;;)
 			{
@@ -864,7 +864,7 @@ RxCompiler::compile(char*& nfa)
 				int		shrinkage;
 				assert(nfa[jump-1] == (char)RxOp::RxoJump);
 				shrinkage = patch_offset(jump, (ep-nfa));	// Make the jump point to the end of the NFA
-				CharBytes	prev_split = prev ? jump+prev+(int)offset_max_bytes+1 : tos().contents+1;
+				StrValIndex	prev_split = prev ? jump+prev+(int)offset_max_bytes+1 : tos().contents+1;
 				assert(nfa[prev_split-1] == (char)RxOp::RxoSplit);
 				// Patch previous split to point at the split after the jump we just patched
 				patch_offset(prev_split, jump+offset_max_bytes-shrinkage);
@@ -929,7 +929,7 @@ RxCompiler::compile(char*& nfa)
 				const char*	cp = nfa+1+offset_max_bytes;	// Location of start_station
 				cp -= patch_offset(1, ep-nfa);	// Patch search_station 
 
-				CharBytes	start_station = (cp-nfa)+get_offset(cp);
+				StrValIndex	start_station = (cp-nfa)+get_offset(cp);
 
 				// Add .* sequence for a search:
 				cp = ep;
@@ -1031,7 +1031,7 @@ RxCompiler::compile(char*& nfa)
 				}
 				else
 				{		// End of subsequent alternate. tos().last_jump is where we'll find the previous alternate
-					CharBytes	last_jump = tos().last_jump;
+					StrValIndex	last_jump = tos().last_jump;
 
 					// We need to insert a new split after the last jump whose offset is at last_jump
 					insert_split(last_jump+offset_max_bytes);		// We'll find this and patch it later
@@ -1065,7 +1065,7 @@ RxCompiler::compile(char*& nfa)
 					 * but zigzag coding means the negative integer is one more than the positive.
 					 * It might therefore take one more byte (at the boundary of UTF8 coding).
 					 */
-					CharBytes	fwd_bytes = offset_max_bytes, rev_bytes = offset_max_bytes, last_rev;
+					StrValIndex	fwd_bytes = offset_max_bytes, rev_bytes = offset_max_bytes, last_rev;
 					int		delta;		// offset value for the Split
 					int		rev_delta;	// offset value for the Jump
 					do {
