@@ -488,10 +488,11 @@ public:
 	void		insert(Index pos, const Element* elements, Index num)	// Insert a subarray
 			{
 				assert(ref_count <= 1);
+				assert(num_elements >= pos);
 				resize(num_elements + num);
 
 				if (num_elements > pos)		// Move data up
-					for (Index i = num_elements+pos; i && i > pos+num; --i)
+					for (Index i = num_elements+num; i && i > pos+num; --i)
 						start[i-1] = start[i-1-num];
 				if (num > 0)
 					for (Index i = 0; i < num; i++)
