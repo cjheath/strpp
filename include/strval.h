@@ -63,11 +63,11 @@ public:
 
 	~StrBodyI()	{}
 	StrBodyI()	: num_chars(0) {}
-	StrBodyI(const char* data, bool copy, Index length, Index allocate = 0)
+	StrBodyI(const char* data, bool copy, Index length = 0, Index allocate = 0)
 			: Body(data, copy, (length == 0 ? strlen(data) : length)+1, allocate), num_chars(0)
 			{
-				if (copy)
-					start[length] = '\0';
+				if (copy && length != 0)
+					start[num_elements-1] = '\0';	// Perhaps we didn't copy a NUL, so add one
 			}
 
 	Index		numChars()
@@ -266,7 +266,7 @@ public:
 				return *this;
 			}
 	StrValI(const char* data)	// construct by copying NUL-terminated data
-			: body(data == 0 || data[0] == '\0' ? &Body::nullBody : new Body(data, true, strlen(data)+1))
+			: body(data == 0 || data[0] == '\0' ? &Body::nullBody : new Body(data, true))
 			, offset(0)
 			, num_chars(body->numChars())
 			{
@@ -279,7 +279,7 @@ public:
 			{
 				if (allocate <= length)
 					allocate = 0;
-				body = new Body(data, true, length+1, allocate);
+				body = new Body(data, true, length, allocate);
 				num_chars = body->numChars();
 			}
 	StrValI(UCS4 character)		// construct from single-character string
@@ -289,7 +289,7 @@ public:
 				UTF8*	op = one_char;		// Pack it into our local buffer
 				UTF8Put(op, character);
 				*op = '\0';
-				body = new Body(one_char, true, op-one_char+1);
+				body = new Body(one_char, true, op-one_char);
 				num_chars = 1;
 			}
 	StrValI(Body* s1)		// New reference to same string body; used for static strings
@@ -685,7 +685,7 @@ private:
 				const UTF8*	ep = nthChar(num_chars);	// end of this substring
 				Index		prefix_bytes = cp - body->startChar(); // How many leading bytes of the body we are eliding
 
-				body = new Body(cp, true, ep-cp+1);
+				body = new Body(cp, true, ep-cp);
 				mark.char_num = savemark.char_num - offset;	// Restore the bookmark
 				mark.byte_num = savemark.byte_num - prefix_bytes;
 				offset = 0;
@@ -758,7 +758,7 @@ void StrBodyI<Index>::transform(const std::function<Val(const UTF8*& cp, const U
 	ArrayBody<char, Index>::resize(old_num_elements+6);		// Start with same allocation plus one character space
 
 	const UTF8*	up = old_start;		// Input pointer
-	const UTF8*	ep = old_start+old_num_elements;	// Termination guard
+	const UTF8*	ep = old_start+old_num_elements-1;	// Termination guard, points to the NUL
 	Index		processed_chars = 0;	// Total input chars transformed
 	bool		stopped = false;	// Are we done yet?
 	UTF8*		op = start;		// Output pointer
