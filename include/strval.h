@@ -163,7 +163,7 @@ public:
 						UTF8Put(op, ch);
 						*op = '\0';
 						// Assign this to the body in our closure
-						temp_body = StrBodyI(one_char, false, op-one_char, 1);
+						temp_body = StrBodyI(one_char, false, op-one_char);
 						return Val(&temp_body);
 					}
 				);
@@ -182,7 +182,7 @@ public:
 						*op = '\0';
 
 						// Assign this to the body in our closure
-						temp_body = StrBodyI(one_char, false, op-one_char+1);
+						temp_body = StrBodyI(one_char, false, op-one_char);
 						return Val(&temp_body);
 					}
 				);
@@ -202,8 +202,6 @@ protected:
 			}
 	void		countChars()
 			{
-				if (num_chars > 0 || num_elements == 0)
-					return;				// Already counted
 				const UTF8*	cp = start;		// Progress pointer when reading data
 				UTF8*		ep = start+num_elements-1;	// Marker for end of data
 				while (cp < ep)
