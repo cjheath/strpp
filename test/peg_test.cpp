@@ -47,6 +47,34 @@ public:
 
 typedef	Peg<PegText, PegChar, PegCapture>	TestPeg;
 
+void usage()
+{
+	fprintf(stderr, "Usage: peg_test peg.px\n");
+	exit(1);
+}
+
+char* slurp_file(const char* filename, off_t* size_p)
+{
+	// Open the file and get its size
+	int		fd;
+	struct	stat	stat;
+	char*		px;
+	if ((fd = open(filename, O_RDONLY)) < 0		// Can't open
+	 || fstat(fd, &stat) < 0			// Can't fstat
+	 || (stat.st_mode&S_IFMT) != S_IFREG		// Not a regular file
+	 || (px = new char[stat.st_size+1]) == 0	// Can't get memory
+	 || read(fd, px, stat.st_size) < stat.st_size)	// Can't read entire file
+	{
+		perror(filename);
+		usage();
+	}
+	if (size_p)
+		*size_p = stat.st_size;
+	px[stat.st_size] = '\0';
+
+	return px;
+}
+
 int
 main(int argc, const char** argv)
 {
@@ -91,28 +119,17 @@ main(int argc, const char** argv)
 		{ "class_char",	"![-\\]]<lit_char>"				},
 	};
 
-	// Open the file and get its size
-	int		fd;
-	struct	stat	stat;
-	char*		px;
-	if (argc < 2					// No file given
-	 || (fd = open(argv[1], O_RDONLY)) < 0		// Can't open
-	 || fstat(fd, &stat) < 0			// Can't fstat
-	 || (stat.st_mode&S_IFMT) != S_IFREG		// Not a regular file
-	 || (px = new char[stat.st_size+1]) == 0	// Can't get memory
-	 || read(fd, px, stat.st_size) < stat.st_size)	// Can't read entire file
-	{
-		perror(argv[1]);
-		fprintf(stderr, "Usage: %s peg.px\n", argv[0]);
-		return 1;
-	}
-	px[stat.st_size] = '\0';
+	if (argc < 2)
+		usage();
+
+	off_t	file_size;
+	char*	px = slurp_file(argv[1], &file_size);
 
 	TestPeg		peg(rules, sizeof(rules)/sizeof(rules[0]));
 	typename TestPeg::State	result = peg.parse(px);
 
 	int		bytes_parsed = result ? result.text-px : 0;
-	printf("Parsed %d bytes of %d\n", bytes_parsed, (int)stat.st_size);
+	printf("Parsed %d bytes of %d\n", bytes_parsed, (int)file_size);
 
-	return bytes_parsed == stat.st_size ? 0 : 1;
+	return bytes_parsed == file_size ? 0 : 1;
 }
