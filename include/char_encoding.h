@@ -40,13 +40,6 @@
 #include	<assert.h>
 #include	<stdint.h>
 
-#if !UTF8_ILLEGAL == 1
-#define	UTF8_ILLEGAL	1
-#endif
-#if !UTF8_SIX_BYTE == 1
-#define	UTF8_SIX_BYTE	1
-#endif
-
 typedef char		UTF8;		// We don't assume un/signed
 typedef uint16_t	UTF16;		// Used in Unicode 2, and 3 with surrogates
 typedef	char32_t	UCS4;		// A UCS4 character, aka UTF-32, aka Rune
@@ -91,7 +84,6 @@ inline UCS4	toupper(UCS4 c) { return UCS4ToUpper(c); }
 inline UCS4	tolower(UCS4 c) { return UCS4ToLower(c); }
 inline bool	isspace(UCS4 c) { return UCS4IsWhite(c); }
 
-#if UTF8_ILLEGAL == 1
 inline bool
 UCS4IsIllegal(UCS4 ucs4)	// Does this UCS4 character encode an illegal utf-8 byte?
 {
@@ -103,7 +95,6 @@ UTF8EncodeIllegal(UTF8 illegal)	// Encode an illegal UTF8 byte as a UCS4 replace
 {
 	return 0x80000000 | (illegal&0xFF);
 }
-#endif
 
 inline bool
 UTF8Is1st(UTF8 ch)
@@ -111,251 +102,152 @@ UTF8Is1st(UTF8 ch)
 	return (ch & 0xC0) != 0x80;	// A non-1st byte is always 0b10xx_xxxx
 }
 
+inline bool
+UTF8Is2nd(UTF8 ch)
+{
+	return (ch & 0xC0) == 0x80;
+}
+
 // Get length of UTF8 from UCS4
 inline int
 UTF8Len(UCS4 ch)
 {
-#if UTF8_SIX_BYTE == 1
 	if (ch < 0)
+	{
+		if (UCS4IsIllegal(ch))	// MSB is sign bit
+			return 1;
 		return 6;
-#endif
-	if (ch <= 0x0000007F)	// 7 bits:
+	}
+	if (ch < (1<<7))	// 7 bits:
 		return 1;	// ASCII
-	if (ch <= 0x000007FF)	// 11 bits:
+	if (ch < (1<<11))	// 11 bits:
 		return 2;	// two bytes
-	if (ch <= 0x0000FFFF)	// 16 bits
+	if (ch < (1<<16))	// 16 bits
 		return 3;	// three bytes
-	if (ch <= 0x001FFFFF)	// 21 bits
+	if (ch < (1<<21))	// 21 bits
 		return 4;	// four bytes
-#if UTF8_SIX_BYTE == 1
-#if UTF8_ILLEGAL == 1
-	if (UCS4IsIllegal(ch))
+	if (UCS4IsIllegal(ch))	// In case UCS4 > 4 bytes or is unsigned
 		return 1;
-#else
-	assert(ch <= 0x03FFFFFF);
-#endif
-	if (ch <= 0x03FFFFFF)	// 26 bits
+	if (ch < (1<<26))	// 26 bits
 		return 5;	// five bytes
 	return 6;		// six bytes
-#else
-	assert(ch <= 0x03FFFFFF);
-	return 0;		// safety.
-#endif
 }
 
-inline UCS4
-UTF8Get(const UTF8*& cp)
+// From a candidate UTF8 first byte, return the correct length of the UTF8 sequence it introduces:
+inline int
+UTF8CorrectLen(UTF8 c)
 {
-	UCS4		ch	= UCS4_NONE;
+	if ((unsigned char)c < 0x80) return 1;		// 0b0xxx_xxxx (7 literal bits, no extension characters)
+	if ((unsigned char)c < 0xC0) return 0;		// 0b10xx_xxxx (6 literal extension bits, not valid 1st character)
+	if ((unsigned char)c < 0xE0) return 2;		// 0b110x_xxxx (5 literal and 1x6 extension character = 11 bits)
+	if ((unsigned char)c < 0xF0) return 3;		// 0b1110_xxxx (4 literal and 2x6 extension character = 16 bits)
+	if ((unsigned char)c < 0xF8) return 4;		// 0b1111_0xxx (3 literal and 3x6 extension character = 21 bits)
+	if ((unsigned char)c < 0xFC) return 5;		// 0b1111_10xx (2 literal and 4x6 extension character = 26 bits)
+	// Some implementations only implement 1 literal bit for the six-byte form, so only generate 31 bits.
+	/*if (c < 0xFE)*/ return 6;	// 0b1111_11xx (2 literal and 5x6 extension character = 32 bits)
+}
 
-	switch (*cp&0xF0)
-	{
-	case 0x00: case 0x10: case 0x20: case 0x30:
-	case 0x40: case 0x50: case 0x60: case 0x70:	// One UTF8 byte
-		ch = *cp++ & 0xFF;			// Use all 7 bits
-		break;
-
-	case 0x80: case 0x90: case 0xA0: case 0xB0:	// Illegal, not first byte
-#if UTF8_ILLEGAL == 1
-illegal:	return UTF8EncodeIllegal(*cp++);
+// Return the actual length of a correct UTF8 sequence, or its replacement if not correct
+inline int
+UTF8Len(const UTF8* cp)	// REVISIT: Add an error callback pointer here?
+{
+	switch (int len = UTF8CorrectLen(*cp))
+	{	// This reminds me of Duff's Device :)
+	case 6: if (UTF8Is1st(cp[5])) goto illegal;
+		// Fall through
+	case 5: if (UTF8Is1st(cp[4])) goto illegal;
+		// Fall through
+	case 4: if (UTF8Is1st(cp[3])) goto illegal;
+		// Fall through
+	case 3: if (UTF8Is1st(cp[2])) goto illegal;
+		// Fall through
+	case 2: if (UTF8Is1st(cp[1])) goto illegal;
+		// Fall through
+	case 1:
+		return len;
+	case 0:
+	default:					// Cannot happen, but keep the compiler happy
+	illegal:
+#if defined(UTF8_ASSERT)
+		assert(!"Illegal or unsupported UTF-8 sequence");
+		return 0;
 #else
-		// assert(UTF8Is1st(cp[0]));		// always assert
+		return 1;		// Use a replacement character
 #endif
-		break;
-
-	case 0xC0: case 0xD0:				// Two UTF8 bytes
-#if UTF8_ILLEGAL == 1
-		if (UTF8Is1st(cp[1]))
-			goto illegal;
-#else
-		// assert(!UTF8Is1st(cp[1]));
-		if (UTF8Is1st(cp[1]))
-			break;
-#endif
-		ch = ((UCS4)(cp[0]&0x1F)<<6) | (cp[1]&0x3F);
-		cp += 2;
-		break;
-
-	case 0xE0:					// Three UTF8 bytes
-#if UTF8_ILLEGAL == 1
-		if (UTF8Is1st(cp[1]) || UTF8Is1st(cp[2]))
-			goto illegal;
-#else
-		// assert(!UTF8Is1st(cp[1]) && !UTF8Is1st(cp[2]));
-		if (UTF8Is1st(cp[1]) || UTF8Is1st(cp[2]))
-			break;
-#endif
-		ch = ((UCS4)(cp[0]&0xF)<<12)
-			| ((UCS4)(cp[1]&0x3F)<<6)
-			| (cp[2]&0x3F);
-		cp += 3;
-		break;
-
-	case 0xF0:					// Four UTF8 bytes
-#if UTF8_ILLEGAL == 1
-		if (UTF8Is1st(cp[1]) || UTF8Is1st(cp[2]) || UTF8Is1st(cp[3]))
-			goto illegal;
-#else
-		// assert(!UTF8Is1st(cp[1]) && !UTF8Is1st(cp[2]) && !UTF8Is1st(cp[3]));
-		if (UTF8Is1st(cp[1]) || UTF8Is1st(cp[2]) || UTF8Is1st(cp[3]))
-			break;
-#endif
-		if ((cp[0] & 0x08) == 0)
-		{
-			ch = ((UCS4)(cp[0]&0x7)<<18)
-				| ((UCS4)(cp[1]&0x3F)<<12)
-				| ((UCS4)(cp[2]&0x3F)<<6)
-				| (cp[3]&0x3F);
-			cp += 4;
-			break;
-		}
-
-		// At this point, at least 5 MSBs are set
-
-#if UTF8_SIX_BYTE == 1
-#if UTF8_ILLEGAL == 1
-		if (UTF8Is1st(cp[4]))	// We don't have four valid 2nd bytes
-			goto illegal;
-#else
-		if (UTF8Is1st(cp[4]))
-		{
-			// assert(!UTF8Is1st(cp[4]));
-			break;
-		}
-#endif
-		if ((*cp&0x0C) == 0x08)			// 0b1111_10xx
-		{					// Five UTF8 bytes
-			ch = ((UCS4)(cp[0]&0x3)<<24)
-				| ((UCS4)(cp[1]&0x7)<<18)
-				| ((UCS4)(cp[2]&0x3F)<<12)
-				| ((UCS4)(cp[3]&0x3F)<<6)
-				| (cp[4]&0x3F);
-			cp += 5;
-		}
-		else
-		{					// 0b1111_11xx introduces six UTF8 bytes
-#if UTF8_ILLEGAL == 1
-			if (UTF8Is1st(cp[5]))		// We don't have five valid 2nd bytes
-				goto illegal;
-#else
-			if (UTF8Is1st(cp[5]))		// Six UTF8 bytes
-			{
-				// assert(!UTF8Is1st(cp[5]));
-				break;
-			}
-#endif
-			ch = ((UCS4)(cp[0]&0x3)<<30)
-				| ((UCS4)(cp[1]&0x3)<<24)
-				| ((UCS4)(cp[2]&0x7)<<18)
-				| ((UCS4)(cp[3]&0x3F)<<12)
-				| ((UCS4)(cp[4]&0x3F)<<6)
-				| (cp[5]&0x3F);
-			cp += 6;
-		}
-#else	// not UTF8_SIX_BYTE
-#if UTF8_ILLEGAL == 1
-		goto illegal;
-#else
-		break;
-#endif	// ILLEGAL
-#endif	// UTF8_SIX_BYTE
 	}
-
-	return ch;
 }
 
 inline int
-UTF8Len(const UTF8* cp)
+UTF8Get(const UTF8*& cp)	// REVISIT: Add an error callback pointer here?
 {
-	switch (*cp&0xF0)
+	const	UTF8*	sp = cp;
+	UCS4		ch = *cp;
+	static	unsigned char	masks[] = { 0xFF, 0x7F, 0x1F, 0x0F, 0x07, 0x03, 0x03 };
+
+	int		len = UTF8CorrectLen(ch = *cp);
+	ch &= masks[len];
+	switch (len)
 	{
-	case 0x00: case 0x10: case 0x20: case 0x30:
-	case 0x40: case 0x50: case 0x60: case 0x70:	// One UTF8 byte
-		return 1;
+	case 6:	cp++;
+		if (UTF8Is1st(*cp)) goto illegal;
+		ch = (ch << 6) | (*cp&0x3F);
+		// Fall through
+	case 5:	cp++;
+		if (UTF8Is1st(*cp)) goto illegal;
+		ch = (ch << 6) | (*cp&0x3F);
+		// Fall through
+	case 4:	cp++;
+		if (UTF8Is1st(*cp)) goto illegal;
+		ch = (ch << 6) | (*cp&0x3F);
+		// Fall through
+	case 3:	cp++;
+		if (UTF8Is1st(*cp)) goto illegal;
+		ch = (ch << 6) | (*cp&0x3F);
+		// Fall through
+	case 2:	cp++;
+		if (UTF8Is1st(*cp)) goto illegal;
+		ch = (ch << 6) | (*cp&0x3F);
+		// Fall through
+	case 1:	cp++;
+		return ch;
 
-	case 0x80: case 0x90: case 0xA0: case 0xB0:	// Illegal, not first byte
-		goto illegal_utf8;			// Not legal first UTF-8 byte
-
-	case 0xC0: case 0xD0:				// Two UTF8 bytes
-		if (UTF8Is1st(cp[1]))
-			goto illegal_utf8;		// Illegal trailing UTF-8 byte after 2-byte prefix
-		return 2;
-
-	case 0xE0:					// Three UTF8 bytes
-		if (UTF8Is1st(cp[1]) || UTF8Is1st(cp[2]))
-			goto illegal_utf8;		// Illegal trailing UTF-8 byte after 3-byte prefix
-		return 3;
-
-	case 0xF0:					// Four UTF8 bytes
-		if (UTF8Is1st(cp[1]) || UTF8Is1st(cp[2]) || UTF8Is1st(cp[3]))
-			goto illegal_utf8;		// Illegal trailing UTF-8 byte after 4-byte prefix
-		if ((cp[0] & 0x08) == 0)
-			return 4;
-#if UTF8_SIX_BYTE == 1
-		if (UTF8Is1st(cp[4]))
-			goto illegal_utf8;		// Illegal trailing UTF-8 byte after 5-byte prefix
-		if ((*cp&0x0C) == 0x08)			// 0b1111_10xx
-		{					// Five UTF8 bytes
-			return 5;
-		}
-		else					// 0b1111_11xx
-		{					// Six UTF8 bytes
-			if (UTF8Is1st(cp[5]))
-				goto illegal_utf8;	// Illegal trailing UTF-8 byte after 6-byte prefix
-			return 6;
-		}
-#else
-		if ((cp[0] & 0x80) != 0)
-			goto illegal_utf8;		// UTF-8 is only accepted up to 4 bytes
-#endif
-
-	illegal_utf8:
-#if UTF8_ILLEGAL == 1
-		return 1;
-#else
+	case 0:
+	default:
+	illegal:	
+		cp = sp+1;
+#if defined(UTF8_ASSERT)
 		assert(!"Illegal or unsupported UTF-8 sequence");
 		return 0;
+#else
+		return UTF8EncodeIllegal(*sp);
 #endif
-
-	default:					// Cannot happen, but keep the compiler happy
-		return 0;
 	}
 }
 
 inline const UTF8*
 UTF8Backup(const UTF8* cp, const UTF8* limit = 0)
 {
-	if (limit == 0)		// No limit provided
+	if (limit == 0			// No limit provided
+	 || cp-limit > 6)		// or in any case limit to 6 bytes
 		limit = cp-6;
-	if (cp-1 >= limit && UTF8Is1st(cp[-1]))
-		return cp-1;
-	if (cp-2 >= limit && UTF8Is1st(cp[-2]))
-		return cp-2;
-	if (cp-3 >= limit && UTF8Is1st(cp[-3]))
-		return cp-3;
-	if (cp-4 >= limit && UTF8Is1st(cp[-4]))
-		return cp-4;
-#if UTF8_SIX_BYTE == 1
-	if (cp-5 >= limit && UTF8Is1st(cp[-5]))
-		return cp-5;
-	if (cp-6 >= limit && UTF8Is1st(cp[-6]))
-		return cp-6;
-#endif
-#if UTF8_ILLEGAL == 1
-	if (cp > limit)
-		return cp-1;	// Not a legal UTF-8 character, but backup anyway
-#endif
-	return (UTF8*)0;
+	if (limit >= cp)
+		return 0;
+
+	// The checking here handles illegal characters analogously to going forward
+	for (const UTF8* sp = cp-1; sp >= limit; --sp)	// Backup to the limit
+		if (UTF8Is1st(*sp))			// Found the start char
+		{
+			if (UTF8CorrectLen(*sp) >= cp-sp)
+				return sp;		// Legal prefix (at least) of a UTF8 sequence
+			break;	// Illegal, backup 1 byte if this backup won't consume all bytes scanned
+		}
+	return cp-1;	// No start char (valid 1st byte) found
 }
 
 inline void
 UTF8PutPaddedZero(UTF8*& cp, int length)
 {
-#if UTF8_SIX_BYTE == 1
 	assert(length >= 0 && length <= 6);
-#else
-	assert(length >= 0 && length <= 4);
-#endif
 	if (length > 1)
 	{
 		*cp++ = "\x0\xC0\xE0\xF0\xF8\xFC"[length];	// Put lead byte with zero payload
@@ -397,7 +289,6 @@ UTF8Put(UTF8*& cp, UCS4 ch)
 		*cp++ = 0x80 | (UTF8)((ch >>  0) & 0x3F);
 		return;
 
-#if UTF8_SIX_BYTE == 1
 	case 5:		// 2 data bits in 1st byte, 6 in each of 4 more
 		*cp++ = 0xF8 | (UTF8)((ch >> 24) & 0x03);
 		*cp++ = 0x80 | (UTF8)((ch >> 18) & 0x3F);
@@ -414,7 +305,6 @@ UTF8Put(UTF8*& cp, UCS4 ch)
 		*cp++ = 0x80 | (UTF8)((ch >>  6) & 0x3F);
 		*cp++ = 0x80 | (UTF8)((ch >>  0) & 0x3F);
 		return;
-#endif
 	}
 }
 

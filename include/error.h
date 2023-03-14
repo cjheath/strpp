@@ -73,7 +73,7 @@ private:
 
 /*
  * A returned error has an ErrNum, the default text, and a parameter list.
- * The data is returned by referencem
+ * The data is returned by reference.
  * REVISIT: This class has a stub implementation of parameter lists
  */
 class	Error
