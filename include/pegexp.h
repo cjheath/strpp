@@ -10,7 +10,7 @@
  * Pegexp's use Regex-style operators, but in prefix position:
  *	^	start of the input or start of any line
  *	$	end of the input or the end of any line
- *	.	any character, including a newline
+ *	.	any character (alternately, byte), including a newline
  *	?	Zero or one of the following expression
  *	*	Zero or more of the following expression
  *	+	One or more of the following expression
@@ -20,19 +20,20 @@
  *	!A	Continue only if A fails
  *	anychar	match that non-operator character
  *	\char	match the escaped character (including the operators, 0 b e f n r t, and any other char)
- *	\a	alpha
- *	\d	digit
+ *	\a	alpha character (alternately, byte)
+ *	\d	digit character (alternately, byte)
  *	\h	hexadecimal
- *	\s	whitespace
- *	\w	word (alpha or digit)
+ *	\s	whitespace character (alternately, byte)
+ *	\w	word (alpha or digit) character (alternately, byte)
  *	\177	match the specified octal character
  *	\xXX	match the specified hexadecimal (0-9a-fA-F)
  *	\x{1-2}	match the specified hexadecimal (0-9a-fA-F)
  *	\u12345	match the specified 1-5 digit Unicode character (only if compiled for Unicode support)
  *	\u{1-5}	match the specified 1-5 digit Unicode character (only if compiled for Unicode support)
- *	[a-z]	Normal character class (a literal hyphen may occur at start)
- *	[^a-z]	Negated character class. Characters may include the \escapes listed above
- *	! ` @ # % _ ; : <	Call the extended_match function
+ *	[a-z]	Normal character (alternately, byte) class (a literal hyphen may occur at start)
+ *	[^a-z]	Negated character (alternately, byte) class. Characters may include the \escapes listed above
+ *	`	Prefix to specify 8-bit byte only, not UTF-8 character (REVISIT: accepted but not implemented)
+ *	! @ # % _ ; <		Call the extended_match function
  *	control-character	Call the extended_match function
  * NOT YET IMPLEMENTED:
  *	{n,m}	match from n (default 0) to m (default unlimited) repetitions of the following expression.
@@ -57,30 +58,34 @@
 #include	<stdint.h>
 #include	<stdlib.h>
 #include	<ctype.h>
-#include	<char_ptr.h>
-#include	<charpointer.h>
+#include	<char_encoding.h>
 
 typedef	const char*	PegexpPC;
 
 /*
  * Adapt a pointer-ish thing to be a suitable input for a Pegexp,
- * by adding the methods current(), advance() and at_eof().
- * Default to using Guarded pointers as the cost is tiny.
+ * by adding the methods get_byte(), get_char(), same() and at_eof().
+ * same() should return true if the two Inputs are at the same position in the text
  */
-template<typename TextPtr = GuardedCharPtr, typename PChar = char>
+template<typename TextPtr = UTF8*, typename PChar = UCS4>
 class	PegexpPointerInput
-: public TextPtr
 {
 public:
-	PegexpPointerInput(const char* cp) : TextPtr(cp) {}
-	PegexpPointerInput(const TextPtr& c) : TextPtr(c) {}
-	PegexpPointerInput(const PegexpPointerInput& c) : TextPtr(c) {}
+	using Char = PChar;
+	PegexpPointerInput(const char* cp) : data(cp) {}
+	PegexpPointerInput(const PegexpPointerInput& pi) : data(pi.data) {}
 
-	PChar		current() const
-			{ return *static_cast<TextPtr>(*this); }	// Dereference
-	PChar		advance()
-			{ if (!at_eof()) TextPtr::operator++(); return current(); } // Preincrement
-	bool		at_eof() { return current() == '\0'; }
+	char		get_byte()
+			{ return at_eof() ? 0 : (*data++ & 0xFF); }
+	PChar		get_char()
+			{ if (sizeof(PChar) == 1) return get_byte();
+			  return (PChar)(at_eof() ? UCS4_NONE : UTF8Get(data)); }
+	bool		at_eof() const
+			{ return *data == '\0'; }
+	bool		same(PegexpPointerInput& other) const
+			{ return data == other.data; }
+protected:
+	const UTF8*	data;
 };
 
 using	PegexpDefaultInput = PegexpPointerInput<>;
@@ -95,30 +100,37 @@ public:
 	void		save(PegexpPC name, TextPtr from, TextPtr to) {}
 };
 
-template <typename TextPtr = PegexpDefaultInput, typename PChar = Char, typename Capture = NullCapture<TextPtr>>
+template <typename TextPtr = PegexpDefaultInput, typename PChar = UCS4, typename Capture = NullCapture<TextPtr>>
 class PegState
 {
 public:
 	PegState()
-		: pc(0), text(0), succeeding(true), at_bol(true), capture() {}
+			: pc(0), text(0), succeeding(true), at_bol(true), binary_code(false), capture() {}
 	PegState(PegexpPC _pc, TextPtr _text, Capture _capture = Capture())
-		: pc(_pc), text(_text), succeeding(true), at_bol(true), capture(_capture) {}
+			: pc(_pc), text(_text), succeeding(true), at_bol(true)
+			, binary_code(false), capture(_capture) {}
 	PegState(const PegState& c)
-		: pc(c.pc), text(c.text), succeeding(c.succeeding), at_bol(c.at_bol), capture(c.capture) {}
+			: pc(c.pc), text(c.text), succeeding(c.succeeding), at_bol(c.at_bol)
+			, binary_code(c.binary_code), capture(c.capture) {}
 	PegState&		operator=(const PegState& c)
-		{ pc = c.pc; text = c.text; succeeding = c.succeeding; at_bol = c.at_bol; capture = c.capture; return *this; }
+			{ pc = c.pc; text = c.text; succeeding = c.succeeding; at_bol = c.at_bol;
+			  binary_code = c.binary_code; capture = c.capture; return *this; }
 	operator bool() { return succeeding; }
-	void		advance()
-			{		// Keep track of beginning-of-line whenever we advance
-				at_bol = (text.current() == '\n');
-				text.advance();
-				// ++text;	// Advance to the next character
+	PChar		next()
+			{
+				PChar	ch = binary_code ? text.get_byte() : text.get_char();
+				binary_code = false;
+				at_bol = ch == '\n';
+				return ch;
 			}
+	bool		at_eof() const
+			{ return text.at_eof(); }
 
 	PegexpPC	pc;		// Current location in the pegexp
 	TextPtr		text;		// Current text we're looking at
 	bool		succeeding;	// Is this a viable path to completion?
 	bool		at_bol;		// Start of text or line
+	bool		binary_code;	// Expect next character in literal binary coding (not UTF-8, etc)
 	Capture   	capture;	// What did we learn while getting here?
 
 	// If you want to add debug tracing for example, you can override these in a subclass:
@@ -126,7 +138,7 @@ public:
 	PegState&	progress() { succeeding = true; return *this; }
 };
 
-template<typename TextPtr = PegexpDefaultInput, typename PChar = Char, typename Capture = NullCapture<TextPtr>, typename S = PegState<TextPtr, PChar, Capture>>
+template<typename TextPtr = PegexpDefaultInput, typename PChar = PegexpDefaultInput::Char, typename Capture = NullCapture<TextPtr>, typename S = PegState<TextPtr, PChar, Capture>>
 class Pegexp
 {
 public:
@@ -156,8 +168,7 @@ public:
 			}
 			if (start.at_eof())
 				break;
-			state.advance();
-			start.advance();
+			(void)start.get_char();
 		}
 		return result;	// This will show where we last failed
 	}
@@ -257,6 +268,9 @@ protected:
 
 	bool		char_class(State& state)
 	{
+		if (state.at_eof())	// End of input never matches
+			return false;
+
 		bool	negated;
 		State	start_state(state);
 		start_state.pc--;
@@ -264,6 +278,7 @@ protected:
 			state.pc++;
 
 		bool	in_class = false;
+		PChar	ch = state.next();
 		while (*state.pc != '\0' && *state.pc != ']')
 		{
 			PChar	c1;
@@ -272,7 +287,7 @@ protected:
 			if (*state.pc == '\\' && isalpha(state.pc[1]))
 			{
 				state.pc++;
-				if (char_property(state.pc, state.text.current()))
+				if (char_property(state.pc, ch))
 					in_class = true;
 				continue;
 			}
@@ -283,20 +298,15 @@ protected:
 				PChar	c2;
 				state.pc++;
 				c2 = literal_char(state.pc);
-				PChar	ch = state.text.current();
 				in_class |= (ch >= c1 && ch <= c2);
 			}
 			else
-				in_class |= (state.text.current() == c1);
+				in_class |= (ch == c1);
 		}
 		if (*state.pc == ']')
 			state.pc++;
 		if (negated)
 			in_class = !in_class;
-		if (state.text.at_eof())	// End of input never matches
-			in_class = false;
-		if (in_class)
-			state.advance();
 		return in_class;
 	}
 
@@ -323,9 +333,8 @@ protected:
 
 	State		match_literal(State& state)
 	{
-		if (state.text.at_eof() || *state.pc != state.text.current())
+		if (state.at_eof() || *state.pc != state.next())
 			return state.fail();
-		state.advance();
 		state.pc++;
 		return state.progress();
 	}
@@ -356,24 +365,24 @@ protected:
 			break;
 
 		case '$':	// End of line or end of input
-			match = state.text.at_eof() || state.text.current() == '\n';
+			match = state.at_eof() || state.next() == '\n';
+			state = start_state;
+			state.pc++;
 			break;
 
 		case '.':	// Any character
-			if ((match = !state.text.at_eof()))
-				state.advance();
+			if ((match = !state.at_eof()))
+				(void)state.next();
 			break;
 
 		default:	// Literal character
 			if (rc > 0 && rc < ' ')		// Control characters
 				goto extended;
-			if ((match = (!state.text.at_eof() && rc == state.text.current())))
-				state.advance();
+			match = !state.at_eof() && rc == state.next();
 			break;
 
 		case '\\':	// Escaped literal char
-			if ((match = (!state.text.at_eof() && char_property(state.pc, state.text.current()))))
-				state.advance();
+			match = !state.at_eof() && char_property(state.pc, state.next());
 			break;
 
 		case '[':	// Character class
@@ -410,7 +419,7 @@ protected:
 					state.progress();
 					break;
 				}
-				if (state.text == repetition_start)
+				if (state.text.same(repetition_start))
 					break;	// We didn't advance, so don't keep trying. Can happen e.g. on *()
 				repetitions++;
 			}
@@ -463,24 +472,25 @@ protected:
 			break;
 		}
 
+		case '`':
+			state.binary_code = true;
+			break;
+
 		// Extended commands:
 		case '~':
-		case '`':
 		case '@':
 		case '#':
 		case '%':
 		case '_':
 		case ';':
-		case ':':
 		case '<':
 		extended:
 			state.pc--;
 			match = (state = match_extended(state));
 			break;
 		}
-	fail:
 		if (!match)
-			return start_state.fail();
+	fail:		return start_state.fail();
 
 		// Detect a label and save the matched atom
 		PegexpPC	name = 0;
@@ -552,7 +562,6 @@ protected:
 		case '%':
 		case '_':
 		case ';':
-		case ':':
 		case '<':	// Extension
 		extended:
 			pc--;

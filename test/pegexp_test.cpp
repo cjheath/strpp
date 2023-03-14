@@ -16,31 +16,30 @@
 #include	<utf8_ptr.h>
 
 #if	defined(PEGEXP_UNICODE)
-using	PegexpChar = UCS4;
-using	Source = PegexpPointerInput<GuardedUTF8Ptr>;
-#else
-using	PegexpChar = char;
 using	Source = PegexpPointerInput<>;
+#else
+using	Source = PegexpPointerInput<char*, char>;	// REVISIT: Change template parameter to bool=true to request Unicode
 #endif
 
 class	PegexpTestSource
 : public Source
 {
 public:
-	PegexpTestSource(const char* cp) : Source(cp) {}
-	PegexpTestSource(const Source& c) : Source(c) {}
-	PegexpTestSource(const PegexpTestSource& c) : Source(c) {}
+	PegexpTestSource(const char* cp) : Source(cp), start(cp) {}
+	PegexpTestSource(const PegexpTestSource& c) : Source(c), start(c.start) {}
 
 	/* Additional methods for the test program */
-	int		operator-(const char* start)			// Length from start to current location
-			{ return rest()-start; }
-	int		operator-(const Source& start)			// Length from start to current location
-			{ return rest()-static_cast<const char*>(start); }
-	const char*	rest()
+	int		operator-(const char* from)			// Length from "from" to current location
+			{ return data-from; }
+	int		operator-(const PegexpTestSource& from)		// Length from "from" to current location
+			{ return data - from.rest(); }
+	const char*	rest() const
 			{ return Source::data; }
+protected:
+	const char*	start;
 };
 
-using	PegexpT = Pegexp<PegexpTestSource, PegexpChar>;
+using	PegexpT = Pegexp<PegexpTestSource>;
 
 int
 main(int argc, const char** argv)
