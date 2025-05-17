@@ -42,7 +42,10 @@ class	PegCapture
 			body = new PegCaptureBody(*body);
 	}
 public:
-	void            save(PegexpPC name, PegText from, PegText to) {}
+	void            save(PegexpPC name, PegText from, PegText to)
+	{
+		printf("Capture '%.20s': '%.*s'\n", name, (int)to.bytes_from(from), from.peek());
+	}
 };
 
 typedef	Peg<PegText, PegCapture>	TestPeg;
@@ -80,43 +83,89 @@ main(int argc, const char** argv)
 {
 	using R = TestPeg::Rule;
 	TestPeg::Rule	rules[] = {
-		{ "blankline",	"\\n*[ \\t\\r](|\\n|!.)"			},	// A line containing no printing characters
-		{ "space",	"|[ \\t\\r\\n]|//*[^\\n]"			},	// Any single whitespace
-		{ "s",		"*(!<blankline><space>)"			},	// Any whitespace but not a blankline
-		{ "TOP",	"*<space>*<rule>"				},	// Start; a repetition of zero or more rules
-		{ "rule",	"<name>:rule_name<s>=<s><alternates>?<action><blankline>*<space>"	},	// Rule: a name assigned one or more alternates
-		{ "action",	"-><s><name>\\(<s>?<parameter_list>\\)<s>"	},	// Looks like "-> function_call(param, ...)"
-		{ "parameter_list", "<parameter>*(,<s><parameter>)"		},
-		{ "parameter",	"|<reference>|<literal>"			},
-		{ "reference",	"<name>*([.*]<name>"				},
-
-		{ "alternates",	"|+(\\|<s>*<repetition>)"				// Alternates: either a list of alternates each prefixed by |
-				"|*<repetition>"				},	// or just one alternate
-		{ "repetition",	"?[?*+!&]<s><atom>?<label>"			},	// zero or one, zero or more, one or more, none, and
-		{ "label",	"\\:<name>"					},	// A name for the previous atom
-		{ "atom",	"|\\."							// Any character
-				"|<name>"						// call to another rule
-				"|<property>"						// A character property
-				"|<literal>"						// A literal
-				"|<class>"						// A character class
-				"|\\(<s>+<alternates>\\)<s>"				// A parenthesised group
+		{ "blankline",				// A line containing no printing characters
+		  "\\n*[ \\t\\r](|\\n|!.)"
 		},
-		{ "name",	"[\\a_]*[\\w_]<s>"				},
-		{ "literal",	"'*(!'<lit_char>)'<s>"				},
+		{ "space",				// Any single whitespace
+		  "|[ \\t\\r\\n]"
+		  "|//*[^\\n]"				// including a comment to end-of-line
+		},
+		{ "s",					// Any whitespace but not a blankline
+		  "*(!<blankline><space>)"
+		},
+		{ "TOP",				// Start; a repetition of zero or more rules
+		  "*<space>*<rule>"
+		},
+		{ "rule",				// Rule: name of a rule that matches one or more alternates
+		  "<rule_name><s>=<s>"
+		  "<alternates>?<action>"		// and perhaps has an action
+		  "<blankline>*<space>"			// it ends in a blank line
+		},
+		{ "rule_name",				// Rule: a name for a rule
+		  "<name>:rule_name"
+		},
+		{ "action",				// Looks like "-> function_call(param, ...)"
+		  "-><s><name>\\(<s>?<parameter_list>\\)<s>"
+		},
+		{ "parameter_list",			// A list of parameters to an action
+		  "<parameter>*(,<s><parameter>)"
+		},
+		{ "parameter",				// A parameter to an action
+		  "(|<reference>|<literal>)<s>"
+		},
+		{ "reference",				// A reference (name sequence) to descendents of a result.
+		  "<name><s>*([.*]<s><name>)"		// . means only one, * means "all"
+		},
+		{ "alternates",				// Alternates:
+		  "|+(\\|<s>*<repetition>)"		// either a list of alternates each prefixed by |
+		  "|*<repetition>"			// or just one alternate
+		},
+		{ "repeat_count",			// How many times must the following be seen:
+		  "(|[?*+!&]"				// zero or one, zero or more, one or more, none, and
+		  "|{(|+\\d|<name><s>)})"		// {literal count or a reference to a saved variable}
+		},
+		{ "repetition",				// a repeated atom perhaps with label
+		  "?<repeat_count><atom>?<label><s>"
+		},
+		{ "label",				// A name for the previous atom
+		  "\\:<name>"
+		},
+		{ "atom",
+		  "|\\."				// Any character
+		  "|<name>"				// call to another rule
+		  "|<property>"				// A character property
+		  "|<literal>"				// A literal
+		  "|<class>"				// A character class
+		  "|\\(<s>+<alternates>\\)"		// A parenthesised group
+		},
+		{ "name",
+		  "[\\a_]*[\\w_]"
+		},
+		{ "literal",
+		  "'*(!'<lit_char>)'"
+		},
 		{ "lit_char",
-				"|\\\\(|?[0-3][0-7]?[0-7]"				// octal character constant
-				      "|x\\h?\\h"					// hexadecimal constant \x12
-				      "|x{+\\h}"					// hexadecimal constant \x{...}
-				      "|u?[01]\\h?\\h?\\h?\\h"				// Unicode character \u1234
-				      "|u{+\\h}"					// Unicode character \u{...}
-				      "|[^\\n]"						// Other special escape except newline
-				     ")"
-				"|[^\\\\\\n]"						// any normal character except backslash or newline
+		  "|\\\\(|?[0-3][0-7]?[0-7]"		// octal character constant
+		      "|x\\h?\\h"			// hexadecimal constant \x12
+		      "|x{+\\h}"			// hexadecimal constant \x{...}
+		      "|u?[01]\\h?\\h?\\h?\\h"		// Unicode character \u1234
+		      "|u{+\\h}"			// Unicode character \u{...}
+		      "|[^\\n]"				// Other special escape except newline
+		     ")"
+		  "|[^\\\\\\n]"				// any normal character except backslash or newline
 		},
-		{ "property",	"\\\\[adhsw]<s>"				},	// alpha, digit, hexadecimal, whitespace, word (alpha or digit)
-		{ "class",	"\\[?\\^?-+<class_part>]<s>"			},	// A character class
-		{ "class_part",	"!]<class_char>?(-!]<class_char>)"		},
-		{ "class_char",	"![-\\]]<lit_char>"				},
+		{ "property",				// alpha, digit, hexadecimal, whitespace, word (alpha or digit)
+		  "\\\\[adhsw]"
+		},
+		{ "class",				// A character class
+		  "\\[?\\^?-+<class_part>]"
+		},
+		{ "class_part",
+		  "!]<class_char>?(-!]<class_char>)"
+		},
+		{ "class_char",
+		  "![-\\]]<lit_char>"
+		},
 	};
 
 	if (argc < 2)
