@@ -33,8 +33,8 @@
  *	[a-z]	Normal character (alternately, byte) class (a literal hyphen may occur at start)
  *	[^a-z]	Negated character (alternately, byte) class. Characters may include the \escapes listed above
  *	`	Prefix to specify 8-bit byte only, not UTF-8 character (REVISIT: accepted but not implemented)
- *	! @ # % _ ; <		Call the extended_match function
- *	control-character	Call the extended_match function
+ *	! @ # % _ ; <		Call the match_extended function
+ *	control-character	Call the match_extended function
  * NOT YET IMPLEMENTED:
  *	{n,m}	match from n (default 0) to m (default unlimited) repetitions of the following expression.
  *	Captures.

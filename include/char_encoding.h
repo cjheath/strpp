@@ -177,7 +177,7 @@ UTF8Len(const UTF8* cp)	// REVISIT: Add an error callback pointer here?
 	}
 }
 
-inline int
+inline UCS4
 UTF8Get(const UTF8*& cp)	// REVISIT: Add an error callback pointer here?
 {
 	const	UTF8*	sp = cp;
