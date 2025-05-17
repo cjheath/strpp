@@ -89,4 +89,3 @@ main(int argc, const char** argv)
 
 	return failure_count == 0 ? 0 : 1;
 }
-

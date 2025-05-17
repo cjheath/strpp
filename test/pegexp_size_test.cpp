@@ -14,7 +14,7 @@
 
 #if	defined(PEG_UNICODE)
 using	Source = PegexpPointerInput<NulGuardedUTF8Ptr>;
-typedef	Pegexp<Source, UCS4>	TestPegexp;
+typedef	Pegexp<Source>		TestPegexp;
 #else
 using	Source = PegexpPointerInput<NulGuardedCharPtr>;
 typedef	Pegexp<Source>		TestPegexp;

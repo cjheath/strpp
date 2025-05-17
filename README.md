@@ -173,7 +173,7 @@ You should use assertions to control inappropriate greed.
 
 All template parameters may be omitted to use defaults:
 <pre>
-template &lt;typename TextPtr, typename PChar, typename Capture, typename State&gt;
+template &lt;typename TextPtr, typename Capture&gt;
 class Pegexp
 </pre>
 

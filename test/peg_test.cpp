@@ -45,7 +45,7 @@ public:
 	void            save(PegexpPC name, PegText from, PegText to) {}
 };
 
-typedef	Peg<PegText, PegChar, PegCapture>	TestPeg;
+typedef	Peg<PegText, PegCapture>	TestPeg;
 
 void usage()
 {
@@ -128,7 +128,7 @@ main(int argc, const char** argv)
 	TestPeg		peg(rules, sizeof(rules)/sizeof(rules[0]));
 	typename TestPeg::State	result = peg.parse(px);
 
-	int		bytes_parsed = result ? result.text-px : 0;
+	int		bytes_parsed = result ? result.text.bytes_from(px) : 0;
 	printf("Parsed %d bytes of %d\n", bytes_parsed, (int)file_size);
 
 	return bytes_parsed == file_size ? 0 : 1;

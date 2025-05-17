@@ -11,22 +11,23 @@
 #include	<pegexp.h>
 #include	<vector>
 
-template<typename TextPtr = PegexpDefaultInput, typename PChar = char, typename Capture = NullCapture<PegexpDefaultInput>>
+template<typename TextPtr = PegexpDefaultInput, typename Capture = NullCapture<PegexpDefaultInput>>
 class Peg;
 
-template<typename TextPtr, typename PChar, typename Capture>
+template<typename TextPtr, typename Capture>
 class Peg
 {
 public:
-	using	State = PegState<TextPtr, PChar, Capture>;
-	class PegexpT : public Pegexp<TextPtr, PChar, Capture>
+	using	PChar = typename TextPtr::Char;
+	using	State = PegState<TextPtr, Capture>;
+	class PegexpT : public Pegexp<TextPtr, Capture>
 	{
-		Peg<TextPtr, PChar, Capture>*	peg;
+		Peg<TextPtr, Capture>*	peg;
 	public:
-		using	Pegexp = Pegexp<TextPtr, PChar, Capture>;
+		using	Pegexp = Pegexp<TextPtr, Capture>;
 		PegexpT(PegexpPC _pegexp) : Pegexp(_pegexp) {}
 
-		void		set_closure(Peg<TextPtr, PChar, Capture>* _peg) { peg = _peg; }
+		void		set_closure(Peg<TextPtr, Capture>* _peg) { peg = _peg; }
 		virtual State	match_extended(State& state)
 		{
 			if (*state.pc == '<')

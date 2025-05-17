@@ -67,23 +67,28 @@ typedef	const char*	PegexpPC;
  * by adding the methods get_byte(), get_char(), same() and at_eof().
  * same() should return true if the two Inputs are at the same position in the text
  */
-template<typename TextPtr = UTF8*, typename PChar = UCS4>
+template<typename DataPtr = const UTF8*, typename PIChar = UCS4>
 class	PegexpPointerInput
 {
 public:
-	using Char = PChar;
-	PegexpPointerInput(const char* cp) : data(cp) {}
+	using Char = PIChar;
+	PegexpPointerInput(const DataPtr cp) : data(cp) {}
 	PegexpPointerInput(const PegexpPointerInput& pi) : data(pi.data) {}
 
 	char		get_byte()
 			{ return at_eof() ? 0 : (*data++ & 0xFF); }
-	PChar		get_char()
-			{ if (sizeof(PChar) == 1) return get_byte();
-			  return (PChar)(at_eof() ? UCS4_NONE : UTF8Get(data)); }
+	PIChar		get_char()
+			{ if (sizeof(PIChar) == 1) return get_byte();
+			  return (PIChar)(at_eof() ? UCS4_NONE : UTF8Get(data)); }
 	bool		at_eof() const
 			{ return *data == '\0'; }
 	bool		same(PegexpPointerInput& other) const
 			{ return data == other.data; }
+
+	size_t		bytes_from(DataPtr origin)
+			{ return data - origin; }
+	bool		operator==(const PegexpPointerInput& o)
+			{ return o.data == data; }
 protected:
 	const UTF8*	data;
 };
@@ -100,10 +105,11 @@ public:
 	void		save(PegexpPC name, TextPtr from, TextPtr to) {}
 };
 
-template <typename TextPtr = PegexpDefaultInput, typename PChar = UCS4, typename Capture = NullCapture<TextPtr>>
+template <typename TextPtr = PegexpDefaultInput, typename Capture = NullCapture<TextPtr>>
 class PegState
 {
 public:
+	using 		PChar = typename TextPtr::Char;
 	PegState()
 			: pc(0), text(0), succeeding(true), at_bol(true), binary_code(false), capture() {}
 	PegState(PegexpPC _pc, TextPtr _text, Capture _capture = Capture())
@@ -138,11 +144,12 @@ public:
 	PegState&	progress() { succeeding = true; return *this; }
 };
 
-template<typename TextPtr = PegexpDefaultInput, typename PChar = PegexpDefaultInput::Char, typename Capture = NullCapture<TextPtr>, typename S = PegState<TextPtr, PChar, Capture>>
+template<typename TextPtr = PegexpDefaultInput, typename Capture = NullCapture<TextPtr>>
 class Pegexp
 {
 public:
-	using		State = S;
+	using 		PChar = typename TextPtr::Char;
+	using 		State = PegState<TextPtr, Capture>;
 	PegexpPC	pegexp;
 
 	Pegexp(PegexpPC _pegexp) : pegexp(_pegexp) {}
