@@ -55,8 +55,8 @@
  *
  * (c) Copyright Clifford Heath 2023. See LICENSE file for usage rights.
  */
-#include	<stdint.h>
-#include	<stdlib.h>
+#include	<cstdint>
+#include	<cstdlib>
 #include	<ctype.h>
 #include	<char_encoding.h>
 

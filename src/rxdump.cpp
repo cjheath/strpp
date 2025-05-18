@@ -5,7 +5,8 @@
  * (c) Copyright Clifford Heath 2022. See LICENSE file for usage rights.
  */
 #include	<strregex.h>
-#include	<string.h>
+#include	<cstring>
+#include    <cstdio>
 
 void
 RxCompiler::dump(const char* nfa) const		// Dump NFA to stdout

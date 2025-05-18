@@ -14,8 +14,9 @@
  *
  * (c) Copyright Clifford Heath 2022. See LICENSE file for usage rights.
  */
-#include	<stdlib.h>
-#include	<stdint.h>
+#include	<cstdlib>
+#include	<cstdint>
+#include	<cstring>
 #include	<functional>
 #include	<type_traits>
 

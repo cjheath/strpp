@@ -11,8 +11,8 @@
  *
  * (c) Copyright Clifford Heath 2023. See LICENSE file for usage rights.
  */
-#include	<stdlib.h>
-#include	<stdint.h>
+#include	<cstdlib>
+#include	<cstdint>
 #include	<functional>
 
 #include	<refcount.h>
