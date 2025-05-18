@@ -38,7 +38,7 @@
  * (c) Copyright Clifford Heath 2022. See LICENSE file for usage rights.
  */
 #include	<assert.h>
-#include	<stdint.h>
+#include	<cstdint>
 
 typedef char		UTF8;		// We don't assume un/signed
 typedef uint16_t	UTF16;		// Used in Unicode 2, and 3 with surrogates

@@ -1,4 +1,4 @@
-#include	<stdio.h>
+#include	<cstdio>
 #if !defined(PEG_H)
 #define PEG_H
 /*
@@ -6,8 +6,8 @@
  *
  * Copyright 2022 Clifford Heath. ALL RIGHTS RESERVED SUBJECT TO ATTACHED LICENSE.
  */
-#include	<stdlib.h>
-#include	<string.h>
+#include	<cstdlib>
+#include	<cstring>
 #include	<pegexp.h>
 #include	<vector>
 

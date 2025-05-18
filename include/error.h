@@ -26,7 +26,7 @@
  *
  * (c) Copyright Clifford Heath 2023. See LICENSE file for usage rights.
  */
-#include	<stdint.h>
+#include	<cstdint>
 #include	<limits.h>
 #include	<errno.h>
 #if     defined(MSW)

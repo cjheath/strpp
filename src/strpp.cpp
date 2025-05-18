@@ -16,9 +16,9 @@
  */
 #include	<strpp.h>
 
-#include	<string.h>
+#include	<cstring>
 #include	<limits.h>
-#include	<stdio.h>
+#include	<cstdio>
 
 StrBody		StrBody::nullBody("", false, 0, 0);
 const StrVal	StrVal::null;

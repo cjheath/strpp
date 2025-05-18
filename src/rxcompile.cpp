@@ -5,7 +5,7 @@
  * (c) Copyright Clifford Heath 2022. See LICENSE file for usage rights.
  */
 #include	<strregex.h>
-#include	<string.h>
+#include	<cstring>
 
 /*
  * Structure of the virtual machine:
