@@ -14,35 +14,48 @@ TOP		= *space *rule
 rule		= name s '=' s				// Rule: name of a rule that matches one or more alternates
 		alternates ?action			// and perhaps has an action.
 		blankline *space			// It ends in a blank line
-		-> make_rule(name, action, alternates)
+		-> make_rule(name, alternates, action)
 
-action		= '->' s name:function '(' s ?parameter_list ')' s
+action		= '->' s name:function ?( '(' s parameter_list ')' ) s
+		-> make_action(function, parameter_list)
 
-parameter_list	= parameter *(',' s parameter)		// A list of parameters to an action
+parameter_list	= parameter:list *(',' s parameter:list)	// A list of parameters to an action
+		-> list
 
-parameter	= ( |reference |literal ) s		// A parameter to an action
+parameter	= ( |reference:p |literal:p ) s		// A parameter to an action
+		-> p
 
-reference	= name s *( [.*] s name )		// A reference to a descendent of a result. * means "all"
+reference	= name					// A reference to a result (which may be inside a repetition)
 
-alternates	=| +('|' s *repetition)			// Either a list of alternates
-		 | *repetition				// or just one alternate
+alternates	=| +('|' s sequence)			// Either a list of alternates
+		 | sequence				// or just one alternate
+		-> sequence
 
-repeat_count	=| [?*+!&] s				// zero or one, zero or more, one or more, none
-		 | '{' (|+\d |name s) '}' s		// {literal count or reference to a saved variable}
+sequence	= *repetition
+		-> repetition
+
+repeat_count	=| [?*+!&]:limit s			// zero or one, zero or more, one or more, none
+		 | count:limit
+		-> limit
+
+count		= '{' (|(+\d):val |name:val) s '}' s	// {literal count or reference to a saved variable}
+		-> val
 
 repetition	= ?repeat_count				// How many times must the following be seen
 		  atom
 		  ?label
 		  s
+		  -> make_repetition(repeat_count, atom, label)
 
 label		= ':' name				// Apply a name to the previous atom
+		-> name
 
 atom		=| '.'					// Any character
-		| name					// call to another rule
-		| literal				// A literal
-		| property				// A character property
-		| class					// A character class
-		| '(' s +alternates ')'			// A parenthesised group
+		 | name					// call to another rule
+		 | literal				// A literal
+		 | property				// A character property
+		 | class				// A character class
+		 | '(' s +alternates ')'		// A parenthesised group
 
 // Character properties here: \a = any letter, \w = any letter or digit
 name		= [\a_] *[\w_]

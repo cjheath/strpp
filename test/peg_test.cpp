@@ -97,38 +97,51 @@ main(int argc, const char** argv)
 		  "*<space>*<rule>"
 		},
 		{ "rule",				// Rule: name of a rule that matches one or more alternates
-		  "<rule_name><s>=<s>"
+		  "<name><s>=<s>"
 		  "<alternates>?<action>"		// and perhaps has an action
 		  "<blankline>*<space>"			// it ends in a blank line
-		},
-		{ "rule_name",				// Rule: a name for a rule
-		  "<name>:rule_name"
+		  // -> make_rule(name, alternates, action)
 		},
 		{ "action",				// Looks like "-> function_call(param, ...)"
-		  "-><s><name>\\(<s>?<parameter_list>\\)<s>"
+		  "-><s><name>:function?(\\(<s><parameter_list>\\))<s>"
+		  // -> make_action(function, parameter_list)
 		},
 		{ "parameter_list",			// A list of parameters to an action
-		  "<parameter>*(,<s><parameter>)"
+		  "<parameter>:list*(,<s><parameter>:list)"
+		  // -> list
 		},
 		{ "parameter",				// A parameter to an action
-		  "(|<reference>|<literal>)<s>"
+		  "(|<reference>|<literal>):p<s>"
+		  // -> p
 		},
 		{ "reference",				// A reference (name sequence) to descendents of a result.
 		  "<name><s>*([.*]<s><name>)"		// . means only one, * means "all"
 		},
 		{ "alternates",				// Alternates:
-		  "|+(\\|<s>*<repetition>)"		// either a list of alternates each prefixed by |
-		  "|*<repetition>"			// or just one alternate
+		  "|+(\\|<s><sequence>)"		// either a list of alternates each prefixed by |
+		  "|<sequence>"				// or just one alternate
+		  // -> sequence
+		},
+		{ "sequence",				// Alternates:
+		  "*<repetition>"			// either a list of alternates each prefixed by |
+		  // -> repetition
 		},
 		{ "repeat_count",			// How many times must the following be seen:
-		  "(|[?*+!&]"				// zero or one, zero or more, one or more, none, and
-		  "|{(|+\\d|<name><s>)})"		// {literal count or a reference to a saved variable}
+		  "(|[?*+!&]:limit<s>"			// zero or one, zero or more, one or more, none, and
+		  "|<count>:limit"
+		  // -> limit
+		},
+		{ "count",
+		  "{(|(+\\d):val|<name>:val)<s>}"	// {literal count or a reference to a saved variable}
+		  // -> val
 		},
 		{ "repetition",				// a repeated atom perhaps with label
 		  "?<repeat_count><atom>?<label><s>"
+		  // -> make_repetition(repeat_count, atom, label)
 		},
 		{ "label",				// A name for the previous atom
 		  "\\:<name>"
+		  // -> name
 		},
 		{ "atom",
 		  "|\\."				// Any character
