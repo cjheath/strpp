@@ -149,7 +149,11 @@ main(int argc, const char** argv)
 		  "|<property>"				// A character property
 		  "|<literal>"				// A literal
 		  "|<class>"				// A character class
-		  "|\\(<s>+<alternates>\\)"		// A parenthesised group
+		  "|<nested_alternates>"
+		},
+		{ "nested_alternates",
+		  "\\(<s>+<alternates>\\)"		// A parenthesised group
+		  // -> alternates
 		},
 		{ "name",
 		  "[\\a_]*[\\w_]"
