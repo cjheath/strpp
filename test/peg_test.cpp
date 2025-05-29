@@ -132,7 +132,7 @@ main(int argc, const char** argv)
 		  // -> limit
 		},
 		{ "count",
-		  "{(|(+\\d):val|<name>:val)<s>}"	// {literal count or a reference to a saved variable}
+		  "\\{(|(+\\d):val|<name>:val)<s>\\}"	// {literal count or a reference to a saved variable}
 		  // -> val
 		},
 		{ "repetition",				// a repeated atom perhaps with label
