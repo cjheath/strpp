@@ -101,29 +101,31 @@ using	PegexpDefaultInput = PegexpPointerInput<>;
 template <typename TextPtr = PegexpDefaultInput>
 class	NullCapture
 {
+	NullCapture(const NullCapture&) {}	// May not copy nor assign
+	NullCapture&	operator=(const NullCapture& c) { return *this; }
 public:
 	NullCapture() {}
-	NullCapture(const NullCapture&) {}
-	NullCapture&	operator=(const NullCapture& c) { return *this; }
 	void		save(PegexpPC name, TextPtr from, TextPtr to) {}
 };
 
-template <typename TextPtr = PegexpDefaultInput, typename Capture = NullCapture<TextPtr>>
+template <typename TextPtr = PegexpDefaultInput>
 class PegState
 {
 public:
 	using 		PChar = typename TextPtr::Char;
 	PegState()
-			: pc(0), text(0), succeeding(true), at_bol(true), binary_code(false), capture() {}
-	PegState(PegexpPC _pc, TextPtr _text, Capture _capture = Capture())
-			: pc(_pc), text(_text), succeeding(true), at_bol(true)
-			, binary_code(false), capture(_capture) {}
+			: pc(0), text(0), capture_count(0)
+			, succeeding(true), at_bol(true), binary_code(false) {}
+	PegState(PegexpPC _pc, TextPtr _text)
+			: pc(_pc), text(_text), capture_count(0)
+			, succeeding(true), at_bol(true), binary_code(false) {}
 	PegState(const PegState& c)
-			: pc(c.pc), text(c.text), succeeding(c.succeeding), at_bol(c.at_bol)
-			, binary_code(c.binary_code), capture(c.capture) {}
+			: pc(c.pc), text(c.text), capture_count(c.capture_count)
+			, succeeding(c.succeeding), at_bol(c.at_bol), binary_code(c.binary_code) {}
 	PegState&		operator=(const PegState& c)
-			{ pc = c.pc; text = c.text; succeeding = c.succeeding; at_bol = c.at_bol;
-			  binary_code = c.binary_code; capture = c.capture; return *this; }
+			{ pc = c.pc; text = c.text; capture_count = c.capture_count;
+			  succeeding = c.succeeding; at_bol = c.at_bol; binary_code = c.binary_code;
+			  return *this; }
 	operator bool() { return succeeding; }
 	PChar		next()
 			{
@@ -137,28 +139,36 @@ public:
 
 	PegexpPC	pc;		// Current location in the pegexp
 	TextPtr		text;		// Current text we're looking at
+	int	   	capture_count;	// number of accepted captures preceding this state
 	bool		succeeding;	// Is this a viable path to completion?
 	bool		at_bol;		// Start of text or line
 	bool		binary_code;	// Expect next character in literal binary coding (not UTF-8, etc)
-	Capture   	capture;	// What did we learn while getting here?
 
 	// If you want to add debug tracing for example, you can override these in a subclass:
 	PegState&	fail() { succeeding = false; return *this; }
 	PegState&	progress() { succeeding = true; return *this; }
 };
 
-template<typename TextPtr = PegexpDefaultInput, typename Capture = NullCapture<TextPtr>>
+template<typename TextPtrT = PegexpDefaultInput, typename CaptureT = NullCapture<TextPtrT>>
 class Pegexp
 {
 public:
+	using 		TextPtr = TextPtrT;
+	using		Capture = CaptureT;
 	using 		PChar = typename TextPtr::Char;
-	using 		State = PegState<TextPtr, Capture>;
+	using 		State = PegState<TextPtr>;
+	class NullCap : public Capture
+	{
+	public:		// REVISIT: Without virtual functions, the wrong save may be called
+		void	save(PegexpPC name, TextPtr start, TextPtr end) {}
+	};
+
 	PegexpPC	pegexp;
 
 	Pegexp(PegexpPC _pegexp) : pegexp(_pegexp) {}
 	PegexpPC	code() const { return pegexp; }
 
-	State		match(TextPtr& start)
+	State		match(TextPtr& start, Capture& capture)
 	{
 		State	state(pegexp, start);
 		State	result;
@@ -169,7 +179,7 @@ public:
 			state.text = start;
 			state.succeeding = true;
 
-			result = match_here(state);
+			result = match_here(state, capture);
 			if (result)
 			{		// Succeeded
 				if (*result.pc != '\0')	// The pegexp has a syntax error, e.g. an extra )
@@ -183,19 +193,19 @@ public:
 		return result;	// This will show where we last failed
 	}
 
-	State		match_here(TextPtr& start)
+	State		match_here(TextPtr& start, Capture& capture)
 	{
 		State	state(pegexp, start);
-		return match_here(state);
+		return match_here(state, capture);
 	}
 
-	State		match_here(State& state)
+	State		match_here(State& state, Capture& capture)
 	{
 		if (*state.pc == '\0' || *state.pc == ')')
 			return state.progress();
-		State	r = match_atom(state);
+		State	r = match_atom(state, capture);
 		while (r && *state.pc != '\0' && *state.pc != ')')
-			r = match_atom(state);
+			r = match_atom(state, capture);
 		return r;
 	}
 
@@ -336,7 +346,7 @@ protected:
 	}
 
 	// Null extension; treat extensions like literal characters
-	virtual State	match_extended(State& state)
+	virtual State	match_extended(State& state, Capture& capture)
 	{
 		return match_literal(state);
 	}
@@ -357,7 +367,7 @@ protected:
 	 *
 	 * If it returns false, state.pc has still been advanced but state.text is unchanged
 	 */
-	State		match_atom(State& state)
+	State		match_atom(State& state, Capture& capture)
 	{
 		State		start_state(state);
 		PegexpPC	skip_from = state.pc;
@@ -412,7 +422,7 @@ protected:
 			while (repetitions < min)
 			{
 				state.pc = repeat_pc;
-				if (!match_atom(state))
+				if (!match_atom(state, capture))
 					goto fail;
 				repetitions++;
 			}
@@ -420,8 +430,9 @@ protected:
 			{
 				TextPtr		repetition_start = state.text;
 				state.pc = repeat_pc;
-				if (!match_atom(state))
+				if (!match_atom(state, capture))
 				{
+// REVISIT: Unwind any capture during failure
 					// Ensure that state.pc is now pointing at the following expression
 					state.pc = repeat_pc;
 					state.text = repetition_start;
@@ -439,7 +450,7 @@ protected:
 
 		case '(':	// Parenthesised group
 			start_state.pc = state.pc;
-			if (!match_here(state))
+			if (!match_here(state, capture))
 				break;
 			if (*state.pc != '\0')		// Don't advance past group if it was not closed
 				state.pc++;		// Skip the ')'
@@ -458,7 +469,7 @@ protected:
 
 				// Work through all atoms of the current alternate:
 				do {
-					if (!match_atom(state))
+					if (!match_atom(state, capture))
 						break;
 				} while (!(match = *state.pc == '\0' || *state.pc == ')' || *state.pc == '|'));
 
@@ -476,7 +487,8 @@ protected:
 		case '&':	// Positive lookahead assertion
 		case '!':	// Negative lookahead assertion
 		{
-			match = (rc == '!') != (bool)match_atom(state);
+			NullCap	null;	// Don't save any captures inside lookahead
+			match = (rc == '!') != (bool)match_atom(state, null);
 			state.pc = skip_atom(skip_from);	// Advance state.pc to after the assertion
 			state.text = start_state.text;		// We always continue with the original text
 			break;
@@ -496,7 +508,7 @@ protected:
 		case '<':
 		extended:
 			state.pc--;
-			match = (state = match_extended(state));
+			match = (state = match_extended(state, capture));
 			break;
 		}
 		if (!match)
@@ -511,7 +523,7 @@ protected:
 				state.pc++;
 			if (*state.pc == ':')
 				state.pc++;
-			state.capture.save(name, start_state.text, state.text);
+			capture.save(name, start_state.text, state.text);
 		}
 		return state.progress();
 	}

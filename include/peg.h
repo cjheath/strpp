@@ -11,15 +11,15 @@
 #include	<pegexp.h>
 #include	<vector>
 
-template<typename TextPtr = PegexpDefaultInput, typename Capture = NullCapture<PegexpDefaultInput>>
-class Peg;
-
-template<typename TextPtr, typename Capture>
+template<
+	typename TextPtr = PegexpDefaultInput,
+	typename Capture = NullCapture<PegexpDefaultInput>
+>
 class Peg
 {
 public:
 	using	PChar = typename TextPtr::Char;
-	using	State = PegState<TextPtr, Capture>;
+	using	State = PegState<TextPtr>;
 	class PegexpT : public Pegexp<TextPtr, Capture>
 	{
 		Peg<TextPtr, Capture>*	peg;
@@ -28,7 +28,7 @@ public:
 		PegexpT(PegexpPC _pegexp) : Pegexp(_pegexp) {}
 
 		void		set_closure(Peg<TextPtr, Capture>* _peg) { peg = _peg; }
-		virtual State	match_extended(State& state)
+		virtual State	match_extended(State& state, Capture& capture)
 		{
 			if (*state.pc == '<')
 				return peg->recurse(state);
@@ -67,12 +67,13 @@ public:
 				assert(top);
 
 #if defined(PEG_TRACE)
-				printf("Calling %s at `%.10s...` (pegexp `%s`)\n", top->name, (const char*)text, top->expression.code());
+				printf("Calling %s at `%.10s...` (pegexp `%s`)\n", top->name, text.peek(), top->expression.code());
 #endif
 
 				nesting.push_back({top, text});
 				top->expression.set_closure(this);
-				State	result = top->expression.match_here(text);
+				Capture		capture;	// Commence a new Capture
+				State	result = top->expression.match_here(text, capture);
 				nesting.pop_back();
 				return result;
 			}
@@ -124,7 +125,7 @@ public:
 					 && frame.text == state.text)
 					{
 #if defined(PEG_TRACE)
-						printf("Left recursion detected on %s at `%.10s`\n", frame.rule->name, (const char*)state.text);
+						printf("Left recursion detected on %s at `%.10s`\n", frame.rule->name, state.text.peek());
 						for (int j = 0; j < nesting.size(); j++)
 							printf("%s%s", nesting[j].rule->name, j < nesting.size() ? "->" : "\n");
 #endif
@@ -135,12 +136,13 @@ public:
 
 				State		substate = state;
 				substate.pc = sub_rule->expression.code();
-				// REVISIT: Not this: substate.capture = state.capture;
+
 #if defined(PEG_TRACE)
-				printf("Calling %s at `%.10s...` (pegexp `%s`)\n", sub_rule->name, (const char*)state.text, sub_rule->expression.code());
+				printf("Calling %s at `%.10s...` (pegexp `%s`)\n", sub_rule->name, state.text.peek(), sub_rule->expression.code());
 #endif
 				sub_rule->expression.set_closure(this);
-				State	result = sub_rule->expression.match_here(substate);
+				Capture		capture;	// Commence a new Capture
+				State	result = sub_rule->expression.match_here(substate, capture);
 
 #if defined(PEG_TRACE)
 				for (int j = 0; j < nesting.size(); j++)
@@ -154,12 +156,15 @@ public:
 					if (*state.pc == '>')	// Could be NUL on ill-formed input
 						state.pc++;
 					state.text = substate.text;
-					// REVISIT: Not this: state.capture = result.capture;
-					if (*state.pc != ':')	// Only save if not labelled
-						state.capture.save(sub_rule->name, from, state.text);
+
+#if 0	/* REVISIT: Only include if we want to capture the results of recursive rule calls */
+					if (*state.pc != ':')	// Only save if subrule is not labelled
+						capture.save(sub_rule->name, from, state.text);
+#endif
+
 #if defined(PEG_TRACE)
-					printf("MATCH `%.*s`\n", (int)(state.text-from), (const char*)from);
-					printf("continuing at text `%.10s`...\n", (const char*)state.text);
+					printf("MATCH `%.*s`\n", (int)state.text.bytes_from(from), from.peek());
+					printf("continuing at text `%.10s`...\n", state.text.peek());
 #endif
 				}
 #if defined(PEG_TRACE)

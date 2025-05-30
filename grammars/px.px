@@ -10,6 +10,7 @@ space		=| [ \t\r\n]				// Any single whitespace
 s		= *( !blankline space )			// Any space not including a blankline
 
 TOP		= *space *rule
+		-> rule
 
 rule		= name s '=' s				// Rule: name of a rule that matches one or more alternates
 		alternates ?action			// and perhaps has an action.

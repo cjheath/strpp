@@ -24,27 +24,13 @@ using	PegText = PegexpPointerInput<>;
 #endif
 using	PegexpT = Pegexp<PegText, PegChar>;
 
-class	PegCaptureBody
-: public RefCounted
-{
-	StrVal		s;
-public:
-	PegCaptureBody() {}
-	PegCaptureBody(const PegCaptureBody& c) : s(c.s) {}
-};
-
 class	PegCapture
 {
-	Ref<PegCaptureBody>	body;
-	void		Unshare()	// Get our own copy that we can safely mutate
-	{
-		if (body->GetRefCount() > 1)
-			body = new PegCaptureBody(*body);
-	}
 public:
 	void            save(PegexpPC name, PegText from, PegText to)
 	{
-		printf("Capture '%.20s': '%.*s'\n", name, (int)to.bytes_from(from), from.peek());
+		size_t brangle = strcspn(name, "<>");
+		printf("Capture '%.*s': '%.*s'\n", (int)brangle, name, (int)to.bytes_from(from), from.peek());
 	}
 };
 
@@ -95,6 +81,7 @@ main(int argc, const char** argv)
 		},
 		{ "TOP",				// Start; a repetition of zero or more rules
 		  "*<space>*<rule>"
+		  // -> rule
 		},
 		{ "rule",				// Rule: name of a rule that matches one or more alternates
 		  "<name><s>=<s>"
