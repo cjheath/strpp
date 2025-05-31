@@ -8,6 +8,7 @@
 #include	<utf8_ptr.h>
 
 #include	<stdio.h>
+#include	<ctype.h>
 #include	<sys/stat.h>
 #include	<unistd.h>
 #include	<fcntl.h>
@@ -29,8 +30,10 @@ class	PegCapture
 public:
 	void            save(PegexpPC name, PegText from, PegText to)
 	{
-		size_t brangle = strcspn(name, "<>");
-		printf("Capture '%.*s': '%.*s'\n", (int)brangle, name, (int)to.bytes_from(from), from.peek());
+		PegexpPC	ep;
+		for (ep = name; isalpha(*ep) || isdigit(*ep) || *ep == '_'; ep++)
+			;
+		printf("Capture '%.*s': '%.*s'\n", (int)(ep-name), name, (int)to.bytes_from(from), from.peek());
 	}
 };
 
@@ -68,67 +71,68 @@ int
 main(int argc, const char** argv)
 {
 	using R = TestPeg::Rule;
-	TestPeg::Rule	rules[] = {
+	TestPeg::Rule	rules[] =
+	{
 		{ "blankline",				// A line containing no printing characters
-		  "\\n*[ \\t\\r](|\\n|!.)"
+		  "\\n*[ \\t\\r](|\\n|!.)",
+		  {}
 		},
 		{ "space",				// Any single whitespace
 		  "|[ \\t\\r\\n]"
-		  "|//*[^\\n]"				// including a comment to end-of-line
+		  "|//*[^\\n]",				// including a comment to end-of-line
+		  {}
 		},
 		{ "s",					// Any whitespace but not a blankline
-		  "*(!<blankline><space>)"
+		  "*(!<blankline><space>)",
+		  {}
 		},
 		{ "TOP",				// Start; a repetition of zero or more rules
-		  "*<space>*<rule>"
-		  // -> rule
+		  "*<space>*<rule>",
+		  { "rule" }				// -> rule
 		},
 		{ "rule",				// Rule: name of a rule that matches one or more alternates
 		  "<name><s>=<s>"
 		  "<alternates>?<action>"		// and perhaps has an action
-		  "<blankline>*<space>"			// it ends in a blank line
-		  // -> make_rule(name, alternates, action)
+		  "<blankline>*<space>",		// it ends in a blank line
+		  { "name", "alternates", "action" }
 		},
-		{ "action",				// Looks like "-> function_call(param, ...)"
-		  "-><s><name>:function?(\\(<s><parameter_list>\\))<s>"
-		  // -> make_action(function, parameter_list)
-		},
-		{ "parameter_list",			// A list of parameters to an action
-		  "<parameter>:list*(,<s><parameter>:list)"
-		  // -> list
+		{ "action",				// Looks like "-> function: param, ..."
+		  "-><s>?(<name>:function\\:<s>)<parameter>:list*(,<s><parameter>:list)<s>",
+		  { "function", "list" }
 		},
 		{ "parameter",				// A parameter to an action
-		  "(|<reference>|<literal>):p<s>"
-		  // -> p
+		  "(|<reference>:param|<literal>:param)<s>",
+		  { "param" }
 		},
 		{ "reference",				// A reference (name sequence) to descendents of a result.
-		  "<name><s>*([.*]<s><name>)"		// . means only one, * means "all"
+		  "<name><s>*([.*]<s><name>)",		// . means only one, * means "all"
+		  {}
 		},
 		{ "alternates",				// Alternates:
 		  "|+(\\|<s><sequence>)"		// either a list of alternates each prefixed by |
-		  "|<sequence>"				// or just one alternate
-		  // -> sequence
+		  "|<sequence>",			// or just one alternate
+		  { "sequence" }
 		},
 		{ "sequence",				// Alternates:
-		  "*<repetition>"			// either a list of alternates each prefixed by |
-		  // -> repetition
+		  "*<repetition>",			// either a list of alternates each prefixed by |
+		  { "repetition" }
 		},
 		{ "repeat_count",			// How many times must the following be seen:
 		  "(|[?*+!&]:limit<s>"			// zero or one, zero or more, one or more, none, and
-		  "|<count>:limit"
-		  // -> limit
+		  "|<count>:limit",
+		  { "limit" }
 		},
 		{ "count",
-		  "\\{(|(+\\d):val|<name>:val)<s>\\}"	// {literal count or a reference to a saved variable}
-		  // -> val
+		  "\\{(|(+\\d):val|<name>:val)<s>\\}",	// {literal count or a reference to a saved variable}
+		  { "val" }
 		},
 		{ "repetition",				// a repeated atom perhaps with label
-		  "?<repeat_count><atom>?<label><s>"
-		  // -> make_repetition(repeat_count, atom, label)
+		  "?<repeat_count><atom>?<label><s>",
+		  { "repeat_count", "atom", "label" }
 		},
 		{ "label",				// A name for the previous atom
-		  "\\:<name>"
-		  // -> name
+		  "\\:<name>",
+		  { "name" }
 		},
 		{ "atom",
 		  "|\\."				// Any character
@@ -136,17 +140,21 @@ main(int argc, const char** argv)
 		  "|<property>"				// A character property
 		  "|<literal>"				// A literal
 		  "|<class>"				// A character class
-		  "|<nested_alternates>"
+		  "|<nested_alternates>",
+		  {}
 		},
 		{ "nested_alternates",
-		  "\\(<s>+<alternates>\\)"		// A parenthesised group
+		  "\\(<s>+<alternates>\\)",		// A parenthesised group
+		  {}
 		  // -> alternates
 		},
 		{ "name",
-		  "[\\a_]*[\\w_]"
+		  "[\\a_]*[\\w_]",
+		  {}
 		},
 		{ "literal",
-		  "'*(!'<lit_char>)'"
+		  "'*(!'<lit_char>)'",
+		  {}
 		},
 		{ "lit_char",
 		  "|\\\\(|?[0-3][0-7]?[0-7]"		// octal character constant
@@ -156,19 +164,24 @@ main(int argc, const char** argv)
 		      "|u{+\\h}"			// Unicode character \u{...}
 		      "|[^\\n]"				// Other special escape except newline
 		     ")"
-		  "|[^\\\\\\n]"				// any normal character except backslash or newline
+		  "|[^\\\\\\n]",				// any normal character except backslash or newline
+		  {}
 		},
 		{ "property",				// alpha, digit, hexadecimal, whitespace, word (alpha or digit)
-		  "\\\\[adhsw]"
+		  "\\\\[adhsw]",
+		  {}
 		},
 		{ "class",				// A character class
-		  "\\[?\\^?-+<class_part>]"
+		  "\\[?\\^?-+<class_part>]",
+		  {}
 		},
 		{ "class_part",
-		  "!]<class_char>?(-!]<class_char>)"
+		  "!]<class_char>?(-!]<class_char>)",
+		  {}
 		},
 		{ "class_char",
-		  "![-\\]]<lit_char>"
+		  "![-\\]]<lit_char>",
+		  {}
 		},
 	};
 

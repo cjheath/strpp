@@ -15,16 +15,15 @@ TOP		= *space *rule
 rule		= name s '=' s				// Rule: name of a rule that matches one or more alternates
 		alternates ?action			// and perhaps has an action.
 		blankline *space			// It ends in a blank line
-		-> make_rule(name, alternates, action)
+		-> name, alternates, action
 
-action		= '->' s name:function ?( '(' s parameter_list ')' ) s
-		-> make_action(function, parameter_list)
+action		= '->' s
+		  ?(name:function ':' s )		// REVISIT: I'm not sure that function is needed here
+		  parameter:list *( ',' s parameter:list ) s
+		-> function, list
 
-parameter_list	= parameter:list *(',' s parameter:list)	// A list of parameters to an action
-		-> list
-
-parameter	= ( |reference:p |literal:p ) s		// A parameter to an action
-		-> p
+parameter	= ( |reference:param |literal:param ) s	// A parameter to an action
+		-> param
 
 reference	= name					// A reference to a result (which may be inside a repetition)
 
@@ -46,7 +45,7 @@ repetition	= ?repeat_count				// How many times must the following be seen
 		  atom
 		  ?label
 		  s
-		  -> make_repetition(repeat_count, atom, label)
+		  -> repetition: repeat_count, atom, label
 
 label		= ':' name				// Apply a name to the previous atom
 		-> name
