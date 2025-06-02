@@ -22,13 +22,13 @@ public:
 	using	State = PegState<TextPtr>;
 	class PegexpT : public Pegexp<TextPtr, Capture>
 	{
-		Peg<TextPtr, Capture>*	peg;
+		Peg*	peg;
 	public:
 		using	Pegexp = Pegexp<TextPtr, Capture>;
 		PegexpT(PegexpPC _pegexp) : Pegexp(_pegexp) {}
 
-		void		set_closure(Peg<TextPtr, Capture>* _peg) { peg = _peg; }
-		virtual State	match_extended(State& state, Capture& capture)
+		void		set_closure(Peg* _peg) { peg = _peg; }
+		virtual State	match_extended(State& state, Capture* capture)
 		{
 			if (*state.pc == '<')
 				return peg->recurse(state);
@@ -50,12 +50,10 @@ public:
 		PegexpT		expression;
 	} Rule;
 
-	/*
-	 * The rules must be sorted by name, such that a binary search works
-	 */
 	Peg(Rule* _rules, int _num_rule)
 			: rules(_rules), num_rule(_num_rule)
 			{
+				// We must sort the rules by name, such that a binary search works:
 				qsort(rules, num_rule, sizeof(rules[0]), [](const void* r1, const void* r2) {
 					return strcmp(((const Rule*)r1)->name, ((const Rule*)r2)->name);
 				});
@@ -73,7 +71,7 @@ public:
 				nesting.push_back({top, text});
 				top->expression.set_closure(this);
 				Capture		capture;	// Commence a new Capture
-				State	result = top->expression.match_here(text, capture);
+				State	result = top->expression.match_here(text, &capture);
 				nesting.pop_back();
 				return result;
 			}
@@ -142,7 +140,7 @@ public:
 #endif
 				sub_rule->expression.set_closure(this);
 				Capture		capture;	// Commence a new Capture
-				State	result = sub_rule->expression.match_here(substate, capture);
+				State	result = sub_rule->expression.match_here(substate, &capture);
 
 #if defined(PEG_TRACE)
 				for (int j = 0; j < nesting.size(); j++)

@@ -134,14 +134,12 @@ public:
 				at_bol = ch == '\n';
 				return ch;
 			}
-	bool		at_eof() const
-			{ return text.at_eof(); }
 
 	PegexpPC	pc;		// Current location in the pegexp
 	TextPtr		text;		// Current text we're looking at
 	int	   	capture_count;	// number of accepted captures preceding this state
 	bool		succeeding;	// Is this a viable path to completion?
-	bool		at_bol;		// Start of text or line
+	bool		at_bol;		// Start of text or line. REVISIT: Should be in TextPtr implementation
 	bool		binary_code;	// Expect next character in literal binary coding (not UTF-8, etc)
 
 	// If you want to add debug tracing for example, you can override these in a subclass:
@@ -157,18 +155,13 @@ public:
 	using		Capture = CaptureT;
 	using 		PChar = typename TextPtr::Char;
 	using 		State = PegState<TextPtr>;
-	class NullCap : public Capture
-	{
-	public:		// REVISIT: Without virtual functions, the wrong save may be called
-		void	save(PegexpPC name, TextPtr start, TextPtr end) {}
-	};
 
 	PegexpPC	pegexp;
 
 	Pegexp(PegexpPC _pegexp) : pegexp(_pegexp) {}
 	PegexpPC	code() const { return pegexp; }
 
-	State		match(TextPtr& start, Capture& capture)
+	State		match(TextPtr& start, Capture* capture = 0)
 	{
 		State	state(pegexp, start);
 		State	result;
@@ -193,13 +186,13 @@ public:
 		return result;	// This will show where we last failed
 	}
 
-	State		match_here(TextPtr& start, Capture& capture)
+	State		match_here(TextPtr& start, Capture* capture = 0)
 	{
 		State	state(pegexp, start);
 		return match_here(state, capture);
 	}
 
-	State		match_here(State& state, Capture& capture)
+	State		match_here(State& state, Capture* capture = 0)
 	{
 		if (*state.pc == '\0' || *state.pc == ')')
 			return state.progress();
@@ -288,7 +281,7 @@ protected:
 
 	bool		char_class(State& state)
 	{
-		if (state.at_eof())	// End of input never matches
+		if (state.text.at_eof())	// End of input never matches
 			return false;
 
 		bool	negated;
@@ -346,14 +339,14 @@ protected:
 	}
 
 	// Null extension; treat extensions like literal characters
-	virtual State	match_extended(State& state, Capture& capture)
+	virtual State	match_extended(State& state, Capture* capture)
 	{
 		return match_literal(state);
 	}
 
 	State		match_literal(State& state)
 	{
-		if (state.at_eof() || *state.pc != state.next())
+		if (state.text.at_eof() || *state.pc != state.next())
 			return state.fail();
 		state.pc++;
 		return state.progress();
@@ -367,7 +360,7 @@ protected:
 	 *
 	 * If it returns false, state.pc has still been advanced but state.text is unchanged
 	 */
-	State		match_atom(State& state, Capture& capture)
+	State		match_atom(State& state, Capture* capture)
 	{
 		State		start_state(state);
 		PegexpPC	skip_from = state.pc;
@@ -385,24 +378,24 @@ protected:
 			break;
 
 		case '$':	// End of line or end of input
-			match = state.at_eof() || state.next() == '\n';
+			match = state.text.at_eof() || state.next() == '\n';
 			state = start_state;
 			state.pc++;
 			break;
 
 		case '.':	// Any character
-			if ((match = !state.at_eof()))
+			if ((match = !state.text.at_eof()))
 				(void)state.next();
 			break;
 
 		default:	// Literal character
 			if (rc > 0 && rc < ' ')		// Control characters
 				goto extended;
-			match = !state.at_eof() && rc == state.next();
+			match = !state.text.at_eof() && rc == state.next();
 			break;
 
 		case '\\':	// Escaped literal char
-			match = !state.at_eof() && char_property(state.pc, state.next());
+			match = !state.text.at_eof() && char_property(state.pc, state.next());
 			break;
 
 		case '[':	// Character class
@@ -487,8 +480,7 @@ protected:
 		case '&':	// Positive lookahead assertion
 		case '!':	// Negative lookahead assertion
 		{
-			NullCap	null;	// Don't save any captures inside lookahead
-			match = (rc == '!') != (bool)match_atom(state, null);
+			match = (rc == '!') != (bool)match_atom(state, (Capture*)0);
 			state.pc = skip_atom(skip_from);	// Advance state.pc to after the assertion
 			state.text = start_state.text;		// We always continue with the original text
 			break;
@@ -523,7 +515,8 @@ protected:
 				state.pc++;
 			if (*state.pc == ':')
 				state.pc++;
-			capture.save(name, start_state.text, state.text);
+			if (capture)
+				capture->save(name, start_state.text, state.text);
 		}
 		return state.progress();
 	}

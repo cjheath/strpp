@@ -67,7 +67,7 @@ main(int argc, const char** argv)
 		PegexpT			pegexp(argv[1]);
 		PegexpT::Capture	capture;
 
-		PegexpT::State		result = pegexp.match(text, capture);	// text is advanced to the start of the match
+		PegexpT::State		result = pegexp.match(text, &capture);	// text is advanced to the start of the match
 		const char*		match_start = text.rest(); // static_cast<const char*>(text);
 		int			offset = result ? text-*subject : -1;
 		int			length = result ? result.text-text : -1;

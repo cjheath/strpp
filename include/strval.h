@@ -714,7 +714,7 @@ private:
 					return -1;
 			}
 
-	};
+};
 
 template<typename Index>
 const class StrValI<Index>	StrValI<Index>::null;
