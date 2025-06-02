@@ -105,7 +105,9 @@ class	NullCapture
 	NullCapture&	operator=(const NullCapture& c) { return *this; }
 public:
 	NullCapture() {}
-	void		save(PegexpPC name, TextPtr from, TextPtr to) {}
+	int		save(PegexpPC name, TextPtr from, TextPtr to) { return 0; }
+	int		count() const { return 0; }
+	void		delete_after(int count) {}
 };
 
 template <typename TextPtr = PegexpDefaultInput>
@@ -114,16 +116,16 @@ class PegState
 public:
 	using 		PChar = typename TextPtr::Char;
 	PegState()
-			: pc(0), text(0), capture_count(0)
+			: pc(0), text(0)
 			, succeeding(true), at_bol(true), binary_code(false) {}
 	PegState(PegexpPC _pc, TextPtr _text)
-			: pc(_pc), text(_text), capture_count(0)
+			: pc(_pc), text(_text)
 			, succeeding(true), at_bol(true), binary_code(false) {}
 	PegState(const PegState& c)
-			: pc(c.pc), text(c.text), capture_count(c.capture_count)
+			: pc(c.pc), text(c.text)
 			, succeeding(c.succeeding), at_bol(c.at_bol), binary_code(c.binary_code) {}
 	PegState&		operator=(const PegState& c)
-			{ pc = c.pc; text = c.text; capture_count = c.capture_count;
+			{ pc = c.pc; text = c.text;
 			  succeeding = c.succeeding; at_bol = c.at_bol; binary_code = c.binary_code;
 			  return *this; }
 	operator bool() { return succeeding; }
@@ -137,7 +139,6 @@ public:
 
 	PegexpPC	pc;		// Current location in the pegexp
 	TextPtr		text;		// Current text we're looking at
-	int	   	capture_count;	// number of accepted captures preceding this state
 	bool		succeeding;	// Is this a viable path to completion?
 	bool		at_bol;		// Start of text or line. REVISIT: Should be in TextPtr implementation
 	bool		binary_code;	// Expect next character in literal binary coding (not UTF-8, etc)
@@ -163,6 +164,7 @@ public:
 
 	State		match(TextPtr& start, Capture* capture = 0)
 	{
+		int	initial_captures = capture ? capture->count() : 0;
 		State	state(pegexp, start);
 		State	result;
 		while (true)
@@ -171,6 +173,8 @@ public:
 			state.pc = pegexp;
 			state.text = start;
 			state.succeeding = true;
+			if (capture)
+				capture->delete_after(initial_captures);
 
 			result = match_here(state, capture);
 			if (result)
@@ -181,6 +185,8 @@ public:
 			}
 			if (start.at_eof())
 				break;
+
+			// Move forward one character
 			(void)start.get_char();
 		}
 		return result;	// This will show where we last failed
@@ -362,6 +368,7 @@ protected:
 	 */
 	State		match_atom(State& state, Capture* capture)
 	{
+		int		initial_captures = capture ? capture->count() : 0;
 		State		start_state(state);
 		PegexpPC	skip_from = state.pc;
 		bool		match = false;
@@ -421,11 +428,13 @@ protected:
 			}
 			while (max == 0 || repetitions < max)
 			{
+				int		iteration_captures = capture ? capture->count() : 0;
 				TextPtr		repetition_start = state.text;
 				state.pc = repeat_pc;
 				if (!match_atom(state, capture))
 				{
-// REVISIT: Unwind any capture during failure
+					if (capture)	// Undo new captures on failure of an unmatched iteration
+						capture->delete_after(iteration_captures);
 					// Ensure that state.pc is now pointing at the following expression
 					state.pc = repeat_pc;
 					state.text = repetition_start;
@@ -453,11 +462,12 @@ protected:
 		case '|':	// Alternates
 		{
 			PegexpPC	next_alternate = state.pc-1;
+			int		alternate_captures = capture ? capture->count() : 0;
 			while (*next_alternate == '|')	// There's another alternate
 			{
 				state = start_state;
 				state.pc = next_alternate+1;
-				// REVISIT: This reports failure of the last alternative. Should it report the first?
+				// REVISIT: This means failure reports the last alternative. Should it report the first?
 				start_state.pc = next_alternate+1;
 
 				// Work through all atoms of the current alternate:
@@ -473,6 +483,8 @@ protected:
 					break;
 				}
 				next_alternate = skip_atom(next_alternate);
+				if (capture)	// Undo new captures on failure of an alternate
+					capture->delete_after(initial_captures);
 			}
 			break;
 		}
@@ -504,7 +516,11 @@ protected:
 			break;
 		}
 		if (!match)
-	fail:		return start_state.fail();
+		{
+	fail:		if (capture)	// Undo new captures on failure
+				capture->delete_after(initial_captures);
+			return start_state.fail();
+		}
 
 		// Detect a label and save the matched atom
 		PegexpPC	name = 0;
@@ -516,7 +532,7 @@ protected:
 			if (*state.pc == ':')
 				state.pc++;
 			if (capture)
-				capture->save(name, start_state.text, state.text);
+				(void)capture->save(name, start_state.text, state.text);
 		}
 		return state.progress();
 	}

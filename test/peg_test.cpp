@@ -27,13 +27,24 @@ using	PegexpT = Pegexp<PegText, PegChar>;
 
 class	PegCapture
 {
+	int	saves;
 public:
-	void            save(PegexpPC name, PegText from, PegText to)
+	PegCapture(): saves(0) {}
+
+	int            save(PegexpPC name, PegText from, PegText to)
 	{
 		PegexpPC	ep;
 		for (ep = name; isalpha(*ep) || isdigit(*ep) || *ep == '_'; ep++)
 			;
 		printf("Capture '%.*s': '%.*s'\n", (int)(ep-name), name, (int)to.bytes_from(from), from.peek());
+		return ++saves;
+	}
+	int		count() const { return saves; }
+	void		delete_after(int count)
+	{
+		if (saves > count)
+			printf("Cancel %d reported captures leaving %d\n", saves-count, count);
+		saves = count;
 	}
 };
 
