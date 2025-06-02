@@ -202,9 +202,12 @@ public:
 	{
 		if (*state.pc == '\0' || *state.pc == ')')
 			return state.progress();
+		int		sequence_captures = capture ? capture->count() : 0;
 		State	r = match_atom(state, capture);
 		while (r && *state.pc != '\0' && *state.pc != ')')
 			r = match_atom(state, capture);
+		if (!r && capture)	// Undo new captures on failure of an unmatched sequence
+			capture->delete_after(sequence_captures);
 		return r;
 	}
 
