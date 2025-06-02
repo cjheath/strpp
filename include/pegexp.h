@@ -105,7 +105,7 @@ class	NullCapture
 	NullCapture&	operator=(const NullCapture& c) { return *this; }
 public:
 	NullCapture() {}
-	int		save(PegexpPC name, TextPtr from, TextPtr to) { return 0; }
+	int		save(PegexpPC name, int name_len, TextPtr from, TextPtr to) { return 0; }
 	int		count() const { return 0; }
 	void		delete_after(int count) {}
 };
@@ -529,10 +529,11 @@ protected:
 			name = ++state.pc;
 			while (isalpha(*state.pc) || isdigit(*state.pc) || *state.pc == '_')
 				state.pc++;
+			PegexpPC	name_end = state.pc;
 			if (*state.pc == ':')
 				state.pc++;
 			if (capture)
-				(void)capture->save(name, start_state.text, state.text);
+				(void)capture->save(name, name_end-name, start_state.text, state.text);
 		}
 		return state.progress();
 	}

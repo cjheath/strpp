@@ -31,12 +31,9 @@ class	PegCapture
 public:
 	PegCapture(): saves(0) {}
 
-	int            save(PegexpPC name, PegText from, PegText to)
+	int            save(PegexpPC name, int name_len, PegText from, PegText to)
 	{
-		PegexpPC	ep;
-		for (ep = name; isalpha(*ep) || isdigit(*ep) || *ep == '_'; ep++)
-			;
-		printf("Capture '%.*s': '%.*s'\n", (int)(ep-name), name, (int)to.bytes_from(from), from.peek());
+		printf("Capture '%.*s': '%.*s'\n", name_len, name, (int)to.bytes_from(from), from.peek());
 		return ++saves;
 	}
 	int		count() const { return saves; }
