@@ -16,6 +16,8 @@
 #include	<refcount.h>
 #include	<strval.h>
 
+#include	"memory_monitor.h"
+
 #if	defined(PEG_UNICODE)
 using	PegChar = UCS4;
 using	PegText = PegexpPointerInput<GuardedUTF8Ptr>;
@@ -45,7 +47,7 @@ public:
 	}
 };
 
-typedef	Peg<PegText, PegCapture>	TestPeg;
+typedef	Peg<PegText, PegCapture, 3>	TestPeg;
 
 void usage()
 {
@@ -75,8 +77,7 @@ char* slurp_file(const char* filename, off_t* size_p)
 	return px;
 }
 
-int
-main(int argc, const char** argv)
+int	parse_file(char* text)
 {
 	using R = TestPeg::Rule;
 	TestPeg::Rule	rules[] =
@@ -193,17 +194,34 @@ main(int argc, const char** argv)
 		},
 	};
 
+	TestPeg		peg(rules, sizeof(rules)/sizeof(rules[0]));
+
+	typename TestPeg::State	result = peg.parse(text);
+
+	result = peg.parse(text);
+
+	return result ? result.text.bytes_from(text) : 0;
+}
+
+int
+main(int argc, const char** argv)
+{
 	if (argc < 2)
 		usage();
+
+	start_recording_allocations();
 
 	off_t	file_size;
 	char*	px = slurp_file(argv[1], &file_size);
 
-	TestPeg		peg(rules, sizeof(rules)/sizeof(rules[0]));
-	typename TestPeg::State	result = peg.parse(px);
+	int		bytes_parsed;
+	bytes_parsed = parse_file(px);
+	delete px;
 
-	int		bytes_parsed = result ? result.text.bytes_from(px) : 0;
 	printf("Parsed %d bytes of %d\n", bytes_parsed, (int)file_size);
+
+	if (allocation_growth_count() > 0)	// No allocation should remain unfreed
+		report_allocation_growth();
 
 	return bytes_parsed == file_size ? 0 : 1;
 }
