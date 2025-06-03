@@ -154,7 +154,8 @@ void operator delete(void * vp) throw()
 			iter->freed = true;
 			break;
 		}
-		if (iter == allocations.end())
+		if (iter == allocations.end()
+		 && vp != &allocations[0])	// It's not the allocations array itself
 		{
 			// Memory freed that was not in recorded allocations; perhaps allocated before recording started?
 			printf("MEMORY: Freeing non-allocated memory at %p (alloc %ld)\n", vp, iter->alloc_num);
