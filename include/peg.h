@@ -170,7 +170,6 @@ public:
 
 	State	recurse(State& state, Context* parent_context)
 	{
-		Rule*	parent_rule = parent_context->rule;
 		State	start_state(state);	// Save for a failure exit
 		state.pc++;	// Skip the '<'
 
@@ -229,7 +228,7 @@ public:
 
 			// Save, if sub_rule is not labelled and the parent wants it
 			if (*state.pc != ':'
-			 && parent_rule->is_saved(sub_rule->name))	// And only if the parent wants it
+			 && parent_context->rule->is_saved(sub_rule->name))	// And only if the parent wants it
 				(void)context.capture(sub_rule->name, strlen(sub_rule->name), from, state.text);
 
 #if defined(PEG_TRACE)
