@@ -170,7 +170,7 @@ public:
 
 	State	recurse(State& state, Context* parent_context)
 	{
-		Rule*	parent = parent_context->rule;
+		Rule*	parent_rule = parent_context->rule;
 		State	start_state(state);
 		state.pc++;	// Skip the '<'
 
@@ -216,18 +216,18 @@ public:
 		{
 			TextPtr		from = state.text;
 
-			// REVISIT: is this the same as the sub_rule name we passed to lookup?
+			/*
+			 * Continue after the sub_rule call (skipping the closing >)
+			 * with the text following what we just matched.
+			 */
 			state.pc = brangle;
 			if (*state.pc == '>')	// Could be NUL on ill-formed input
 				state.pc++;
 			state.text = substate.text;
 
-			if (*state.pc != ':')	// Only save if subrule is not labelled
-			{
-				// Only save if the sub_rule exists in the parameter list of the parent
-				if (parent->is_saved(sub_rule->name))
-					(void)context.capture(sub_rule->name, strlen(sub_rule->name), from, state.text);
-			}
+			if (*state.pc != ':'	// Only save if subrule is not labelled
+			 && parent_rule->is_saved(sub_rule->name))	// And only if the parent wants it
+				(void)context.capture(sub_rule->name, strlen(sub_rule->name), from, state.text);
 
 #if defined(PEG_TRACE)
 			printf("MATCH `%.*s`\n", (int)state.text.bytes_from(from), from.peek());
@@ -238,12 +238,7 @@ public:
 		else
 			printf("FAIL\n");
 #endif
-		if (result)
-		{
-			if (parent && parent->solitary_save())
-				printf("Renamed to %s by %s: ", parent->saves[0], parent->name);
-		}
-		else
+		if (!result)
 			state = start_state.fail();
 		return state;
 	}

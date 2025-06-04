@@ -97,7 +97,7 @@ void check_arena()
 				check_allocation(*iter, iter->location);
 }
 
-void*	operator new(std::size_t n) throw(std::bad_alloc)
+void*	operator new(std::size_t n)
 {
 	char*	cp = (char*)malloc(n + 2*MEMORY_GUARD);
 	cp += MEMORY_GUARD;
@@ -158,7 +158,7 @@ void operator delete(void * vp) throw()
 		 && vp != &allocations[0])	// It's not the allocations array itself
 		{
 			// Memory freed that was not in recorded allocations; perhaps allocated before recording started?
-			printf("MEMORY: Freeing non-allocated memory at %p (alloc %ld)\n", vp, iter->alloc_num);
+			printf("MEMORY: Freeing non-allocated memory at %p\n", vp);
 			memory_error();
 		}
 	}
