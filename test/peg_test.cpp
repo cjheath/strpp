@@ -25,29 +25,55 @@ using	PegText = PegexpPointerInput<GuardedUTF8Ptr>;
 using	PegChar = char;
 using	PegText = PegexpPointerInput<>;
 #endif
-using	PegexpT = Pegexp<PegText, PegChar>;
 
-class	PegCapture
+// Foreward declarations:
+class	PegContext;
+using	PegexpT = Pegexp<PegText, PegContext>;
+typedef	Peg<PegText, PegContext>	TestPeg;
+
+class	PegContext
 {
-	int	saves;
 public:
-	PegCapture(): saves(0) {}
+	static const int MaxSaves = 3;	// Sufficient for the Px grammar below
 
-	int            save(PegexpPC name, int name_len, PegText from, PegText to)
+	using	TextPtr = PegText;
+	using	PegT = Peg<TextPtr, PegContext>;
+	using	Rule = PegRule<PegPegexp<TextPtr, PegContext>, MaxSaves>;
+
+	PegContext(PegT* _peg, PegContext* _parent, Rule* _rule, TextPtr _text)
+	: peg(_peg)
+	, capture_disabled(_parent ? _parent->capture_disabled : 0)
+	, parent(_parent)
+	, rule(_rule)
+	, text(_text)
+	, num_captures(0)
+	{}
+
+	int		capture(PegexpPC name, int name_len, TextPtr from, TextPtr to)
 	{
 		printf("Capture '%.*s': '%.*s'\n", name_len, name, (int)to.bytes_from(from), from.peek());
-		return ++saves;
+		return ++num_captures;
 	}
-	int		count() const { return saves; }
-	void		delete_after(int count)
+	int		capture_count() const
 	{
-		if (saves > count)
-			printf("Cancel %d reported captures leaving %d\n", saves-count, count);
-		saves = count;
+		return num_captures;
 	}
-};
+	void		rollback_capture(int count)
+	{
+		if (count >= num_captures)
+			return;
+		printf("REVISIT: Not rolling back to %d from %d\n", count, num_captures);
+	}
+	int		capture_disabled;
 
-typedef	Peg<PegText, PegCapture, 3>	TestPeg;
+	PegT*		peg;
+	PegContext* 	parent;
+	Rule*		rule;
+	TextPtr		text;
+
+protected:
+	int		num_captures;
+};
 
 void usage()
 {

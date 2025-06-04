@@ -12,6 +12,7 @@
 #include	<pegexp.h>
 #include	<stdio.h>
 #include	<string.h>
+#include	<vector>
 
 #include	<utf8_ptr.h>
 
@@ -39,7 +40,32 @@ protected:
 	const char*	start;
 };
 
-using	PegexpT = Pegexp<PegexpTestSource>;
+class	PegexpTestContext
+{
+	using	TextPtr = PegexpTestSource;
+public:
+	PegexpTestContext()
+	: capture_disabled(0)
+	, captures(10, {0,0,0,0})
+	{}
+	int		capture(PegexpPC name, int name_len, TextPtr from, TextPtr to) {
+				captures.push_back({name, name_len, from, to-from});
+				return captures.size();
+			}
+	int		capture_count() const { return 0; }
+	void		rollback_capture(int count) {}
+	int		capture_disabled;
+
+	typedef struct {
+		PegexpPC	name;
+		int		name_len;
+		TextPtr		capture;
+		int		length;
+	} Captured;
+	std::vector<Captured>	captures;
+};
+
+using	PegexpT = Pegexp<PegexpTestSource, PegexpTestContext>;
 
 int
 main(int argc, const char** argv)
@@ -65,12 +91,26 @@ main(int argc, const char** argv)
 	{
 		PegexpTestSource	text(*subject);
 		PegexpT			pegexp(argv[1]);
-		PegexpT::Capture	capture;
+		PegexpTestContext	context;
 
-		PegexpT::State		result = pegexp.match(text, &capture);	// text is advanced to the start of the match
+		PegexpT::State		result = pegexp.match(text, &context);	// text is advanced to the start of the match
 		const char*		match_start = text.rest(); // static_cast<const char*>(text);
 		int			offset = result ? text-*subject : -1;
 		int			length = result ? result.text-text : -1;
+
+#if 0	/* REVISIT: Work out how to integrate this into the test automation */
+		if (context.captures.size())
+		{
+			printf("Captured %ld\n", context.captures.size());
+			printf(
+				"Capture '%.*s': '%.*s'\n",
+				context.captures[0].name_len,
+				context.captures[0].name,
+				context.captures[0].length,
+				context.captures[0].capture.rest()
+			);
+		}
+#endif
 
 		if (length < 0)
 		{

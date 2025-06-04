@@ -98,16 +98,20 @@ protected:
 
 using	PegexpDefaultInput = PegexpPointerInput<>;
 
+/*
+ * An example of the API that Pegexp requires for Context.
+ * Implement your own template class having this signature to capture match fragments,
+ * or to pass your own context down to match_extended
+ */
 template <typename TextPtr = PegexpDefaultInput>
-class	NullCapture
+class	NullContext
 {
-	NullCapture(const NullCapture&) {}	// May not copy nor assign
-	NullCapture&	operator=(const NullCapture& c) { return *this; }
 public:
-	NullCapture() {}
-	int		save(PegexpPC name, int name_len, TextPtr from, TextPtr to) { return 0; }
-	int		count() const { return 0; }
-	void		delete_after(int count) {}
+	NullContext() : capture_disabled(0) {}
+	int		capture(PegexpPC name, int name_len, TextPtr from, TextPtr to) { return 0; }
+	int		capture_count() const { return 0; }
+	void		rollback_capture(int count) {}
+	int		capture_disabled;
 };
 
 template <typename TextPtr = PegexpDefaultInput>
@@ -148,12 +152,12 @@ public:
 	PegState&	progress() { succeeding = true; return *this; }
 };
 
-template<typename TextPtrT = PegexpDefaultInput, typename CaptureT = NullCapture<TextPtrT>>
+template<typename TextPtrT = PegexpDefaultInput, typename ContextT = NullContext<TextPtrT>>
 class Pegexp
 {
 public:
 	using 		TextPtr = TextPtrT;
-	using		Capture = CaptureT;
+	using		Context = ContextT;
 	using 		PChar = typename TextPtr::Char;
 	using 		State = PegState<TextPtr>;
 
@@ -162,9 +166,9 @@ public:
 	Pegexp(PegexpPC _pegexp) : pegexp(_pegexp) {}
 	PegexpPC	code() const { return pegexp; }
 
-	State		match(TextPtr& start, Capture* capture = 0)
+	State		match(TextPtr& start, Context* context = 0)
 	{
-		int	initial_captures = capture ? capture->count() : 0;
+		int	initial_captures = context ? context->capture_count() : 0;
 		State	state(pegexp, start);
 		State	result;
 		while (true)
@@ -173,10 +177,10 @@ public:
 			state.pc = pegexp;
 			state.text = start;
 			state.succeeding = true;
-			if (capture)
-				capture->delete_after(initial_captures);
+			if (context)
+				context->rollback_capture(initial_captures);
 
-			result = match_here(state, capture);
+			result = match_here(state, context);
 			if (result)
 			{		// Succeeded
 				if (*result.pc != '\0')	// The pegexp has a syntax error, e.g. an extra )
@@ -192,22 +196,22 @@ public:
 		return result;	// This will show where we last failed
 	}
 
-	State		match_here(TextPtr& start, Capture* capture = 0)
+	State		match_here(TextPtr& start, Context* context = 0)
 	{
 		State	state(pegexp, start);
-		return match_here(state, capture);
+		return match_here(state, context);
 	}
 
-	State		match_here(State& state, Capture* capture = 0)
+	State		match_here(State& state, Context* context = 0)
 	{
 		if (*state.pc == '\0' || *state.pc == ')')
 			return state.progress();
-		int		sequence_captures = capture ? capture->count() : 0;
-		State	r = match_atom(state, capture);
+		int		sequence_captures = context ? context->capture_count() : 0;
+		State	r = match_atom(state, context);
 		while (r && *state.pc != '\0' && *state.pc != ')')
-			r = match_atom(state, capture);
-		if (!r && capture)	// Undo new captures on failure of an unmatched sequence
-			capture->delete_after(sequence_captures);
+			r = match_atom(state, context);
+		if (!r && context)	// Undo new captures on failure of an unmatched sequence
+			context->rollback_capture(sequence_captures);
 		return r;
 	}
 
@@ -348,7 +352,7 @@ protected:
 	}
 
 	// Null extension; treat extensions like literal characters
-	virtual State	match_extended(State& state, Capture* capture)
+	virtual State	match_extended(State& state, Context* context)
 	{
 		return match_literal(state);
 	}
@@ -369,9 +373,9 @@ protected:
 	 *
 	 * If it returns false, state.pc has still been advanced but state.text is unchanged
 	 */
-	State		match_atom(State& state, Capture* capture)
+	State		match_atom(State& state, Context* context)
 	{
-		int		initial_captures = capture ? capture->count() : 0;
+		int		initial_captures = context ? context->capture_count() : 0;
 		State		start_state(state);
 		PegexpPC	skip_from = state.pc;
 		bool		match = false;
@@ -425,19 +429,19 @@ protected:
 			while (repetitions < min)
 			{
 				state.pc = repeat_pc;
-				if (!match_atom(state, capture))
+				if (!match_atom(state, context))
 					goto fail;
 				repetitions++;
 			}
 			while (max == 0 || repetitions < max)
 			{
-				int		iteration_captures = capture ? capture->count() : 0;
+				int		iteration_captures = context ? context->capture_count() : 0;
 				TextPtr		repetition_start = state.text;
 				state.pc = repeat_pc;
-				if (!match_atom(state, capture))
+				if (!match_atom(state, context))
 				{
-					if (capture)	// Undo new captures on failure of an unmatched iteration
-						capture->delete_after(iteration_captures);
+					if (context)	// Undo new captures on failure of an unmatched iteration
+						context->rollback_capture(iteration_captures);
 					// Ensure that state.pc is now pointing at the following expression
 					state.pc = repeat_pc;
 					state.text = repetition_start;
@@ -455,7 +459,7 @@ protected:
 
 		case '(':	// Parenthesised group
 			start_state.pc = state.pc;
-			if (!match_here(state, capture))
+			if (!match_here(state, context))
 				break;
 			if (*state.pc != '\0')		// Don't advance past group if it was not closed
 				state.pc++;		// Skip the ')'
@@ -465,7 +469,7 @@ protected:
 		case '|':	// Alternates
 		{
 			PegexpPC	next_alternate = state.pc-1;
-			int		alternate_captures = capture ? capture->count() : 0;
+			int		alternate_captures = context ? context->capture_count() : 0;
 			while (*next_alternate == '|')	// There's another alternate
 			{
 				state = start_state;
@@ -475,7 +479,7 @@ protected:
 
 				// Work through all atoms of the current alternate:
 				do {
-					if (!match_atom(state, capture))
+					if (!match_atom(state, context))
 						break;
 				} while (!(match = *state.pc == '\0' || *state.pc == ')' || *state.pc == '|'));
 
@@ -486,8 +490,8 @@ protected:
 					break;
 				}
 				next_alternate = skip_atom(next_alternate);
-				if (capture)	// Undo new captures on failure of an alternate
-					capture->delete_after(initial_captures);
+				if (context)	// Undo new captures on failure of an alternate
+					context->rollback_capture(initial_captures);
 			}
 			break;
 		}
@@ -495,7 +499,11 @@ protected:
 		case '&':	// Positive lookahead assertion
 		case '!':	// Negative lookahead assertion
 		{
-			match = (rc == '!') != (bool)match_atom(state, (Capture*)0);
+			if (context)
+				context->capture_disabled++;
+			match = (rc == '!') != (bool)match_atom(state, context);
+			if (context)
+				context->capture_disabled--;
 			state.pc = skip_atom(skip_from);	// Advance state.pc to after the assertion
 			state.text = start_state.text;		// We always continue with the original text
 			break;
@@ -515,13 +523,13 @@ protected:
 		case '<':
 		extended:
 			state.pc--;
-			match = (state = match_extended(state, capture));
+			match = (state = match_extended(state, context));
 			break;
 		}
 		if (!match)
 		{
-	fail:		if (capture)	// Undo new captures on failure
-				capture->delete_after(initial_captures);
+	fail:		if (context)	// Undo new captures on failure
+				context->rollback_capture(initial_captures);
 			return start_state.fail();
 		}
 
@@ -535,8 +543,8 @@ protected:
 			PegexpPC	name_end = state.pc;
 			if (*state.pc == ':')
 				state.pc++;
-			if (capture)
-				(void)capture->save(name, name_end-name, start_state.text, state.text);
+			if (context && context->capture_disabled == 0)
+				(void)context->capture(name, name_end-name, start_state.text, state.text);
 		}
 		return state.progress();
 	}
