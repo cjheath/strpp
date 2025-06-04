@@ -20,11 +20,23 @@
 
 #if	defined(PEG_UNICODE)
 using	PegChar = UCS4;
-using	PegText = PegexpPointerInput<GuardedUTF8Ptr>;
+using	TextPtr = GuardedUTF8Ptr;
+using	PegTextSup = PegexpPointerInput<GuardedUTF8Ptr>;
 #else
 using	PegChar = char;
-using	PegText = PegexpPointerInput<>;
+using	TextPtr = PegChar*;
+using	PegTextSup = PegexpPointerInput<>;
 #endif
+
+// We need some help to extract captured data from PegexpPointerInput:
+class PegText : public PegTextSup
+{
+public:
+	PegText(const TextPtr cp) : PegTextSup(cp) {}
+	PegText(const PegText& pi) : PegTextSup(pi.data) {}
+	const UTF8*	peek() const { return data; }
+	size_t		bytes_from(PegText origin) { return data - origin.data; }
+};
 
 // Foreward declarations:
 class	PegContext;

@@ -84,14 +84,6 @@ public:
 			{ return *data == '\0'; }
 	bool		same(PegexpPointerInput& other) const
 			{ return data == other.data; }
-
-	size_t		bytes_from(DataPtr origin)
-			{ return data - origin; }
-	size_t		bytes_from(PegexpPointerInput origin)
-			{ return data - origin.data; }
-	bool		operator==(const PegexpPointerInput& o)
-			{ return o.data == data; }
-	const UTF8*	peek() const { return data; }
 protected:
 	const UTF8*	data;
 };

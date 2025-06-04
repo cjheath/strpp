@@ -192,7 +192,7 @@ public:
 		for (Context* pp = parent_context; pp; pp = pp->parent)
 		{
 			// Same Rule already active at the same offset?
-			if (pp->rule ==  sub_rule&& pp->text == state.text)
+			if (pp->rule == sub_rule && pp->text.same(state.text))
 			{
 #if defined(PEG_TRACE)
 				printf("Left recursion detected on %s at `%.10s`\n", pp->rule->name, state.text.peek());

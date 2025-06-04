@@ -120,14 +120,23 @@ Read the header file for the API.
 
 The StrVal class is a specialisation of this template, which provides its storage and reference counting.
 
-## PEG Expression pattern matching
+## Prefix Regular Expression pattern matching
 
 `#include	<pegexp.h>`
 
-This template class implements <strong>pegular expressions</strong> (aka pegexp).
+This template class implements Prefix Regular Expressions (aka <strong>pegular expressions</strong> or pegexp).
 
-Regular expressions describe text patterns, backtracking after failure caused by excessive repetition.
-Pegular expressions also match text, but only backtrack on alternates, which requires avoiding excessive repetition using look-aheads.
+Regular expressions describe text patterns, backtracking after a failure caused by greedy repetition.
+
+Pegular expressions also match text, but never backtrack, which requires avoiding excessive repetition using look-aheads.
+Repetition and optional operators precede the atom they affect (hence <strong>prefix</strong>).
+This prefix notation means no pre-compiler is needed for efficient execution, which reduces memory demand.
+
+Alternates and repetition are possessive and will never backtrack.
+ * Once an alternate has matched, no subsequent alterative will be tried in that group.
+ * Once a repetition has been made, it will never be unwound.
+ * It is your responsibility to ensure these possessive operators never match unless it's final.
+ * You should use negative assertions to control inappropriate greed
 
 The advantage of Pegexp over Regexp is there is no easy ReDOS attack, and no computational or memory expense to avoiding that.
 
@@ -173,7 +182,7 @@ You should use assertions to control inappropriate greed.
 
 All template parameters may be omitted to use defaults:
 <pre>
-template &lt;typename TextPtr, typename Capture&gt;
+template &lt;typename TextPtr, typename Context&gt;
 class Pegexp
 </pre>
 
@@ -189,24 +198,34 @@ A custom TextPtr must be copyable, and must implement the following methods:
         bool            same(TextPtr& other) const; // Return true if other refers to the same location
 </pre>
 
-The structure of TextPtr is carefully designed to allow processing data arriving on an ephemeral stream, such as a network socket.
-The only extra processing required is that when any copy of a TextPtr is made, it can proceed from its current position in the stream.
-When a TextPtr is deleted, no further access will be required to data from that position - unless an older copy still exists.
+The structure of TextPtr is designed to be able to process data that's arriving on an ephemeral stream,
+such as a network socket.  The only extra processing required is that when any copy of a TextPtr is made,
+it must be possible to proceed from that position in the stream. When a TextPtr is deleted,
+no further access will be required to data from that position - unless an older copy still exists.
 This "stream memory" behaviour is being implemented in a <strong>StreamFork</strong> class.
 
 You can subclass Pegexp\<\> to override match_extended&skip_extended to handle special command characters.
 
-The Capture parameter provides capture handling. Read the header file for details.
+The Context parameter provides capture handling, but the default Context has a NullContext stub.
+Read the header file for details.
 
 ## PEG parsing
 
 `#include	<peg.h>`
 
-The Peg parser templates extend Pegexp to provide a powerful PEG parsing engine for arbitrary grammars.
-The preferred way to use this is to compile a grammar expressed in the BNF-like language <strong>Px</strong>.
+The Peg parser templates make use of Pegexp to provide a powerful PEG parsing engine for arbitrary grammars.
+
+The grammar is expressed using a compact in-memory table. No executable code needs to be generated.
+The preferred way to use this is to compile a grammar expressed in the BNF-like language [Px](grammars/px.px),
+which (will) emit C++ data definitions for the parser engine to interpret.
+No heap memory allocation is required during execution (and minimal stack),
+except to build any requested Abstract Syntax Trees that reflect the result of the parse.
+No memoization is performed, so a badly constructed grammar can cause long runtimes.
+
 Like the Pegexp template, Peg\<\> processes data from a TextPtr, which may be a stream.
 
-The tooling and this template class is currently incomplete.
+The [Peg parser](test/peg_test.cpp) works and reports captures from the parse result,
+but AST generation from those captures (and the Px tooling) are currently incomplete.
 
 ## Regular Expressions
 
