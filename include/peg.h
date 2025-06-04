@@ -171,13 +171,13 @@ public:
 	State	recurse(State& state, Context* parent_context)
 	{
 		Rule*	parent_rule = parent_context->rule;
-		State	start_state(state);
+		State	start_state(state);	// Save for a failure exit
 		state.pc++;	// Skip the '<'
 
 		// Find the end of the rule name in the calling Pegexp:
 		const char*	brangle = strchr(state.pc, '>');
 		if (!brangle)
-			brangle = state.pc+strlen(state.pc);	// Error, no > before end of expression
+			brangle = state.pc+strlen(state.pc);	// Error, no > before end of expression. Survive
 
 		Rule*	sub_rule = lookup(state.pc);
 		if (!sub_rule)
@@ -191,25 +191,27 @@ public:
 		// Check for left recursion (infinite loop)
 		for (Context* pp = parent_context; pp; pp = pp->parent)
 		{
-			// Same Rule already active at the same offset?
+			// Is the same Rule already active at the same offset?
 			if (pp->rule == sub_rule && pp->text.same(state.text))
 			{
 #if defined(PEG_TRACE)
-				printf("Left recursion detected on %s at `%.10s`\n", pp->rule->name, state.text.peek());
-				// REVISIT: Print the recursion path
+				pp->print_path();
+				printf(": left recursion detected at `%.10s`\n", state.text.peek());
 #endif
 				return start_state.fail();
 			}
 		}
 
-		// The sub_rule commences in the current State with the new Pegexp
+		// The sub_rule commences in the current State, but with the new Pegexp
 		State	substate = state;
 		substate.pc = sub_rule->expression.code();
-		Context	context(this, parent_context, sub_rule, state.text);	// Commence a new Context
+		Context	context(this, parent_context, sub_rule, state.text);	// Open a nested Context
 
 #if defined(PEG_TRACE)
-		printf("Calling %s /%s/ at `%.10s...` (pegexp `%s`)\n", sub_rule->name, substate.pc, state.text.peek(), sub_rule->expression.code());
+		parent_context->print_path();
+		printf(": calling %s /%s/ at `%.10s...` (pegexp `%s`)\n", sub_rule->name, substate.pc, state.text.peek(), sub_rule->expression.code());
 #endif
+
 		State	result = sub_rule->expression.match_here(substate, &context);
 
 		if (result)
@@ -225,7 +227,8 @@ public:
 				state.pc++;
 			state.text = substate.text;
 
-			if (*state.pc != ':'	// Only save if subrule is not labelled
+			// Save, if sub_rule is not labelled and the parent wants it
+			if (*state.pc != ':'
 			 && parent_rule->is_saved(sub_rule->name))	// And only if the parent wants it
 				(void)context.capture(sub_rule->name, strlen(sub_rule->name), from, state.text);
 

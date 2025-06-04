@@ -63,7 +63,9 @@ public:
 
 	int		capture(PegexpPC name, int name_len, TextPtr from, TextPtr to)
 	{
-		printf("Capture '%.*s': '%.*s'\n", name_len, name, (int)to.bytes_from(from), from.peek());
+		printf("Capture ");
+		print_path();
+		printf(" '%.*s': '%.*s'\n", name_len, name, (int)to.bytes_from(from), from.peek());
 		return ++num_captures;
 	}
 	int		capture_count() const
@@ -82,6 +84,18 @@ public:
 	PegContext* 	parent;
 	Rule*		rule;
 	TextPtr		text;
+
+	void		print_path(int depth = 0) const
+	{
+		if (parent)
+		{
+			parent->print_path(depth+1);
+			printf("->");
+		}
+		else
+			printf("@depth=%d: ", depth);
+		printf("%s", rule->name);
+	}
 
 protected:
 	int		num_captures;
