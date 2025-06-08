@@ -4,7 +4,7 @@
  * (c) Copyright Clifford Heath 2023. See LICENSE file for usage rights.
  */
 
-#include	<stdio.h>
+#include	<cstdio>
 #include	<utf8_ptr.h>
 
 UTF8	source[] = "Hello, world";

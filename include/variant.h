@@ -36,7 +36,7 @@ public:
 		VarArray,
 		StrVarMap,
 		//, VarVarMap
-		VariantTypeMax
+		VariantTypeMax = StrVarMap
 	} VariantType;
 
 	~Variant()
@@ -126,24 +126,24 @@ public:
 	const int&		as_int() const { must_be(Integer); return u.i; }
 	const long&		as_long() const { must_be(Long); return u.l; }
 	const long long&	as_longlong() const { must_be(LongLong); return u.ll; }
-	const StrVal&		as_strval() const { must_be(String); return u.str; }
-	const StrArray&		as_string_array() const { must_be(StringArray); return u.str_arr; }
-	const VariantArray&	as_variant_array() const { must_be(VarArray); return u.var_arr; }
+	const StrVal		as_strval() const { must_be(String); return u.str; }
+	const StrArray		as_string_array() const { must_be(StringArray); return u.str_arr; }
+	const VariantArray	as_variant_array() const { must_be(VarArray); return u.var_arr; }
 	const StrVariantMap&	as_variant_map() const { must_be(StrVarMap); return u.var_map; }
 
 	int&			as_int() { coerce(Integer); return u.i; }
 	long&			as_long() { coerce(Long); return u.l; }
 	long long&		as_longlong() { coerce(LongLong); return u.ll; }
-	StrVal&			as_strval() { coerce(String); return u.str; }
-	StrArray&		as_string_array() { coerce(StringArray); return u.str_arr; }
-	VariantArray&		as_variant_array() { coerce(VarArray); return u.var_arr; }
+	StrVal			as_strval() { coerce(String); return u.str; }
+	StrArray		as_string_array() { coerce(StringArray); return u.str_arr; }
+	VariantArray		as_variant_array() { coerce(VarArray); return u.var_arr; }
 	StrVariantMap&		as_variant_map() { coerce(StrVarMap); return u.var_map; }
 
 	VariantType		get_type() const { return type; }
 
 	const char*		type_name() const
 	{
-		if (type >= None && type < VariantTypeMax)
+		if (type >= None && type <= VariantTypeMax)
 			return type_names[type];
 		return "Corrupt type";
 	}
@@ -168,29 +168,114 @@ protected:
 		type = None;
 	}
 
-	void	coerce(VariantType t)
+	void	coerce(VariantType new_type)
 	{
 		VariantType	old_type = type;
 
-		if (old_type == t)
+		// printf("coercing %s to %s\n", type_names[old_type], type_names[new_type]);
+
+		if (old_type == new_type)
 			return;		// Nothing to do
 
-		switch (t)
+		ErrNum		e;
+		int32_t		i32;
+		switch (new_type)
 		{
 		default:		// FALL THROUGH
 		case None:		// FALL THROUGH
 			coerce_none();
 			return;
 
-		case Integer:		break;	// REVISIT: No coercion implemented
-		case Long:		break;	// REVISIT: No coercion implemented
-		case LongLong:		break;	// REVISIT: No coercion implemented
-		case String:		break;	// REVISIT: No coercion implemented
+		case Integer:
+			switch (old_type)
+			{
+			case Integer:	return; // Already handled
+			case Long:	if (u.l != (int)u.l) break;	// Fail if it would truncate
+					u.i = (int)u.l; return;
+			case LongLong:	if (u.ll != (int)u.ll) break;	// Fail if it would truncate
+					u.i = (int)u.ll; return;
+			case String:	i32 = u.str.asInt32(&e, 0);
+					if (!e)				// Some error in conversion
+						break;
+					u.i = i32;
+					type = new_type;
+					return;
+			case None:		// FALL THROUGH
+			case StringArray:	// FALL THROUGH
+			case VarArray:		// FALL THROUGH
+			case StrVarMap:		// FALL THROUGH
+					break;	// Cannot coerce
+			}
+			break;
+
+		case Long:
+			switch (old_type)
+			{
+			case Integer:	u.l = u.i; return;
+			case Long:	return; // Already handled
+			case LongLong:	if (u.ll != (long)u.ll) break;	// Fail if it would truncate
+					u.l = (long)u.ll; return;
+			case String:	i32 = u.str.asInt32(&e, 0);	// REVISIT: int32 only, or it fails
+					if (!e)				// Some error in conversion
+						break;
+					u.l = i32;
+					type = new_type;
+					return;
+			case None:		// FALL THROUGH
+			case StringArray:	// FALL THROUGH
+			case VarArray:		// FALL THROUGH
+			case StrVarMap:		// FALL THROUGH
+					break;	// Cannot coerce
+			}
+			break;
+
+		case LongLong:
+			switch (old_type)
+			{
+			case Integer:	u.l = u.i; return;
+			case Long:	u.ll = u.l; return;
+			case LongLong:	return; // Already handled
+			case String:	i32 = u.str.asInt32(&e, 0);	// REVISIT: int32 only, or it fails
+					if (e)				// Some error in conversion
+						break;
+					u.ll = i32;
+					type = new_type;
+					return;
+			case None:		// FALL THROUGH
+			case StringArray:	// FALL THROUGH
+			case VarArray:		// FALL THROUGH
+			case StrVarMap:		// FALL THROUGH
+					break;	// Cannot coerce
+			}
+			break;
+
+		case String:
+			switch (old_type)
+			{
+			char buf[24];	// Big enough for 64-bit integer
+			case Integer:	snprintf(buf, sizeof(buf), "%d", u.i);
+					*this = StrVal(buf);
+					return;
+			case Long:	snprintf(buf, sizeof(buf), "%ld", u.l);
+					*this = StrVal(buf);
+					return;
+			case LongLong:	snprintf(buf, sizeof(buf), "%lld", u.ll);
+					*this = StrVal(buf);
+					return;
+			case String:	return; // Already handled
+			case None:		// FALL THROUGH
+			case StringArray:	// FALL THROUGH
+			case VarArray:		// FALL THROUGH
+			case StrVarMap:		// FALL THROUGH
+					break;	// Cannot coerce
+			}
+			break;
+
 		case StringArray:	break;	// REVISIT: No coercion implemented
 		case VarArray:		break;	// REVISIT: No coercion implemented
 		case StrVarMap:		break;	// REVISIT: No coercion implemented
 		}
-		must_be(t);		// Report unimplemented coercion
+		must_be(new_type);		// Report impossible coercion
 	}
 
 	// Type assertion:

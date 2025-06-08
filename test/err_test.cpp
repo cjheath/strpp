@@ -4,7 +4,7 @@
  * (c) Copyright Clifford Heath 2023. See LICENSE file for usage rights.
  */
 #include	"error.h"
-#include	<stdio.h>
+#include	<cstdio>
 
 /* Example of what the error catalog compiler might put into a generated include file */
 #define	ERRNUM_Something	ErrNum(2,20)

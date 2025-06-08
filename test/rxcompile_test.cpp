@@ -4,9 +4,9 @@
  *
  * (c) Copyright Clifford Heath 2022. See LICENSE file for usage rights.
  */
-#include	<stdio.h>
-#include	<ctype.h>
-#include	<string.h>
+#include	<cstdio>
+#include	<cctype>
+#include	<cstring>
 
 #define	protected	public
 #include	<strregex.h>

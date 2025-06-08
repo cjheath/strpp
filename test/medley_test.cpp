@@ -6,8 +6,8 @@
  */
 #include	<strval.h>
 
-#include	<string.h>
-#include	<stdio.h>
+#include	<cstring>
+#include	<cstdio>
 #include	"memory_monitor.h"
 
 void tests();

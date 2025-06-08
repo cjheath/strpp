@@ -4,8 +4,8 @@
  * (c) Copyright Clifford Heath 2022. See LICENSE file for usage rights.
  */
 #include	<vector>
-#include	<stdio.h>
-#include	<stdlib.h>
+#include	<cstdio>
+#include	<cstdlib>
 
 #if	!defined(MEMORY_GUARD)
 #define MEMORY_GUARD	4

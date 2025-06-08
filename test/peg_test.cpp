@@ -7,8 +7,8 @@
 #include	<peg.h>
 #include	<utf8_ptr.h>
 
-#include	<stdio.h>
-#include	<ctype.h>
+#include	<cstdio>
+#include	<cctype>
 #include	<sys/stat.h>
 #include	<unistd.h>
 #include	<fcntl.h>

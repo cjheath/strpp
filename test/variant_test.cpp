@@ -35,8 +35,11 @@ void tests()
 	vm.insert("foo", vll);
 
 	Variant&	f = vm["foo"];
-	printf("Found type %s\n", f.type_name());
+	printf("Found \"foo\" as type %s\n", f.type_name());
 
-	int	fi = f.as_longlong();
-	printf("Found foo=%d\n", fi);
+	int	fl = f.as_long();
+	printf("Found foo=%d as_long\n", fl);
+
+	StrVal	fs = f.as_strval();
+	printf("Found foo=\"%s\" as strval\n", fs.asUTF8());
 }

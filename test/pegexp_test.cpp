@@ -10,8 +10,8 @@
 #define	PEGEXP_UNICODE	1
 
 #include	<pegexp.h>
-#include	<stdio.h>
-#include	<string.h>
+#include	<cstdio>
+#include	<cstring>
 #include	<vector>
 
 #include	<utf8_ptr.h>

@@ -20,7 +20,8 @@ HDRS	=	\
 		pegexp.h		\
 		refcount.h		\
 		strval.h		\
-		strregex.h
+		strregex.h		\
+		variant.h
 
 SRCS	=	\
 		char_encoding.cpp	\
@@ -40,7 +41,8 @@ TESTS	=	\
 		rxcompile_test		\
 		rxmatch_test		\
 		strval_test		\
-		utf8pointer_test
+		utf8pointer_test	\
+		variant_test
 
 OBJS	=	$(patsubst %,build/%,$(SRCS:.cpp=.o))
 

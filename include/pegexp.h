@@ -57,7 +57,7 @@
  */
 #include	<cstdint>
 #include	<cstdlib>
-#include	<ctype.h>
+#include	<cctype>
 #include	<char_encoding.h>
 
 typedef	const char*	PegexpPC;
@@ -522,6 +522,37 @@ protected:
 		{
 	fail:		if (context)	// Undo new captures on failure
 				context->rollback_capture(initial_captures);
+
+#if 0
+			/*
+			 * REVISIT: If this is the furthest point reached in the text so far,
+			 * record the rule that was last attempted. Multiple rules may be
+			 * attempted at this point, we want to know what characters would
+			 * have allowed the parse to proceed.
+			 */
+			if (context		// We need something to report to
+			 && state.text >= context->furthest_success
+			 && strchr("?*+(|&", rc)== (char*)0)	// Don't report special characters
+			{
+				// Should this be before the switch, because we hadn't failed then?
+				if (start_state.text > context->furthest_success)
+					context->wipe_failures();	// We got further this time
+
+				/*
+				 * Terminal symbols for which we can report failure:
+				 * ^ = beginning of line
+				 * $ = end of line
+				 * !. = EOF
+				 * . = any character
+				 * [...] = character class (definition is between start_state.pc and state.pc)
+				 * \literal character
+				 * Otherwise it's a literal character.
+				 * 	(Report the whole sequence? What if several have a common prefix?)
+				 */
+				context->record_failure(start_state, rc);
+			}
+#endif
+
 			return start_state.fail();
 		}
 

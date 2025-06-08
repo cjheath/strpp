@@ -3,7 +3,7 @@
  *
  * (c) Copyright Clifford Heath 2022. See LICENSE file for usage rights.
  */
-#include        <stdio.h>
+#include        <cstdio>
 #include        <strval.h>
 
 void greet(StrVal greeting)

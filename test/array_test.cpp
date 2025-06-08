@@ -6,8 +6,8 @@
 
 #include	<array.h>
 #include	<strval.h>
-#include	<stdio.h>
-#include	<string.h>
+#include	<cstdio>
+#include	<cstring>
 
 using	CharArray = Array<char>;
 using	PtrArray = Array<const char*>;
