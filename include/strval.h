@@ -377,6 +377,10 @@ public:
 	bool		equalCI(const StrValI& s) const		// Case independent equality
 			{ return compare(s, CompareCI) == 0; }
 
+	// Ensure StrVal meets the requirements for a std::map:
+	static bool	compare(const StrValI& c1, const StrValI& c2);
+	static bool	equiv(const StrValI& c1, const StrValI& c2);
+
 	// Extract substrings:
 	StrValI		substr(Index at, int len = -1) const
 			{
@@ -718,6 +722,18 @@ private:
 
 template<typename Index>
 const class StrValI<Index>	StrValI<Index>::null;
+
+template<typename Index>
+bool StrValI<Index>::compare(const StrValI& c1, const StrValI& c2)
+{
+	return c1.compare(c2, CompareRaw) > 0;
+}
+
+template<typename Index>
+bool StrValI<Index>::equiv(const StrValI& c1, const StrValI& c2)
+{
+	return c1.compare(c2, CompareRaw) == 0;
+}
 
 template<typename Index>
 int StrValI<Index>::compare(const StrValI& comparand, CompareStyle style) const
