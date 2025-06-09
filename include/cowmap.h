@@ -20,42 +20,41 @@ template<
 	typename Body
 > class	CowMap
 {
+protected:
 	using	BaseVP = typename Body::value_type;	// Key-Value pair, the way std:map likes it.
 public:
 	using	Iter = typename Body::Iter;	// Mutating a CowMap while iterating will mutate a fresh Body
 	using	Value = V;
 	using	Key = K;
 
-	~CowMap() {}				// Destructor
+	~CowMap() { }				// Destructor
 	CowMap()				// Empty map
-			: body(0)
-			{
-				Body* b = 0;
-				b = new Body();
-				body = b;
-			}
+			: body(new Body()) { }
 	CowMap(const CowMap& s1)		// Normal copy constructor
-			: body(s1.body) {}
-	CowMap& operator=(const CowMap& s1)	// Assignment operator
-			{ body = s1.body; return *this; }
+			: body(s1.body) { }
 	CowMap(const Key* keys, const Value* values, int size)	// construct by copying data
 			: body(0)
 			{
 				body = new Body();
 				for (int i = 0; i < size; i++)
-					body.insert(BaseVP(keys[i], values[i]));
+					body->insert(BaseVP(keys[i], values[i]));
 			}
-	void	insert(const Key k, const Value v)
-			{
-				Unshare();
-				body->insert(BaseVP(k, v));
-			}
+	CowMap& operator=(const CowMap& s1)	// Assignment operator
+			{ body = s1.body; return *this; }
 	Value	operator[](const Key& k)
 			{
 				return (*body)[k];
 			}
 	Iter	begin() { return body->begin(); }
-	Iter	end() { return body->end(); }
+	Iter	end()	{ return body->end(); }
+	size_t	size()	{ return body->size(); }
+
+	// Mutating methods:
+	void	clear() { body = new Body(); }
+	void	insert(const Key k, const Value v)
+			{ Unshare(); body->insert(BaseVP(k, v)); }
+	void	erase(const Key& k)
+			{ Unshare(); body->erase(k); }
 
 private:
 	Ref<Body>	body;		// The storage structure for the elements
