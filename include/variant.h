@@ -1,28 +1,25 @@
+#if !defined(VARIANT_H)
+#define VARIANT_H
 /*
  * Variant data type
  */
+#include <assert.h>
 
 #include <strval.h>
 #include <array.h>
-#include <assert.h>
-#include <map>
+#include <cowmap.h>
 
 class	Variant;
-typedef Array<StrVal>			StrArray;	// Array of StrVal
-typedef Array<Variant>			VariantArray;	// Array of Variant
-class	StrVariantMap					// Map from StrVal to Variant
-	: public std::map<StrVal, Variant>
+typedef Array<StrVal>	StrArray;	// Array of StrVal
+typedef Array<Variant>	VariantArray;	// Array of Variant
+class	StrVariantMap			// Map from StrVal to Variant
+	: public CowMap<Variant, StrVal>
 {
-	using Base = std::map<StrVal, Variant>;
 public:
-	void	insert(StrVal s, Variant v);
-	void	insert(value_type v);			// D'oh, need to re-expose overloads here
 };
 
 class	Variant
 {
-	static const char*	type_names[];
-
 public:
 	typedef enum {
 		None,
@@ -61,7 +58,7 @@ public:
 	{ 	type = StrVarMap;
 		new(&u.var_map) StrVariantMap();
 		for (StrArray::Index i = 0; i < count; i++)
-			u.var_map.insert(StrVariantMap::value_type(keys[i], values[i]));
+			u.var_map.insert(keys[i], values[i]);
 	}
 
 	// Default-initialise any type
@@ -129,7 +126,7 @@ public:
 	const StrVal		as_strval() const { must_be(String); return u.str; }
 	const StrArray		as_string_array() const { must_be(StringArray); return u.str_arr; }
 	const VariantArray	as_variant_array() const { must_be(VarArray); return u.var_arr; }
-	const StrVariantMap&	as_variant_map() const { must_be(StrVarMap); return u.var_map; }
+	const StrVariantMap	as_variant_map() const { must_be(StrVarMap); return u.var_map; }
 
 	int&			as_int() { coerce(Integer); return u.i; }
 	long&			as_long() { coerce(Long); return u.l; }
@@ -137,7 +134,7 @@ public:
 	StrVal			as_strval() { coerce(String); return u.str; }
 	StrArray		as_string_array() { coerce(StringArray); return u.str_arr; }
 	VariantArray		as_variant_array() { coerce(VarArray); return u.var_arr; }
-	StrVariantMap&		as_variant_map() { coerce(StrVarMap); return u.var_map; }
+	StrVariantMap		as_variant_map() { coerce(StrVarMap); return u.var_map; }
 
 	VariantType		get_type() const { return type; }
 
@@ -149,7 +146,8 @@ public:
 	}
 
 protected:
-	void	coerce_none()		// Discard any value and nullify the type
+	// Discard any value and nullify the type
+	void	coerce_none()
 	{
 		switch (type)
 		{
@@ -302,10 +300,9 @@ protected:
 		~u()		{}	// Destruction happens outside here
 		void zero()	{ memset(this, 0, sizeof(*this)); }
 	} u;
-};
 
-void	StrVariantMap::insert(StrVal s, Variant v) { insert(StrVariantMap::value_type(s, v)); }
-void	StrVariantMap::insert(value_type v) { Base::insert(v); }
+	static const char*	type_names[];
+};
 
 const char*	Variant::type_names[] = {
 	"None",
@@ -320,3 +317,4 @@ const char*	Variant::type_names[] = {
 	"StrVarMap"
 	//, "VarVarMap"
 };
+#endif // VARIANT_H

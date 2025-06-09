@@ -13,6 +13,7 @@ HDRS	=	\
 		array.h			\
 		char_encoding.h		\
 		charpointer.h		\
+		cowmap.h		\
 		error.h			\
 		char_ptr.h		\
 		utf8_ptr.h		\

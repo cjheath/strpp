@@ -34,7 +34,7 @@ void tests()
 	StrVariantMap	vm = vmap.as_variant_map();
 	vm.insert("foo", vll);
 
-	Variant&	f = vm["foo"];
+	Variant	f = vm["foo"];
 	printf("Found \"foo\" as type %s\n", f.type_name());
 
 	int	fl = f.as_long();
