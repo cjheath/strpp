@@ -116,6 +116,7 @@ public:
 		case VarArray:		new(&u.var_arr) VariantArray(v.as_variant_array()); break;
 		case StrVarMap:		new(&u.var_map) StrVariantMap(v.as_variant_map()); break;
 		}
+		type = v.type;
 		return *this;
 	}
 

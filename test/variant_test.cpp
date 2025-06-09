@@ -41,5 +41,6 @@ void tests()
 	printf("Found foo=%d as_long\n", fl);
 
 	StrVal	fs = f.as_strval();
+
 	printf("Found foo=\"%s\" as strval\n", fs.asUTF8());
 }

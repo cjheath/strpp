@@ -58,13 +58,12 @@ $(LIB):	build $(OBJS)
 
 tests:	$(TESTS)
 
-test:	run_pegexp_test run_peg_test run_peg_size_test run_pegexp_size_test
+test:	run_pegexp_test run_pegexp_size_test \
+	run_peg_test run_peg_size_test \
+	run_variant_test
 
 run_pegexp_test: pegexp_test
 	test/run_pegexp_test < test/pegexp_test.cases
-
-run_peg_test: peg_test
-	peg_test grammars/px.px
 
 run_peg_size_test:
 	@rm peg_size_test.o 2>/dev/null || true
@@ -73,12 +72,18 @@ run_peg_size_test:
 	@size peg_size_test.o
 	@rm peg_size_test.o
 
+run_peg_test: peg_test
+	peg_test grammars/px.px
+
 run_pegexp_size_test:
 	@rm pegexp_size_test.o 2>/dev/null || true
 	@$(MAKE) pegexp_size_test.o
 	@echo Pegexp code size:
 	@size pegexp_size_test.o
 	@rm pegexp_size_test.o
+
+run_variant_test: variant_test
+	variant_test
 
 %:	%.cpp $(LIB) test/memory_monitor.cpp
 	$(CXX) $(DEBUG) $(CXXFLAGS) -Iinclude -Itest -o $@ $< test/memory_monitor.cpp $(LIB)
