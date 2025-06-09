@@ -70,6 +70,11 @@ void memory_error()
 	;	// Breakpoint here to stop at memory errors
 }
 
+long	last_alloc_num()
+{
+	return memory_count;
+}
+
 void check_allocation(const Allocation& a, const char* p)
 {
 	for (int i = 0; i < MEMORY_GUARD; i++)
