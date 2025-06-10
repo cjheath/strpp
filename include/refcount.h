@@ -8,7 +8,7 @@
 #include	<assert.h>
 #include	<atomic>
 
-class	RefCounted
+class	alignas(16) RefCounted
 {
 public:
 	virtual		~RefCounted() { }
@@ -24,7 +24,7 @@ protected:
 
 
 template <class T>
-class Ref
+class alignas(16) Ref
 {
 	std::atomic<T*>	ptr;
 
