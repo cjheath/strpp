@@ -10,6 +10,8 @@
 #include <cowmap.h>
 
 class	Variant;
+
+// Complex reference-counted types we can use in a Variant:
 typedef Array<StrVal>	StrArray;	// Array of StrVal
 typedef Array<Variant>	VariantArray;	// Array of Variant
 class	StrVariantMap			// Map from StrVal to Variant

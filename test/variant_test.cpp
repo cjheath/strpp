@@ -29,10 +29,16 @@ void tests()
 	StrVariantMap	v;
 	v.insert(s, 23LL);
 	v.insert("baz", vll);
+
 	v.insert("bar", vmap);
+printf("v has %ld elements\n", v.size());
 
 	StrVariantMap	vm = vmap.as_variant_map();
+	StrVariantMap	vm2 = vm;
+	// This will Unshare vm
 	vm.insert("foo", vll);
+printf("vm2 has %ld elements\n", vm2.size());
+printf("vm has %ld elements\n", vm.size());
 
 	Variant	f = vm["foo"];
 	printf("Found \"foo\" as type %s\n", f.type_name());
