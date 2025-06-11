@@ -10,9 +10,10 @@
 #include	<atomic>
 
 #if	!defined(MEMORY_GUARD)
-struct ML_max_align {
-	std::atomic<char*> c;
-	std::atomic<double> d;
+union ML_max_align {
+	std::max_align_t	a;
+	std::atomic<char*>	c;
+	std::atomic<double>	d;
 };
 #define MEMORY_GUARD	alignof(ML_max_align)
 #endif

@@ -8,13 +8,7 @@
 #include	<assert.h>
 #include	<atomic>
 
-#if	defined(__aarch64__)
-#define RC_AtomicAlign	alignas(16)
-#else
-#define RC_AtomicAlign	
-#endif
-
-class	/*alignas(16)*/ RefCounted
+class	RefCounted
 {
 public:
 	virtual		~RefCounted() { }
@@ -29,7 +23,7 @@ protected:
 };
 
 template <class T>
-class RC_AtomicAlign Ref
+class Ref
 {
 	std::atomic<T*>	ptr;
 
