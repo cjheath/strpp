@@ -259,6 +259,8 @@ public:
 			}
 	void		append(const Array& addend)
 			{ insert(num_elements, addend.asElements(), addend.length()); }
+	void		append(const Element& addend)
+			{ (*this) += addend; }
 	void		reverse()
 			{
 				Unshare();
