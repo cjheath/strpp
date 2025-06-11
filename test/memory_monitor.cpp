@@ -6,9 +6,15 @@
 #include	<vector>
 #include	<cstdio>
 #include	<cstdlib>
+#include	<cassert>
+#include	<atomic>
 
 #if	!defined(MEMORY_GUARD)
-#define MEMORY_GUARD	4
+struct ML_max_align {
+	std::atomic<char*> c;
+	std::atomic<double> d;
+};
+#define MEMORY_GUARD	alignof(ML_max_align)
 #endif
 #define	GUARD_VALUE	0xA5
 
@@ -106,6 +112,7 @@ void*	operator new(std::size_t n)
 {
 	char*	cp = (char*)malloc(n + 2*MEMORY_GUARD);
 	cp += MEMORY_GUARD;
+
 	if (memory_recursion++ == 0)
 	{
 		auto iter = allocations.begin();
