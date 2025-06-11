@@ -4,6 +4,7 @@
  * Variant data type
  */
 #include <assert.h>
+#include <cstdio>
 
 #include <strval.h>
 #include <array.h>
