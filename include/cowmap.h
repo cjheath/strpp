@@ -41,10 +41,17 @@ public:
 			}
 	CowMap& operator=(const CowMap& s1)	// Assignment operator
 			{ body = s1.body; return *this; }
+
 	Value	operator[](const Key& k)
 			{
 				return (*body)[k];
 			}
+	bool	contains(const Key& k)
+			{
+				auto search = find(k);
+				return search != end();
+			}
+	Iter	find(const Key& k) { return body->find(k); }
 	Iter	begin() { return body->begin(); }
 	Iter	end()	{ return body->end(); }
 	size_t	size()	{ return body->size(); }
