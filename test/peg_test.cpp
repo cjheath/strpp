@@ -15,6 +15,7 @@
 
 #include	<refcount.h>
 #include	<strval.h>
+#include	<variant.h>
 
 #include	"memory_monitor.h"
 
@@ -99,6 +100,7 @@ public:
 
 protected:
 	int		num_captures;
+	StrVariantMap	ast;
 };
 
 void usage()
@@ -250,9 +252,7 @@ int	parse_file(char* text)
 
 	typename TestPeg::State	result = peg.parse(text);
 
-	result = peg.parse(text);
-
-	return result ? result.text.bytes_from(text) : 0;
+	return result.ok() ? result.text.bytes_from(text) : 0;
 }
 
 int

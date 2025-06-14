@@ -213,7 +213,7 @@ public:
 
 		State	result = sub_rule->expression.match_here(substate, &context);
 
-		if (result)
+		if (result.ok())
 		{
 			TextPtr		from = state.text;
 
@@ -240,7 +240,7 @@ public:
 		else
 			printf("FAIL\n");
 #endif
-		if (!result)
+		if (!result.ok())
 			state = start_state.fail();
 		return state;
 	}

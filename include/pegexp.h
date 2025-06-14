@@ -124,7 +124,7 @@ public:
 			{ pc = c.pc; text = c.text;
 			  succeeding = c.succeeding; at_bol = c.at_bol; binary_code = c.binary_code;
 			  return *this; }
-	operator bool() { return succeeding; }
+	bool		ok() const { return succeeding; }
 	PChar		next()
 			{
 				PChar	ch = binary_code ? text.get_byte() : text.get_char();
@@ -198,12 +198,15 @@ public:
 	{
 		if (*state.pc == '\0' || *state.pc == ')')
 			return state.progress();
-		int		sequence_captures = context ? context->capture_count() : 0;
+		int		sequence_capture_start = context ? context->capture_count() : 0;
+
 		State	r = match_atom(state, context);
-		while (r && *state.pc != '\0' && *state.pc != ')')
+		while (r.ok() && *state.pc != '\0' && *state.pc != ')')
 			r = match_atom(state, context);
-		if (!r && context)	// Undo new captures on failure of an unmatched sequence
-			context->rollback_capture(sequence_captures);
+
+		// If not all atoms in the sequence match, any captures in the incomplete sequence must be reverted:
+		if (!r.ok() && context)
+			context->rollback_capture(sequence_capture_start);
 		return r;
 	}
 
@@ -421,7 +424,7 @@ protected:
 			while (repetitions < min)
 			{
 				state.pc = repeat_pc;
-				if (!match_atom(state, context))
+				if (!match_atom(state, context).ok())
 					goto fail;
 				repetitions++;
 			}
@@ -430,7 +433,7 @@ protected:
 				int		iteration_captures = context ? context->capture_count() : 0;
 				TextPtr		repetition_start = state.text;
 				state.pc = repeat_pc;
-				if (!match_atom(state, context))
+				if (!match_atom(state, context).ok())
 				{
 					if (context)	// Undo new captures on failure of an unmatched iteration
 						context->rollback_capture(iteration_captures);
@@ -451,7 +454,7 @@ protected:
 
 		case '(':	// Parenthesised group
 			start_state.pc = state.pc;
-			if (!match_here(state, context))
+			if (!match_here(state, context).ok())
 				break;
 			if (*state.pc != '\0')		// Don't advance past group if it was not closed
 				state.pc++;		// Skip the ')'
@@ -471,7 +474,7 @@ protected:
 
 				// Work through all atoms of the current alternate:
 				do {
-					if (!match_atom(state, context))
+					if (!match_atom(state, context).ok())
 						break;
 				} while (!(match = *state.pc == '\0' || *state.pc == ')' || *state.pc == '|'));
 
@@ -493,7 +496,7 @@ protected:
 		{
 			if (context)
 				context->capture_disabled++;
-			match = (rc == '!') != (bool)match_atom(state, context);
+			match = (rc == '!') != match_atom(state, context).ok();
 			if (context)
 				context->capture_disabled--;
 			state.pc = skip_atom(skip_from);	// Advance state.pc to after the assertion
@@ -503,6 +506,7 @@ protected:
 
 		case '`':
 			state.binary_code = true;
+			match = true;
 			break;
 
 		// Extended commands:
@@ -515,7 +519,8 @@ protected:
 		case '<':
 		extended:
 			state.pc--;
-			match = (state = match_extended(state, context));
+			state = match_extended(state, context);
+			match = state.ok();
 			break;
 		}
 		if (!match)
