@@ -53,8 +53,12 @@ public:
 	{ type = LongLong; u.ll = _ll; }
 	Variant(StrVal v)
 	{ type = String; new(&u.str) StrVal(v); }
+	Variant(StrArray a)
+	{ type = StringArray; new(&u.str_arr) StrArray(a); }
 	Variant(StrVal* v, StrArray::Index count)
 	{ type = StringArray; new(&u.str_arr) StrArray(v, count); }
+	Variant(VariantArray a)
+	{ type = VarArray; new(&u.str_arr) VariantArray(a); }
 	Variant(Variant* v, VariantArray::Index count)
 	{ type = VarArray; new(&u.var_arr) VariantArray(v, count); }
 	Variant(StrVal* keys, Variant* values, StrArray::Index count)
@@ -174,10 +178,10 @@ protected:
 	{
 		VariantType	old_type = type;
 
-		// printf("coercing %s to %s\n", type_names[old_type], type_names[new_type]);
-
 		if (old_type == new_type)
 			return;		// Nothing to do
+
+		// printf("coercing %s to %s\n", type_names[old_type], type_names[new_type]);
 
 		ErrNum		e;
 		int32_t		i32;
