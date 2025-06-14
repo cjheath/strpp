@@ -11,10 +11,10 @@
 #include	<pegexp.h>
 
 // Forward declarations:
-template<typename TextPtr, typename Context> class Peg;	// The Peg parser
+template<typename Source, typename Context> class Peg;	// The Peg parser
 
 // A Pegexp with the extensions required to be used in a Peg:
-template<typename TextPtr, typename Result, typename Context> class PegPegexp;
+template<typename Source, typename Result, typename Context> class PegPegexp;
 
 /*
  * A Peg parser is made up of a number of named Rules.
@@ -53,19 +53,19 @@ public:
  * This NullCapture context does no capturing and returns no AST.
  */
 template<
-	typename TextPtr = PegexpDefaultInput,
+	typename Source = PegexpDefaultSource,
 	int MaxSavesV = 2
 >
 class PegContextNullCapture
 {
 public:
 	static const int MaxSaves = MaxSavesV;
-	using	Result = PegexpDefaultResult<TextPtr>;
-	using	PegexpT = PegPegexp<TextPtr, Result, PegContextNullCapture>;
+	using	Result = PegexpDefaultResult<Source>;
+	using	PegexpT = PegPegexp<Source, Result, PegContextNullCapture>;
 	using	Rule = PegRule<PegexpT, MaxSaves>;
-	using	PegT = Peg<TextPtr, PegContextNullCapture>;
+	using	PegT = Peg<Source, PegContextNullCapture>;
 
-	PegContextNullCapture(PegT* _peg, PegContextNullCapture* _parent, Rule* _rule, TextPtr _text)
+	PegContextNullCapture(PegT* _peg, PegContextNullCapture* _parent, Rule* _rule, Source _text)
 	: peg(_peg)
 	, capture_disabled(_parent ? _parent->capture_disabled : 0)
 	, parent(_parent)
@@ -81,19 +81,19 @@ public:
 	PegT*		peg;
 	PegContextNullCapture* 	parent;
 	Rule*		rule;
-	TextPtr		text;
+	Source		text;
 };
 
 // Subclass the Pegexp template to extend virtual functions:
 template<
-	typename TextPtr = PegexpDefaultInput,
-	typename Result = PegexpDefaultResult<TextPtr>,
-	typename Context = PegContextNullCapture<TextPtr>
-> class PegPegexp : public Pegexp<TextPtr, Result, Context>
+	typename Source = PegexpDefaultSource,
+	typename Result = PegexpDefaultResult<Source>,
+	typename Context = PegContextNullCapture<Source>
+> class PegPegexp : public Pegexp<Source, Result, Context>
 {
 public:
-	using	Base = Pegexp<TextPtr, Result, Context>;
-	using	State = PegexpState<TextPtr>;
+	using	Base = Pegexp<Source, Result, Context>;
+	using	State = PegexpState<Source>;
 	PegPegexp(PegexpPC _pegexp_pc) : Base(_pegexp_pc) {}
 
 	virtual State	match_extended(State& state, Context* context)
@@ -125,16 +125,16 @@ public:
 };
 
 template<
-	typename TextPtr = PegexpDefaultInput,
-	typename Context = PegContextNullCapture<TextPtr>
+	typename Source = PegexpDefaultSource,
+	typename Context = PegContextNullCapture<Source>
 >
 class Peg
 {
 public:
 	using	Rule = typename Context::Rule;
-	using	State = PegexpState<TextPtr>;
-	using	Result = PegexpDefaultResult<TextPtr>;
-	using	PegexpT = PegPegexp<TextPtr, Result, Context>;
+	using	State = PegexpState<Source>;
+	using	Result = PegexpDefaultResult<Source>;
+	using	PegexpT = PegPegexp<Source, Result, Context>;
 
 	Peg(Rule* _rules, int _num_rule)
 	: rules(_rules), num_rule(_num_rule)
@@ -145,7 +145,7 @@ public:
 		});
 	}
 
-	State	parse(TextPtr text)
+	State	parse(Source text)
 	{
 		Rule*	top_rule = lookup("TOP");
 		assert(top_rule);
@@ -231,7 +231,7 @@ public:
 
 		if (result.ok())
 		{
-			TextPtr		from = state.text;
+			Source		from = state.text;
 
 			/*
 			 * Continue after the sub_rule call (skipping the closing >)
@@ -258,6 +258,12 @@ public:
 #endif
 		if (!result.ok())
 			state = start_state.fail();
+		else
+		{
+// This is the wrong place to do this:
+//			if (parent_context->rule && parent_context->rule->solitary_save())
+//				printf("Renamed %s by %s\n", parent_context->rule->saves[0], parent_context->rule->name);
+		}
 		return state;
 	}
 

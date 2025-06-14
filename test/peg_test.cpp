@@ -21,41 +21,41 @@
 
 #if	defined(PEG_UNICODE)
 using	PegChar = UCS4;
-using	TextPtr = GuardedUTF8Ptr;
-using	PegTestTextSup = PegexpPointerInput<GuardedUTF8Ptr>;
+using	Source = GuardedUTF8Ptr;
+using	PegTestSourceSup = PegexpPointerSource<GuardedUTF8Ptr>;
 #else
 using	PegChar = char;
-using	TextPtr = PegChar*;
-using	PegTestTextSup = PegexpPointerInput<>;
+using	Source = PegChar*;
+using	PegTestSourceSup = PegexpPointerSource<>;
 #endif
 
-// We need some help to extract captured data from PegexpPointerInput:
-class PegTestText : public PegTestTextSup
+// We need some help to extract captured data from PegexpPointerSource:
+class PegTestSource : public PegTestSourceSup
 {
 public:
-	PegTestText(const TextPtr cp) : PegTestTextSup(cp) {}
-	PegTestText(const PegTestText& pi) : PegTestTextSup(pi.data) {}
+	PegTestSource(const Source cp) : PegTestSourceSup(cp) {}
+	PegTestSource(const PegTestSource& pi) : PegTestSourceSup(pi.data) {}
 
 	const UTF8*	peek() const { return data; }
-	size_t		bytes_from(PegTestText origin) { return data - origin.data; }
+	size_t		bytes_from(PegTestSource origin) { return data - origin.data; }
 };
 
 // Forward declarations:
 class	PegContext;
-using	PegexpResult = PegexpDefaultResult<PegTestText>;
-using	PegexpT = Pegexp<PegTestText, PegexpResult, PegContext>;
+using	PegexpResult = PegexpDefaultResult<PegTestSource>;
+using	PegexpT = Pegexp<PegTestSource, PegexpResult, PegContext>;
 
 class	PegContext
 {
 public:
 	static const int MaxSaves = 3;	// Sufficient for the Px grammar below
 
-	using	TextPtr = PegTestText;
+	using	Source = PegTestSource;
 	using	Result = PegexpResult;
-	using	PegT = Peg<TextPtr, PegContext>;
-	using	Rule = PegRule<PegPegexp<TextPtr, Result, PegContext>, MaxSaves>;
+	using	PegT = Peg<Source, PegContext>;
+	using	Rule = PegRule<PegPegexp<Source, Result, PegContext>, MaxSaves>;
 
-	PegContext(PegT* _peg, PegContext* _parent, Rule* _rule, TextPtr _text)
+	PegContext(PegT* _peg, PegContext* _parent, Rule* _rule, Source _text)
 	: peg(_peg)
 	, capture_disabled(_parent ? _parent->capture_disabled : 0)
 	, parent(_parent)
@@ -107,7 +107,7 @@ public:
 	PegT*		peg;
 	PegContext* 	parent;
 	Rule*		rule;
-	TextPtr		text;
+	Source		text;
 
 	void		print_path(int depth = 0) const
 	{
@@ -126,7 +126,7 @@ protected:
 	StrVariantMap	ast;
 };
 
-typedef	Peg<PegTestText, PegContext>	TestPeg;
+typedef	Peg<PegTestSource, PegContext>	TestPeg;
 
 void usage()
 {

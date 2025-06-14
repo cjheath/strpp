@@ -13,17 +13,17 @@
 #define	PEG_UNICODE 1
 
 #if	defined(PEG_UNICODE)
-using	Source = PegexpPointerInput<NulGuardedUTF8Ptr>;
-typedef	Pegexp<Source>		TestPegexp;
+using	TestSource = PegexpPointerSource<NulGuardedUTF8Ptr>;
+typedef	Pegexp<TestSource>		TestPegexp;
 #else
-using	Source = PegexpPointerInput<NulGuardedCharPtr>;
-typedef	Pegexp<Source>		TestPegexp;
+using	TestSource = PegexpPointerSource<NulGuardedCharPtr>;
+typedef	Pegexp<TestSource>		TestPegexp;
 #endif
 
 int
 main(int argc, const char** argv)
 {
 	TestPegexp		pegexp(argv[1]);
-	Source			p(argv[2]);
+	TestSource		p(argv[2]);
 	return pegexp.match_here(p).ok() ? 0 : 1;
 }

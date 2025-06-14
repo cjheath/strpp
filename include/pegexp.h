@@ -49,7 +49,7 @@
  * It is your responsibility to ensure these possessive operators never match unless it's final.
  * You should use negative assertions to control inappropriate greed.
  *
- * You can use any scalar data type for Char, and a pointer to it for TextPtr (even wrapping a socket).
+ * You can use any scalar data type for Char, and any Source providing the required methods (even wrapping a socket).
  * You can subclass Pegexp to override match_extended&skip_extended to handle special command characters.
  * You can replace the default NullCapture with a capture object with features for your extended command chars.
  *
@@ -71,12 +71,12 @@ template<
 	typename DataPtr = const UTF8*,
 	typename _Char = UCS4
 >
-class	PegexpPointerInput
+class	PegexpPointerSource
 {
 public:
 	using Char = _Char;
-	PegexpPointerInput(const DataPtr cp) : data(cp) {}
-	PegexpPointerInput(const PegexpPointerInput& pi) : data(pi.data) {}
+	PegexpPointerSource(const DataPtr cp) : data(cp) {}
+	PegexpPointerSource(const PegexpPointerSource& pi) : data(pi.data) {}
 
 	char		get_byte()
 			{ return at_eof() ? 0 : (*data++ & 0xFF); }
@@ -85,28 +85,28 @@ public:
 			  return (Char)(at_eof() ? UCS4_NONE : UTF8Get(data)); }
 	bool		at_eof() const
 			{ return *data == '\0'; }
-	bool		same(PegexpPointerInput& other) const
+	bool		same(PegexpPointerSource& other) const
 			{ return data == other.data; }
 
 protected:
 	const UTF8*	data;
 };
 
-using	PegexpDefaultInput = PegexpPointerInput<>;
+using	PegexpDefaultSource = PegexpPointerSource<>;
 
 /*
  * The default Result (of matching an atom) is just a POD copy of the various pointers.
  * It does no copying or extra computation.
  * (which otherwise might be incurred by computing (from-to) for example).
  */
-template <typename _TextPtr = PegexpDefaultInput>
+template <typename _Source = PegexpDefaultSource>
 class	PegexpDefaultResult
 {
 public:
-	using TextPtr = _TextPtr;
+	using Source = _Source;
 
 	// Any subclasses must have this constructor, to capture matched text:
-	PegexpDefaultResult(TextPtr _from, TextPtr _to, PegexpPC _name = 0, int _name_len = 0)
+	PegexpDefaultResult(Source _from, Source _to, PegexpPC _name = 0, int _name_len = 0)
 	: from(_from)		// pointer to start of the text matched by this atom
 	, to(_to)		// pointer to the text following the match
 	, name(_name)		// Name of a label, or NULL
@@ -117,8 +117,8 @@ public:
 
 	PegexpPC	name;
 	int		name_len;
-	TextPtr		from;
-	TextPtr		to;
+	Source		from;
+	Source		to;
 };
 
 /*
@@ -130,7 +130,7 @@ template <typename Result = PegexpDefaultResult<>>
 class	PegexpNullContext
 {
 public:
-	using	TextPtr = typename Result::TextPtr;
+	using	Source = typename Result::Source;
 	PegexpNullContext() : capture_disabled(0) {}
 
 	int		capture(Result) { return 0; }
@@ -139,15 +139,15 @@ public:
 	int		capture_disabled;
 };
 
-template <typename TextPtr = PegexpDefaultInput>
+template <typename Source = PegexpDefaultSource>
 class PegexpState
 {
 public:
-	using 		Char = typename TextPtr::Char;
+	using 		Char = typename Source::Char;
 	PegexpState()
 			: pc(0), text(0)
 			, succeeding(true), at_bol(true), binary_code(false) {}
-	PegexpState(PegexpPC _pc, TextPtr _text)
+	PegexpState(PegexpPC _pc, Source _text)
 			: pc(_pc), text(_text)
 			, succeeding(true), at_bol(true), binary_code(false) {}
 	PegexpState(const PegexpState& c)
@@ -167,9 +167,9 @@ public:
 			}
 
 	PegexpPC	pc;		// Current location in the pegexp
-	TextPtr		text;		// Current text we're looking at
+	Source		text;		// Current text we're looking at
 	bool		succeeding;	// Is this a viable path to completion?
-	bool		at_bol;		// Start of text or line. REVISIT: Should be in TextPtr implementation
+	bool		at_bol;		// Start of text or line. REVISIT: Should be in Source implementation
 	bool		binary_code;	// Expect next character in literal binary coding (not UTF-8, etc)
 
 	// If you want to add debug tracing for example, you can override these in a subclass:
@@ -178,16 +178,16 @@ public:
 };
 
 template<
-	typename _TextPtr = PegexpDefaultInput,
-	typename _Result = PegexpDefaultResult<_TextPtr>,
+	typename _Source = PegexpDefaultSource,
+	typename _Result = PegexpDefaultResult<_Source>,
 	typename _Context = PegexpNullContext<_Result>
 >
 class Pegexp
 {
 public:	// Expose our template types for subclasses to use:
-	using 		TextPtr = _TextPtr;
-	using 		Char = typename TextPtr::Char;
-	using 		State = PegexpState<TextPtr>;
+	using 		Source = _Source;
+	using 		Char = typename Source::Char;
+	using 		State = PegexpState<Source>;
 	using		Context = _Context;
 	using		Result = _Result;
 
@@ -197,7 +197,7 @@ public:	// Expose our template types for subclasses to use:
 	PegexpPC	code() const { return pegexp; }
 
 	// Match the Peg expression at or after the start of the text:
-	State		match(TextPtr& start, Context* context = 0)
+	State		match(Source& start, Context* context = 0)
 	{
 		int	initial_captures = context ? context->capture_count() : 0;
 		State	state(pegexp, start);
@@ -208,7 +208,7 @@ public:	// Expose our template types for subclasses to use:
 			state.pc = pegexp;
 			state.text = start;
 			state.succeeding = true;
-			// state.at_bol = true;		// Don't reset, since we probably aren't at the start. REVISIT: This should be in the TextPtr
+			// state.at_bol = true;		// Don't reset, since we probably aren't at the start. REVISIT: This should be in the Source
 			state.binary_code = false;
 			if (context)
 				context->rollback_capture(initial_captures);
@@ -229,7 +229,7 @@ public:	// Expose our template types for subclasses to use:
 		return result;	// This will show where we last failed
 	}
 
-	State		match_here(TextPtr& start, Context* context = 0)
+	State		match_here(Source& start, Context* context = 0)
 	{
 		State	state(pegexp, start);
 		return match_here(state, context);
@@ -472,7 +472,7 @@ protected:
 			while (max == 0 || repetitions < max)
 			{
 				int		iteration_captures = context ? context->capture_count() : 0;
-				TextPtr		repetition_start = state.text;
+				Source		repetition_start = state.text;
 				state.pc = repeat_pc;
 				if (!match_atom(state, context).ok())
 				{

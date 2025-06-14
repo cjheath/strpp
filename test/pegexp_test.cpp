@@ -17,17 +17,17 @@
 #include	<utf8_ptr.h>
 
 #if	defined(PEGEXP_UNICODE)
-using	Source = PegexpPointerInput<>;
+using	TestSource = PegexpPointerSource<>;
 #else
-using	Source = PegexpPointerInput<char*, char>;	// REVISIT: Change template parameter to bool=true to request Unicode
+using	TestSource = PegexpPointerSource<char*, char>;	// REVISIT: Change template parameter to bool=true to request Unicode
 #endif
 
 class	PegexpTestSource
-: public Source
+: public TestSource
 {
 public:
-	PegexpTestSource(const char* cp) : Source(cp), start(cp) {}
-	PegexpTestSource(const PegexpTestSource& c) : Source(c), start(c.start) {}
+	PegexpTestSource(const char* cp) : TestSource(cp), start(cp) {}
+	PegexpTestSource(const PegexpTestSource& c) : TestSource(c), start(c.start) {}
 
 	/* Additional methods for the test program */
 	int		operator-(const char* from)			// Length from "from" to current location
@@ -35,7 +35,7 @@ public:
 	int		operator-(const PegexpTestSource& from)		// Length from "from" to current location
 			{ return data - from.rest(); }
 	const char*	rest() const
-			{ return Source::data; }
+			{ return TestSource::data; }
 protected:
 	const char*	start;
 };
@@ -45,7 +45,7 @@ using	PegexpTestResult = PegexpDefaultResult<PegexpTestSource>;
 class	PegexpTestContext
 {
 public:
-	using	TextPtr = PegexpTestSource;
+	using	Source = PegexpTestSource;
 	using	Result = PegexpTestResult;
 
 	PegexpTestContext()
@@ -63,7 +63,7 @@ public:
 	typedef struct {
 		PegexpPC	name;
 		int		name_len;
-		TextPtr		capture;
+		Source		capture;
 		int		length;
 	} Captured;
 	std::vector<Captured>	captures;
