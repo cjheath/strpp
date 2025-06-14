@@ -1,11 +1,11 @@
 #if !defined(PEGEXP_H)
 #define PEGEXP_H
 /*
- * Pegular expressions, aka Pegexp, formally "regular PEGs"
+ * Pegular expressions, aka Pegexp, formally "regular PEGs".
  *
  * Possessive regular expressions using prefix operators
  *
- * Copyright 2022 Clifford Heath. ALL RIGHTS RESERVED SUBJECT TO ATTACHED LICENSE.
+ * (c) Copyright Clifford Heath 2025. See LICENSE file for usage rights.
  *
  * Pegexp's use Regex-style operators, but in prefix position:
  *	^	start of the input or start of any line
@@ -52,20 +52,21 @@
  * You can use any scalar data type for Char, and any Source providing the required methods (even wrapping a socket).
  * You can subclass Pegexp to override match_extended&skip_extended to handle special command characters.
  * You can replace the default NullCapture with a capture object with features for your extended command chars.
- *
- * (c) Copyright Clifford Heath 2023. See LICENSE file for usage rights.
  */
+#include	<unistd.h>
+
 #include	<cstdint>
 #include	<cstdlib>
 #include	<cctype>
 #include	<char_encoding.h>
 
-typedef	const char*	PegexpPC;	// The Pegex is always 8-bit, not UTF-8
+typedef	const char*	PegexpPC;	// The Pegexp is always 8-bit, not UTF-8
 
 /*
  * Adapt a pointer-ish thing to be a suitable input for a Pegexp,
  * by adding the methods get_byte(), get_char(), same() and at_eof().
- * same() should return true if the two Inputs are at the same position in the text
+ * same() should return true if the two Inputs are at the same position in the text.
+ * at_bol() is used for the ^ predicate. It's assumed that the start of the string is bol.
  */
 template<
 	typename DataPtr = const UTF8*,
@@ -75,21 +76,65 @@ class	PegexpPointerSource
 {
 public:
 	using Char = _Char;
-	PegexpPointerSource(const DataPtr cp) : data(cp) {}
-	PegexpPointerSource(const PegexpPointerSource& pi) : data(pi.data) {}
+
+	PegexpPointerSource(const DataPtr cp)
+	: data(cp)
+	, byte_count(0)
+	, line_count(1)
+	, column_char(1)
+	{}
+
+	PegexpPointerSource(const PegexpPointerSource& pi)
+	: data(pi.data)
+	, byte_count(pi.byte_count)
+	, line_count(pi.line_count)
+	, column_char(pi.column_char)
+	{}
 
 	char		get_byte()
-			{ return at_eof() ? 0 : (*data++ & 0xFF); }
+			{
+				if (at_eof()) return 0;
+				char c = (*data++ & 0xFF);
+				byte_count++;
+				bump_counts(c);
+				return c;
+			}
 	Char		get_char()
-			{ if (sizeof(Char) == 1) return get_byte();
-			  return (Char)(at_eof() ? UCS4_NONE : UTF8Get(data)); }
+			{
+				if (sizeof(Char) == 1) return get_byte();
+				if (at_eof()) return UCS4_NONE;
+				Char	c = UTF8Get(data);
+				bump_counts(c);
+				return c;
+			}
 	bool		at_eof() const
 			{ return *data == '\0'; }
+	bool		at_bol() const
+			{ return column_char == 1; }
 	bool		same(PegexpPointerSource& other) const
 			{ return data == other.data; }
 
+	// These may be used for error reporting:
+	off_t		current_byte() const { return byte_count; }
+	off_t		current_line() const { return line_count; }
+	off_t		current_column() const { return column_char; }	// In Chars
+
 protected:
-	const UTF8*	data;
+	const UTF8*	data;		// Pointer to the next byte of data. \0 indicates EOF
+	off_t		byte_count;	// Total bytes traversed
+	off_t		line_count;	// Incremented from 1 after each \n
+	off_t		column_char;	// Reset to one after \n, incremented on get_byte or get_char
+
+	void		bump_counts(Char c)
+			{
+				if (c == '\n')
+				{
+					line_count++;
+					column_char = 1;
+				}
+				else
+					column_char++;
+			}
 };
 
 using	PegexpDefaultSource = PegexpPointerSource<>;
@@ -146,31 +191,30 @@ public:
 	using 		Char = typename Source::Char;
 	PegexpState()
 			: pc(0), text(0)
-			, succeeding(true), at_bol(true), binary_code(false) {}
+			, succeeding(true), binary_code(false) {}
 	PegexpState(PegexpPC _pc, Source _text)
 			: pc(_pc), text(_text)
-			, succeeding(true), at_bol(true), binary_code(false) {}
+			, succeeding(true), binary_code(false) {}
 	PegexpState(const PegexpState& c)
 			: pc(c.pc), text(c.text)
-			, succeeding(c.succeeding), at_bol(c.at_bol), binary_code(c.binary_code) {}
+			, succeeding(c.succeeding), binary_code(c.binary_code) {}
 	PegexpState&		operator=(const PegexpState& c)
 			{ pc = c.pc; text = c.text;
-			  succeeding = c.succeeding; at_bol = c.at_bol; binary_code = c.binary_code;
+			  succeeding = c.succeeding; binary_code = c.binary_code;
 			  return *this; }
 	bool		ok() const { return succeeding; }
 	Char		next()
 			{
 				Char	ch = binary_code ? text.get_byte() : text.get_char();
 				binary_code = false;
-				at_bol = ch == '\n';
 				return ch;
 			}
 
 	PegexpPC	pc;		// Current location in the pegexp
 	Source		text;		// Current text we're looking at
 	bool		succeeding;	// Is this a viable path to completion?
-	bool		at_bol;		// Start of text or line. REVISIT: Should be in Source implementation
 	bool		binary_code;	// Expect next character in literal binary coding (not UTF-8, etc)
+	bool		at_bol() { return text.at_bol(); }
 
 	// If you want to add debug tracing for example, you can override these in a subclass:
 	PegexpState&	fail() { succeeding = false; return *this; }
@@ -204,12 +248,7 @@ public:	// Expose our template types for subclasses to use:
 		State	result;
 		while (true)
 		{
-			// Reset for another trial:
-			state.pc = pegexp;
-			state.text = start;
-			state.succeeding = true;
-			// state.at_bol = true;		// Don't reset, since we probably aren't at the start. REVISIT: This should be in the Source
-			state.binary_code = false;
+			state = State(pegexp, start);	// Reset for another trial
 			if (context)
 				context->rollback_capture(initial_captures);
 
@@ -424,7 +463,7 @@ protected:
 			break;
 
 		case '^':	// Start of line
-			match = state.at_bol;
+			match = state.at_bol();
 			break;
 
 		case '$':	// End of line or end of input
@@ -546,7 +585,7 @@ protected:
 		}
 
 		case '`':
-			state.binary_code = true;
+			state.binary_code = true;		// REVISIT: Where is this reset?
 			match = true;
 			break;
 
