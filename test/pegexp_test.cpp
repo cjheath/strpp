@@ -40,16 +40,20 @@ protected:
 	const char*	start;
 };
 
+using	PegexpTestResult = PegexpDefaultResult<PegexpTestSource>;
+
 class	PegexpTestContext
 {
-	using	TextPtr = PegexpTestSource;
 public:
+	using	TextPtr = PegexpTestSource;
+	using	Result = PegexpTestResult;
+
 	PegexpTestContext()
 	: capture_disabled(0)
 	, captures(10, {0,0,0,0})
 	{}
-	int		capture(PegexpPC name, int name_len, TextPtr from, TextPtr to) {
-				captures.push_back({name, name_len, from, to-from});
+	int		capture(Result r) {
+				captures.push_back({r.name, r.name_len, r.from, r.to-r.from});
 				return captures.size();
 			}
 	int		capture_count() const { return 0; }
@@ -65,7 +69,7 @@ public:
 	std::vector<Captured>	captures;
 };
 
-using	PegexpT = Pegexp<PegexpTestSource, PegexpTestContext>;
+using	PegexpT = Pegexp<PegexpTestSource, PegexpTestResult, PegexpTestContext>;
 
 int
 main(int argc, const char** argv)
@@ -95,8 +99,8 @@ main(int argc, const char** argv)
 
 		PegexpT::State		result = pegexp.match(text, &context);	// text is advanced to the start of the match
 		const char*		match_start = text.rest(); // static_cast<const char*>(text);
-		int			offset = result ? text-*subject : -1;
-		int			length = result ? result.text-text : -1;
+		int			offset = result.ok() ? text-*subject : -1;
+		int			length = result.ok() ? result.text-text : -1;
 
 #if 0	/* REVISIT: Work out how to integrate this into the test automation */
 		if (context.captures.size())

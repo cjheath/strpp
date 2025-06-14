@@ -22,36 +22,38 @@
 #if	defined(PEG_UNICODE)
 using	PegChar = UCS4;
 using	TextPtr = GuardedUTF8Ptr;
-using	PegTextSup = PegexpPointerInput<GuardedUTF8Ptr>;
+using	PegTestTextSup = PegexpPointerInput<GuardedUTF8Ptr>;
 #else
 using	PegChar = char;
 using	TextPtr = PegChar*;
-using	PegTextSup = PegexpPointerInput<>;
+using	PegTestTextSup = PegexpPointerInput<>;
 #endif
 
 // We need some help to extract captured data from PegexpPointerInput:
-class PegText : public PegTextSup
+class PegTestText : public PegTestTextSup
 {
 public:
-	PegText(const TextPtr cp) : PegTextSup(cp) {}
-	PegText(const PegText& pi) : PegTextSup(pi.data) {}
+	PegTestText(const TextPtr cp) : PegTestTextSup(cp) {}
+	PegTestText(const PegTestText& pi) : PegTestTextSup(pi.data) {}
+
 	const UTF8*	peek() const { return data; }
-	size_t		bytes_from(PegText origin) { return data - origin.data; }
+	size_t		bytes_from(PegTestText origin) { return data - origin.data; }
 };
 
-// Foreward declarations:
+// Forward declarations:
 class	PegContext;
-using	PegexpT = Pegexp<PegText, PegContext>;
-typedef	Peg<PegText, PegContext>	TestPeg;
+using	PegexpResult = PegexpDefaultResult<PegTestText>;
+using	PegexpT = Pegexp<PegTestText, PegexpResult, PegContext>;
 
 class	PegContext
 {
 public:
 	static const int MaxSaves = 3;	// Sufficient for the Px grammar below
 
-	using	TextPtr = PegText;
+	using	TextPtr = PegTestText;
+	using	Result = PegexpResult;
 	using	PegT = Peg<TextPtr, PegContext>;
-	using	Rule = PegRule<PegPegexp<TextPtr, PegContext>, MaxSaves>;
+	using	Rule = PegRule<PegPegexp<TextPtr, Result, PegContext>, MaxSaves>;
 
 	PegContext(PegT* _peg, PegContext* _parent, Rule* _rule, TextPtr _text)
 	: peg(_peg)
@@ -62,13 +64,34 @@ public:
 	, num_captures(0)
 	{}
 
-	int		capture(PegexpPC name, int name_len, TextPtr from, TextPtr to)
+	int		capture(Result r)
 	{
-		printf("Capture ");
-		print_path();
-		printf(" '%.*s': '%.*s'\n", name_len, name, (int)to.bytes_from(from), from.peek());
-		return ++num_captures;
+		StrVal	key(r.name, r.name_len);
+		StrVal	value(r.from.peek(), (int)r.to.bytes_from(r.from));
+
+		if (!ast.contains(key))
+			ast.insert(key, Variant(Variant::VarArray));
+		Variant	existing = ast[key];
+		VariantArray va = existing.as_variant_array();
+		va += Variant(value);	// This Unshares the VA
+		ast.erase(key);
+		ast.insert(key, va);	// So save it again
+		existing = ast[key];
+
+	//	printf("Capture "); print_path();
+		printf(
+			"%p: Saving %d'th '%s' = '%s' (capture %d)\n",
+			this,
+			va.length(),
+			key.asUTF8(),
+			value.asUTF8(),
+			num_captures
+		);
+		num_captures++;
+
+		return 0;
 	}
+
 	int		capture_count() const
 	{
 		return num_captures;
@@ -102,6 +125,8 @@ protected:
 	int		num_captures;
 	StrVariantMap	ast;
 };
+
+typedef	Peg<PegTestText, PegContext>	TestPeg;
 
 void usage()
 {
@@ -150,7 +175,7 @@ int	parse_file(char* text)
 		  {}
 		},
 		{ "TOP",				// Start; a repetition of zero or more rules
-		  "*<space>*<rule>",
+		  "*<space>*<rule>:rule",
 		  { "rule" }				// -> rule
 		},
 		{ "rule",				// Rule: name of a rule that matches one or more alternates

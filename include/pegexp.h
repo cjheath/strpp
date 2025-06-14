@@ -49,7 +49,7 @@
  * It is your responsibility to ensure these possessive operators never match unless it's final.
  * You should use negative assertions to control inappropriate greed.
  *
- * You can use any scalar data type for PChar, and a pointer to it for TextPtr (even wrapping a socket).
+ * You can use any scalar data type for Char, and a pointer to it for TextPtr (even wrapping a socket).
  * You can subclass Pegexp to override match_extended&skip_extended to handle special command characters.
  * You can replace the default NullCapture with a capture object with features for your extended command chars.
  *
@@ -60,30 +60,34 @@
 #include	<cctype>
 #include	<char_encoding.h>
 
-typedef	const char*	PegexpPC;
+typedef	const char*	PegexpPC;	// The Pegex is always 8-bit, not UTF-8
 
 /*
  * Adapt a pointer-ish thing to be a suitable input for a Pegexp,
  * by adding the methods get_byte(), get_char(), same() and at_eof().
  * same() should return true if the two Inputs are at the same position in the text
  */
-template<typename DataPtr = const UTF8*, typename PIChar = UCS4>
+template<
+	typename DataPtr = const UTF8*,
+	typename _Char = UCS4
+>
 class	PegexpPointerInput
 {
 public:
-	using Char = PIChar;
+	using Char = _Char;
 	PegexpPointerInput(const DataPtr cp) : data(cp) {}
 	PegexpPointerInput(const PegexpPointerInput& pi) : data(pi.data) {}
 
 	char		get_byte()
 			{ return at_eof() ? 0 : (*data++ & 0xFF); }
-	PIChar		get_char()
-			{ if (sizeof(PIChar) == 1) return get_byte();
-			  return (PIChar)(at_eof() ? UCS4_NONE : UTF8Get(data)); }
+	Char		get_char()
+			{ if (sizeof(Char) == 1) return get_byte();
+			  return (Char)(at_eof() ? UCS4_NONE : UTF8Get(data)); }
 	bool		at_eof() const
 			{ return *data == '\0'; }
 	bool		same(PegexpPointerInput& other) const
 			{ return data == other.data; }
+
 protected:
 	const UTF8*	data;
 };
@@ -91,43 +95,72 @@ protected:
 using	PegexpDefaultInput = PegexpPointerInput<>;
 
 /*
+ * The default Result (of matching an atom) is just a POD copy of the various pointers.
+ * It does no copying or extra computation.
+ * (which otherwise might be incurred by computing (from-to) for example).
+ */
+template <typename _TextPtr = PegexpDefaultInput>
+class	PegexpDefaultResult
+{
+public:
+	using TextPtr = _TextPtr;
+
+	// Any subclasses must have this constructor, to capture matched text:
+	PegexpDefaultResult(TextPtr _from, TextPtr _to, PegexpPC _name = 0, int _name_len = 0)
+	: from(_from)		// pointer to start of the text matched by this atom
+	, to(_to)		// pointer to the text following the match
+	, name(_name)		// Name of a label, or NULL
+	, name_len(_name_len)	// Length of the label, if any
+	{ }
+
+	// REVISIT: Consider including "succeeding" here instead of in PegexpState?
+
+	PegexpPC	name;
+	int		name_len;
+	TextPtr		from;
+	TextPtr		to;
+};
+
+/*
  * An example of the API that Pegexp requires for Context.
  * Implement your own template class having this signature to capture match fragments,
  * or to pass your own context down to match_extended
  */
-template <typename TextPtr = PegexpDefaultInput>
-class	NullContext
+template <typename Result = PegexpDefaultResult<>>
+class	PegexpNullContext
 {
 public:
-	NullContext() : capture_disabled(0) {}
-	int		capture(PegexpPC name, int name_len, TextPtr from, TextPtr to) { return 0; }
+	using	TextPtr = typename Result::TextPtr;
+	PegexpNullContext() : capture_disabled(0) {}
+
+	int		capture(Result) { return 0; }
 	int		capture_count() const { return 0; }
 	void		rollback_capture(int count) {}
 	int		capture_disabled;
 };
 
 template <typename TextPtr = PegexpDefaultInput>
-class PegState
+class PegexpState
 {
 public:
-	using 		PChar = typename TextPtr::Char;
-	PegState()
+	using 		Char = typename TextPtr::Char;
+	PegexpState()
 			: pc(0), text(0)
 			, succeeding(true), at_bol(true), binary_code(false) {}
-	PegState(PegexpPC _pc, TextPtr _text)
+	PegexpState(PegexpPC _pc, TextPtr _text)
 			: pc(_pc), text(_text)
 			, succeeding(true), at_bol(true), binary_code(false) {}
-	PegState(const PegState& c)
+	PegexpState(const PegexpState& c)
 			: pc(c.pc), text(c.text)
 			, succeeding(c.succeeding), at_bol(c.at_bol), binary_code(c.binary_code) {}
-	PegState&		operator=(const PegState& c)
+	PegexpState&		operator=(const PegexpState& c)
 			{ pc = c.pc; text = c.text;
 			  succeeding = c.succeeding; at_bol = c.at_bol; binary_code = c.binary_code;
 			  return *this; }
 	bool		ok() const { return succeeding; }
-	PChar		next()
+	Char		next()
 			{
-				PChar	ch = binary_code ? text.get_byte() : text.get_char();
+				Char	ch = binary_code ? text.get_byte() : text.get_char();
 				binary_code = false;
 				at_bol = ch == '\n';
 				return ch;
@@ -140,24 +173,30 @@ public:
 	bool		binary_code;	// Expect next character in literal binary coding (not UTF-8, etc)
 
 	// If you want to add debug tracing for example, you can override these in a subclass:
-	PegState&	fail() { succeeding = false; return *this; }
-	PegState&	progress() { succeeding = true; return *this; }
+	PegexpState&	fail() { succeeding = false; return *this; }
+	PegexpState&	progress() { succeeding = true; return *this; }
 };
 
-template<typename TextPtrT = PegexpDefaultInput, typename ContextT = NullContext<TextPtrT>>
+template<
+	typename _TextPtr = PegexpDefaultInput,
+	typename _Result = PegexpDefaultResult<_TextPtr>,
+	typename _Context = PegexpNullContext<_Result>
+>
 class Pegexp
 {
-public:
-	using 		TextPtr = TextPtrT;
-	using		Context = ContextT;
-	using 		PChar = typename TextPtr::Char;
-	using 		State = PegState<TextPtr>;
+public:	// Expose our template types for subclasses to use:
+	using 		TextPtr = _TextPtr;
+	using 		Char = typename TextPtr::Char;
+	using 		State = PegexpState<TextPtr>;
+	using		Context = _Context;
+	using		Result = _Result;
 
-	PegexpPC	pegexp;
+	PegexpPC	pegexp;	// The text of the Peg expression: 8-bit data, not UTF-8
 
 	Pegexp(PegexpPC _pegexp) : pegexp(_pegexp) {}
 	PegexpPC	code() const { return pegexp; }
 
+	// Match the Peg expression at or after the start of the text:
 	State		match(TextPtr& start, Context* context = 0)
 	{
 		int	initial_captures = context ? context->capture_count() : 0;
@@ -169,11 +208,13 @@ public:
 			state.pc = pegexp;
 			state.text = start;
 			state.succeeding = true;
+			// state.at_bol = true;		// Don't reset, since we probably aren't at the start. REVISIT: This should be in the TextPtr
+			state.binary_code = false;
 			if (context)
 				context->rollback_capture(initial_captures);
 
 			result = match_here(state, context);
-			if (result)
+			if (result.ok())
 			{		// Succeeded
 				if (*result.pc != '\0')	// The pegexp has a syntax error, e.g. an extra )
 					return result.fail();
@@ -210,7 +251,7 @@ public:
 		return r;
 	}
 
-	static int	unhex(PChar c)
+	static int	unhex(Char c)
 	{
 		if (c >= '0' && c <= '9')
 			return c-'0';
@@ -222,9 +263,9 @@ public:
 	}
 
 protected:
-	PChar		literal_char(PegexpPC& pc)
+	Char		literal_char(PegexpPC& pc)
 	{
-		PChar		rc = *pc++;
+		Char		rc = *pc++;
 		bool		braces = false;
 
 		if (rc == '\0')
@@ -299,10 +340,10 @@ protected:
 			state.pc++;
 
 		bool	in_class = false;
-		PChar	ch = state.next();
+		Char	ch = state.next();
 		while (*state.pc != '\0' && *state.pc != ']')
 		{
-			PChar	c1;
+			Char	c1;
 
 			// Handle actual properties, not other escapes
 			if (*state.pc == '\\' && isalpha(state.pc[1]))
@@ -316,7 +357,7 @@ protected:
 			c1 = literal_char(state.pc);
 			if (*state.pc == '-')
 			{
-				PChar	c2;
+				Char	c2;
 				state.pc++;
 				c2 = literal_char(state.pc);
 				in_class |= (ch >= c1 && ch <= c2);
@@ -331,7 +372,7 @@ protected:
 		return in_class;
 	}
 
-	bool		char_property(PegexpPC& pc, PChar ch)
+	bool		char_property(PegexpPC& pc, Char ch)
 	{
 		switch (char32_t esc = *pc++)
 		{
@@ -572,7 +613,7 @@ protected:
 			if (*state.pc == ':')
 				state.pc++;
 			if (context && context->capture_disabled == 0)
-				(void)context->capture(name, name_end-name, start_state.text, state.text);
+				(void)context->capture(Result(start_state.text, state.text, name, name_end-name));
 		}
 		return state.progress();
 	}

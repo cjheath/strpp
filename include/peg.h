@@ -11,11 +11,13 @@
 #include	<pegexp.h>
 
 // Forward declarations:
-template<typename TextPtr, typename Context> class Peg;
-template<typename TextPtr, typename Context> class PegPegexp;
+template<typename TextPtr, typename Context> class Peg;	// The Peg parser
+
+// A Pegexp with the extensions required to be used in a Peg:
+template<typename TextPtr, typename Result, typename Context> class PegPegexp;
 
 /*
- * A PEG parser is made up of a number of named Rules.
+ * A Peg parser is made up of a number of named Rules.
  * Each Rule is a Pegexp that returns selected results as an AST.
  */
 template<
@@ -58,7 +60,8 @@ class PegContextNullCapture
 {
 public:
 	static const int MaxSaves = MaxSavesV;
-	using	PegexpT = PegPegexp<TextPtr, PegContextNullCapture>;
+	using	Result = PegexpDefaultResult<TextPtr>;
+	using	PegexpT = PegPegexp<TextPtr, Result, PegContextNullCapture>;
 	using	Rule = PegRule<PegexpT, MaxSaves>;
 	using	PegT = Peg<TextPtr, PegContextNullCapture>;
 
@@ -70,7 +73,7 @@ public:
 	, text(_text)
 	{}
 
-	int		capture(PegexpPC name, int name_len, TextPtr from, TextPtr to) { return 0; }
+	int		capture(Result) { return 0; }
 	int		capture_count() const { return 0; }
 	void		rollback_capture(int count) {}
 	int		capture_disabled;
@@ -84,20 +87,32 @@ public:
 // Subclass the Pegexp template to extend virtual functions:
 template<
 	typename TextPtr = PegexpDefaultInput,
+	typename Result = PegexpDefaultResult<TextPtr>,
 	typename Context = PegContextNullCapture<TextPtr>
-> class PegPegexp : public Pegexp<TextPtr, Context>
+> class PegPegexp : public Pegexp<TextPtr, Result, Context>
 {
 public:
-	using	Pegexp = Pegexp<TextPtr, Context>;
-	using	State = PegState<TextPtr>;
-	PegPegexp(PegexpPC _pegexp_pc) : Pegexp(_pegexp_pc) {}
+	using	Base = Pegexp<TextPtr, Result, Context>;
+	using	State = PegexpState<TextPtr>;
+	PegPegexp(PegexpPC _pegexp_pc) : Base(_pegexp_pc) {}
 
 	virtual State	match_extended(State& state, Context* context)
 	{
-		if (*state.pc == '<')
+		switch (*state.pc)
+		{
+		// Extended commands:
+		case '<':
 			return context->peg->recurse(state, context);
-		else
-			return Pegexp::match_literal(state);
+
+		case '~':
+		case '@':
+		case '#':
+		case '%':
+		case '_':
+		case ';':
+		default:	// Control characters: (*state.pc > 0 && *state.pc < ' ')
+			return Base::match_literal(state);
+		}
 	}
 
 	// Null extension; treat extensions like literal characters
@@ -117,8 +132,9 @@ class Peg
 {
 public:
 	using	Rule = typename Context::Rule;
-	using	State = PegState<TextPtr>;
-	using	PegexpT = PegPegexp<TextPtr, Context>;
+	using	State = PegexpState<TextPtr>;
+	using	Result = PegexpDefaultResult<TextPtr>;
+	using	PegexpT = PegPegexp<TextPtr, Result, Context>;
 
 	Peg(Rule* _rules, int _num_rule)
 	: rules(_rules), num_rule(_num_rule)
@@ -229,7 +245,7 @@ public:
 			// Save, if sub_rule is not labelled and the parent wants it
 			if (*state.pc != ':'
 			 && parent_context->rule->is_saved(sub_rule->name))	// And only if the parent wants it
-				(void)context.capture(sub_rule->name, strlen(sub_rule->name), from, state.text);
+				(void)context.capture(Result(from, state.text, sub_rule->name, strlen(sub_rule->name)));
 
 #if defined(PEG_TRACE)
 			printf("MATCH `%.*s`\n", (int)state.text.bytes_from(from), from.peek());
