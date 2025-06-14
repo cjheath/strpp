@@ -33,7 +33,7 @@
  *	[a-z]	Normal character (alternately, byte) class (a literal hyphen may occur at start)
  *	[^a-z]	Negated character (alternately, byte) class. Characters may include the \escapes listed above
  *	`	Prefix to specify 8-bit byte only, not UTF-8 character (REVISIT: accepted but not implemented)
- *	! @ # % _ ; <		Call the match_extended function
+ *	! @ # % _ ; < `		Call the match_extended function
  *	control-character	Call the match_extended function
  * NOT YET IMPLEMENTED:
  *	{n,m}	match from n (default 0) to m (default unlimited) repetitions of the following expression.
@@ -191,29 +191,24 @@ public:
 	using 		Char = typename Source::Char;
 	PegexpState()
 			: pc(0), text(0)
-			, succeeding(true), binary_code(false) {}
+			, succeeding(true) {}
 	PegexpState(PegexpPC _pc, Source _text)
 			: pc(_pc), text(_text)
-			, succeeding(true), binary_code(false) {}
+			, succeeding(true) {}
 	PegexpState(const PegexpState& c)
 			: pc(c.pc), text(c.text)
-			, succeeding(c.succeeding), binary_code(c.binary_code) {}
+			, succeeding(c.succeeding) {}
 	PegexpState&		operator=(const PegexpState& c)
-			{ pc = c.pc; text = c.text;
-			  succeeding = c.succeeding; binary_code = c.binary_code;
-			  return *this; }
+			{ pc = c.pc; text = c.text; succeeding = c.succeeding; return *this; }
 	bool		ok() const { return succeeding; }
-	Char		next()
-			{
-				Char	ch = binary_code ? text.get_byte() : text.get_char();
-				binary_code = false;
-				return ch;
-			}
+	char		next_byte()	// May be used by an extension
+			{ return text.get_byte(); }
+	Char		next_char()
+			{ return text.get_char(); }
 
 	PegexpPC	pc;		// Current location in the pegexp
 	Source		text;		// Current text we're looking at
 	bool		succeeding;	// Is this a viable path to completion?
-	bool		binary_code;	// Expect next character in literal binary coding (not UTF-8, etc)
 	bool		at_bol() { return text.at_bol(); }
 
 	// If you want to add debug tracing for example, you can override these in a subclass:
@@ -379,7 +374,7 @@ protected:
 			state.pc++;
 
 		bool	in_class = false;
-		Char	ch = state.next();
+		Char	ch = state.next_char();
 		while (*state.pc != '\0' && *state.pc != ']')
 		{
 			Char	c1;
@@ -434,7 +429,7 @@ protected:
 
 	State		match_literal(State& state)
 	{
-		if (state.text.at_eof() || *state.pc != state.next())
+		if (state.text.at_eof() || *state.pc != state.next_char())
 			return state.fail();
 		state.pc++;
 		return state.progress();
@@ -453,6 +448,7 @@ protected:
 		int		initial_captures = context ? context->capture_count() : 0;
 		State		start_state(state);
 		PegexpPC	skip_from = state.pc;
+
 		bool		match = false;
 		switch (char rc = *state.pc++)
 		{
@@ -467,24 +463,24 @@ protected:
 			break;
 
 		case '$':	// End of line or end of input
-			match = state.text.at_eof() || state.next() == '\n';
+			match = state.text.at_eof() || state.next_char() == '\n';
 			state = start_state;
 			state.pc++;
 			break;
 
 		case '.':	// Any character
 			if ((match = !state.text.at_eof()))
-				(void)state.next();
+				(void)state.next_char();
 			break;
 
 		default:	// Literal character
 			if (rc > 0 && rc < ' ')		// Control characters
 				goto extended;
-			match = !state.text.at_eof() && rc == state.next();
+			match = !state.text.at_eof() && rc == state.next_char();
 			break;
 
 		case '\\':	// Escaped literal char
-			match = !state.text.at_eof() && char_property(state.pc, state.next());
+			match = !state.text.at_eof() && char_property(state.pc, state.next_char());
 			break;
 
 		case '[':	// Character class
@@ -584,11 +580,6 @@ protected:
 			break;
 		}
 
-		case '`':
-			state.binary_code = true;		// REVISIT: Where is this reset?
-			match = true;
-			break;
-
 		// Extended commands:
 		case '~':
 		case '@':
@@ -597,6 +588,7 @@ protected:
 		case '_':
 		case ';':
 		case '<':
+		case '`':
 		extended:
 			state.pc--;
 			state = match_extended(state, context);
@@ -707,13 +699,13 @@ protected:
 
 		// Extended commands:
 		case '~':
-		case '`':
+		case '`':	// Perhaps used for binary codes?
 		case '@':
 		case '#':
 		case '%':
 		case '_':
 		case ';':
-		case '<':	// Extension
+		case '<':	// often used for recursive rule calls
 		extended:
 			pc--;
 			skip_extended(pc);
