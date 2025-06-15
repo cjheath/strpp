@@ -239,25 +239,25 @@ public:	// Expose our template types for subclasses to use:
 	State		match(Source& start, Context* context = 0)
 	{
 		int	initial_captures = context ? context->capture_count() : 0;
-		State	state(pegexp, start);
+		State	attempt(pegexp, start);
 		State	result;
 		while (true)
 		{
-			state = State(pegexp, start);	// Reset for another trial
+			attempt = State(pegexp, start);	// Reset for another trial
 			if (context)
 				context->rollback_capture(initial_captures);
 
-			result = match_here(state, context);
+			result = match_here(attempt, context);
 			if (result.ok())
 			{		// Succeeded
 				if (*result.pc != '\0')	// The pegexp has a syntax error, e.g. an extra )
 					return result.fail();
 				return result;
 			}
+
+			// Move forward one character, or terminate if none available:
 			if (start.at_eof())
 				break;
-
-			// Move forward one character
 			(void)start.get_char();
 		}
 		return result;	// This will show where we last failed
@@ -272,7 +272,7 @@ public:	// Expose our template types for subclasses to use:
 	State		match_here(State& state, Context* context = 0)
 	{
 		if (*state.pc == '\0' || *state.pc == ')')
-			return state.progress();
+			return state.progress();	// We matched nothing, successfully
 		int		sequence_capture_start = context ? context->capture_count() : 0;
 
 		State	r = match_atom(state, context);
@@ -297,6 +297,7 @@ public:	// Expose our template types for subclasses to use:
 	}
 
 protected:
+	// The Pegexp wants to match a single Char, so extract it from various representations:
 	Char		literal_char(PegexpPC& pc)
 	{
 		Char		rc = *pc++;
@@ -501,7 +502,7 @@ protected:
 			{
 				state.pc = repeat_pc;
 				if (!match_atom(state, context).ok())
-					goto fail;
+					goto fail;	// We didn't meet the minimum repetitions
 				repetitions++;
 			}
 			while (max == 0 || repetitions < max)
