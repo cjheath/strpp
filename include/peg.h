@@ -96,7 +96,7 @@ public:
 	using	State = PegexpState<Source>;
 	PegPegexp(PegexpPC _pegexp_pc) : Base(_pegexp_pc) {}
 
-	virtual State	match_extended(State& state, Context* context)
+	virtual bool	match_extended(State& state, Context* context)
 	{
 		switch (*state.pc)
 		{
@@ -111,7 +111,7 @@ public:
 		case '_':
 		case ';':
 		default:	// Control characters: (*state.pc > 0 && *state.pc < ' ')
-			return Base::match_literal(state);
+			return Base::match_literal(state, context);
 		}
 	}
 
@@ -155,13 +155,14 @@ public:
 			"Starting %s at `%.10s...` (pegexp `%s`)\n",
 			top_rule->name,
 			text.peek(),
-			top_rule->expression.code()
+			top_rule->expression.pegexp
 		);
 #endif
 
 		Context	context(this, 0, top_rule, text);
-		State	result = top_rule->expression.match_here(text, &context);
-		return result;
+		State	state(top_rule->expression.pegexp, text);
+		bool result = top_rule->expression.match_sequence(state, &context);
+		return state;
 	}
 
 	Rule*	lookup(const char* name)
@@ -184,7 +185,7 @@ public:
 		return rule;
 	}
 
-	State	recurse(State& state, Context* parent_context)
+	bool	recurse(State& state, Context* parent_context)
 	{
 		State	start_state(state);	// Save for a failure exit
 		state.pc++;	// Skip the '<'
@@ -200,7 +201,8 @@ public:
 #if defined(PEG_TRACE)
 			printf("failed to find rule `%.*s`\n", (int)(brangle-state.pc), state.pc);
 #endif
-			return start_state.fail();
+			state = start_state;
+			return false;
 		}
 
 		// Check for left recursion (infinite loop)
@@ -213,34 +215,35 @@ public:
 				pp->print_path();
 				printf(": left recursion detected at `%.10s`\n", state.text.peek());
 #endif
-				return start_state.fail();
+				state = start_state;
+				return false;
 			}
 		}
 
 		// The sub_rule commences in the current State, but with the new Pegexp
 		State	substate = state;
-		substate.pc = sub_rule->expression.code();
+		substate.pc = sub_rule->expression.pegexp;
 		Context	context(this, parent_context, sub_rule, state.text);	// Open a nested Context
 
 #if defined(PEG_TRACE)
 		parent_context->print_path();
-		printf(": calling %s /%s/ at `%.10s...` (pegexp `%s`)\n", sub_rule->name, substate.pc, state.text.peek(), sub_rule->expression.code());
+		printf(": calling %s /%s/ at `%.10s...` (pegexp `%s`)\n", sub_rule->name, substate.pc, state.text.peek(), sub_rule->expression.pegexp);
 #endif
 
-		State	result = sub_rule->expression.match_here(substate, &context);
+		bool	result = sub_rule->expression.match_sequence(substate, &context);
 
-		if (result.ok())
+		if (result)
 		{
-			Source		from = state.text;
+			Source		from = state.text;	// Start of the matched text
 
 			/*
-			 * Continue after the sub_rule call (skipping the closing >)
+			 * Advance the PC to beyond the sub_rule call (skipping the closing >)
 			 * with the text following what we just matched.
 			 */
 			state.pc = brangle;
-			if (*state.pc == '>')	// Could be NUL on ill-formed input
-				state.pc++;
-			state.text = substate.text;
+			if (*brangle == '>')	// Could be NUL on ill-formed input
+				brangle++;
+			state = State(brangle, substate.text);
 
 			// Save, if sub_rule is not labelled and the parent wants it
 			if (*state.pc != ':'
@@ -256,15 +259,15 @@ public:
 		else
 			printf("FAIL\n");
 #endif
-		if (!result.ok())
-			state = start_state.fail();
+		if (!result)
+			state = start_state;
 		else
 		{
 // This is the wrong place to do this:
 //			if (parent_context->rule && parent_context->rule->solitary_save())
 //				printf("Renamed %s by %s\n", parent_context->rule->saves[0], parent_context->rule->name);
 		}
-		return state;
+		return result;
 	}
 
 protected:

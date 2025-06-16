@@ -275,9 +275,11 @@ int	parse_file(char* text)
 
 	TestPeg		peg(rules, sizeof(rules)/sizeof(rules[0]));
 
-	typename TestPeg::State	result = peg.parse(text);
+	TestPeg::State	result = peg.parse(text);
 
-	return result.ok() ? result.text.bytes_from(text) : 0;
+	if (result.text.peek() > text)
+		return result.text.peek() - text;
+	return 0;
 }
 
 int

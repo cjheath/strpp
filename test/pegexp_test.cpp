@@ -93,33 +93,24 @@ main(int argc, const char** argv)
 	int	failure_count = 0;
 	for (const char** subject = argv+2; subject < argv+argc; subject++)
 	{
-		PegexpTestSource	text(*subject);
+		PegexpTestSource	source(*subject);
 		PegexpT			pegexp(argv[1]);
 		PegexpTestContext	context;
+		off_t			offset;
+		const char*		match_start;
+		int			length;
 
-		PegexpT::State		result = pegexp.match(text, &context);	// text is advanced to the start of the match
-		const char*		match_start = text.rest(); // static_cast<const char*>(text);
-		int			offset = result.ok() ? text-*subject : -1;
-		int			length = result.ok() ? result.text-text : -1;
+		offset = pegexp.match(source, &context);	// source is advanced to the start of the match
 
-#if 0	/* REVISIT: Work out how to integrate this into the test automation */
-		if (context.captures.size())
-		{
-			printf("Captured %ld\n", context.captures.size());
-			printf(
-				"Capture '%.*s': '%.*s'\n",
-				context.captures[0].name_len,
-				context.captures[0].name,
-				context.captures[0].length,
-				context.captures[0].capture.rest()
-			);
-		}
-#endif
+		match_start = *subject+offset;	// N.B.: offset is in chars not bytes. Our tests don't have UTF-8 before success
+		length = source.rest() - match_start;
 
-		if (length < 0)
+//		if (context.captures.size()) ...  // REVISIT: Work out how to integrate this into the test automation
+
+		if (offset < 0)
 		{
 			failure_count++;
-			fprintf(stdout, "%s\t%s\tfailed", argv[1], *subject);
+			fprintf(stdout, "%s\t%s\tfailed\n", argv[1], *subject);
 		}
 		else
 		{
@@ -127,7 +118,7 @@ main(int argc, const char** argv)
 			if (verbose)
 			{
 				fprintf(stdout, "%s\t%s\t", argv[1], *subject);
-				fprintf(stdout, "+%d\t%.*s\n", offset, length, match_start);
+				fprintf(stdout, "+%d\t%.*s\n", (int)offset, length, match_start);
 			}
 		}
 	}
