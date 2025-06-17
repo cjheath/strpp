@@ -278,7 +278,10 @@ public:
 			{
 				if (allocate <= length)
 					allocate = 0;
-				body = new Body(data, true, length, allocate);
+				if (length == 0)
+					body = &Body::nullBody;	// Don't use strlen!
+				else
+					body = new Body(data, true, length, allocate);
 				num_chars = body->numChars();
 			}
 	StrValI(UCS4 character)		// construct from single-character string
