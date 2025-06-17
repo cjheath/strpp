@@ -69,15 +69,17 @@ public:
 	PegContextNoCapture(PegT* _peg, PegContextNoCapture* _parent, Rule* _rule, Source _text)
 	: peg(_peg)
 	, capture_disabled(_parent ? _parent->capture_disabled : 0)
+	, repetition_nesting(0)
 	, parent(_parent)
 	, rule(_rule)
 	, text(_text)
 	{}
 
-	int		capture(Result) { return 0; }
+	int		capture(bool in_repetition, Result) { return 0; }
 	int		capture_count() const { return 0; }
 	void		rollback_capture(int count) {}
 	int		capture_disabled;
+	int		repetition_nesting;
 
 	PegT*		peg;
 	PegContextNoCapture* 	parent;
@@ -149,7 +151,8 @@ public:
 			 && context->rule->is_saved(label))	// And the parent wants it
 			{
 				// REVISIT: If the sub_context has captures, save that instead
-				(void)context->capture(Result(start_state.text, state.text, sub_rule->name, strlen(sub_rule->name)));
+				Result	r(start_state.text, state.text, sub_rule->name, strlen(sub_rule->name));
+				(void)context->capture(context->repetition_nesting > 0, r);
 			}
 
 			// REVISIT: If the call is labelled and the parent wants it, do that

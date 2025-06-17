@@ -50,15 +50,17 @@ public:
 
 	PegexpTestContext()
 	: capture_disabled(0)
+	, repetition_nesting(0)
 	, captures(10, {0,0,0,0})
 	{}
-	int		capture(Result r) {
+	int		capture(bool in_repetition, Result r) {
 				captures.push_back({r.name, r.name_len, r.from, r.to-r.from});
 				return captures.size();
 			}
 	int		capture_count() const { return 0; }
 	void		rollback_capture(int count) {}
 	int		capture_disabled;
+	int		repetition_nesting;
 
 	typedef struct {
 		PegexpPC	name;

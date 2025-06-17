@@ -34,16 +34,25 @@ class PegTestSource : public PegTestSourceSup
 {
 public:
 	PegTestSource(const Source cp) : PegTestSourceSup(cp) {}
-	PegTestSource(const PegTestSource& pi) : PegTestSourceSup(pi.data) {}
+	PegTestSource(const PegTestSource& pi) : PegTestSourceSup(pi) {}
 
 	const UTF8*	peek() const { return data; }
-	size_t		bytes_from(PegTestSource origin) { return data - origin.data; }
 };
 
-// Forward declarations:
-class	PegContext;
-using	PegexpResult = PegexpDefaultResult<PegTestSource>;
-using	PegexpT = Pegexp<PegContext>;
+class PegTestResult
+{
+public:
+	using Source = PegTestSource;
+
+	// Any subclasses must have this constructor, to capture matched text:
+	PegTestResult(Source _from, Source _to, PegexpPC _name = 0, int _name_len = 0)
+	: key(_name, _name_len)
+	, value(_from.peek(), (int)_to.bytes_from(_from))
+	{ }
+
+	StrVal		key;
+	StrVal		value;
+};
 
 class	PegContext
 {
@@ -51,23 +60,24 @@ public:
 	static const int MaxCaptureNames = 3;	// Sufficient for the Px grammar below
 
 	using	Source = PegTestSource;
-	using	Result = PegexpResult;
+	using	Result = PegTestResult;
 	using	PegT = Peg<Source, Result, PegContext>;
 	using	Rule = PegRule<PegPegexp<PegContext>, MaxCaptureNames>;
 
 	PegContext(PegT* _peg, PegContext* _parent, Rule* _rule, Source _text)
 	: peg(_peg)
 	, capture_disabled(_parent ? _parent->capture_disabled : 0)
+	, repetition_nesting(0)
 	, parent(_parent)
 	, rule(_rule)
 	, text(_text)
 	, num_captures(0)
 	{}
 
-	int		capture(Result r)
+	int		capture(bool in_repetition, Result r)
 	{
-		StrVal	key(r.name, r.name_len);
-		StrVal	value(r.from.peek(), (int)r.to.bytes_from(r.from));
+		StrVal	key(r.key);
+		StrVal	value(r.value);
 
 		if (!ast.contains(key))
 			ast.insert(key, Variant(Variant::VarArray));
@@ -103,6 +113,7 @@ public:
 		printf("REVISIT: Not rolling back to %d from %d\n", count, num_captures);
 	}
 	int		capture_disabled;
+	int		repetition_nesting;
 
 	PegT*		peg;
 	PegContext* 	parent;
@@ -126,7 +137,7 @@ protected:
 	StrVariantMap	ast;
 };
 
-typedef	Peg<PegTestSource, PegexpResult, PegContext>	TestPeg;
+typedef	Peg<PegTestSource, PegTestResult, PegContext>	TestPeg;
 
 void usage()
 {

@@ -82,14 +82,14 @@ public:
 	, byte_count(0)
 	, line_count(1)
 	, column_char(1)
-	{}
+	{ }
 
 	PegexpPointerSource(const PegexpPointerSource& pi)
 	: data(pi.data)
 	, byte_count(pi.byte_count)
 	, line_count(pi.line_count)
 	, column_char(pi.column_char)
-	{}
+	{ }
 
 	char		get_byte()
 			{
@@ -103,7 +103,9 @@ public:
 			{
 				if (sizeof(Char) == 1) return get_byte();
 				if (at_eof()) return UCS4_NONE;
+				const UTF8*	start = data;
 				Char	c = UTF8Get(data);
+				byte_count += data-start;
 				bump_counts(c);
 				return c;
 			}
@@ -113,6 +115,8 @@ public:
 			{ return column_char == 1; }
 	bool		same(PegexpPointerSource& other) const
 			{ return data == other.data; }
+	size_t		bytes_from(PegexpPointerSource origin)
+			{ return byte_count - origin.byte_count; }
 
 	// These may be used for error reporting:
 	off_t		current_byte() const { return byte_count; }
@@ -175,12 +179,14 @@ class	PegexpNullContext
 public:
 	using	Result = _Result;
 	using	Source = typename Result::Source;
-	PegexpNullContext() : capture_disabled(0) {}
+	PegexpNullContext() : capture_disabled(0), repetition_nesting(0) {}
 
-	int		capture(Result) { return 0; }
+	int		capture(bool in_repetition, Result) { return 0; }
 	int		capture_count() const { return 0; }
 	void		rollback_capture(int count) {}
-	int		capture_disabled;
+	int		capture_disabled;	// A counter of nested disables
+
+	int		repetition_nesting;	// A counter of repetition nesting
 };
 
 template <typename Source = PegexpDefaultSource>
@@ -495,12 +501,15 @@ protected:
 			State		iteration_start = state;	// revert here on iteration failure
 			int		repetitions = 0;
 
+			if (context && max != 1)
+				context->repetition_nesting++;
+
 			// Attempt the minimum iterations:
 			while (repetitions < min)
 			{
 				state.pc = repeat_pc;	// We run the same atom more than once
 				if (!match_atom(state, context))
-					goto fail;	// We didn't meet the minimum repetitions
+					goto repeat_fail;	// We didn't meet the minimum repetitions
 				repetitions++;
 			}
 
@@ -523,6 +532,8 @@ protected:
 				repetitions++;
 			}
 			match = true;
+	repeat_fail:	if (context && max != 1)
+				context->repetition_nesting--;
 			break;
 		}
 
@@ -598,7 +609,7 @@ protected:
 		}
 		if (!match)
 		{
-	fail:		if (context)	// Undo new captures on failure
+			if (context)	// Undo new captures on failure
 				context->rollback_capture(initial_captures);
 
 #if 0
@@ -646,7 +657,10 @@ protected:
 			if (*state.pc == ':')
 				state.pc++;
 			if (context && context->capture_disabled == 0)
-				(void)context->capture(Result(start_state.text, state.text, name, name_end-name));
+			{
+				Result r(start_state.text, state.text, name, name_end-name);
+				(void)context->capture(context->repetition_nesting > 0, r);
+			}
 		}
 		return true;
 	}
