@@ -169,10 +169,11 @@ public:
  * Implement your own template class having this signature to capture match fragments,
  * or to pass your own context down to match_extended
  */
-template <typename Result = PegexpDefaultResult<>>
+template <typename _Result = PegexpDefaultResult<>>
 class	PegexpNullContext
 {
 public:
+	using	Result = _Result;
 	using	Source = typename Result::Source;
 	PegexpNullContext() : capture_disabled(0) {}
 
@@ -206,18 +207,16 @@ public:
 };
 
 template<
-	typename _Source = PegexpDefaultSource,
-	typename _Result = PegexpDefaultResult<_Source>,
-	typename _Context = PegexpNullContext<_Result>
+	typename _Context = PegexpNullContext<PegexpDefaultResult<PegexpDefaultSource>>
 >
 class Pegexp
 {
 public:	// Expose our template types for subclasses to use:
-	using 		Source = _Source;
+	using		Context = _Context;
+	using		Result = typename Context::Result;
+	using 		Source = typename Result::Source;
 	using 		Char = typename Source::Char;
 	using 		State = PegexpState<Source>;
-	using		Context = _Context;
-	using		Result = _Result;
 
 	PegexpPC	pegexp;	// The text of the Peg expression: 8-bit data, not UTF-8
 

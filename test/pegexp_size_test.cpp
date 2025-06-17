@@ -14,11 +14,14 @@
 
 #if	defined(PEG_UNICODE)
 using	TestSource = PegexpPointerSource<NulGuardedUTF8Ptr>;
-typedef	Pegexp<TestSource>		TestPegexp;
 #else
 using	TestSource = PegexpPointerSource<NulGuardedCharPtr>;
-typedef	Pegexp<TestSource>		TestPegexp;
 #endif
+
+using	TestResult = PegexpDefaultResult<TestSource>;
+using	TestContext = PegexpNullContext<TestResult>;
+
+typedef	Pegexp<TestContext>		TestPegexp;
 
 int
 main(int argc, const char** argv)

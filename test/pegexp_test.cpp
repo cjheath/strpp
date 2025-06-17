@@ -69,7 +69,7 @@ public:
 	std::vector<Captured>	captures;
 };
 
-using	PegexpT = Pegexp<PegexpTestSource, PegexpTestResult, PegexpTestContext>;
+using	TestPegexp = Pegexp<PegexpTestContext>;
 
 int
 main(int argc, const char** argv)
@@ -94,7 +94,7 @@ main(int argc, const char** argv)
 	for (const char** subject = argv+2; subject < argv+argc; subject++)
 	{
 		PegexpTestSource	source(*subject);
-		PegexpT			pegexp(argv[1]);
+		TestPegexp		pegexp(argv[1]);
 		PegexpTestContext	context;
 		off_t			offset;
 		const char*		match_start;

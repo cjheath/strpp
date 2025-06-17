@@ -14,7 +14,7 @@
 template<typename Source, typename Result, typename Context> class Peg;	// The Peg parser
 
 // A Pegexp with the extensions required to be used in a Peg:
-template<typename Source, typename Result, typename Context> class PegPegexp;
+template<typename Context> class PegPegexp;
 
 /*
  * A Peg parser is made up of a number of named Rules.
@@ -50,23 +50,23 @@ public:
 /*
  * Each time a Rule calls a subordinate Rule, a new Context is created.
  * The Contexts form a linked list back to the topmost rule, for diagnostic and left-recursion purposes.
- * This NullCapture context does no capturing and returns no AST.
+ * This NoCapture context does no capturing and returns no AST.
  */
 template<
-	typename Source = PegexpDefaultSource,
-	typename _Result = PegexpDefaultResult<Source>,
+	typename _Result = PegexpDefaultResult<PegexpDefaultSource>,
 	int _MaxCaptureNames = 3
 >
-class PegContextNullCapture
+class PegContextNoCapture
 {
 public:
-	static const int MaxCaptureNames = _MaxCaptureNames;
 	using	Result = _Result;
-	using	PegexpT = PegPegexp<Source, Result, PegContextNullCapture>;
+	using	Source = typename Result::Source;
+	static const int MaxCaptureNames = _MaxCaptureNames;
+	using	PegexpT = PegPegexp<PegContextNoCapture>;
 	using	Rule = PegRule<PegexpT, MaxCaptureNames>;
-	using	PegT = Peg<Source, Result, PegContextNullCapture>;
+	using	PegT = Peg<Source, Result, PegContextNoCapture>;
 
-	PegContextNullCapture(PegT* _peg, PegContextNullCapture* _parent, Rule* _rule, Source _text)
+	PegContextNoCapture(PegT* _peg, PegContextNoCapture* _parent, Rule* _rule, Source _text)
 	: peg(_peg)
 	, capture_disabled(_parent ? _parent->capture_disabled : 0)
 	, parent(_parent)
@@ -80,23 +80,23 @@ public:
 	int		capture_disabled;
 
 	PegT*		peg;
-	PegContextNullCapture* 	parent;
+	PegContextNoCapture* 	parent;
 	Rule*		rule;
 	Source		text;
 };
 
 // Subclass the Pegexp template to extend virtual functions:
 template<
-	typename Source = PegexpDefaultSource,
-	typename Result = PegexpDefaultResult<Source>,
-	typename Context = PegContextNullCapture<Source, Result>
-> class PegPegexp : public Pegexp<Source, Result, Context>
+	typename Context = PegContextNoCapture<PegexpDefaultResult<PegexpDefaultSource>>
+> class PegPegexp : public Pegexp<Context>
 {
 	using	Rule = typename Context::Rule;
-	using	PegT = Peg<Source, Result, Context>;
 public:
-	using	Base = Pegexp<Source, Result, Context>;
+	using	Result = typename Context::Result;
+	using	Source = typename Result::Source;
+	using	Base = Pegexp<Context>;
 	using	State = PegexpState<Source>;
+	using	PegT = Peg<Source, Result, Context>;
 	PegPegexp(PegexpPC _pegexp_pc) : Base(_pegexp_pc) {}
 
 	virtual bool	match_extended(State& state, Context* context)
@@ -204,14 +204,14 @@ protected:
 template<
 	typename Source = PegexpDefaultSource,
 	typename Result = PegexpDefaultResult<Source>,
-	typename Context = PegContextNullCapture<Source, Result>
+	typename Context = PegContextNoCapture<Result>
 >
 class Peg
 {
 public:
 	using	Rule = typename Context::Rule;
 	using	State = PegexpState<Source>;
-	using	PegexpT = PegPegexp<Source, Result, Context>;
+	using	PegexpT = PegPegexp<Context>;
 
 	Peg(Rule* _rules, int _num_rule)
 	: rules(_rules), num_rule(_num_rule)

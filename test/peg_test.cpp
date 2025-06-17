@@ -43,7 +43,7 @@ public:
 // Forward declarations:
 class	PegContext;
 using	PegexpResult = PegexpDefaultResult<PegTestSource>;
-using	PegexpT = Pegexp<PegTestSource, PegexpResult, PegContext>;
+using	PegexpT = Pegexp<PegContext>;
 
 class	PegContext
 {
@@ -53,7 +53,7 @@ public:
 	using	Source = PegTestSource;
 	using	Result = PegexpResult;
 	using	PegT = Peg<Source, Result, PegContext>;
-	using	Rule = PegRule<PegPegexp<Source, Result, PegContext>, MaxCaptureNames>;
+	using	Rule = PegRule<PegPegexp<PegContext>, MaxCaptureNames>;
 
 	PegContext(PegT* _peg, PegContext* _parent, Rule* _rule, Source _text)
 	: peg(_peg)
