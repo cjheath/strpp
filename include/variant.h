@@ -43,30 +43,32 @@ public:
 	{ coerce_none(); }
 
 	// Constructors of various types:
-	Variant()
+	Variant()							// None
 	{ type = None; }
-	Variant(int _i)
+	Variant(int _i)							// Integer
 	{ type = Integer; u.i = _i; }
-	Variant(long _l)
+	Variant(long _l)						// Long
 	{ type = Long; u.l = _l; }
-	Variant(long long _ll)
+	Variant(long long _ll)						// LongLong
 	{ type = LongLong; u.ll = _ll; }
-	Variant(StrVal v)
+	Variant(StrVal v)						// StrVal
 	{ type = String; new(&u.str) StrVal(v); }
-	Variant(StrArray a)
+	Variant(StrArray a)						// StringArray
 	{ type = StringArray; new(&u.str_arr) StrArray(a); }
 	Variant(StrVal* v, StrArray::Index count)
 	{ type = StringArray; new(&u.str_arr) StrArray(v, count); }
-	Variant(VariantArray a)
+	Variant(VariantArray a)						// VarArray
 	{ type = VarArray; new(&u.str_arr) VariantArray(a); }
 	Variant(Variant* v, VariantArray::Index count)
 	{ type = VarArray; new(&u.var_arr) VariantArray(v, count); }
-	Variant(StrVal* keys, Variant* values, StrArray::Index count)
+	Variant(StrVal* keys, Variant* values, StrArray::Index count)	// StrVarMap
 	{ 	type = StrVarMap;
 		new(&u.var_map) StrVariantMap();
 		for (StrArray::Index i = 0; i < count; i++)
 			u.var_map.insert(keys[i], values[i]);
 	}
+	Variant(StrVariantMap map)					// StrVarMap
+	{ type = StrVarMap; u.var_map = map; }
 
 	// Default-initialise any type
 	Variant(VariantType t)
