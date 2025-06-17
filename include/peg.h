@@ -91,6 +91,8 @@ template<
 	typename Context = PegContextNullCapture<Source>
 > class PegPegexp : public Pegexp<Source, Result, Context>
 {
+	using	Rule = typename Context::Rule;
+	using	PegT = Peg<Source, Context>;
 public:
 	using	Base = Pegexp<Source, Result, Context>;
 	using	State = PegexpState<Source>;
@@ -100,9 +102,56 @@ public:
 	{
 		switch (*state.pc)
 		{
-		// Extended commands:
 		case '<':
-			return context->peg->recurse(state, context);
+			{
+			// Parse the call to a sub-rule. Note: These are not nul-terminated
+			PegexpPC	rule_name = 0;		// The name of the rule being called
+			PegexpPC	label = 0;		// The label assignd to the call
+			PegexpPC	call_end = 0;		// Where to continue if the sub_rule succeeds
+			parse_call(state.pc, rule_name, label, call_end);
+
+			// Find the rule being called:
+			PegT*		peg = context->peg;
+			Rule*		sub_rule = peg->lookup(rule_name);
+			if (!sub_rule)
+				return false;			// Problem in the Peg definition, undefined rule
+
+			// Open a nested Context to parse the current text with the new Pegexp:
+			Context		sub_context(peg, context, sub_rule, state.text);
+			State		start_state(state);	// Save for a failure exit
+			state.pc = sub_rule->expression.pegexp;
+
+#if defined(PEG_TRACE)
+			context->print_path();
+			printf(": calling %s /%s/ at `%.10s...`\n", sub_rule->name, state.pc, state.text.peek());
+#endif
+
+			if (!peg->recurse(sub_rule, state, &sub_context))
+			{
+#if defined(PEG_TRACE)
+				printf("FAIL\n");
+#endif
+				state = start_state;
+
+				return false;
+			}
+
+#if defined(PEG_TRACE)
+			printf("MATCH %s `%.*s`\n", sub_rule->name, (int)state.text.bytes_from(start_state.text), start_state.text.peek());
+			printf("continuing /%s/ text `%.10s`...\n", call_end, state.text.peek());
+#endif
+
+			// If the call is not labelled and the parent wants calls to this rule saved, do that
+			if (!label)
+				label = sub_rule->name;
+			if (context->capture_disabled == 0	// If we're capturing
+			 && context->rule->is_saved(label))	// And the parent wants it
+				(void)context->capture(Result(start_state.text, state.text, sub_rule->name, strlen(sub_rule->name)));
+
+			// Continue after the matched text, but with the code following the call:
+			state.pc = call_end;
+			return true;
+			}
 
 		case '~':
 		case '@':
@@ -121,6 +170,25 @@ public:
 		if (*pc++ == '<')
 			while (*pc != '\0' && *pc++ != '>')
 				;
+	}
+
+protected:
+	void	parse_call(PegexpPC pc, PegexpPC& rule_name, PegexpPC& label, PegexpPC& call_end)
+	{
+		pc++;
+		rule_name = pc;
+
+		// Find the end of the rule name in the Pegexp
+		PegexpPC	brangle = strchr(pc, '>');
+		call_end = brangle ? brangle+1 : pc+strlen(pc);
+		if (*call_end == ':')
+		{				// The call has an optional label
+			label = ++call_end;
+			while (isalnum(*call_end) || *call_end == '_')
+                                call_end++;
+			if (*call_end == ':')	// The label has the optional closing ':'
+				call_end++;
+		}
 	}
 };
 
@@ -180,33 +248,17 @@ public:
 				return cval;
 			}
 		);
+#if defined(PEG_TRACE)
 		if (!rule)
-			return 0;
+			printf("failed to find rule `%.10s`\n", name);
+#endif
 		return rule;
 	}
 
-	bool	recurse(State& state, Context* parent_context)
+	bool	recurse(Rule* sub_rule, State& state, Context* context)
 	{
-		State	start_state(state);	// Save for a failure exit
-		state.pc++;	// Skip the '<'
-
-		// Find the end of the rule name in the calling Pegexp:
-		const char*	brangle = strchr(state.pc, '>');
-		if (!brangle)
-			brangle = state.pc+strlen(state.pc);	// Error, no > before end of expression. Survive
-
-		Rule*	sub_rule = lookup(state.pc);
-		if (!sub_rule)
-		{
-#if defined(PEG_TRACE)
-			printf("failed to find rule `%.*s`\n", (int)(brangle-state.pc), state.pc);
-#endif
-			state = start_state;
-			return false;
-		}
-
 		// Check for left recursion (infinite loop)
-		for (Context* pp = parent_context; pp; pp = pp->parent)
+		for (Context* pp = context->parent; pp; pp = pp->parent)
 		{
 			// Is the same Rule already active at the same offset?
 			if (pp->rule == sub_rule && pp->text.same(state.text))
@@ -215,59 +267,11 @@ public:
 				pp->print_path();
 				printf(": left recursion detected at `%.10s`\n", state.text.peek());
 #endif
-				state = start_state;
 				return false;
 			}
 		}
 
-		// The sub_rule commences in the current State, but with the new Pegexp
-		State	substate = state;
-		substate.pc = sub_rule->expression.pegexp;
-		Context	context(this, parent_context, sub_rule, state.text);	// Open a nested Context
-
-#if defined(PEG_TRACE)
-		parent_context->print_path();
-		printf(": calling %s /%s/ at `%.10s...` (pegexp `%s`)\n", sub_rule->name, substate.pc, state.text.peek(), sub_rule->expression.pegexp);
-#endif
-
-		bool	result = sub_rule->expression.match_sequence(substate, &context);
-
-		if (result)
-		{
-			Source		from = state.text;	// Start of the matched text
-
-			/*
-			 * Advance the PC to beyond the sub_rule call (skipping the closing >)
-			 * with the text following what we just matched.
-			 */
-			state.pc = brangle;
-			if (*brangle == '>')	// Could be NUL on ill-formed input
-				brangle++;
-			state = State(brangle, substate.text);
-
-			// Save, if sub_rule is not labelled and the parent wants it
-			if (*state.pc != ':'
-			 && parent_context->rule->is_saved(sub_rule->name))	// And only if the parent wants it
-				(void)context.capture(Result(from, state.text, sub_rule->name, strlen(sub_rule->name)));
-
-#if defined(PEG_TRACE)
-			printf("MATCH `%.*s`\n", (int)state.text.bytes_from(from), from.peek());
-			printf("continuing at text `%.10s`...\n", state.text.peek());
-#endif
-		}
-#if defined(PEG_TRACE)
-		else
-			printf("FAIL\n");
-#endif
-		if (!result)
-			state = start_state;
-		else
-		{
-// This is the wrong place to do this:
-//			if (parent_context->rule && parent_context->rule->solitary_save())
-//				printf("Renamed %s by %s\n", parent_context->rule->saves[0], parent_context->rule->name);
-		}
-		return result;
+		return sub_rule->expression.match_sequence(state, context);
 	}
 
 protected:

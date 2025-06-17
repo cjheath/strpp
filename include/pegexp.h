@@ -364,20 +364,20 @@ protected:
 	{
 		switch (char32_t esc = *pc++)
 		{
-		case 'a':	return isalpha(ch);			// Alphabetic
-		case 'd':	return isdigit(ch);			// Digit
+		case 'a':	return isalpha(ch);	// Alphabetic
+		case 'd':	return isdigit(ch);	// Digit
 		case 'h':	return isdigit(ch) || (ch >= 'a' && ch <= 'f') || (ch >= 'A' && ch <= 'F');	// Hexadecimal
 		case 's':	return isspace(ch);
-		case 'w':	return isalpha(ch) || isdigit(ch);	// Alphabetic or digit
-		default:	pc -= 2;	// oops, not a property
+		case 'w':	return isalnum(ch);	// Alphabetic or digit
+		default:	pc -= 2;		// oops, not a property
 				esc = literal_char(pc);
-				return esc == ch;			// Other escaped character, exact match
+				return esc == ch;	// Other escaped character, exact match
 		}
 	}
 
 	bool		char_class(State& state)
 	{
-		if (state.text.at_eof())	// End of input never matches a char_class
+		if (state.text.at_eof())		// End of input never matches a char_class
 			return false;
 
 		State	start_state(state);
@@ -641,7 +641,7 @@ protected:
 		if (*state.pc == ':')
 		{
 			name = ++state.pc;
-			while (isalpha(*state.pc) || isdigit(*state.pc) || *state.pc == '_')
+			while (isalnum(*state.pc) || *state.pc == '_')
 				state.pc++;
 			PegexpPC	name_end = state.pc;
 			if (*state.pc == ':')
@@ -725,7 +725,7 @@ protected:
 		if (*pc == ':')
 		{		// Skip a label
 			pc++;
-			while (isalpha(*pc) || isdigit(*pc) || *pc == '_')
+			while (isalnum(*pc) || *pc == '_')
 				pc++;
 			if (*pc == ':')
 				pc++;
