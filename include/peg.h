@@ -11,7 +11,7 @@
 #include	<pegexp.h>
 
 // Forward declarations:
-template<typename Source, typename Context> class Peg;	// The Peg parser
+template<typename Source, typename Result, typename Context> class Peg;	// The Peg parser
 
 // A Pegexp with the extensions required to be used in a Peg:
 template<typename Source, typename Result, typename Context> class PegPegexp;
@@ -22,18 +22,18 @@ template<typename Source, typename Result, typename Context> class PegPegexp;
  */
 template<
 	typename PegexpT,
-	int	MaxSaves	// Maximum number of results that may be requested to return
+	int	MaxCaptureNames	// Maximum number of results that may be requested to return
 >
 class PegRule
 {
 public:
 	const char*	name;
 	PegexpT		expression;
-	const char*	saves[MaxSaves];	// These captures should be returned as the AST
+	const char*	saves[MaxCaptureNames];	// These captures should be returned as the AST
 
 	bool is_saved(const char* rulename)
 	{
-		for (int i = 0; i < MaxSaves; i++)
+		for (int i = 0; i < MaxCaptureNames; i++)
 		{
 			if (!saves[i])
 				break;
@@ -44,7 +44,7 @@ public:
 	}
 
 	bool	solitary_save() const		// This Rule saves exactly one thing
-	{ return saves[0] && (MaxSaves <= 1 || saves[1] == 0); }
+	{ return saves[0] && (MaxCaptureNames <= 1 || saves[1] == 0); }
 };
 
 /*
@@ -54,16 +54,17 @@ public:
  */
 template<
 	typename Source = PegexpDefaultSource,
-	int MaxSavesV = 2
+	typename _Result = PegexpDefaultResult<Source>,
+	int _MaxCaptureNames = 3
 >
 class PegContextNullCapture
 {
 public:
-	static const int MaxSaves = MaxSavesV;
-	using	Result = PegexpDefaultResult<Source>;
+	static const int MaxCaptureNames = _MaxCaptureNames;
+	using	Result = _Result;
 	using	PegexpT = PegPegexp<Source, Result, PegContextNullCapture>;
-	using	Rule = PegRule<PegexpT, MaxSaves>;
-	using	PegT = Peg<Source, PegContextNullCapture>;
+	using	Rule = PegRule<PegexpT, MaxCaptureNames>;
+	using	PegT = Peg<Source, Result, PegContextNullCapture>;
 
 	PegContextNullCapture(PegT* _peg, PegContextNullCapture* _parent, Rule* _rule, Source _text)
 	: peg(_peg)
@@ -88,11 +89,11 @@ public:
 template<
 	typename Source = PegexpDefaultSource,
 	typename Result = PegexpDefaultResult<Source>,
-	typename Context = PegContextNullCapture<Source>
+	typename Context = PegContextNullCapture<Source, Result>
 > class PegPegexp : public Pegexp<Source, Result, Context>
 {
 	using	Rule = typename Context::Rule;
-	using	PegT = Peg<Source, Context>;
+	using	PegT = Peg<Source, Result, Context>;
 public:
 	using	Base = Pegexp<Source, Result, Context>;
 	using	State = PegexpState<Source>;
@@ -146,7 +147,15 @@ public:
 				label = sub_rule->name;
 			if (context->capture_disabled == 0	// If we're capturing
 			 && context->rule->is_saved(label))	// And the parent wants it
+			{
+				// REVISIT: If the sub_context has captures, save that instead
 				(void)context->capture(Result(start_state.text, state.text, sub_rule->name, strlen(sub_rule->name)));
+			}
+
+			// REVISIT: If the call is labelled and the parent wants it, do that
+// This is the wrong place to do this:
+//			if (context->rule->solitary_save())
+//				printf("Renamed %s by %s\n", context->rule->saves[0], context->rule->name);
 
 			// Continue after the matched text, but with the code following the call:
 			state.pc = call_end;
@@ -194,14 +203,14 @@ protected:
 
 template<
 	typename Source = PegexpDefaultSource,
-	typename Context = PegContextNullCapture<Source>
+	typename Result = PegexpDefaultResult<Source>,
+	typename Context = PegContextNullCapture<Source, Result>
 >
 class Peg
 {
 public:
 	using	Rule = typename Context::Rule;
 	using	State = PegexpState<Source>;
-	using	Result = PegexpDefaultResult<Source>;
 	using	PegexpT = PegPegexp<Source, Result, Context>;
 
 	Peg(Rule* _rules, int _num_rule)

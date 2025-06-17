@@ -48,12 +48,12 @@ using	PegexpT = Pegexp<PegTestSource, PegexpResult, PegContext>;
 class	PegContext
 {
 public:
-	static const int MaxSaves = 3;	// Sufficient for the Px grammar below
+	static const int MaxCaptureNames = 3;	// Sufficient for the Px grammar below
 
 	using	Source = PegTestSource;
 	using	Result = PegexpResult;
-	using	PegT = Peg<Source, PegContext>;
-	using	Rule = PegRule<PegPegexp<Source, Result, PegContext>, MaxSaves>;
+	using	PegT = Peg<Source, Result, PegContext>;
+	using	Rule = PegRule<PegPegexp<Source, Result, PegContext>, MaxCaptureNames>;
 
 	PegContext(PegT* _peg, PegContext* _parent, Rule* _rule, Source _text)
 	: peg(_peg)
@@ -126,7 +126,7 @@ protected:
 	StrVariantMap	ast;
 };
 
-typedef	Peg<PegTestSource, PegContext>	TestPeg;
+typedef	Peg<PegTestSource, PegexpResult, PegContext>	TestPeg;
 
 void usage()
 {
