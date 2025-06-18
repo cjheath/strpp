@@ -52,8 +52,10 @@ public:
 				return search != end();
 			}
 	Iter	find(const Key& k) { return body->find(k); }
-	Iter	begin() { return body->begin(); }
-	Iter	end()	{ return body->end(); }
+	Iter	begin() const
+			{ return body->begin(); }
+	Iter	end() const
+			{ return body->end(); }
 	size_t	size()	{ return body->size(); }
 
 	// Mutating methods:
