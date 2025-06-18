@@ -207,6 +207,7 @@ public:
 				    + u.var_arr[i].as_json(next_indent);
 			return str+sep.substr(1).shorter(2)+"]";
 			}
+
 		case StrVarMap:
 			{
 			StrVal		str(StrVal("{")+sep.substr(1));
@@ -214,7 +215,7 @@ public:
 			{
 				str += (iter != u.var_map.begin() ? sep : StrVal())
 				    + Variant((*iter).first).as_json()
-				    + ": "
+				    + (indent==-2 ? ":" : ": ")
 				    + (*iter).second.as_json(next_indent);
 			}
 			return str+sep.substr(1).shorter(2)+"}";
