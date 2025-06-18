@@ -387,16 +387,21 @@ public:
 	// Extract substrings:
 	StrValI		substr(Index at, int len = -1) const
 			{
-				assert(len >= -1);
-
 				// Quick check for a null substring:
-				if (at < 0 || at >= num_chars || len == 0)
-					return StrValI();
+				if (len < -1 || len == 0 || at >= num_chars)
+					return null;
 
 				// Clamp substring length:
-				if (len == -1)
-					len = num_chars-at;
-				else if (len > num_chars-at)
+				if (len > 0)
+				{
+					if (at < 0)
+						len -= at, at = 0;
+					if (len < 0)
+						return null;
+					if (len > num_chars-at)
+						len = num_chars-at;
+				}
+				else
 					len = num_chars-at;
 
 				return StrValI(body, offset+at, len);
