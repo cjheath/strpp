@@ -155,6 +155,73 @@ public:
 		return "Corrupt type";
 	}
 
+	StrVal			as_json(int indent = -1) const
+	{
+		int		next_indent = indent;
+		StrVal		sep;			// Separator string between array or map items
+		switch (indent)
+		{
+		case -2:	sep = ","; break;	// Tight
+		case -1:	sep = ", "; break;	// Compact
+		default:	next_indent = indent+1;	// Indented
+				sep = StrVal(",\n")+StrVal("  ")*next_indent;
+				break;
+		}
+
+		char	buf[2+sizeof(long long)*5/2];	// long enough for decimal long long, sign and nul
+		switch (type)
+		{
+		default:		break;
+		case None:		// FALL THROUGH
+			return "null";
+
+		case Integer:		// FALL THROUGH
+			snprintf(buf, sizeof(buf), "%d", u.i);
+			return buf;	// StrVal copies the data
+
+		case Long:		
+			snprintf(buf, sizeof(buf), "%ld", u.l);
+			return buf;
+
+		case LongLong:		
+			snprintf(buf, sizeof(buf), "%lld", u.ll);
+			return buf;
+
+		case String:
+			return StrVal("\"")+u.str+"\"";	// REVISIT: Convert to escaped string
+
+		case StringArray:
+			{
+			StrVal		str(StrVal("[")+sep.substr(1));
+			for (int i = 0; i < u.str_arr.length(); i++)
+				str += (i > 0 ? sep : StrVal())
+				    + Variant(u.str_arr[i]).as_json(next_indent);
+			return str+sep.substr(1).shorter(2)+"]";
+			}
+
+		case VarArray:
+			{
+			StrVal		str(StrVal("[")+sep.substr(1));
+			for (int i = 0; i < u.var_arr.length(); i++)
+				str += (i > 0 ? sep : StrVal())
+				    + u.var_arr[i].as_json(next_indent);
+			return str+sep.substr(1).shorter(2)+"]";
+			}
+		case StrVarMap:
+			{
+			StrVal		str(StrVal("{")+sep.substr(1));
+			for (auto iter = u.var_map.begin(); iter != u.var_map.end(); iter++)
+			{
+				str += (iter != u.var_map.begin() ? sep : StrVal())
+				    + Variant((*iter).first).as_json()
+				    + ": "
+				    + (*iter).second.as_json(next_indent);
+			}
+			return str+sep.substr(1).shorter(2)+"}";
+			}
+		}
+	}
+
 protected:
 	// Discard any value and nullify the type
 	void	coerce_none()
