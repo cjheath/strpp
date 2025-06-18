@@ -155,15 +155,11 @@ public:
 	using Source = _Source;
 
 	// Any subclasses must have this constructor, to capture matched text:
-	PegexpDefaultResult(Source _from, Source _to, PegexpPC _name = 0, int _name_len = 0)
+	PegexpDefaultResult(Source _from, Source _to)
 	: from(_from)		// pointer to start of the text matched by this atom
 	, to(_to)		// pointer to the text following the match
-	, name(_name)		// Name of a label, or NULL
-	, name_len(_name_len)	// Length of the label, if any
 	{ }
 
-	PegexpPC	name;
-	int		name_len;
 	Source		from;
 	Source		to;
 };
@@ -181,7 +177,7 @@ public:
 	using	Source = typename Result::Source;
 	PegexpNullContext() : capture_disabled(0), repetition_nesting(0) {}
 
-	int		capture(Result, bool in_repetition) { return 0; }
+	int		capture(PegexpPC name, int name_len, Result, bool in_repetition) { return 0; }
 	int		capture_count() const { return 0; }
 	void		rollback_capture(int count) {}
 	int		capture_disabled;	// A counter of nested disables
@@ -658,8 +654,12 @@ protected:
 				state.pc++;
 			if (context && context->capture_disabled == 0)
 			{
-				Result r(start_state.text, state.text, name, name_end-name);
-				(void)context->capture(r, context->repetition_nesting > 0);
+				Result r(start_state.text, state.text);
+
+				(void)context->capture(
+					name, name_end-name,
+					r, context->repetition_nesting > 0
+				);
 			}
 		}
 		return true;

@@ -45,13 +45,14 @@ public:
 	using Source = PegTestSource;
 
 	// Any subclasses must have this constructor, to capture matched text:
-	PegTestResult(Source _from, Source _to, PegexpPC _name = 0, int _name_len = 0)
-	: key(_name, _name_len)
-	, value(_from.peek(), (int)_to.bytes_from(_from))
+	PegTestResult(Source _from, Source _to)
+	: var(StrVal(_from.peek(), (int)_to.bytes_from(_from)))
+	{ }
+	PegTestResult(Variant _var)
+	: var(_var)
 	{ }
 
-	StrVal		key;
-	StrVal		value;
+	Variant		var;
 };
 
 class	PegContext
@@ -74,28 +75,35 @@ public:
 	, num_captures(0)
 	{}
 
-	int		capture(Result r, bool in_repetition)
+	int		capture(PegexpPC name, int name_len, Result r, bool in_repetition)
 	{
-		StrVal	key(r.key);
-		StrVal	value(r.value);
+		StrVal		key(name, name_len);
+		Variant		existing;
 
-		if (!ast.contains(key))
-			ast.insert(key, Variant(Variant::VarArray));
-		Variant	existing = ast[key];
-		VariantArray va = existing.as_variant_array();
-		va += Variant(value);	// This Unshares the VA
-		ast.erase(key);
-		ast.insert(key, va);	// So save it again
-		existing = ast[key];
+		if (ast.contains(key))
+		{		// There are previous captures under this name
+			existing = ast[key];
+			if (existing.get_type() != Variant::VarArray)
+				existing = Variant(&existing, 1);	// Convert it to an array
+			VariantArray va = existing.as_variant_array();
+			va += r.var;		// This Unshares va from the entry stored in the map, so
+			ast.erase(key);		// Remove that
+			ast.insert(key, va);	// and save the new version
+			existing = ast[key];
+		}
+		else	// Insert the result as the first element in an array, or just as itself:
+			ast.insert(key, in_repetition ? Variant(&r.var, 1) : r.var);
+
 
 	//	printf("Capture "); print_path();
 		printf(
-			"%p: Saving %d'th '%s' = '%s' (capture %d)\n",
+			"%p (capture %d): Saving %d'th %s'%s' = type %s\n",
 			this,
-			va.length(),
+			num_captures,
+			existing.get_type() == Variant::VarArray ? existing.as_variant_array().length() : 1,
+			in_repetition ? "(in rep) " : "",
 			key.asUTF8(),
-			value.asUTF8(),
-			num_captures
+			r.var.type_name()
 		);
 		num_captures++;
 
@@ -114,6 +122,11 @@ public:
 	}
 	int		capture_disabled;
 	int		repetition_nesting;
+
+	Result		all_captures()
+	{
+		return Result(ast);
+	}
 
 	PegT*		peg;
 	PegContext* 	parent;

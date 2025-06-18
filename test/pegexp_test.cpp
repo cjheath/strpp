@@ -53,8 +53,8 @@ public:
 	, repetition_nesting(0)
 	, captures(10, {0,0,0,0})
 	{}
-	int		capture(Result r, bool in_repetition) {
-				captures.push_back({r.name, r.name_len, r.from, r.to-r.from});
+	int		capture(PegexpPC name, int name_len, Result r, bool in_repetition) {
+				captures.push_back({name, name_len, r.from, r.to-r.from});
 				return captures.size();
 			}
 	int		capture_count() const { return 0; }

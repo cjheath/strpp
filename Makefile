@@ -5,8 +5,8 @@
 CXX	=	g++
 CXXFLAGS =	-std=c++11
 
-DEBUG	=	-Os $(COPT)
-# DEBUG	=	-g $(COPT) # -DPEG_TRACE
+# DEBUG	=	-Os $(COPT)
+DEBUG	=	-g $(COPT) # -DPEG_TRACE
 # DEBUG	=	-g -DTRACK_RESULTS $(COPT)
 
 HDRS	=	\
