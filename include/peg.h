@@ -81,7 +81,7 @@ public:
 	int		capture_disabled;
 	int		repetition_nesting;
 
-	Result		all_captures() { return Result(); }
+	Result		result() const { return Result(); }
 
 	PegT*		peg;
 	PegContextNoCapture* 	parent;
@@ -154,7 +154,7 @@ public:
 			{
 				if (sub_context.capture_count() > 0)
 				{		// If the sub_context has captures, save that instead
-					Result	r = sub_context.all_captures();
+					Result	r = sub_context.result();
 					(void)context->capture(
 						sub_rule->name, strlen(sub_rule->name),
 						r, context->repetition_nesting > 0
@@ -169,11 +169,6 @@ public:
 					);
 				}
 			}
-
-			// REVISIT: If the call is labelled and the parent wants it, do that
-// This is the wrong place to do this:
-//			if (context->rule->solitary_save())
-//				printf("Renamed %s by %s\n", context->rule->saves[0], context->rule->name);
 
 			// Continue after the matched text, but with the code following the call:
 			state.pc = call_end;
@@ -221,13 +216,14 @@ protected:
 
 template<
 	typename Source = PegexpDefaultSource,
-	typename Result = PegexpDefaultResult<Source>,
-	typename Context = PegContextNoCapture<Result>
+	typename _Result = PegexpDefaultResult<Source>,
+	typename Context = PegContextNoCapture<_Result>
 >
 class Peg
 {
 public:
 	using	Rule = typename Context::Rule;
+	using	Result = _Result;
 	using	State = PegexpState<Source>;
 	using	PegexpT = PegPegexp<Context>;
 
@@ -240,7 +236,7 @@ public:
 		});
 	}
 
-	State	parse(Source text)
+	State	parse(Source text, Result* r)
 	{
 		Rule*	top_rule = lookup("TOP");
 		assert(top_rule);
@@ -256,7 +252,9 @@ public:
 
 		Context	context(this, 0, top_rule, text);
 		State	state(top_rule->expression.pegexp, text);
-		bool result = top_rule->expression.match_sequence(state, &context);
+		bool ok = top_rule->expression.match_sequence(state, &context);
+		if (ok && r)
+			*r = context.result();
 		return state;
 	}
 

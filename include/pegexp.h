@@ -159,6 +159,7 @@ public:
 	: from(_from)		// pointer to start of the text matched by this atom
 	, to(_to)		// pointer to the text following the match
 	{ }
+	PegexpDefaultResult() {}
 
 	Source		from;
 	Source		to;
@@ -183,6 +184,7 @@ public:
 	int		capture_disabled;	// A counter of nested disables
 
 	int		repetition_nesting;	// A counter of repetition nesting
+	Result		result() const { return Result(); }
 };
 
 template <typename Source = PegexpDefaultSource>

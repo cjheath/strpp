@@ -51,6 +51,7 @@ public:
 	PegTestResult(Variant _var)
 	: var(_var)
 	{ }
+	PegTestResult() {}
 
 	Variant		var;
 };
@@ -123,7 +124,7 @@ public:
 	int		capture_disabled;
 	int		repetition_nesting;
 
-	Result		all_captures()
+	Result		result() const
 	{
 		return Result(ast);
 	}
@@ -299,10 +300,13 @@ int	parse_file(char* text)
 
 	TestPeg		peg(rules, sizeof(rules)/sizeof(rules[0]));
 
-	TestPeg::State	result = peg.parse(text);
+	TestPeg::Result	result;
+	TestPeg::State	finish = peg.parse(text, &result);
 
-	if (result.text.peek() > text)
-		return result.text.peek() - text;
+	printf("%s\n", result.var.as_json(0).asUTF8());
+
+	if (finish.text.peek() > text)
+		return finish.text.peek() - text;
 	return 0;
 }
 
