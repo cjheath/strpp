@@ -593,6 +593,14 @@ public:
 				operator+=(StrValI(&body));
 				return *this;
 			}
+	StrValI		operator*(int repeats)
+			{
+				StrValI	res(*this);	// REVISIT: We could optimise allocation here
+
+				for (int i = 1; i < repeats; i++)
+					res += *this;
+				return res;
+			}
 
 	void		insert(Index pos, const StrValI& addend)
 			{
