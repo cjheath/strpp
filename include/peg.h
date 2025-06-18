@@ -75,7 +75,7 @@ public:
 	, origin(_origin)
 	{}
 
-	int		capture(bool in_repetition, Result) { return 0; }
+	int		capture(Result, bool in_repetition) { return 0; }
 	int		capture_count() const { return 0; }
 	void		rollback_capture(int count) {}
 	int		capture_disabled;
@@ -150,9 +150,8 @@ public:
 			if (context->capture_disabled == 0	// If we're capturing
 			 && context->rule->is_saved(label))	// And the parent wants it
 			{
-				// REVISIT: If the sub_context has captures, save that instead
 				Result	r(start_state.text, state.text, sub_rule->name, strlen(sub_rule->name));
-				(void)context->capture(context->repetition_nesting > 0, r);
+				(void)context->capture(r, context->repetition_nesting > 0);
 			}
 
 			// REVISIT: If the call is labelled and the parent wants it, do that

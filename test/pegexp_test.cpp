@@ -53,7 +53,7 @@ public:
 	, repetition_nesting(0)
 	, captures(10, {0,0,0,0})
 	{}
-	int		capture(bool in_repetition, Result r) {
+	int		capture(Result r, bool in_repetition) {
 				captures.push_back({r.name, r.name_len, r.from, r.to-r.from});
 				return captures.size();
 			}

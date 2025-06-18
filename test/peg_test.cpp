@@ -74,7 +74,7 @@ public:
 	, num_captures(0)
 	{}
 
-	int		capture(bool in_repetition, Result r)
+	int		capture(Result r, bool in_repetition)
 	{
 		StrVal	key(r.key);
 		StrVal	value(r.value);

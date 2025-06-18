@@ -181,7 +181,7 @@ public:
 	using	Source = typename Result::Source;
 	PegexpNullContext() : capture_disabled(0), repetition_nesting(0) {}
 
-	int		capture(bool in_repetition, Result) { return 0; }
+	int		capture(Result, bool in_repetition) { return 0; }
 	int		capture_count() const { return 0; }
 	void		rollback_capture(int count) {}
 	int		capture_disabled;	// A counter of nested disables
@@ -659,7 +659,7 @@ protected:
 			if (context && context->capture_disabled == 0)
 			{
 				Result r(start_state.text, state.text, name, name_end-name);
-				(void)context->capture(context->repetition_nesting > 0, r);
+				(void)context->capture(r, context->repetition_nesting > 0);
 			}
 		}
 		return true;
