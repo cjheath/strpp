@@ -66,13 +66,13 @@ public:
 	using	Rule = PegRule<PegexpT, MaxCaptureNames>;
 	using	PegT = Peg<Source, Result, PegContextNoCapture>;
 
-	PegContextNoCapture(PegT* _peg, PegContextNoCapture* _parent, Rule* _rule, Source _text)
+	PegContextNoCapture(PegT* _peg, PegContextNoCapture* _parent, Rule* _rule, Source _origin)
 	: peg(_peg)
 	, capture_disabled(_parent ? _parent->capture_disabled : 0)
 	, repetition_nesting(0)
 	, parent(_parent)
 	, rule(_rule)
-	, text(_text)
+	, origin(_origin)
 	{}
 
 	int		capture(bool in_repetition, Result) { return 0; }
@@ -84,12 +84,12 @@ public:
 	PegT*		peg;
 	PegContextNoCapture* 	parent;
 	Rule*		rule;
-	Source		text;
+	Source		origin;		// Location where this rule started, for detection of left-recursion
 };
 
 // Subclass the Pegexp template to extend virtual functions:
 template<
-	typename Context = PegContextNoCapture<PegexpDefaultResult<PegexpDefaultSource>>
+	typename Context
 > class PegPegexp : public Pegexp<Context>
 {
 	using	Rule = typename Context::Rule;
@@ -272,13 +272,11 @@ public:
 		// Check for left recursion (infinite loop)
 		for (Context* pp = context->parent; pp; pp = pp->parent)
 		{
-			// Is the same Rule already active at the same offset?
-			if (pp->rule == sub_rule && pp->text.same(state.text))
+			if (state.text.bytes_from(pp->origin) > 0)
+				break;	// This rule is starting ahead of pp and all its ancestors
+			if (pp->rule == sub_rule)
 			{
-#if defined(PEG_TRACE)
-				pp->print_path();
-				printf(": left recursion detected at `%.10s`\n", state.text.peek());
-#endif
+				left_recursion();
 				return false;
 			}
 		}
@@ -289,5 +287,13 @@ public:
 protected:
 	Rule*		rules;
 	int		num_rule;
+
+	void	left_recursion(State state)
+	{
+#if defined(PEG_TRACE)
+				pp->print_path();
+				printf(": left recursion detected at `%.10s`\n", state.text.peek());
+#endif
+	}
 };
 #endif	// PEG_H

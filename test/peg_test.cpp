@@ -64,13 +64,13 @@ public:
 	using	PegT = Peg<Source, Result, PegContext>;
 	using	Rule = PegRule<PegPegexp<PegContext>, MaxCaptureNames>;
 
-	PegContext(PegT* _peg, PegContext* _parent, Rule* _rule, Source _text)
+	PegContext(PegT* _peg, PegContext* _parent, Rule* _rule, Source _origin)
 	: peg(_peg)
 	, capture_disabled(_parent ? _parent->capture_disabled : 0)
 	, repetition_nesting(0)
 	, parent(_parent)
 	, rule(_rule)
-	, text(_text)
+	, origin(_origin)
 	, num_captures(0)
 	{}
 
@@ -118,7 +118,7 @@ public:
 	PegT*		peg;
 	PegContext* 	parent;
 	Rule*		rule;
-	Source		text;
+	Source		origin;		// Location where this rule started, for detection of left-recursion
 
 	void		print_path(int depth = 0) const
 	{
