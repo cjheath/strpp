@@ -96,15 +96,21 @@ public:
 			ast.insert(key, in_repetition ? Variant(&r.var, 1) : r.var);
 
 
-	//	printf("Capture "); print_path();
+		StrVal	rep_display;
+		if (existing.get_type() == Variant::VarArray)
+		{				// repetition display
+			char	buf[16];
+			snprintf(buf, sizeof(buf), "[%d]", existing.as_variant_array().length());
+			rep_display = StrVal(buf);
+		}
 		printf(
-			"%p (capture %d): Saving %d'th %s'%s' = type %s\n",
-			this,
+			"%s%s[%d]: %s%s=%s\n",
+			(StrVal("  ")*depth()).asUTF8(),
+			rule->name,
 			num_captures,
-			existing.get_type() == Variant::VarArray ? existing.as_variant_array().length() : 1,
-			in_repetition ? "(in rep) " : "",
 			key.asUTF8(),
-			r.var.type_name()
+			rep_display.asUTF8(),
+			r.var.as_json(-2).asUTF8()	// Compact JSON
 		);
 		num_captures++;
 
@@ -133,6 +139,9 @@ public:
 	PegContext* 	parent;
 	Rule*		rule;
 	Source		origin;		// Location where this rule started, for detection of left-recursion
+
+	int		depth()
+	{ return parent ? parent->depth()+1 : 0; }
 
 	void		print_path(int depth = 0) const
 	{
