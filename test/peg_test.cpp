@@ -192,7 +192,6 @@ char* slurp_file(const char* filename, off_t* size_p)
 
 int	parse_file(char* text)
 {
-	using R = TestPeg::Rule;
 	TestPeg::Rule	rules[] =
 	{
 		{ "blankline",				// A line containing no printing characters

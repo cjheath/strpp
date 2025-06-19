@@ -1,5 +1,6 @@
 /*
- * PEG parser code size test
+ * PEG parser code size test.
+ * This is not intended to be run, just to use `size` on.
  *
  * Copyright 2022 Clifford Heath. ALL RIGHTS RESERVED SUBJECT TO ATTACHED LICENSE.
  */
@@ -15,8 +16,9 @@ typedef	Peg<>			TestPeg;
 int
 main(int argc, const char** argv)
 {
-	using R = TestPeg::Rule;
+	TestPeg::Rule	rules[] = { { "TOP", "", { 0 } } };	// Null rule set
 
-	TestPeg		peg((R*)0, 0);
-	peg.parse(argv[1]);
+	TestPeg		peg(rules, 1);
+	TestPeg::Result	result;
+	TestPeg::State	finish = peg.parse(argv[1], &result);
 }

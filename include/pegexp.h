@@ -77,6 +77,13 @@ class	PegexpPointerSource
 public:
 	using Char = _Char;
 
+	PegexpPointerSource()
+	: data(0)
+	, byte_count(0)
+	, line_count(1)
+	, column_char(1)
+	{ }
+
 	PegexpPointerSource(const DataPtr cp)
 	: data(cp)
 	, byte_count(0)
