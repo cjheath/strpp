@@ -484,12 +484,13 @@ public:
 
 	inline Index	length() const { return num_elements; }
 	const Element*	data() const { return start; }			// fast access
-	const Element*	end() const { return start+num_elements; }		// ptr to the trailing NUL (if any)
+	const Element*	end() const { return start+num_elements; }	// ptr to the trailing NUL (if any)
 
 	// Mutating methods. Must only be called when refcount <= 1 (i.e., unshared)
 	void		insert(Index pos, const Element* elements, Index num)	// Insert a subarray
 			{
 				assert(ref_count <= 1);
+				assert(pos >= 0);
 				assert(num_elements >= pos);
 				resize(num_elements + num);
 

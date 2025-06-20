@@ -9,6 +9,8 @@
 #include	<cassert>
 #include	<atomic>
 
+#include	<memory_monitor.h>
+
 #if	!defined(MEMORY_GUARD)
 union ML_max_align {
 	std::max_align_t	a;
@@ -19,7 +21,6 @@ union ML_max_align {
 #endif
 #define	GUARD_VALUE	0xA5
 
-void check_arena();
 void memory_error();			// Breakpoint here to stop on memory errors
 
 static	void*	memory_focus = 0;	// Set this in the debugger, and a new or delete of this address will call memory_error
@@ -111,6 +112,7 @@ void check_arena()
 
 void*	operator new(std::size_t n)
 {
+	check_arena();
 	char*	cp = (char*)malloc(n + 2*MEMORY_GUARD);
 	cp += MEMORY_GUARD;
 

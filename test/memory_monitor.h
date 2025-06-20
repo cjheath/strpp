@@ -10,3 +10,5 @@ void	start_recording_allocations();
 void	report_allocation_growth();
 int	allocation_growth_count();
 long	last_alloc_num();	// Return the counter of the last allocation operation, for tracing leaks
+
+void	check_arena();

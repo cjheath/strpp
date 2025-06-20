@@ -65,7 +65,8 @@ public:
 	~StrBodyI()	{}
 	StrBodyI()	: num_chars(0) {}
 	StrBodyI(const char* data, bool copy, Index length = 0, Index allocate = 0)
-			: Body(data, copy, (length == 0 ? strlen(data) : length)+1, allocate), num_chars(0)
+			: Body(data, copy, (length == 0 ? strlen(data) : length)+1, allocate)
+			, num_chars(0)
 			{
 				if (copy && length != 0)
 					start[num_elements-1] = '\0';	// Perhaps we didn't copy a NUL, so add one
@@ -154,7 +155,7 @@ public:
 	void		toLower()
 			{
 				UTF8		one_char[7];
-				StrBodyI	temp_body;	// Any StrVal that references this must have a shorter lifetime. transform() guarantees this.
+				StrBodyI	temp_body;	// No StrVal reference may have a longer lifetime
 				transform(
 					[&](const UTF8*& cp, const UTF8* ep) -> Val
 					{
@@ -172,7 +173,7 @@ public:
 	void		toUpper()
 			{
 				UTF8		one_char[7];
-				StrBodyI	temp_body;	// Any StrVal that references this must have a shorter lifetime. transform() guarantees this.
+				StrBodyI	temp_body;	// No StrVal reference may have a longer lifetime
 				transform(
 					[&](const UTF8*& cp, const UTF8* ep) -> Val
 					{
@@ -188,19 +189,22 @@ public:
 					}
 				);
 			}
+	void		toJSON();
 
-protected:
-	Index		num_chars;	// zero if not yet counted
 	StrBodyI& operator=(const StrBodyI& s1)	 // Assignment operator; ONLY for no-copy bodies
 			{
 				assert(s1.num_alloc == 0);	// Must not do this if we would make two references to allocated data
 				start = s1.start;
-				ArrayBody<Index>::AddRef();	// Ensure we don't get deleted
+				this->ArrayBody<Index>::AddRef();	// Ensure we don't get deleted
 				num_chars = s1.num_chars;
 				num_elements = s1.num_elements;
 				num_alloc = 0;
 				return *this;
 			}
+	bool		isUnallocated() { return num_alloc == 0; }
+
+protected:
+	Index		num_chars;	// zero if not yet counted
 	void		countChars()
 			{
 				const UTF8*	cp = start;		// Progress pointer when reading data
@@ -256,12 +260,18 @@ public:
 			, num_chars(0)
 			{}
 	StrValI(const StrValI& s1)	// Normal copy constructor
-			: body(s1.body), offset(s1.offset), num_chars(s1.num_chars) {}
+			: body(s1.body), offset(s1.offset), num_chars(s1.num_chars)
+			{
+				if (s1.body->isUnallocated())	// Must not copy a reference to a non-allocated body
+					Unshare();
+			}
 	StrValI& operator=(const StrValI& s1) // Assignment operator
 			{
 				body = s1.body;
 				offset = s1.offset;
 				num_chars = s1.num_chars;
+				if (s1.body->isUnallocated())	// Must not copy a reference to a non-allocated body
+					Unshare();
 				return *this;
 			}
 	StrValI(const char* data)	// construct by copying NUL-terminated data
@@ -814,7 +824,7 @@ void StrBodyI<Index>::transform(const std::function<Val(const UTF8*& cp, const U
 
 			Index		replacement_bytes;
 			const UTF8*	rp = replacement.asUTF8(replacement_bytes);
-			ArrayBody<char, Index>::insert(num_chars, rp, replacement_bytes);
+			ArrayBody<char, Index>::insert(num_elements, rp, replacement_bytes);
 			num_chars += replacement.length();
 			op = start+num_elements;
 		}
