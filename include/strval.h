@@ -88,7 +88,10 @@ public:
 				int		end_char;	// starting char number for backward search
 
 				if (char_num < 0 || char_num > (end_char = numChars())) // numChars() counts the string if necessary
+				{
+					assert(char_num >= 0 && char_num <= end_char);
 					return (UTF8*)0;
+				}
 
 				if (num_chars == num_elements-1) // ASCII data only, use direct index!
 					return start+char_num;
@@ -340,7 +343,12 @@ public:
 				return CharBufI<Index>(body, first_byte, nthChar(num_chars)-first_byte);
 			}
 
-	Index		numBytes() const { return nthChar(num_chars)-nthChar(0); }
+	Index		numBytes() const
+			{
+				const char*	ep = nthChar(num_chars);
+				assert(ep);
+				return ep-nthChar(0);
+			}
 	Index		length() const { return num_chars; }	// Number of chars
 	bool		isEmpty() const { return length() == 0; } // equals empty string?
 	operator bool() const { return !isEmpty(); }
@@ -652,6 +660,13 @@ public:
 				num_chars = body->numChars();
 			}
 	void		transform(const std::function<StrValI(const UTF8*& cp, const UTF8* ep)> xform, int after = -1);
+	StrValI		asJSON() const { StrValI json(*this); json.toJSON(); return json; }
+	void		toJSON()
+			{
+				Unshare();	// REVISIT: Unshare only when first change must be made
+				body->toJSON();
+				num_chars = body->numChars();
+			}
 
 	/*
 	 * Convert a string to an integer, using radix (0 means use C rules)
@@ -842,7 +857,8 @@ void StrBodyI<Index>::transform(const std::function<Val(const UTF8*& cp, const U
 			num_chars++;
 		}
 	}
-	*op = '\0';
+	// Append the \0 to the array:
+	ArrayBody<char, Index>::insert(num_elements, "", 1);
 	delete [] old_start;
 }
 
@@ -996,6 +1012,85 @@ not_number:
 	if (scanned)
 		*scanned = i;
 	return 0;
+}
+
+template<typename Index>
+void
+StrBodyI<Index>::toJSON()
+{
+	UTF8		one_char[12];
+	StrBodyI	temp_body;
+	static const char hex[] = "0123456789ABCDEF";
+
+	transform(
+		[&](const UTF8*& cp, const UTF8* ep) -> Val
+		{
+			UCS4	ch = UTF8Get(cp);	// Get UCS4 character
+			UTF8*	op = one_char;		// Pack it into our local buffer
+			switch (ch)
+			{
+			case '\0':	// Null Byte
+				*op++ = '\\'; *op++ = '0'; break;
+			case '\b':	// Backspace
+				*op++ = '\\'; *op++ = 'b'; break;
+			case '\f':	// Form Feed
+				*op++ = '\\'; *op++ = 'f'; break;
+			case '\n':	// New Line
+				*op++ = '\\'; *op++ = 'n'; break;
+			case '\r':	// Carriage Return
+				*op++ = '\\'; *op++ = 'r'; break;
+			case '\t':	// Tab
+				*op++ = '\\'; *op++ = 't'; break;
+			case '\v':	// Vertical tab
+				*op++ = '\\'; *op++ = 'v'; break;
+			case '\'':	// Apostrophe or single quote
+				*op++ = '\\'; *op++ = '\''; break;
+			case '\"':	// Double quote
+				*op++ = '\\'; *op++ = '\"'; break;
+			case '\\':	// Backslash character
+				*op++ = '\\'; *op++ = '\\'; break;
+
+			default:
+				if (ch >= ' ' && ch < 128)
+				{
+					*op++ = ch;
+					break;
+				}
+
+				*op++ = '\\';
+
+				// Else use \xXX for a single Latin1 byte or \uXXXX or \u{XXXXX}
+				if (ch < 256)
+				{
+					*op++ = 'x';
+					*op++ = hex[(ch>>4)&0xF];
+					*op++ = hex[ch&0xF];
+					break;
+				}
+
+				// Fall back to 4 or 5-character Unicode
+				*op++ = 'u';
+				if (ch >= 65536)
+				{
+					*op++ = '{';
+					*op++ = hex[(ch>>16)&0xF];
+				}
+				*op++ = hex[(ch>>12)&0xF];
+				*op++ = hex[(ch>>8)&0xF];
+				*op++ = hex[(ch>>4)&0xF];
+				*op++ = hex[(ch>>4)&0xF];
+				*op++ = hex[ch&0xF];
+				if (ch >= 65536)
+					*op++ = '}';
+				break;
+			}
+			*op = '\0';
+
+			// Assign this to the body in our closure
+			temp_body = StrBodyI(one_char, false, op-one_char);
+			return Val(&temp_body);
+		}
+	);
 }
 
 #endif

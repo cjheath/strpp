@@ -490,14 +490,20 @@ public:
 	void		insert(Index pos, const Element* elements, Index num)	// Insert a subarray
 			{
 				assert(ref_count <= 1);
-				assert(pos >= 0);
-				assert(num_elements >= pos);
-				resize(num_elements + num);
+				if (num <= 0)
+					return;
 
-				if (num_elements > pos)		// Move data up
+				assert(pos >= 0);		// Insertion point not before beginning
+				assert(pos <= num_elements);	// Insertion point not after the end
+				Index new_size = num_elements+num;
+				assert(new_size >= num_elements); // Ensure the Index didn't wrap
+
+				resize(new_size);
+
+				if (num_elements > pos)		// Move data up (by assigning elements)
 					for (Index i = num_elements+num; i && i > pos+num; --i)
 						start[i-1] = start[i-1-num];
-				if (num > 0)
+				if (num > 0)			// Insert new data
 					for (Index i = 0; i < num; i++)
 						start[pos+i] = elements[i];
 				num_elements += num;
@@ -505,6 +511,8 @@ public:
 	void		remove(Index at, int len = -1)		// Delete a subslice from the middle
 			{
 				assert(ref_count <= 1);
+				if (len == 0)
+					return;
 				assert(len >= -1);
 				assert(at >= 0);
 				assert(at < num_elements);
