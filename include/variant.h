@@ -188,7 +188,7 @@ public:
 			return buf;
 
 		case String:
-			return StrVal("\"")+u.str+"\"";	// REVISIT: Convert to escaped string
+			return StrVal("\"")+u.str.asJSON()+"\"";	// REVISIT: Convert to escaped string
 
 		case StringArray:
 			{
