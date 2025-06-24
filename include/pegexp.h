@@ -57,6 +57,7 @@
 
 #include	<cstdint>
 #include	<cstdlib>
+#include	<cstring>
 #include	<cctype>
 #include	<char_encoding.h>
 
@@ -189,6 +190,8 @@ public:
 	int		capture_count() const { return 0; }
 	void		rollback_capture(int count) {}
 	int		capture_disabled;	// A counter of nested disables
+
+	void		record_failure(PegexpPC op, PegexpPC op_end, Source location) {}
 
 	int		repetition_nesting;	// A counter of repetition nesting
 	Result		result() const { return Result(); }
@@ -458,7 +461,8 @@ protected:
 		State		start_state(state);
 
 		bool		match = false;
-		switch (char rc = *state.pc++)
+		char		rc;
+		switch (rc = *state.pc++)
 		{
 		case '\0':	// End of expression
 			state.pc--;
@@ -472,8 +476,7 @@ protected:
 
 		case '$':	// End of line or end of input
 			match = state.text.at_eof() || state.next_char() == '\n';
-			state = start_state;
-			state.pc++;
+			state.text = start_state.text;
 			break;
 
 		case '.':	// Any character
@@ -617,35 +620,33 @@ protected:
 			if (context)	// Undo new captures on failure
 				context->rollback_capture(initial_captures);
 
-#if 0
 			/*
-			 * REVISIT: If this is the furthest point reached in the text so far,
+			 * If this is the furthest point reached in the text so far,
 			 * record the rule that was last attempted. Multiple rules may be
 			 * attempted at this point, we want to know what characters would
 			 * have allowed the parse to proceed.
 			 */
 			if (context		// We need something to report to
-			 && state.text >= context->furthest_success
-			 && strchr("?*+(|&", rc)== (char*)0)	// Don't report special characters
+			 && (char*)0 == strchr("?*+(|&!", rc))		// Don't report composite operators
 			{
-				// Should this be before the switch, because we hadn't failed then?
-				if (start_state.text > context->furthest_success)
-					context->wipe_failures();	// We got further this time
-
 				/*
 				 * Terminal symbols for which we can report failure:
 				 * ^ = beginning of line
 				 * $ = end of line
 				 * !. = EOF
 				 * . = any character
-				 * [...] = character class (definition is between start_state.pc and state.pc)
+				 * [...] = character class
+				 * \char property
 				 * \literal character
-				 * Otherwise it's a literal character.
-				 * 	(Report the whole sequence? What if several have a common prefix?)
+				 * Otherwise it's a literal character
+				 * (reporting might also show subsequent literals in a string)
 				 */
-				context->record_failure(start_state, rc);
+				context->record_failure(
+					start_state.pc,		// The PegexPC of the operator
+					state.pc,		// The PegexPC of the end of the operator
+					start_state.text	// The Source location
+				); // ... record only if state.text >= context->furthest_success
 			}
-#endif
 
 			state = start_state;
 			return false;

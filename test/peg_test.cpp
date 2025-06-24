@@ -130,6 +130,8 @@ public:
 	int		capture_disabled;
 	int		repetition_nesting;
 
+	void		record_failure(PegexpPC op, PegexpPC op_end, Source location) {}
+
 	Result		result() const
 	{
 		return Result(ast);
