@@ -207,12 +207,6 @@ public:
 	PegexpState(const PegexpState& c) : pc(c.pc), text(c.text) {}
 	PegexpState&	operator=(const PegexpState& c)
 			{ pc = c.pc; text = c.text; return *this; }
-	char		next_byte()	// May be used by an extension
-			{ return text.get_byte(); }
-	Char		next_char()
-			{ return text.get_char(); }
-	bool		at_bol()
-			{ return text.at_bol(); }
 	bool		at_expr_end()
 			{ return *pc == '\0' || *pc == ')'; }
 
@@ -401,7 +395,7 @@ protected:
 			state.pc++;
 
 		bool	in_class = false;
-		Char	ch = state.next_char();
+		Char	ch = state.text.get_char();
 		while (*state.pc != '\0' && *state.pc != ']')
 		{
 			Char	c1;
@@ -443,7 +437,7 @@ protected:
 
 	bool		match_literal(State& state, Context* context)
 	{
-		if (state.text.at_eof() || *state.pc != state.next_char())
+		if (state.text.at_eof() || *state.pc != state.text.get_char())
 			return false;
 		state.pc++;
 		return true;
@@ -471,27 +465,27 @@ protected:
 			break;
 
 		case '^':	// Start of line
-			match = state.at_bol();
+			match = state.text.at_bol();
 			break;
 
 		case '$':	// End of line or end of input
-			match = state.text.at_eof() || state.next_char() == '\n';
+			match = state.text.at_eof() || state.text.get_char() == '\n';
 			state.text = start_state.text;
 			break;
 
 		case '.':	// Any character
 			if ((match = !state.text.at_eof()))
-				(void)state.next_char();
+				(void)state.text.get_char();
 			break;
 
 		default:	// Literal character
 			if (rc > 0 && rc < ' ')		// Control characters
 				goto extended;
-			match = !state.text.at_eof() && rc == state.next_char();
+			match = !state.text.at_eof() && rc == state.text.get_char();
 			break;
 
 		case '\\':	// Escaped literal char
-			match = !state.text.at_eof() && char_property(state.pc, state.next_char());
+			match = !state.text.at_eof() && char_property(state.pc, state.text.get_char());
 			break;
 
 		case '[':	// Character class
