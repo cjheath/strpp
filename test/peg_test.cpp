@@ -56,15 +56,40 @@ public:
 	Variant		var;
 };
 
+template<
+	typename PegexpT
+>
+class PegCaptureRule
+: public PegNullRule<PegexpT>
+{
+public:
+	PegCaptureRule(const char* _name, PegexpT _pegexp, const char** _captures)
+	: PegNullRule<PegexpT>(_name, _pegexp)
+	, captures(_captures)
+	{}
+
+	// Labelled atoms or rules matching these capture names should be returned in the parse result:
+	const char**	captures;	// Pointer to zero-terminated array of string pointers.
+
+	bool is_captured(const char* label)
+	{
+		if (!captures)
+			return false;
+		for (int i = 0; captures[i]; i++)
+			if (0 == strcmp(captures[i], label))
+				return true;
+		return false;
+	}
+};
+
 class	PegContext
 {
 public:
-	static const int MaxCaptureNames = 3;	// Sufficient for the Px grammar below
-
 	using	Source = PegTestSource;
 	using	Result = PegTestResult;
 	using	PegT = Peg<Source, Result, PegContext>;
-	using	Rule = PegRule<PegPegexp<PegContext>, MaxCaptureNames>;
+	using	PegexpT = PegPegexp<PegContext>;
+	using	Rule = PegCaptureRule<PegexpT>;
 
 	PegContext(PegT* _peg, PegContext* _parent, Rule* _rule, Source _origin)
 	: peg(_peg)
@@ -74,6 +99,7 @@ public:
 	, rule(_rule)
 	, origin(_origin)
 	, num_captures(0)
+	, furthermost_failure(0)
 	{}
 
 	int		capture(PegexpPC name, int name_len, Result r, bool in_repetition)
@@ -130,7 +156,65 @@ public:
 	int		capture_disabled;
 	int		repetition_nesting;
 
-	void		record_failure(PegexpPC op, PegexpPC op_end, Source location) {}
+	size_t		furthermost_failure;
+	struct failure{PegexpPC op; int i;};
+	Array<struct failure>	failures;
+	void		record_failure(PegexpPC op, PegexpPC op_end, Source location)
+	{
+		size_t	failure_distance = location.bytes_from(origin);
+		if (failure_distance < furthermost_failure)
+			return;	// We got further previously
+
+		if (capture_disabled)
+			return;	// Failure in lookahead isn't interesting
+
+		// We only need to know about failures of literals, not pegexp operators:
+		// removed [; character classes are interesting
+		static	const char*	pegexp_ops = "~@#%_;<`)^$.\\?*+(|&!";
+		if (0 != strchr(pegexp_ops, *op))
+			return;
+
+		// Record furthermost failure only on the TOP context:
+		if (parent)
+		{
+			parent->record_failure(op, op_end, location);
+			return;
+		}
+
+		if (failure_distance > furthermost_failure)
+		{
+			// printf("Proceeded from %ld to fail at %ld, clearing %d past failures\n", furthermost_failure, failure_distance, failures.length());
+			failures.clear();
+		}
+
+		// Don't double-up failures of the same pegexp against the same text:
+		for (int i = 0; i < failures.length(); i++)
+			if (failures[i].op == op)
+			{
+				// printf("We previously failed here (%ld) on rule '%.*s', move along\n", failure_distance, (int)(op_end-op), op);
+				return;		// Nothing new here, move along.
+			}
+
+#if 0	// This doesn't seem very useful
+		// Extend display of op_end where a sequence of literals is involved
+		if (0 == strchr(pegexp_ops, *op))
+		{
+			while (*op_end != '\0' && 0 == strchr(pegexp_ops, *op_end))
+				op_end++;
+			printf("Extended display of literal failure to %.*s\n", (int)(op_end-op), op);
+		}
+#endif
+
+		printf("Failure at %lld/%lld(%lld) on rule '%.*s'\n",
+			location.current_line(),
+			location.current_column(),
+			location.current_byte(),
+			(int)(op_end-op),
+			op
+		);
+		furthermost_failure = failure_distance;
+		failures.append({op, (int)(op_end-op)});
+	}
 
 	Result		result() const
 	{
@@ -192,122 +276,135 @@ char* slurp_file(const char* filename, off_t* size_p)
 	return px;
 }
 
+// It's a pity that C++ has no way to initialise these inline:
+const char*	TOP_captures[] = { "rule", 0 };
+const char*	rule_captures[] = { "name", "alternates", "action" };
+const char*	action_captures[] = { "function", "list", 0 };
+const char*	parameter_captures[] = { "param", 0 };
+const char*	alternates_captures[] = { "sequence", 0 };
+const char*	sequence_captures[] = { "repetition", 0 };
+const char*	repeat_count_captures[] = { "limit", 0 };
+const char*	count_captures[] = { "val", 0 };
+const char*	repetition_captures[] = { "repeat_count", "atom", "label", 0 };
+const char*	label_captures[] = { "name", 0 };
+
+TestPeg::Rule	rules[] =
+{
+	{ "blankline",				// A line containing no printing characters
+	  "\\n*[ \\t\\r](|\\n|!.)",
+	  0
+	},
+	{ "space",				// Any single whitespace
+	  "|[ \\t\\r\\n]"
+	  "|//*[^\\n]",				// including a comment to end-of-line
+	  0
+	},
+	{ "s",					// Any whitespace but not a blankline
+	  "*(!<blankline><space>)",
+	  0
+	},
+	{ "TOP",				// Start; a repetition of zero or more rules
+	  "*<space>*<rule>:rule",
+	  TOP_captures
+	  // { "rule" }				// -> rule
+	},
+	{ "rule",				// Rule: name of a rule that matches one or more alternates
+	  "<name><s>=<s>"
+	  "<alternates>?<action>"		// and perhaps has an action
+	  "<blankline>*<space>",		// it ends in a blank line
+	  rule_captures
+	},
+	{ "action",				// Looks like "-> function: param, ..."
+	  "-><s>?(<name>:function\\:<s>)<parameter>:list*(,<s><parameter>:list)<s>",
+	  action_captures
+	},
+	{ "parameter",				// A parameter to an action
+	  "(|<reference>:param|<literal>:param)<s>",
+	  parameter_captures
+	},
+	{ "reference",				// A reference (name sequence) to descendents of a result.
+	  "<name><s>*([.*]<s><name>)",		// . means only one, * means "all"
+	  0
+	},
+	{ "alternates",				// Alternates:
+	  "|+(\\|<s><sequence>)"		// either a list of alternates each prefixed by |
+	  "|<sequence>",			// or just one alternate
+	  alternates_captures
+	},
+	{ "sequence",				// Alternates:
+	  "*<repetition>",			// either a list of alternates each prefixed by |
+	  sequence_captures
+	},
+	{ "repeat_count",			// How many times must the following be seen:
+	  "(|[?*+!&]:limit<s>"			// zero or one, zero or more, one or more, none, and
+	  "|<count>:limit",
+	  repeat_count_captures
+	},
+	{ "count",
+	  "\\{(|(+\\d):val|<name>:val)<s>\\}",	// {literal count or a reference to a captured variable}
+	  count_captures
+	},
+	{ "repetition",				// a repeated atom perhaps with label
+	  "?<repeat_count><atom>?<label><s>",
+	  repetition_captures
+	},
+	{ "label",				// A name for the previous atom
+	  "\\:<name>",
+	  label_captures
+	},
+	{ "atom",
+	  "|\\."				// Any character
+	  "|<name>"				// call to another rule
+	  "|<property>"				// A character property
+	  "|<literal>"				// A literal
+	  "|<class>"				// A character class
+	  "|<nested_alternates>",
+	  0
+	},
+	{ "nested_alternates",
+	  "\\(<s>+<alternates>\\)",		// A parenthesised group
+	  0
+	  // -> alternates
+	},
+	{ "name",
+	  "[\\a_]*[\\w_]",
+	  0
+	},
+	{ "literal",
+	  "'*(!'<lit_char>)'",
+	  0
+	},
+	{ "lit_char",
+	  "|\\\\(|?[0-3][0-7]?[0-7]"		// octal character constant
+	      "|x\\h?\\h"			// hexadecimal constant \x12
+	      "|x{+\\h}"			// hexadecimal constant \x{...}
+	      "|u?[01]\\h?\\h?\\h?\\h"		// Unicode character \u1234
+	      "|u{+\\h}"			// Unicode character \u{...}
+	      "|[^\\n]"				// Other special escape except newline
+	     ")"
+	  "|[^\\\\\\n]",				// any normal character except backslash or newline
+	  0
+	},
+	{ "property",				// alpha, digit, hexadecimal, whitespace, word (alpha or digit)
+	  "\\\\[adhsw]",
+	  0
+	},
+	{ "class",				// A character class
+	  "\\[?\\^?-+<class_part>]",
+	  0
+	},
+	{ "class_part",
+	  "!]<class_char>?(-!]<class_char>)",
+	  0
+	},
+	{ "class_char",
+	  "![-\\]]<lit_char>",
+	  0
+	},
+};
+
 int	parse_file(char* text)
 {
-	TestPeg::Rule	rules[] =
-	{
-		{ "blankline",				// A line containing no printing characters
-		  "\\n*[ \\t\\r](|\\n|!.)",
-		  {}
-		},
-		{ "space",				// Any single whitespace
-		  "|[ \\t\\r\\n]"
-		  "|//*[^\\n]",				// including a comment to end-of-line
-		  {}
-		},
-		{ "s",					// Any whitespace but not a blankline
-		  "*(!<blankline><space>)",
-		  {}
-		},
-		{ "TOP",				// Start; a repetition of zero or more rules
-		  "*<space>*<rule>:rule",
-		  { "rule" }				// -> rule
-		},
-		{ "rule",				// Rule: name of a rule that matches one or more alternates
-		  "<name><s>=<s>"
-		  "<alternates>?<action>"		// and perhaps has an action
-		  "<blankline>*<space>",		// it ends in a blank line
-		  { "name", "alternates", "action" }
-		},
-		{ "action",				// Looks like "-> function: param, ..."
-		  "-><s>?(<name>:function\\:<s>)<parameter>:list*(,<s><parameter>:list)<s>",
-		  { "function", "list" }
-		},
-		{ "parameter",				// A parameter to an action
-		  "(|<reference>:param|<literal>:param)<s>",
-		  { "param" }
-		},
-		{ "reference",				// A reference (name sequence) to descendents of a result.
-		  "<name><s>*([.*]<s><name>)",		// . means only one, * means "all"
-		  {}
-		},
-		{ "alternates",				// Alternates:
-		  "|+(\\|<s><sequence>)"		// either a list of alternates each prefixed by |
-		  "|<sequence>",			// or just one alternate
-		  { "sequence" }
-		},
-		{ "sequence",				// Alternates:
-		  "*<repetition>",			// either a list of alternates each prefixed by |
-		  { "repetition" }
-		},
-		{ "repeat_count",			// How many times must the following be seen:
-		  "(|[?*+!&]:limit<s>"			// zero or one, zero or more, one or more, none, and
-		  "|<count>:limit",
-		  { "limit" }
-		},
-		{ "count",
-		  "\\{(|(+\\d):val|<name>:val)<s>\\}",	// {literal count or a reference to a saved variable}
-		  { "val" }
-		},
-		{ "repetition",				// a repeated atom perhaps with label
-		  "?<repeat_count><atom>?<label><s>",
-		  { "repeat_count", "atom", "label" }
-		},
-		{ "label",				// A name for the previous atom
-		  "\\:<name>",
-		  { "name" }
-		},
-		{ "atom",
-		  "|\\."				// Any character
-		  "|<name>"				// call to another rule
-		  "|<property>"				// A character property
-		  "|<literal>"				// A literal
-		  "|<class>"				// A character class
-		  "|<nested_alternates>",
-		  {}
-		},
-		{ "nested_alternates",
-		  "\\(<s>+<alternates>\\)",		// A parenthesised group
-		  {}
-		  // -> alternates
-		},
-		{ "name",
-		  "[\\a_]*[\\w_]",
-		  {}
-		},
-		{ "literal",
-		  "'*(!'<lit_char>)'",
-		  {}
-		},
-		{ "lit_char",
-		  "|\\\\(|?[0-3][0-7]?[0-7]"		// octal character constant
-		      "|x\\h?\\h"			// hexadecimal constant \x12
-		      "|x{+\\h}"			// hexadecimal constant \x{...}
-		      "|u?[01]\\h?\\h?\\h?\\h"		// Unicode character \u1234
-		      "|u{+\\h}"			// Unicode character \u{...}
-		      "|[^\\n]"				// Other special escape except newline
-		     ")"
-		  "|[^\\\\\\n]",				// any normal character except backslash or newline
-		  {}
-		},
-		{ "property",				// alpha, digit, hexadecimal, whitespace, word (alpha or digit)
-		  "\\\\[adhsw]",
-		  {}
-		},
-		{ "class",				// A character class
-		  "\\[?\\^?-+<class_part>]",
-		  {}
-		},
-		{ "class_part",
-		  "!]<class_char>?(-!]<class_char>)",
-		  {}
-		},
-		{ "class_char",
-		  "![-\\]]<lit_char>",
-		  {}
-		},
-	};
-
 	TestPeg		peg(rules, sizeof(rules)/sizeof(rules[0]));
 
 	TestPeg::Result	result;

@@ -16,7 +16,7 @@ typedef	Peg<>			TestPeg;
 int
 main(int argc, const char** argv)
 {
-	TestPeg::Rule	rules[] = { { "TOP", "", { 0 } } };	// Null rule set
+	TestPeg::Rule	rules[] = { { "TOP", "" } };	// Null rule set
 
 	TestPeg		peg(rules, 1);
 	TestPeg::Result	result;

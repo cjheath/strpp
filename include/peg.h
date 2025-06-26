@@ -17,34 +17,23 @@ template<typename Source, typename Result, typename Context> class Peg;	// The P
 template<typename Context> class PegPegexp;
 
 /*
- * A Peg parser is made up of a number of named Rules.
- * Each Rule is a Pegexp that returns selected results as an AST.
+ * A Peg parser is made up of a number of named Rules, each one a Pegexp.
+ * A subclass may implement is_captured to cause matches to call Context::capture()
  */
 template<
-	typename PegexpT,
-	int	MaxCaptureNames	// Maximum number of results that may be requested to return
+	typename PegexpT
 >
-class PegRule
+class PegNullRule
 {
 public:
+	PegNullRule(const char* _name, PegexpT _pegexp)
+	: name(_name), expression(_pegexp)
+	{}
+
 	const char*	name;
 	PegexpT		expression;
-	const char*	saves[MaxCaptureNames];	// These captures should be returned as the AST
 
-	bool is_saved(const char* rulename)
-	{
-		for (int i = 0; i < MaxCaptureNames; i++)
-		{
-			if (!saves[i])
-				break;
-			if (0 == strcmp(saves[i], rulename))
-				return true;
-		}
-		return false;
-	}
-
-	bool	solitary_save() const		// This Rule saves exactly one thing
-	{ return saves[0] && (MaxCaptureNames <= 1 || saves[1] == 0); }
+	bool is_captured(const char* label) { return false; }
 };
 
 /*
@@ -53,17 +42,15 @@ public:
  * This NoCapture context does no capturing and returns no AST.
  */
 template<
-	typename _Result = PegexpDefaultResult<PegexpDefaultSource>,
-	int _MaxCaptureNames = 3
+	typename _Result = PegexpDefaultResult<PegexpDefaultSource>
 >
 class PegContextNoCapture
 {
 public:
 	using	Result = _Result;
 	using	Source = typename Result::Source;
-	static const int MaxCaptureNames = _MaxCaptureNames;
 	using	PegexpT = PegPegexp<PegContextNoCapture>;
-	using	Rule = PegRule<PegexpT, MaxCaptureNames>;
+	using	Rule = PegNullRule<PegexpT>;
 	using	PegT = Peg<Source, Result, PegContextNoCapture>;
 
 	PegContextNoCapture(PegT* _peg, PegContextNoCapture* _parent, Rule* _rule, Source _origin)
@@ -147,14 +134,14 @@ public:
 			printf("continuing /%s/ text `%.10s`...\n", call_end, state.text.peek());
 #endif
 
-			// If the call is not labelled and the parent wants calls to this rule saved, do that
+			// If the call is not labelled and the parent wants calls to this rule captured, do that
 			if (!label)
 				label = sub_rule->name;
 			if (context->capture_disabled == 0	// If we're capturing
-			 && context->rule->is_saved(label))	// And the parent wants it
+			 && context->rule->is_captured(label))	// And the parent wants it
 			{
 				if (sub_context.capture_count() > 0)
-				{		// If the sub_context has captures, save that instead
+				{		// If the sub_context has captures, capture that instead
 					Result	r = sub_context.result();
 					(void)context->capture(
 						sub_rule->name, strlen(sub_rule->name),
@@ -162,7 +149,7 @@ public:
 					);
 				}
 				else
-				{		// Else just save the text:
+				{		// Else just capture the text:
 					Result	r(start_state.text, state.text);
 					(void)context->capture(
 						sub_rule->name, strlen(sub_rule->name),
