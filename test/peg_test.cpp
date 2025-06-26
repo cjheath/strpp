@@ -84,6 +84,12 @@ public:
 	}
 };
 
+/*
+ * PegContext saves:
+ * - Captured StrVal and Variant StrVariantMap text from the parse
+ * - The location beyond which the parse cannot proceed
+ * - What tokens would allow it to get further
+ */
 class	PegContext
 {
 public:
@@ -155,12 +161,7 @@ public:
 			return;
 		printf("REVISIT: Not rolling back to %d from %d\n", count, num_captures);
 	}
-	int		capture_disabled;
-	int		repetition_nesting;
 
-	Source		furthermost_success;
-	struct failure{PegexpPC op; int i;};
-	Array<struct failure>	failures;
 	void		record_failure(PegexpPC op, PegexpPC op_end, Source location)
 	{
 		if (location < furthermost_success)
@@ -183,7 +184,7 @@ public:
 
 		// Don't double-up failures of the same pegexp against the same text:
 		for (int i = 0; i < failures.length(); i++)
-			if (failures[i].op == op)
+			if (failures[i].atom == op)
 				return;		// Nothing new here, move along.
 
 		furthermost_success = location;	// We couldn't get past here
@@ -204,13 +205,10 @@ public:
 		return Result(ast);
 	}
 
-	PegT*		peg;
-	PegContext* 	parent;
-	Rule*		rule;
-	Source		origin;		// Location where this rule started, for detection of left-recursion
-
 	int		depth()
-	{ return parent ? parent->depth()+1 : 0; }
+	{
+		return parent ? parent->depth()+1 : 0;
+	}
 
 	void		print_path(int depth = 0) const
 	{
@@ -224,9 +222,26 @@ public:
 		printf("%s", rule->name);
 	}
 
+	Rule*		rule;		// The Rule this context applies to
+	PegT*		peg;		// Place to look up subrules
+	PegContext* 	parent;		// Context of the parent (calling) rule
+	Source		origin;		// Location where this rule started, for detection of left-recursion
+
+	int		repetition_nesting;	// Number of nested repetition groups, so we know if a capture might be repeated
+	int		capture_disabled;	// Counter that bumps up from zero to disable captures
+
+	struct Failure {
+		PegexpPC	atom;		// Start of the Pegexp literal we failed to match
+		int		atom_len;	// Length of the literal (for reporting)
+	};
+
 protected:
 	int		num_captures;
 	StrVariantMap	ast;
+
+	// The next two are populated only on the outermost Contxt:
+	Source		furthermost_success;	// Source location of the farthest location the parser reached
+	Array<struct Failure>	failures;	// A Failure for each atom tried at furthermost_success location
 };
 
 typedef	Peg<PegTestSource, PegTestResult, PegContext>	TestPeg;
