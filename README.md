@@ -224,8 +224,24 @@ No memoization is performed, so a badly constructed grammar can cause long runti
 
 Like the Pegexp template, Peg\<\> processes data from a TextPtr, which may be a stream.
 
-The [Peg parser](test/peg_test.cpp) works and reports captures from the parse result,
-but AST generation from those captures (and the Px tooling) are currently incomplete.
+The [Peg parser](test/peg_test.cpp) works and shows how to generate an AST from captures.
+The Px tooling is currently incomplete.
+
+## COWMap
+
+The Copy-on-write Map template uses a C++ STL map template class (sorted red-black trees)
+under a reference-counted zero side-effect implementation. Any modification to a
+map via a reference will first copy the map if there are any other references.
+Looking up an entry in a map returns a *copy* of the entry, so it is necessary
+to explicitly put a modified entry back into the map.
+
+The COWMap template is functional but rudimentary, still under development.
+
+## Variant Data Type
+
+The Variant class offers a type-safe way to manage numeric and StrVal types in a compact union,
+along with Array<StrVal>, Array<Variant>, and a StrVal-keyed COWMap to Variant.
+This allows building arbitrary data structures, which support asJSON() to render the whole structure as a string.
 
 ## Regular Expressions
 
