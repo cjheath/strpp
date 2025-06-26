@@ -424,8 +424,6 @@ protected:
 			state.pc++;
 		if (negated)
 			in_class = !in_class;
-		if (!in_class)
-			state = start_state;
 		return in_class;
 	}
 

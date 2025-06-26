@@ -138,8 +138,7 @@ public:
 #if defined(PEG_TRACE)
 				printf("FAIL\n");
 #endif
-				state = start_state;
-
+				state.pc = call_end;	// Allow report_failure to say what call failed
 				return false;
 			}
 
