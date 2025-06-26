@@ -223,7 +223,7 @@ public:
 	Array&		push(const Element& addend)
 			{ return *this += addend; }
 	Element		pull()
-			{ assert(num_elements > 0); return this->operator[](--num_elements); }
+			{ assert(num_elements > 0); Element e = this->operator[](num_elements-1); num_elements--; return e; }
 	Element		last()
 			{ assert(num_elements > 0); return this->operator[](num_elements-1); }
 	Element		shift()
