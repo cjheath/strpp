@@ -292,8 +292,8 @@ protected:
 	void	left_recursion(State state)
 	{
 #if defined(PEG_TRACE)
-				pp->print_path();
-				printf(": left recursion detected at `%.10s`\n", state.text.peek());
+		pp->print_path();
+		printf(": left recursion detected at `%.10s`\n", state.text.peek());
 #endif
 	}
 };

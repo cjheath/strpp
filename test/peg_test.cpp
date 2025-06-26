@@ -33,10 +33,12 @@ using	PegTestSourceSup = PegexpPointerSource<>;
 class PegTestSource : public PegTestSourceSup
 {
 public:
+	PegTestSource() : PegTestSourceSup() {}
 	PegTestSource(const Source cp) : PegTestSourceSup(cp) {}
 	PegTestSource(const PegTestSource& pi) : PegTestSourceSup(pi) {}
 
 	const UTF8*	peek() const { return data; }
+	bool operator<(PegTestSource& other) { return data < other.data; }
 };
 
 class PegTestResult
@@ -99,7 +101,7 @@ public:
 	, rule(_rule)
 	, origin(_origin)
 	, num_captures(0)
-	, furthermost_failure(0)
+	, furthermost_success(_origin)	// Farthest Source location we reached
 	{}
 
 	int		capture(PegexpPC name, int name_len, Result r, bool in_repetition)
@@ -156,64 +158,45 @@ public:
 	int		capture_disabled;
 	int		repetition_nesting;
 
-	size_t		furthermost_failure;
+	Source		furthermost_success;
 	struct failure{PegexpPC op; int i;};
 	Array<struct failure>	failures;
 	void		record_failure(PegexpPC op, PegexpPC op_end, Source location)
 	{
-		size_t	failure_distance = location.bytes_from(origin);
-		if (failure_distance < furthermost_failure)
+		if (location < furthermost_success)
 			return;	// We got further previously
 
 		if (capture_disabled)
 			return;	// Failure in lookahead isn't interesting
 
 		// We only need to know about failures of literals, not pegexp operators:
-		// removed [; character classes are interesting
 		static	const char*	pegexp_ops = "~@#%_;<`)^$.\\?*+(|&!";
 		if (0 != strchr(pegexp_ops, *op))
 			return;
 
 		// Record furthermost failure only on the TOP context:
 		if (parent)
-		{
-			parent->record_failure(op, op_end, location);
-			return;
-		}
+			return parent->record_failure(op, op_end, location);
 
-		if (failure_distance > furthermost_failure)
-		{
-			// printf("Proceeded from %ld to fail at %ld, clearing %d past failures\n", furthermost_failure, failure_distance, failures.length());
-			failures.clear();
-		}
+		if (furthermost_success < location)
+			failures.clear();	// We got further this time, previous failures don't matter
 
 		// Don't double-up failures of the same pegexp against the same text:
 		for (int i = 0; i < failures.length(); i++)
 			if (failures[i].op == op)
-			{
-				// printf("We previously failed here (%ld) on rule '%.*s', move along\n", failure_distance, (int)(op_end-op), op);
 				return;		// Nothing new here, move along.
-			}
 
-#if 0	// This doesn't seem very useful
-		// Extend display of op_end where a sequence of literals is involved
-		if (0 == strchr(pegexp_ops, *op))
-		{
-			while (*op_end != '\0' && 0 == strchr(pegexp_ops, *op_end))
-				op_end++;
-			printf("Extended display of literal failure to %.*s\n", (int)(op_end-op), op);
-		}
-#endif
-
+		furthermost_success = location;	// We couldn't get past here
+		failures.append({op, (int)(op_end-op)});
+/*
 		printf("Failure at %lld/%lld(%lld) on rule '%.*s'\n",
-			location.current_line(),
-			location.current_column(),
-			location.current_byte(),
+			furthermost_success.current_line(),
+			furthermost_success.current_column(),
+			furthermost_success.current_byte(),
 			(int)(op_end-op),
 			op
 		);
-		furthermost_failure = failure_distance;
-		failures.append({op, (int)(op_end-op)});
+*/
 	}
 
 	Result		result() const
