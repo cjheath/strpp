@@ -358,10 +358,10 @@ TestPeg::Rule	rules[] =
 	  "|<property>"				// A character property
 	  "|<literal>"				// A literal
 	  "|<class>"				// A character class
-	  "|<nested_alternates>",
+	  "|<group>",
 	  0
 	},
-	{ "nested_alternates",
+	{ "group",
 	  "\\(<s>+<alternates>\\)",		// A parenthesised group
 	  0
 	  // -> alternates

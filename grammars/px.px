@@ -55,9 +55,9 @@ atom		=| '.'					// Any character
 		 | literal				// A literal
 		 | property				// A character property
 		 | class				// A character class
-		 | nested_alternates
+		 | group
 
-nested_alternates= '(' s +alternates ')'		// A parenthesised group
+group		= '(' s +alternates ')'			// A parenthesised group
 		-> alternates
 
 // Character properties here: \a = any letter, \w = any letter or digit
