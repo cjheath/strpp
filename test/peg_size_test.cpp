@@ -20,5 +20,7 @@ main(int argc, const char** argv)
 
 	TestPeg		peg(rules, 1);
 	TestPeg::Result	result;
-	TestPeg::State	finish = peg.parse(argv[1], &result);
+	TestPeg::Source	source(argv[1]);
+
+	bool	ok = peg.parse(source, &result);
 }

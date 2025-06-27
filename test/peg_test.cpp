@@ -406,12 +406,13 @@ int	parse_file(char* text)
 	TestPeg		peg(rules, sizeof(rules)/sizeof(rules[0]));
 
 	TestPeg::Result	result;
-	TestPeg::State	finish = peg.parse(text, &result);
+	TestPeg::Source	source(text);
+	bool	ok = peg.parse(source, &result);
 
 	printf("%s\n", result.var.as_json(0).asUTF8());
 
-	if (finish.text.peek() > text)
-		return finish.text.peek() - text;
+	if (source.peek() > text)
+		return source.peek() - text;
 	return 0;
 }
 

@@ -203,13 +203,14 @@ protected:
 };
 
 template<
-	typename Source = PegexpDefaultSource,
-	typename _Result = PegexpDefaultResult<Source>,
+	typename _Source = PegexpDefaultSource,
+	typename _Result = PegexpDefaultResult<_Source>,
 	typename Context = PegContextNoCapture<_Result>
 >
 class Peg
 {
 public:
+	using	Source = _Source;
 	using	Rule = typename Context::Rule;
 	using	Result = _Result;
 	using	State = PegexpState<Source>;
@@ -224,7 +225,7 @@ public:
 		});
 	}
 
-	State	parse(Source text, Result* r)
+	bool	parse(Source& text, Result* r)
 	{
 		Rule*	top_rule = lookup("TOP");
 		assert(top_rule);
@@ -238,12 +239,17 @@ public:
 		);
 #endif
 
-		Context	context(this, 0, top_rule, text);
-		State	state(top_rule->expression.pegexp, text);
+		Context		context(this, 0, top_rule, text);
+		State		state(top_rule->expression.pegexp, text);
+
 		bool ok = top_rule->expression.match_sequence(state, &context);
-		if (ok && r)
-			*r = context.result();
-		return state;
+		if (ok)
+		{
+			text = state.text;	// Return the location where parsing finished.
+			if (r)
+				*r = context.result();
+		}
+		return ok;
 	}
 
 	Rule*	lookup(const char* name)
