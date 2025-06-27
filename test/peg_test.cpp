@@ -38,7 +38,6 @@ public:
 	PegTestSource(const PegTestSource& pi) : PegTestSourceSup(pi) {}
 
 	const UTF8*	peek() const { return data; }
-	bool operator<(PegTestSource& other) { return data < other.data; }
 };
 
 class PegTestResult
@@ -46,10 +45,11 @@ class PegTestResult
 public:
 	using Source = PegTestSource;
 
-	// Any subclasses must have this constructor, to capture matched text:
-	PegTestResult(Source _from, Source _to)
-	: var(StrVal(_from.peek(), (int)_to.bytes_from(_from)))
+	// Capture matched text:
+	PegTestResult(Source from, Source to)
+	: var(StrVal(from.peek(), (int)(to - from)))
 	{ }
+
 	PegTestResult(Variant _var)
 	: var(_var)
 	{ }
@@ -62,11 +62,11 @@ template<
 	typename PegexpT
 >
 class PegCaptureRule
-: public PegNullRule<PegexpT>
+: public PegRuleNoCapture<PegexpT>
 {
 public:
 	PegCaptureRule(const char* _name, PegexpT _pegexp, const char** _captures)
-	: PegNullRule<PegexpT>(_name, _pegexp)
+	: PegRuleNoCapture<PegexpT>(_name, _pegexp)
 	, captures(_captures)
 	{}
 
@@ -95,6 +95,7 @@ class	PegContext
 public:
 	using	Source = PegTestSource;
 	using	Result = PegTestResult;
+	using	Match = Result;		// For Pegexp, a Match is a kind of Result for us
 	using	PegT = Peg<Source, Result, PegContext>;
 	using	PegexpT = PegPegexp<PegContext>;
 	using	Rule = PegCaptureRule<PegexpT>;

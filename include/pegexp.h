@@ -121,12 +121,16 @@ public:
 			{ return *data == '\0'; }
 	bool		at_bol() const
 			{ return column_char == 1; }
+
+	// REVISIT: I'm not sure these definitions are the best way to manage their requirements:
 	bool		same(PegexpPointerSource& other) const
 			{ return data == other.data; }
 	size_t		bytes_from(PegexpPointerSource origin)
 			{ return byte_count - origin.byte_count; }
+	bool		operator<(PegexpPointerSource& other) { return data < other.data; }
+	off_t		operator-(PegexpPointerSource& other) { return data - other.data; }
 
-	// These may be used for error reporting:
+	// These may be used for error reporting. They're not required by Pegexp
 	off_t		current_byte() const { return byte_count; }
 	off_t		current_line() const { return line_count; }
 	off_t		current_column() const { return column_char; }	// In Chars
@@ -152,79 +156,89 @@ protected:
 using	PegexpDefaultSource = PegexpPointerSource<>;
 
 /*
- * The default Result (of matching an atom) is just a POD copy of the various pointers.
- * It does no copying or extra computation.
- * (which otherwise might be incurred by computing (from-to) for example).
+ * The default Match is just a POD copy of the start and end Source locations.
+ * It does not otherwise save the Match or allocate memory.
  */
 template <typename _Source = PegexpDefaultSource>
-class	PegexpDefaultResult
+class	PegexpNullMatch
 {
 public:
 	using Source = _Source;
 
-	// Any subclasses must have this constructor, to capture matched text:
-	PegexpDefaultResult(Source _from, Source _to)
+	PegexpNullMatch() {}	// Default constructor
+
+	// Any subclasses must have this constructor, to capture text matches:
+	PegexpNullMatch(Source _from, Source _to)
 	: from(_from)		// pointer to start of the text matched by this atom
 	, to(_to)		// pointer to the text following the match
 	{ }
-	PegexpDefaultResult() {}
 
 	Source		from;
 	Source		to;
 };
 
 /*
- * An example of the API that Pegexp requires for Context.
- * Implement your own template class having this signature to capture match fragments,
- * or to pass your own context down to match_extended
+ * An example and default for the API that Pegexp requires for Context.
+ * Implement your own template class having this signature to capture matches,
+ * or to pass your own context down to a match_extended (as in Peg).
  */
-template <typename _Result = PegexpDefaultResult<>>
+template <typename _Match = PegexpNullMatch<>>
 class	PegexpNullContext
 {
 public:
-	using	Result = _Result;
-	using	Source = typename Result::Source;
-	PegexpNullContext() : capture_disabled(0), repetition_nesting(0) {}
+	using	Match = _Match;
+	using	Source = typename Match::Source;
+	PegexpNullContext()
+	: capture_disabled(0)
+	, repetition_nesting(0)
+	{}
 
-	int		capture(PegexpPC name, int name_len, Result, bool in_repetition) { return 0; }
-	int		capture_count() const { return 0; }
-	void		rollback_capture(int count) {}
-	int		capture_disabled;	// A counter of nested disables
+	// Captures are disabled inside a look-ahead (which can be nested). This holds the nesting count:
+	int		capture_disabled;
 
-	void		record_failure(PegexpPC op, PegexpPC op_end, Source location) {}
-
+	// Calls to capture() inside a repetition happen with in_repetition set. This holds the nesting.
 	int		repetition_nesting;	// A counter of repetition nesting
-	Result		result() const { return Result(); }
-};
 
-template <typename Source = PegexpDefaultSource>
-class PegexpState
-{
-public:
-	using 		Char = typename Source::Char;
-	PegexpState()	: pc(0), text(0) {}
-	PegexpState(PegexpPC _pc, Source _text) : pc(_pc), text(_text) {}
-	PegexpState(const PegexpState& c) : pc(c.pc), text(c.text) {}
-	PegexpState&	operator=(const PegexpState& c)
-			{ pc = c.pc; text = c.text; return *this; }
-	bool		at_expr_end()
-			{ return *pc == '\0' || *pc == ')'; }
+	// Every capture gets a capture number, so we can roll it back if needed:
+	int		capture_count() const { return 0; }
 
-	PegexpPC	pc;		// Current location in the pegexp
-	Source		text;		// Current text we're looking at
+	// A capture is a named Match. capture() should return the capture_count afterwards.
+	int		capture(PegexpPC name, int name_len, Match, bool in_repetition) { return 0; }
+
+	// In some grammars, capture can occur within a failing expression, so we can roll back to a count:
+	void		rollback_capture(int count) {}
+
+	// When an atom of a Pegexp fails, the atom (pointer to start and end) and Source location are passed here
+	void		record_failure(PegexpPC op, PegexpPC op_end, Source location) {}
 };
 
 template<
-	typename _Context = PegexpNullContext<PegexpDefaultResult<PegexpDefaultSource>>
+	typename _Context = PegexpNullContext<PegexpNullMatch<PegexpDefaultSource>>
 >
 class Pegexp
 {
 public:	// Expose our template types for subclasses to use:
 	using		Context = _Context;
-	using		Result = typename Context::Result;
-	using 		Source = typename Result::Source;
+	using		Match = typename Context::Match;
+	using 		Source = typename Match::Source;
 	using 		Char = typename Source::Char;
-	using 		State = PegexpState<Source>;
+
+	// State is used to manage matching progress and backtracking locations.
+	class State
+	{
+	public:
+		// Constructor, copy, and assignment:
+		State(PegexpPC _pc, Source _text) : pc(_pc), text(_text) {}
+		State(const State& c) : pc(c.pc), text(c.text) {}
+		State&		operator=(const State& c)
+				{ pc = c.pc; text = c.text; return *this; }
+
+		bool		at_expr_end()
+				{ return *pc == '\0' || *pc == ')'; }
+
+		PegexpPC	pc;		// Current location in the pegexp
+		Source		text;		// Current text we're looking at
+	};
 
 	PegexpPC	pegexp;	// The text of the Peg expression: 8-bit data, not UTF-8
 
@@ -244,8 +258,8 @@ public:	// Expose our template types for subclasses to use:
 			if (context)
 				context->rollback_capture(initial_captures);
 
-			bool result = match_sequence(attempt, context);
-			if (result)
+			bool ok = match_sequence(attempt, context);
+			if (ok)
 			{
 				// Set the Source to the text following the successful attempt
 				source = attempt.text;
@@ -289,6 +303,7 @@ public:	// Expose our template types for subclasses to use:
 		return ok;
 	}
 
+protected:
 	static int	unhex(Char c)
 	{
 		if (c >= '0' && c <= '9')
@@ -300,7 +315,6 @@ public:	// Expose our template types for subclasses to use:
 		return -1;
 	}
 
-protected:
 	// The Pegexp wants to match a single Char, so extract it from various representations:
 	Char		literal_char(PegexpPC& pc)
 	{
@@ -656,7 +670,7 @@ protected:
 				state.pc++;
 			if (context && context->capture_disabled == 0)
 			{
-				Result r(start_state.text, state.text);
+				Match	r(start_state.text, state.text);
 
 				(void)context->capture(
 					name, name_end-name,

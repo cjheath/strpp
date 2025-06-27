@@ -18,8 +18,8 @@ using	TestSource = PegexpPointerSource<NulGuardedUTF8Ptr>;
 using	TestSource = PegexpPointerSource<NulGuardedCharPtr>;
 #endif
 
-using	TestResult = PegexpDefaultResult<TestSource>;
-using	TestContext = PegexpNullContext<TestResult>;
+using	TestMatch = PegexpNullMatch<TestSource>;
+using	TestContext = PegexpNullContext<TestMatch>;
 
 typedef	Pegexp<TestContext>		TestPegexp;
 

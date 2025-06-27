@@ -18,22 +18,22 @@ template<typename Context> class PegPegexp;
 
 /*
  * A Peg parser is made up of a number of named Rules, each one a Pegexp.
- * A subclass may implement is_captured to cause matches to call Context::capture()
+ * An implementation may provide is_captured to cause matches to call Context::capture()
  */
 template<
 	typename PegexpT
 >
-class PegNullRule
+class PegRuleNoCapture
 {
 public:
-	PegNullRule(const char* _name, PegexpT _pegexp)
+	PegRuleNoCapture(const char* _name, PegexpT _pegexp)
 	: name(_name), expression(_pegexp)
 	{}
 
 	const char*	name;
 	PegexpT		expression;
 
-	bool is_captured(const char* label) { return false; }
+	bool		is_captured(const char* label) { return false; }
 };
 
 /*
@@ -42,15 +42,16 @@ public:
  * This NoCapture context does no capturing and returns no AST.
  */
 template<
-	typename _Result = PegexpDefaultResult<PegexpDefaultSource>
+	typename _Result = PegexpNullMatch<PegexpDefaultSource>
 >
 class PegContextNoCapture
 {
 public:
 	using	Result = _Result;
+	using	Match = Result;
 	using	Source = typename Result::Source;
 	using	PegexpT = PegPegexp<PegContextNoCapture>;
-	using	Rule = PegNullRule<PegexpT>;
+	using	Rule = PegRuleNoCapture<PegexpT>;
 	using	PegT = Peg<Source, Result, PegContextNoCapture>;
 
 	PegContextNoCapture(PegT* _peg, PegContextNoCapture* _parent, Rule* _rule, Source _origin)
@@ -62,12 +63,22 @@ public:
 	, origin(_origin)
 	{}
 
-	int		capture(PegexpPC name, int name_len, Result, bool in_repetition) { return 0; }
-	int		capture_count() const { return 0; }
-	void		rollback_capture(int count) {}
+	// Captures are disabled inside a look-ahead (which can be nested). This holds the nesting count:
 	int		capture_disabled;
+
+	// Calls to capture() inside a repetition happen with in_repetition set. This holds the nesting.
 	int		repetition_nesting;
 
+	// Every capture gets a capture number, so we can roll it back if needed:
+	int		capture_count() const { return 0; }
+
+	// A capture is a named Match. capture() should return the capture_count afterwards.
+	int		capture(PegexpPC name, int name_len, Result, bool in_repetition) { return 0; }
+
+	// In some grammars, capture can occur within a failing expression, so we can roll back to a count:
+	void		rollback_capture(int count) {}
+
+	// When an atom of a Pegexp fails, the atom (pointer to start and end) and Source location are passed here
 	void		record_failure(PegexpPC op, PegexpPC op_end, Source location) {}
 
 	Result		result() const { return Result(); }
@@ -81,15 +92,18 @@ public:
 // Subclass the Pegexp template to extend virtual functions:
 template<
 	typename Context
-> class PegPegexp : public Pegexp<Context>
+> class PegPegexp
+: public Pegexp<Context>
 {
 	using	Rule = typename Context::Rule;
 public:
 	using	Result = typename Context::Result;
+	using	Match = typename Context::Match;
 	using	Source = typename Result::Source;
 	using	Base = Pegexp<Context>;
-	using	State = PegexpState<Source>;
+	using	State = typename Base::State;
 	using	PegT = Peg<Source, Result, Context>;
+
 	PegPegexp(PegexpPC _pegexp_pc) : Base(_pegexp_pc) {}
 
 	virtual bool	match_extended(State& state, Context* context)
@@ -204,7 +218,7 @@ protected:
 
 template<
 	typename _Source = PegexpDefaultSource,
-	typename _Result = PegexpDefaultResult<_Source>,
+	typename _Result = PegexpNullMatch<_Source>,
 	typename Context = PegContextNoCapture<_Result>
 >
 class Peg
@@ -213,8 +227,8 @@ public:
 	using	Source = _Source;
 	using	Rule = typename Context::Rule;
 	using	Result = _Result;
-	using	State = PegexpState<Source>;
 	using	PegexpT = PegPegexp<Context>;
+	using	State = typename PegexpT::State;
 
 	Peg(Rule* _rules, int _num_rule)
 	: rules(_rules), num_rule(_num_rule)
@@ -279,7 +293,7 @@ public:
 		// Check for left recursion (infinite loop)
 		for (Context* pp = context->parent; pp; pp = pp->parent)
 		{
-			if (state.text.bytes_from(pp->origin) > 0)
+			if (pp->origin < state.text)
 				break;	// This rule is starting ahead of pp and all its ancestors
 			if (pp->rule == sub_rule)
 			{

@@ -40,28 +40,39 @@ protected:
 	const char*	start;
 };
 
-using	PegexpTestResult = PegexpDefaultResult<PegexpTestSource>;
+using	PegexpTestMatch = PegexpNullMatch<PegexpTestSource>;
 
 class	PegexpTestContext
 {
 public:
 	using	Source = PegexpTestSource;
-	using	Result = PegexpTestResult;
+	using	Match = PegexpTestMatch;
 
 	PegexpTestContext()
 	: capture_disabled(0)
 	, repetition_nesting(0)
 	, captures(10, {0,0,0,0})
 	{}
-	int		capture(PegexpPC name, int name_len, Result r, bool in_repetition) {
+
+	// Captures are disabled inside a look-ahead (which can be nested). This holds the nesting count:
+	int		capture_disabled;
+
+	// Calls to capture() inside a repetition happen with in_repetition set. This holds the nesting.
+	int		repetition_nesting;	// A counter of repetition nesting
+
+	// Every capture gets a capture number, so we can roll it back if needed:
+	int		capture_count() const { return 0; }
+
+	// A capture is a named Match. capture() should return the capture_count afterwards.
+	int		capture(PegexpPC name, int name_len, Match r, bool in_repetition) {
 				captures.push_back({name, name_len, r.from, r.to-r.from});
 				return captures.size();
 			}
-	int		capture_count() const { return 0; }
-	void		rollback_capture(int count) {}
-	int		capture_disabled;
-	int		repetition_nesting;
 
+	// In some grammars, capture can occur within a failing expression, so we can roll back to a count:
+	void		rollback_capture(int count) {}
+
+	// When an atom of a Pegexp fails, the atom (pointer to start and end) and Source location are passed here
 	void		record_failure(PegexpPC op, PegexpPC op_end, Source location) {}
 
 	typedef struct {
@@ -70,7 +81,7 @@ public:
 		Source		capture;
 		int		length;
 	} Captured;
-	std::vector<Captured>	captures;
+	std::vector<Captured>	captures;	// REVISIT: Change to Array<Captured>
 };
 
 using	TestPegexp = Pegexp<PegexpTestContext>;
