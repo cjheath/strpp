@@ -12,7 +12,7 @@
 #include	<pegexp.h>
 #include	<cstdio>
 #include	<cstring>
-#include	<vector>
+#include	<array.h>
 
 #include	<utf8_ptr.h>
 
@@ -26,6 +26,7 @@ class	PegexpTestSource
 : public TestSource
 {
 public:
+	PegexpTestSource() : TestSource(), start(0) {}
 	PegexpTestSource(const char* cp) : TestSource(cp), start(cp) {}
 	PegexpTestSource(const PegexpTestSource& c) : TestSource(c), start(c.start) {}
 
@@ -51,7 +52,7 @@ public:
 	PegexpTestContext()
 	: capture_disabled(0)
 	, repetition_nesting(0)
-	, captures(10, {0,0,0,0})
+	, captures()
 	{}
 
 	// Captures are disabled inside a look-ahead (which can be nested). This holds the nesting count:
@@ -65,8 +66,8 @@ public:
 
 	// A capture is a named Match. capture() should return the capture_count afterwards.
 	int		capture(PegexpPC name, int name_len, Match r, bool in_repetition) {
-				captures.push_back({name, name_len, r.from, r.to-r.from});
-				return captures.size();
+				captures.push({name, name_len, r.from, r.to-r.from});
+				return captures.length();
 			}
 
 	// In some grammars, capture can occur within a failing expression, so we can roll back to a count:
@@ -75,13 +76,18 @@ public:
 	// When an atom of a Pegexp fails, the atom (pointer to start and end) and Source location are passed here
 	void		record_failure(PegexpPC op, PegexpPC op_end, Source location) {}
 
-	typedef struct {
+	struct Captured {
+		Captured() : capture() {}
+		Captured(PegexpPC _name, int _name_len, Source _capture, int _length)
+		: name(_name), name_len(_name_len), capture(_capture), length(_length)
+		{}
+
 		PegexpPC	name;
 		int		name_len;
 		Source		capture;
 		int		length;
-	} Captured;
-	std::vector<Captured>	captures;	// REVISIT: Change to Array<Captured>
+	};
+	Array<Captured>	captures;
 };
 
 using	TestPegexp = Pegexp<PegexpTestContext>;
@@ -120,7 +126,7 @@ main(int argc, const char** argv)
 		match_start = *subject+offset;	// N.B.: offset is in chars not bytes. Our tests don't have UTF-8 before success
 		length = source.rest() - match_start;
 
-//		if (context.captures.size()) ...  // REVISIT: Work out how to integrate this into the test automation
+//		if (context.captures.length()) ...  // REVISIT: Work out how to integrate this into the test automation
 
 		if (offset < 0)
 		{
