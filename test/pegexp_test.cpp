@@ -65,7 +65,8 @@ public:
 	int		capture_count() const { return 0; }
 
 	// A capture is a named Match. capture() should return the capture_count afterwards.
-	int		capture(PegexpPC name, int name_len, Match r, bool in_repetition) {
+	int		capture(PegexpPC name, int name_len, Match r, bool in_repetition)
+			{
 				captures.push({name, name_len, r.from, r.to-r.from});
 				return captures.length();
 			}
@@ -74,9 +75,11 @@ public:
 	void		rollback_capture(int count) {}
 
 	// When an atom of a Pegexp fails, the atom (pointer to start and end) and Source location are passed here
+	// Recording this can be useful to see why a Pegexp didn't proceed further, for example.
 	void		record_failure(PegexpPC op, PegexpPC op_end, Source location) {}
 
-	struct Captured {
+	struct Captured
+	{
 		Captured() : capture() {}
 		Captured(PegexpPC _name, int _name_len, Source _capture, int _length)
 		: name(_name), name_len(_name_len), capture(_capture), length(_length)
@@ -88,6 +91,9 @@ public:
 		int		length;
 	};
 	Array<Captured>	captures;
+
+	// On completion, the match source section (start and finish location) are stored here:
+	Match		result;
 };
 
 using	TestPegexp = Pegexp<PegexpTestContext>;
@@ -123,11 +129,6 @@ main(int argc, const char** argv)
 
 		offset = pegexp.match(source, &context);	// source is advanced to the start of the match
 
-		match_start = *subject+offset;	// N.B.: offset is in chars not bytes. Our tests don't have UTF-8 before success
-		length = source.rest() - match_start;
-
-//		if (context.captures.length()) ...  // REVISIT: Work out how to integrate this into the test automation
-
 		if (offset < 0)
 		{
 			failure_count++;
@@ -135,6 +136,11 @@ main(int argc, const char** argv)
 		}
 		else
 		{
+			match_start = context.result.from.rest();
+			length = context.result.to.rest() - match_start;
+
+//			if (context.captures.length()) ...  // REVISIT: Work out how to integrate this into the test automation
+
 			success_count++;
 			if (verbose)
 			{

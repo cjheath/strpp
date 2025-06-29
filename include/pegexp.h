@@ -208,8 +208,12 @@ public:
 	// In some grammars, capture can occur within a failing expression, so we can roll back to a count:
 	void		rollback_capture(int count) {}
 
-	// When an atom of a Pegexp fails, the atom (pointer to start and end) and Source location are passed here
+	// When an atom of a Pegexp fails, the atom (pointer to start and end) and Source location are passed here.
+	// Recording this can be useful to see why a Pegexp didn't proceed further, for example.
 	void		record_failure(PegexpPC op, PegexpPC op_end, Source location) {}
+
+	// On completion, the match start and finish locations are stored here:
+	Match		result;
 };
 
 template<
@@ -259,14 +263,13 @@ public:	// Expose our template types for subclasses to use:
 				context->rollback_capture(initial_captures);
 
 			bool ok = match_sequence(attempt, context);
-			if (ok)
+			if (ok && *attempt.pc == '\0')	// An extra ')' can cause match_sequence to succeed incorrectly
 			{
+				if (context)
+					context->result = typename Context::Match(source, attempt.text);
+
 				// Set the Source to the text following the successful attempt
 				source = attempt.text;
-
-				// If the pegexp has an extra ), fail
-				if (*attempt.pc != '\0')
-					return -1;
 				return offset;
 			}
 
