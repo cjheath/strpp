@@ -118,7 +118,7 @@ public:
 				return c;
 			}
 	bool		at_eof() const
-			{ return *data == '\0'; }
+			{ return data == 0 || *data == '\0'; }
 	bool		at_bol() const
 			{ return column_char == 1; }
 
@@ -127,8 +127,8 @@ public:
 			{ return data == other.data; }
 	size_t		bytes_from(PegexpPointerSource origin)
 			{ return byte_count - origin.byte_count; }
-	bool		operator<(PegexpPointerSource& other) { return data < other.data; }
-	off_t		operator-(PegexpPointerSource& other) { return data - other.data; }
+	bool		operator<(PegexpPointerSource& other) { assert(data && other.data); return data < other.data; }
+	off_t		operator-(PegexpPointerSource& other) { assert(data && other.data); return data - other.data; }
 
 	// These may be used for error reporting. They're not required by Pegexp
 	off_t		current_byte() const { return byte_count; }
