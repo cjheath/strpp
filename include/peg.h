@@ -11,7 +11,7 @@
 #include	<pegexp.h>
 
 // Forward declarations:
-template<typename Source, typename Result, typename Context> class Peg;	// The Peg parser
+template<typename Source, typename Match, typename Context> class Peg;	// The Peg parser
 
 // A Pegexp with the extensions required to be used in a Peg:
 template<typename Context> class PegPegexp;
@@ -42,17 +42,16 @@ public:
  * This NoCapture context does no capturing and returns no AST.
  */
 template<
-	typename _Result = PegexpNullMatch<PegexpDefaultSource>
+	typename _Match = PegexpNullMatch<PegexpDefaultSource>
 >
 class PegContextNoCapture
 {
 public:
-	using	Result = _Result;
-	using	Match = Result;
-	using	Source = typename Result::Source;
+	using	Match = _Match;
+	using	Source = typename Match::Source;
 	using	PegexpT = PegPegexp<PegContextNoCapture>;
 	using	Rule = PegRuleNoCapture<PegexpT>;
-	using	PegT = Peg<Source, Result, PegContextNoCapture>;
+	using	PegT = Peg<Source, Match, PegContextNoCapture>;
 
 	PegContextNoCapture(PegT* _peg, PegContextNoCapture* _parent, Rule* _rule, Source _origin)
 	: peg(_peg)
@@ -73,7 +72,7 @@ public:
 	int		capture_count() const { return 0; }
 
 	// A capture is a named Match. capture() should return the capture_count afterwards.
-	int		capture(PegexpPC name, int name_len, Result, bool in_repetition) { return 0; }
+	int		capture(PegexpPC name, int name_len, Match, bool in_repetition) { return 0; }
 
 	// In some grammars, capture can occur within a failing expression, so we can roll back to a count:
 	void		rollback_capture(int count) {}
@@ -81,7 +80,8 @@ public:
 	// When an atom of a Pegexp fails, the atom (pointer to start and end) and Source location are passed here
 	void		record_failure(PegexpPC op, PegexpPC op_end, Source location) {}
 
-	Result		result() const { return Result(); }
+	Match		declare_match(Source _from, Source _to)	// Capture the range of text
+			{ return Match(_from, _to); }
 
 	PegT*		peg;
 	PegContextNoCapture* 	parent;
@@ -97,12 +97,11 @@ template<
 {
 	using	Rule = typename Context::Rule;
 public:
-	using	Result = typename Context::Result;
 	using	Match = typename Context::Match;
-	using	Source = typename Result::Source;
+	using	Source = typename Match::Source;
 	using	Base = Pegexp<Context>;
 	using	State = typename Base::State;
-	using	PegT = Peg<Source, Result, Context>;
+	using	PegT = Peg<Source, Match, Context>;
 
 	PegPegexp(PegexpPC _pegexp_pc) : Base(_pegexp_pc) {}
 
@@ -154,22 +153,11 @@ public:
 			if (context->capture_disabled == 0	// If we're capturing
 			 && context->rule->is_captured(label))	// And the parent wants it
 			{
-				if (sub_context.capture_count() > 0)
-				{		// If the sub_context has captures, capture that instead
-					Result	r = sub_context.result();
-					(void)context->capture(
-						sub_rule->name, strlen(sub_rule->name),
-						r, context->repetition_nesting > 0
-					);
-				}
-				else
-				{		// Else just capture the text:
-					Result	r(start_state.text, state.text);
-					(void)context->capture(
-						sub_rule->name, strlen(sub_rule->name),
-						r, context->repetition_nesting > 0
-					);
-				}
+				(void)context->capture(
+					sub_rule->name, strlen(sub_rule->name),
+					sub_context.declare_match(start_state.text, state.text),
+					context->repetition_nesting > 0
+				);
 			}
 
 			// Continue after the matched text, but with the code following the call:
@@ -218,15 +206,15 @@ protected:
 
 template<
 	typename _Source = PegexpDefaultSource,
-	typename _Result = PegexpNullMatch<_Source>,
-	typename Context = PegContextNoCapture<_Result>
+	typename _Match = PegexpNullMatch<_Source>,
+	typename Context = PegContextNoCapture<_Match>
 >
 class Peg
 {
 public:
 	using	Source = _Source;
 	using	Rule = typename Context::Rule;
-	using	Result = _Result;
+	using	Match = _Match;
 	using	PegexpT = PegPegexp<Context>;
 	using	State = typename PegexpT::State;
 
@@ -239,7 +227,7 @@ public:
 		});
 	}
 
-	bool	parse(Source& text, Result* r)
+	bool	parse(Source& text, Match* r)
 	{
 		Rule*	top_rule = lookup("TOP");
 		assert(top_rule);
@@ -254,15 +242,11 @@ public:
 #endif
 
 		Context		context(this, 0, top_rule, text);
-		State		state(top_rule->expression.pegexp, text);
+		Source		start(text);
 
-		bool ok = top_rule->expression.match_sequence(state, &context);
-		if (ok)
-		{
-			text = state.text;	// Return the location where parsing finished.
-			if (r)
-				*r = context.result();
-		}
+		bool ok = top_rule->expression.match_here(text, &context);
+		if (ok && r)
+			*r = context.declare_match(start, text);
 		return ok;
 	}
 
@@ -302,7 +286,7 @@ public:
 			}
 		}
 
-		return sub_rule->expression.match_sequence(state, context);
+		return sub_rule->expression.match_here(state.text, context);
 	}
 
 protected:
@@ -312,7 +296,7 @@ protected:
 	void	left_recursion(State state)
 	{
 #if defined(PEG_TRACE)
-		pp->print_path();
+		//pp->print_path();
 		printf(": left recursion detected at `%.10s`\n", state.text.peek());
 #endif
 	}

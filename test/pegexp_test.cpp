@@ -78,6 +78,9 @@ public:
 	// Recording this can be useful to see why a Pegexp didn't proceed further, for example.
 	void		record_failure(PegexpPC op, PegexpPC op_end, Source location) {}
 
+	Match		declare_match(Source _from, Source _to)
+			{ return match = Match(_from, _to); }
+
 	struct Captured
 	{
 		Captured() : capture() {}
@@ -93,7 +96,7 @@ public:
 	Array<Captured>	captures;
 
 	// On completion, the match source section (start and finish location) are stored here:
-	Match		result;
+	Match		match;
 };
 
 using	TestPegexp = Pegexp<PegexpTestContext>;
@@ -136,8 +139,8 @@ main(int argc, const char** argv)
 		}
 		else
 		{
-			match_start = context.result.from.rest();
-			length = context.result.to.rest() - match_start;
+			match_start = context.match.from.rest();
+			length = context.match.to.rest() - match_start;
 
 //			if (context.captures.length()) ...  // REVISIT: Work out how to integrate this into the test automation
 

@@ -40,20 +40,20 @@ public:
 	const UTF8*	peek() const { return data; }
 };
 
-class PegTestResult
+class PegTestMatch
 {
 public:
 	using Source = PegTestSource;
 
 	// Capture matched text:
-	PegTestResult(Source from, Source to)
+	PegTestMatch(Source from, Source to)
 	: var(StrVal(from.peek(), (int)(to - from)))
 	{ }
 
-	PegTestResult(Variant _var)
+	PegTestMatch(Variant _var)
 	: var(_var)
 	{ }
-	PegTestResult() {}
+	PegTestMatch() {}
 
 	Variant		var;
 };
@@ -70,7 +70,7 @@ public:
 	, captures(_captures)
 	{}
 
-	// Labelled atoms or rules matching these capture names should be returned in the parse result:
+	// Labelled atoms or rules matching these capture names should be returned in the parse match:
 	const char**	captures;	// Pointer to zero-terminated array of string pointers.
 
 	bool is_captured(const char* label)
@@ -94,9 +94,8 @@ class	PegContext
 {
 public:
 	using	Source = PegTestSource;
-	using	Result = PegTestResult;
-	using	Match = Result;		// For Pegexp, a Match is a kind of Result for us
-	using	PegT = Peg<Source, Result, PegContext>;
+	using	Match = PegTestMatch;
+	using	PegT = Peg<Source, Match, PegContext>;
 	using	PegexpT = PegPegexp<PegContext>;
 	using	Rule = PegCaptureRule<PegexpT>;
 
@@ -111,7 +110,7 @@ public:
 	, furthermost_success(_origin)	// Farthest Source location we reached
 	{}
 
-	int		capture(PegexpPC name, int name_len, Result r, bool in_repetition)
+	int		capture(PegexpPC name, int name_len, Match r, bool in_repetition)
 	{
 		StrVal		key(name, name_len);
 		Variant		existing;
@@ -127,7 +126,7 @@ public:
 			ast.insert(key, va);	// and save the new version
 			existing = ast[key];
 		}
-		else	// Insert the result as the first element in an array, or just as itself:
+		else	// Insert the match as the first element in an array, or just as itself:
 			ast.insert(key, in_repetition ? Variant(&r.var, 1) : r.var);
 
 
@@ -201,10 +200,13 @@ public:
 */
 	}
 
-	Result		result() const
-	{
-		return Result(ast);
-	}
+	Match		declare_match(Source _from, Source _to)
+			{
+				if (capture_count() > 0)
+					return Match(Variant(ast));
+				else
+					return Match(_from, _to);
+			}
 
 	int		depth()
 	{
@@ -245,7 +247,7 @@ protected:
 	Array<struct Failure>	failures;	// A Failure for each atom tried at furthermost_success location
 };
 
-typedef	Peg<PegTestSource, PegTestResult, PegContext>	TestPeg;
+typedef	Peg<PegTestSource, PegTestMatch, PegContext>	TestPeg;
 
 void usage()
 {
@@ -321,7 +323,7 @@ TestPeg::Rule	rules[] =
 	  "(|<reference>:param|<literal>:param)<s>",
 	  parameter_captures
 	},
-	{ "reference",				// A reference (name sequence) to descendents of a result.
+	{ "reference",				// A reference (name sequence) to descendents of a match.
 	  "<name><s>*([.*]<s><name>)",		// . means only one, * means "all"
 	  0
 	},
@@ -406,11 +408,11 @@ int	parse_file(char* text)
 {
 	TestPeg		peg(rules, sizeof(rules)/sizeof(rules[0]));
 
-	TestPeg::Result	result;
+	TestPeg::Match	match;
 	TestPeg::Source	source(text);
-	bool	ok = peg.parse(source, &result);
+	bool	ok = peg.parse(source, &match);
 
-	printf("%s\n", result.var.as_json(0).asUTF8());
+	printf("%s\n", match.var.as_json(0).asUTF8());
 
 	if (source.peek() > text)
 		return source.peek() - text;

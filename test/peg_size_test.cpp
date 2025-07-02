@@ -19,8 +19,8 @@ main(int argc, const char** argv)
 	TestPeg::Rule	rules[] = { { "TOP", "" } };	// Null rule set
 
 	TestPeg		peg(rules, 1);
-	TestPeg::Result	result;
+	TestPeg::Match	match;
 	TestPeg::Source	source(argv[1]);
 
-	bool	ok = peg.parse(source, &result);
+	bool	ok = peg.parse(source, &match);
 }

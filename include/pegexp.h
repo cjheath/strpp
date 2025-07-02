@@ -212,8 +212,8 @@ public:
 	// Recording this can be useful to see why a Pegexp didn't proceed further, for example.
 	void		record_failure(PegexpPC op, PegexpPC op_end, Source location) {}
 
-	// On completion, the match start and finish locations are stored here:
-	Match		result;
+	Match		declare_match(Source _from, Source _to)
+			{ return Match(_from, _to); }
 };
 
 template<
@@ -254,24 +254,15 @@ public:	// Expose our template types for subclasses to use:
 	{
 		int	initial_captures = context ? context->capture_count() : 0;
 		off_t	offset = 0;
-		State	attempt(pegexp, source);
 
 		while (true)
 		{
-			attempt = State(pegexp, source);	// Reset for another trial
+			Source	attempt = source;
 			if (context)
 				context->rollback_capture(initial_captures);
 
-			bool ok = match_sequence(attempt, context);
-			if (ok && *attempt.pc == '\0')	// An extra ')' can cause match_sequence to succeed incorrectly
-			{
-				if (context)
-					context->result = typename Context::Match(source, attempt.text);
-
-				// Set the Source to the text following the successful attempt
-				source = attempt.text;
+			if (match_here(attempt, context))
 				return offset;
-			}
 
 			// Move forward one character, or terminate if none available:
 			if (source.at_eof())
@@ -279,10 +270,28 @@ public:	// Expose our template types for subclasses to use:
 			(void)source.get_char();
 			offset++;
 		}
-		source = attempt.text;	// Set the Source to where we last failed
 		return -1;
 	}
 
+	bool		match_here(Source& source, Context* context = 0)
+	{
+		State	state(pegexp, source);
+
+		bool ok = match_sequence(state, context);
+		if (ok && *state.pc == '\0')	// An extra ')' can cause match_sequence to succeed incorrectly
+		{
+			if (context)
+				context->declare_match(source, state.text);
+
+			// point source at the text following the successful attempt:
+			source = state.text;
+			return true;
+		}
+		source = state.text;	// No match
+		return false;
+	}
+
+protected:
 	bool		match_sequence(Source& source, Context* context = 0)
 	{
 		State	state(pegexp, source);
@@ -306,7 +315,6 @@ public:	// Expose our template types for subclasses to use:
 		return ok;
 	}
 
-protected:
 	static int	unhex(Char c)
 	{
 		if (c >= '0' && c <= '9')
@@ -469,42 +477,42 @@ protected:
 		int		initial_captures = context ? context->capture_count() : 0;
 		State		start_state(state);
 
-		bool		match = false;
+		bool		matched = false;
 		char		rc;
 		switch (rc = *state.pc++)
 		{
 		case '\0':	// End of expression
 			state.pc--;
 		case ')':	// End of group
-			match = true;
+			matched = true;
 			break;
 
 		case '^':	// Start of line
-			match = state.text.at_bol();
+			matched = state.text.at_bol();
 			break;
 
 		case '$':	// End of line or end of input
-			match = state.text.at_eof() || state.text.get_char() == '\n';
+			matched = state.text.at_eof() || state.text.get_char() == '\n';
 			state.text = start_state.text;
 			break;
 
 		case '.':	// Any character
-			if ((match = !state.text.at_eof()))
+			if ((matched = !state.text.at_eof()))
 				(void)state.text.get_char();
 			break;
 
 		default:	// Literal character
 			if (rc > 0 && rc < ' ')		// Control characters
 				goto extended;
-			match = !state.text.at_eof() && rc == state.text.get_char();
+			matched = !state.text.at_eof() && rc == state.text.get_char();
 			break;
 
 		case '\\':	// Escaped literal char
-			match = !state.text.at_eof() && char_property(state.pc, state.text.get_char());
+			matched = !state.text.at_eof() && char_property(state.pc, state.text.get_char());
 			break;
 
 		case '[':	// Character class
-			match = char_class(state);
+			matched = char_class(state);
 			break;
 
 		case '?':	// Zero or one
@@ -548,7 +556,7 @@ protected:
 					break;	// We didn't advance, so don't keep trying. Can happen e.g. on *()
 				repetitions++;
 			}
-			match = true;
+			matched = true;
 	repeat_fail:	if (context && max != 1)
 				context->repetition_nesting--;
 			break;
@@ -560,7 +568,7 @@ protected:
 				break;
 			if (*state.pc != '\0')		// Don't advance past group if it was not closed
 				state.pc++;		// Skip the ')'
-			match = true;
+			matched = true;
 			break;
 
 		case '|':	// Alternates
@@ -578,9 +586,9 @@ protected:
 				do {
 					if (!match_atom(state, context))
 						break;
-				} while (!(match = state.at_expr_end() || *state.pc == '|'));
+				} while (!(matched = state.at_expr_end() || *state.pc == '|'));
 
-				if (match)
+				if (matched)
 				{		// This alternate matched, skip to the end of the alternates
 					while (*state.pc == '|')	// There's another alternate
 						skip_atom(state.pc);
@@ -598,14 +606,14 @@ protected:
 		{
 			if (context)
 				context->capture_disabled++;
-			match = match_atom(state, context);
+			matched = match_atom(state, context);
 			if (rc == '!')
-				match = !match;
+				matched = !matched;
 			if (context)
 				context->capture_disabled--;
 
 			state = start_state;	// Continue with the same text
-			if (match)	// Assertion succeeded, skip it
+			if (matched)	// Assertion succeeded, skip it
 				state.pc = skip_atom(state.pc);
 			break;
 		}
@@ -621,10 +629,10 @@ protected:
 		case '`':
 		extended:
 			state.pc--;
-			match = match_extended(state, context);
+			matched = match_extended(state, context);
 			break;
 		}
-		if (!match)
+		if (!matched)
 		{
 			if (context)	// Undo new captures on failure
 				context->rollback_capture(initial_captures);

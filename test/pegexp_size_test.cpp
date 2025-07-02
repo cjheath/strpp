@@ -28,5 +28,5 @@ main(int argc, const char** argv)
 {
 	TestPegexp		pegexp(argv[1]);
 	TestSource		p(argv[2]);
-	return pegexp.match_sequence(p) ? 0 : 1;
+	return pegexp.match_here(p) ? 0 : 1;
 }
