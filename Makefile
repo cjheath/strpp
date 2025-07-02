@@ -5,7 +5,8 @@
 CXX	=	g++
 CXXFLAGS =	-std=c++11
 
-DEBUG	=	-Os $(COPT)
+DEBUG	=	-O2 $(COPT)
+# DEBUG	=	-O2 $(COPT) -lprofiler
 # DEBUG	=	-g $(COPT) # -DPEG_TRACE
 # DEBUG	=	-g -DTRACK_RESULTS $(COPT)
 
@@ -25,7 +26,9 @@ HDRS	=	\
 		variant.h
 
 SRCS	=	\
-		char_encoding.cpp	\
+		char_encoding.cpp	
+
+RX_SRCS	=	\
 		rxcompile.cpp		\
 		rxdump.cpp		\
 		rxmatch.cpp
@@ -46,11 +49,12 @@ TESTS	=	\
 		variant_test
 
 OBJS	=	$(patsubst %,build/%,$(SRCS:.cpp=.o))
+RX_OBJS	=	$(patsubst %,build/%,$(RX_SRCS:.cpp=.o))
 
 vpath	%.cpp	src:test
 vpath	%.h	include
 
-all:	lib
+all:	lib $(RX_OBJS)
 
 lib:	$(LIB)
 $(LIB):	build $(OBJS)
@@ -100,7 +104,7 @@ build:
 	@mkdir build
 
 clean:
-	rm -rf $(OBJS) $(TESTS) $(TESTS:=.dSYM)
+	rm -rf $(OBJS) $(RX_OBJS) $(TESTS) $(TESTS:=.dSYM)
 	@rmdir build 2>/dev/null || true
 
 clobber:	clean
