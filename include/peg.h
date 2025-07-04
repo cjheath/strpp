@@ -36,13 +36,25 @@ public:
 	bool		is_captured(const char* label) { return false; }
 };
 
+template<
+	typename _Source = PegexpDefaultSource
+>
+class PegDefaultMatch
+: public PegexpDefaultMatch<_Source>
+{
+public:
+	using Source = _Source;
+	PegDefaultMatch() : PegexpDefaultMatch<Source>() {}	// Default constructor
+	PegDefaultMatch(Source from, Source to) : PegexpDefaultMatch<Source>(from, to) {}
+};
+
 /*
  * Each time a Rule calls a subordinate Rule, a new Context is created.
  * The Contexts form a linked list back to the topmost rule, for diagnostic and left-recursion purposes.
  * This NoCapture context does no capturing and returns no AST.
  */
 template<
-	typename _Match = PegexpDefaultMatch<PegexpDefaultSource>
+	typename _Match = PegDefaultMatch<PegexpDefaultSource>
 >
 class PegContextNoCapture
 {
@@ -210,7 +222,7 @@ protected:
 
 template<
 	typename _Source = PegexpDefaultSource,
-	typename _Match = PegexpDefaultMatch<_Source>,
+	typename _Match = PegDefaultMatch<_Source>,
 	typename Context = PegContextNoCapture<_Match>
 >
 class Peg
