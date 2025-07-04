@@ -40,6 +40,13 @@ public:
 	const UTF8*	peek() const { return data; }
 };
 
+class PegTestFailure {
+public:
+	PegexpPC	atom;		// Start of the Pegexp literal we failed to match
+	int		atom_len;	// Length of the literal (for reporting)
+};
+typedef Array<PegTestFailure>	PegTestFailures;	// A Failure for each atom tried at furthermost_success location
+
 class PegTestMatch
 {
 public:
@@ -59,10 +66,20 @@ public:
 	: var(_var)
 	{ }
 
+	PegTestMatch(Variant _var, Source reached, PegTestFailures f)
+	: var(_var)
+	, furthermost_success(reached)
+	, failures(f)
+	{ }
+
 	bool		is_failure() const
 			{ return var.get_type() == Variant::None; }
 
 	Variant		var;
+
+	// Furthermost failure and reasons, only populated on return from parse() (outermost Context)
+	Source		furthermost_success;	// Source location of the farthest location the parser reached
+	PegTestFailures	failures;	// A Failure for each atom tried at furthermost_success location
 };
 
 template<
@@ -137,6 +154,7 @@ public:
 			ast.insert(key, in_repetition ? Variant(&r.var, 1) : r.var);
 
 
+#ifdef PEG_CAPTURES
 		StrVal	rep_display;
 		if (existing.get_type() == Variant::VarArray)
 		{				// repetition display
@@ -153,6 +171,7 @@ public:
 			rep_display.asUTF8(),
 			r.var.as_json(-2).asUTF8()	// Compact JSON
 		);
+#endif
 		num_captures++;
 
 		return 0;
@@ -196,20 +215,13 @@ public:
 
 		furthermost_success = location;	// We couldn't get past here
 		failures.append({op, (int)(op_end-op)});
-/*
-		printf("Failure at %lld/%lld(%lld) on rule '%.*s'\n",
-			furthermost_success.current_line(),
-			furthermost_success.current_column(),
-			furthermost_success.current_byte(),
-			(int)(op_end-op),
-			op
-		);
-*/
 	}
 
 	Match		match_result(Source from, Source to)
 			{
-				if (capture_count() > 0)
+				if (parent == 0)
+					return Match(Variant(ast), furthermost_success, failures);
+				else if (capture_count() > 0)
 					return Match(Variant(ast));
 				else
 					return Match(from, to);
@@ -242,18 +254,13 @@ public:
 	int		repetition_nesting;	// Number of nested repetition groups, so we know if a capture might be repeated
 	int		capture_disabled;	// Counter that bumps up from zero to disable captures
 
-	struct Failure {
-		PegexpPC	atom;		// Start of the Pegexp literal we failed to match
-		int		atom_len;	// Length of the literal (for reporting)
-	};
-
 protected:
 	int		num_captures;
 	StrVariantMap	ast;
 
-	// The next two are populated only on the outermost Contxt:
+	// The next two are populated only on the outermost Context, to be returned from the parse
 	Source		furthermost_success;	// Source location of the farthest location the parser reached
-	Array<struct Failure>	failures;	// A Failure for each atom tried at furthermost_success location
+	PegTestFailures	failures;	// A Failure for each atom tried at furthermost_success location
 };
 
 typedef	Peg<PegTestSource, PegTestMatch, PegContext>	TestPeg;
@@ -413,19 +420,52 @@ TestPeg::Rule	rules[] =
 	},
 };
 
-int	parse_file(char* text)
+TestPeg::Match
+parse_file(char* text)
 {
 	TestPeg		peg(rules, sizeof(rules)/sizeof(rules[0]));
 
-	TestPeg::Match	match;
 	TestPeg::Source	source(text);
-	match = peg.parse(source);
+	return peg.parse(source);
+}
 
-	printf("%s\n", match.var.as_json(0).asUTF8());
+int
+parse_and_report(const char* filename)
+{
+	off_t	file_size;
+	char*	text = slurp_file(filename, &file_size);
 
-	if (source.peek() > text)
-		return source.peek() - text;
-	return 0;
+	TestPeg::Match match = parse_file(text);
+
+	int		bytes_parsed;
+
+	bytes_parsed = match.is_failure() ? 0 : match.furthermost_success.peek() - text;
+
+	if (bytes_parsed < file_size)
+	{
+		printf("Parse %s at line %lld column %lld (byte %lld of %d). Next tokens anticipated were:\n",
+			bytes_parsed > 0 ? "finished early" : "failed",
+			match.furthermost_success.current_line(),
+			match.furthermost_success.current_column(),
+			match.furthermost_success.current_byte(),
+			(int)file_size
+		);
+
+		for (int i = 0; i < match.failures.length(); i++)
+		{
+			PegTestFailure	f = match.failures[i];
+			printf("\t%.*s\n", f.atom_len, f.atom);
+		}
+	}
+	else
+		printf("Parsed %d bytes of %d\n", bytes_parsed, (int)file_size);
+
+	if (bytes_parsed > 0)
+		printf("Parse Tree:\n%s\n", match.var.as_json(0).asUTF8());
+
+	delete text;
+
+	return bytes_parsed == file_size ? 0 : 1;
 }
 
 int
@@ -436,17 +476,10 @@ main(int argc, const char** argv)
 
 	start_recording_allocations();
 
-	off_t	file_size;
-	char*	px = slurp_file(argv[1], &file_size);
-
-	int		bytes_parsed;
-	bytes_parsed = parse_file(px);
-	delete px;
-
-	printf("Parsed %d bytes of %d\n", bytes_parsed, (int)file_size);
+	int code = parse_and_report(argv[1]);
 
 	if (allocation_growth_count() > 0)	// No allocation should remain unfreed
 		report_allocation_growth();
 
-	return bytes_parsed == file_size ? 0 : 1;
+	return code;
 }
