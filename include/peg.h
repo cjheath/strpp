@@ -42,7 +42,7 @@ public:
  * This NoCapture context does no capturing and returns no AST.
  */
 template<
-	typename _Match = PegexpNullMatch<PegexpDefaultSource>
+	typename _Match = PegexpDefaultMatch<PegexpDefaultSource>
 >
 class PegContextNoCapture
 {
@@ -80,8 +80,11 @@ public:
 	// When an atom of a Pegexp fails, the atom (pointer to start and end) and Source location are passed here
 	void		record_failure(PegexpPC op, PegexpPC op_end, Source location) {}
 
-	Match		declare_match(Source _from, Source _to)	// Capture the range of text
-			{ return Match(_from, _to); }
+	Match		match_result(Source from, Source to)	// Capture the range of text
+			{ return Match(from, to); }
+
+	Match		match_failure(Source at)
+			{ return Match(at, Source()); }
 
 	PegT*		peg;
 	PegContextNoCapture* 	parent;
@@ -133,7 +136,8 @@ public:
 			printf(": calling %s /%s/ at `%.10s...`\n", sub_rule->name, state.pc, state.text.peek());
 #endif
 
-			if (!peg->recurse(sub_rule, state, &sub_context))
+			Match	match = peg->recurse(sub_rule, state, &sub_context);
+			if (match.is_failure())
 			{
 #if defined(PEG_TRACE)
 				printf("FAIL\n");
@@ -155,7 +159,7 @@ public:
 			{
 				(void)context->capture(
 					sub_rule->name, strlen(sub_rule->name),
-					sub_context.declare_match(start_state.text, state.text),
+					sub_context.match_result(start_state.text, state.text),
 					context->repetition_nesting > 0
 				);
 			}
@@ -206,7 +210,7 @@ protected:
 
 template<
 	typename _Source = PegexpDefaultSource,
-	typename _Match = PegexpNullMatch<_Source>,
+	typename _Match = PegexpDefaultMatch<_Source>,
 	typename Context = PegContextNoCapture<_Match>
 >
 class Peg
@@ -227,7 +231,7 @@ public:
 		});
 	}
 
-	bool	parse(Source& text, Match* r)
+	Match	parse(Source& text)
 	{
 		Rule*	top_rule = lookup("TOP");
 		assert(top_rule);
@@ -244,10 +248,7 @@ public:
 		Context		context(this, 0, top_rule, text);
 		Source		start(text);
 
-		bool ok = top_rule->expression.match_here(text, &context);
-		if (ok && r)
-			*r = context.declare_match(start, text);
-		return ok;
+		return top_rule->expression.match_here(text, &context);
 	}
 
 	Rule*	lookup(const char* name)
@@ -272,7 +273,7 @@ public:
 		return rule;
 	}
 
-	bool	recurse(Rule* sub_rule, State& state, Context* context)
+	Match	recurse(Rule* sub_rule, State& state, Context* context)
 	{
 		// Check for left recursion (infinite loop)
 		for (Context* pp = context->parent; pp; pp = pp->parent)
@@ -282,7 +283,7 @@ public:
 			if (pp->rule == sub_rule)
 			{
 				left_recursion(state);
-				return false;
+				return context->match_failure(state.text);
 			}
 		}
 

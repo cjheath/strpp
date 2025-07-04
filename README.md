@@ -182,50 +182,52 @@ You should use assertions to control inappropriate greed.
 
 All template parameters may be omitted to use defaults:
 <pre>
-template &lt;typename TextPtr, typename Context&gt;
+template &lt;typename Context&gt;
 class Pegexp
 </pre>
 
-You can use any scalar data type for PChar (usually char but defaults to UCS4).
+A Context may accumulate data on Captures and failure locations.
+It should have a nested Context::Match type.
+A PegexpDefaultContext is provided to demonstrate the minimum API. Read the code.
 
-TextPtr defaults to PegexpPointerInput, which wraps a <strong>UTF8*</strong>.
-A custom TextPtr must be copyable, and must implement the following methods:
+A Match reports details on success or failure.
+Match should have a nested Match::Source type.
+A PegexpDefaultMatch is provided to demonstrate the minimum API. Read the code.
 
-<pre>
-        char            get_byte();		// Fetch the next byte fron the input (binary)
-        PChar           get_char();		// Fetch the next PChar character from the input
-        bool            at_eof() const;		// Return true if no further input is available
-        bool            same(TextPtr& other) const; // Return true if other refers to the same location
-</pre>
+A Source provides a location in a stream of data, and can read data, but forwards only.
+Source should have a nested Source::Char type. You can use any scalar data type for Char (often char but defaults to UCS4).
+A PegexpPointerSource class	is provided to demonstrate the minimum API, with some extra features added.
 
-The structure of TextPtr is designed to be able to process data that's arriving on an ephemeral stream,
-such as a network socket.  The only extra processing required is that when any copy of a TextPtr is made,
-it must be possible to proceed from that position in the stream. When a TextPtr is deleted,
+The structure of Source is designed to be able to process data that's arriving on an ephemeral stream,
+such as a network socket.  The only extra processing required is that when any copy of a Source is made,
+it must be possible to proceed from that position in the stream. When a Source is deleted,
 no further access will be required to data from that position - unless an older copy still exists.
 This "stream memory" behaviour is being implemented in a <strong>StreamFork</strong> class.
 
 You can subclass Pegexp\<\> to override match_extended&skip_extended to handle special command characters.
 
-The Context parameter provides capture handling, but the default Context has a NullContext stub.
-Read the header file for details.
+Read the header file for more details.
 
 ## PEG parsing
 
 `#include	<peg.h>`
 
 The Peg parser templates make use of Pegexp to provide a powerful PEG parsing engine for arbitrary grammars.
+No memoization is performed, so a badly constructed grammar can cause long runtimes.
+Peg uses a new Context for each nested call to a Pegexp.
+The default Context detects left recursion and reports failure.
 
 The grammar is expressed using a compact in-memory table. No executable code needs to be generated.
+No heap memory allocation is required during execution (and minimal stack),
+unless you use a Context that saves text captures, builds Abstract Syntax Trees, or records failure tokens and locations.
+
 The preferred way to use this is to compile a grammar expressed in the BNF-like language [Px](grammars/px.px),
 which (will) emit C++ data definitions for the parser engine to interpret.
-No heap memory allocation is required during execution (and minimal stack),
-except to build any requested Abstract Syntax Trees that reflect the result of the parse.
-No memoization is performed, so a badly constructed grammar can cause long runtimes.
 
-Like the Pegexp template, Peg\<\> processes data from a TextPtr, which may be a stream.
+Like the Pegexp template, Peg\<\> processes data from a Source, which may be a stream.
 
-The [Peg parser](test/peg_test.cpp) works and shows how to generate an AST from captures.
-The Px tooling is currently incomplete.
+The [Peg parser](test/peg_test.cpp) for [Px](grammars/px.px) works and shows how to generate an AST from captures.
+There is not a code generator for Px yet.
 
 ## COWMap
 

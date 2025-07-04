@@ -22,5 +22,6 @@ main(int argc, const char** argv)
 	TestPeg::Match	match;
 	TestPeg::Source	source(argv[1]);
 
-	bool	ok = peg.parse(source, &match);
+	match = peg.parse(source);
+	return match.is_failure() ? 1 : 0;
 }

@@ -64,10 +64,22 @@
 typedef	const char*	PegexpPC;	// The Pegexp is always 8-bit, not UTF-8
 
 /*
- * Adapt a pointer-ish thing to be a suitable input for a Pegexp,
- * by adding the methods get_byte(), get_char(), same() and at_eof().
- * same() should return true if the two Inputs are at the same position in the text.
- * at_bol() is used for the ^ predicate. It's assumed that the start of the string is bol.
+ * Pegexp and Peg require a Source, which represents a location in a byte stream, and only moves forwards.
+ * This is a default example of the API a Source must implement. You can derive from this, or make your own.
+ *
+ * Adapt DataPtr (a pointer-ish thing) to be a suitable input for a Pegexp,
+ * by adding the required methods:
+ * - is_null()		Returns false if there is no DataPtr (not just no more data)
+ * - get_byte()		Returns the next byte and moves the location forwards
+ * - get_char()		Returns the next UCS4 char and moves the location forwards
+ * - at_eof()		Returns true of there is no more data available
+ * - at_bol()		Returns true at beginning of line, used for the ^ predicate
+ * - same()		Returns true if the other Source is at the same location
+ *
+ * In addition to these requirements, this Source keeps extra data that a Context might want:
+ * - byte_count		Number of bytes since the original start of the stream
+ * - line_count		Line number of the current location (starts from 1, increases each \n)
+ * - column_char	Character number since the start of the current line (or byte, if get_byte was used)
  */
 template<
 	typename DataPtr = const UTF8*,
@@ -78,13 +90,16 @@ class	PegexpPointerSource
 public:
 	using Char = _Char;
 
+	// A null Source, used during initialisation or to communicate match failure:
 	PegexpPointerSource()
 	: data(0)
 	, byte_count(0)
 	, line_count(1)
 	, column_char(1)
 	{ }
+	bool		is_null() const { return data == 0; }
 
+	// A valid Source, starting at the beginning of the stream
 	PegexpPointerSource(const DataPtr cp)
 	: data(cp)
 	, byte_count(0)
@@ -92,6 +107,7 @@ public:
 	, column_char(1)
 	{ }
 
+	// Copy constructor. A copy does not advance when the origin advances
 	PegexpPointerSource(const PegexpPointerSource& pi)
 	: data(pi.data)
 	, byte_count(pi.byte_count)
@@ -160,18 +176,23 @@ using	PegexpDefaultSource = PegexpPointerSource<>;
  * It does not otherwise save the Match or allocate memory.
  */
 template <typename _Source = PegexpDefaultSource>
-class	PegexpNullMatch
+class	PegexpDefaultMatch
 {
 public:
 	using Source = _Source;
 
-	PegexpNullMatch() {}	// Default constructor
+	PegexpDefaultMatch() {}	// Default constructor
 
 	// Any subclasses must have this constructor, to capture text matches:
-	PegexpNullMatch(Source _from, Source _to)
-	: from(_from)		// pointer to start of the text matched by this atom
-	, to(_to)		// pointer to the text following the match
+	PegexpDefaultMatch(Source _from, Source _to)
+	: from(_from)		// Source of the start of the matched text
+	, to(_to)		// Source of the text following the match
 	{ }
+
+	// Additional data and constructors may be present in implementations, depending on the Context.
+
+	// A match failure is indicated by a null "to" Source:
+	bool		is_failure() const { return to.is_null(); }
 
 	Source		from;
 	Source		to;
@@ -182,13 +203,13 @@ public:
  * Implement your own template class having this signature to capture matches,
  * or to pass your own context down to a match_extended (as in Peg).
  */
-template <typename _Match = PegexpNullMatch<>>
-class	PegexpNullContext
+template <typename _Match = PegexpDefaultMatch<>>
+class	PegexpDefaultContext
 {
 public:
 	using	Match = _Match;
 	using	Source = typename Match::Source;
-	PegexpNullContext()
+	PegexpDefaultContext()
 	: capture_disabled(0)
 	, repetition_nesting(0)
 	{}
@@ -212,12 +233,17 @@ public:
 	// Recording this can be useful to see why a Pegexp didn't proceed further, for example.
 	void		record_failure(PegexpPC op, PegexpPC op_end, Source location) {}
 
-	Match		declare_match(Source _from, Source _to)
-			{ return Match(_from, _to); }
+	// Declare match failure starting at "from". Failure is indicated here by a null "to" Source.
+	Match		match_failure(Source at)
+			{ return Match(at, Source()); }
+
+	// Success is indicated by a "from" and "to" Source location:
+	Match		match_result(Source from, Source to)
+			{ return Match(from, to); }
 };
 
 template<
-	typename _Context = PegexpNullContext<PegexpNullMatch<PegexpDefaultSource>>
+	typename _Context = PegexpDefaultContext<PegexpDefaultMatch<PegexpDefaultSource>>
 >
 class Pegexp
 {
@@ -250,10 +276,11 @@ public:	// Expose our template types for subclasses to use:
 
 	// Match the Peg expression at or after the start of the source,
 	// Advance to the end of the matched text and return the starting offset, or -1 on failure
-	off_t		match(Source& source, Context* context = 0)
+	Match		match(Source& source, Context* context = 0)
 	{
 		int	initial_captures = context ? context->capture_count() : 0;
 		off_t	offset = 0;
+		Match	match;
 
 		while (true)
 		{
@@ -261,8 +288,9 @@ public:	// Expose our template types for subclasses to use:
 			if (context)
 				context->rollback_capture(initial_captures);
 
-			if (match_here(attempt, context))
-				return offset;
+			match = match_here(attempt, context);
+			if (!match.is_failure())
+				return match;
 
 			// Move forward one character, or terminate if none available:
 			if (source.at_eof())
@@ -270,25 +298,27 @@ public:	// Expose our template types for subclasses to use:
 			(void)source.get_char();
 			offset++;
 		}
-		return -1;
+		return match;	// Failure
 	}
 
-	bool		match_here(Source& source, Context* context = 0)
+	Match		match_here(Source& source, Context* context = 0)
 	{
 		State	state(pegexp, source);
+		Match	match(source, Source());		// Default to match failure
 
 		bool ok = match_sequence(state, context);
 		if (ok && *state.pc == '\0')	// An extra ')' can cause match_sequence to succeed incorrectly
 		{
 			if (context)
-				context->declare_match(source, state.text);
+				match = context->match_result(source, state.text);
+			else
+				match = Match(source, state.text);
 
 			// point source at the text following the successful attempt:
 			source = state.text;
-			return true;
+			return match;
 		}
-		source = state.text;	// No match
-		return false;
+		return match;
 	}
 
 protected:

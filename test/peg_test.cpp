@@ -45,15 +45,22 @@ class PegTestMatch
 public:
 	using Source = PegTestSource;
 
+	PegTestMatch()
+	{}
+
 	// Capture matched text:
 	PegTestMatch(Source from, Source to)
-	: var(StrVal(from.peek(), (int)(to - from)))
-	{ }
+	{
+		if (!to.is_null())
+			var = StrVal(from.peek(), (int)(to - from));
+	}
 
 	PegTestMatch(Variant _var)
 	: var(_var)
 	{ }
-	PegTestMatch() {}
+
+	bool		is_failure() const
+			{ return var.get_type() == Variant::None; }
 
 	Variant		var;
 };
@@ -200,30 +207,32 @@ public:
 */
 	}
 
-	Match		declare_match(Source _from, Source _to)
+	Match		match_result(Source from, Source to)
 			{
 				if (capture_count() > 0)
 					return Match(Variant(ast));
 				else
-					return Match(_from, _to);
+					return Match(from, to);
 			}
+	Match		match_failure(Source at)
+			{ return Match(at, Source()); }
 
 	int		depth()
-	{
-		return parent ? parent->depth()+1 : 0;
-	}
+			{
+				return parent ? parent->depth()+1 : 0;
+			}
 
 	void		print_path(int depth = 0) const
-	{
-		if (parent)
-		{
-			parent->print_path(depth+1);
-			printf("->");
-		}
-		else
-			printf("@depth=%d: ", depth);
-		printf("%s", rule->name);
-	}
+			{
+				if (parent)
+				{
+					parent->print_path(depth+1);
+					printf("->");
+				}
+				else
+					printf("@depth=%d: ", depth);
+				printf("%s", rule->name);
+			}
 
 	Rule*		rule;		// The Rule this context applies to
 	PegT*		peg;		// Place to look up subrules
@@ -410,7 +419,7 @@ int	parse_file(char* text)
 
 	TestPeg::Match	match;
 	TestPeg::Source	source(text);
-	bool	ok = peg.parse(source, &match);
+	match = peg.parse(source);
 
 	printf("%s\n", match.var.as_json(0).asUTF8());
 

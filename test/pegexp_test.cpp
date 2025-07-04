@@ -41,7 +41,7 @@ protected:
 	const char*	start;
 };
 
-using	PegexpTestMatch = PegexpNullMatch<PegexpTestSource>;
+using	PegexpTestMatch = PegexpDefaultMatch<PegexpTestSource>;
 
 class	PegexpTestContext
 {
@@ -78,7 +78,7 @@ public:
 	// Recording this can be useful to see why a Pegexp didn't proceed further, for example.
 	void		record_failure(PegexpPC op, PegexpPC op_end, Source location) {}
 
-	Match		declare_match(Source _from, Source _to)
+	Match		match_result(Source _from, Source _to)
 			{ return match = Match(_from, _to); }
 
 	struct Captured
@@ -123,22 +123,25 @@ main(int argc, const char** argv)
 	int	failure_count = 0;
 	for (const char** subject = argv+2; subject < argv+argc; subject++)
 	{
-		PegexpTestSource	source(*subject);
+		PegexpTestSource	origin(*subject);
+		PegexpTestSource	source(origin);
 		TestPegexp		pegexp(argv[1]);
 		PegexpTestContext	context;
+		PegexpTestMatch		match;
 		off_t			offset;
 		const char*		match_start;
 		int			length;
 
-		offset = pegexp.match(source, &context);	// source is advanced to the start of the match
+		match = pegexp.match(source, &context);	// source is advanced to the start of the match
 
-		if (offset < 0)
+		if (match.is_failure())
 		{
 			failure_count++;
 			fprintf(stdout, "%s\t%s\tfailed\n", argv[1], *subject);
 		}
 		else
 		{
+			offset = match.from - origin;
 			match_start = context.match.from.rest();
 			length = context.match.to.rest() - match_start;
 
