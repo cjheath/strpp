@@ -182,8 +182,10 @@ You should use assertions to control inappropriate greed.
 
 All template parameters may be omitted to use defaults:
 <pre>
-template &lt;typename Context&gt;
-class Pegexp
+template&lt;typename DataPtr = const UTF8*, typename _Char = UCS4&gt; class PegexpPointerSource;
+template&lt;typename Source;gt; class PegexpDefaultMatch;
+template&lt;typename Match&gt; class PegexpDefaultContext;
+template&lt;typename Context&gt; class Pegexp;
 </pre>
 
 A Context may accumulate data on Captures and failure locations.
@@ -212,6 +214,12 @@ Read the header file for more details.
 
 `#include	<peg.h>`
 
+<pre>
+template&lt;typename Source&gt; class PegDefaultMatch;
+template&lt;typename Match&gt; class PegContextNoCapture;
+template&lt;typename Source, typename Match, typename Context&gt; class Peg;
+</pre>
+
 The Peg parser templates make use of Pegexp to provide a powerful PEG parsing engine for arbitrary grammars.
 No memoization is performed, so a badly constructed grammar can cause long runtimes.
 Peg uses a new Context for each nested call to a Pegexp.
@@ -225,6 +233,9 @@ The preferred way to use this is to compile a grammar expressed in the BNF-like 
 which (will) emit C++ data definitions for the parser engine to interpret.
 
 Like the Pegexp template, Peg\<\> processes data from a Source, which may be a stream.
+
+You should define a Context which implements whatever result capture you require.
+Context should have a nested Context::Rule type, which can be refined where necessary.
 
 The [Peg parser](test/peg_test.cpp) for [Px](grammars/px.px) works and shows how to generate an AST from captures.
 There is not a code generator for Px yet.
