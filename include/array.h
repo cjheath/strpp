@@ -263,6 +263,8 @@ public:
 			{ (*this) += addend; }
 	void		reverse()
 			{
+				if (num_elements == 0)
+					return;					// body may be null
 				Unshare();
 				const Element*	dp = body->data()+offset;	// Start of our slice
 				const Element*	ep = dp+num_elements;		// End of our slice
@@ -275,6 +277,8 @@ public:
 			}
 	void		delete_if(std::function<bool(const Element& e)> condition)
 			{
+				if (num_elements == 0)
+					return;					// body may be null
 				const Element*	dp = body->data()+offset;	// Start of our slice
 				const Element*	bp = dp;			// Output pointer
 				const Element*	ep = dp+num_elements;		// End of our slice
