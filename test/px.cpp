@@ -1,7 +1,7 @@
 /*
- * Px PEG parser defined using pegular expression rules
+ * Px PEG parser generator defined using pegular expression rules
  *
- * Copyright 2022 Clifford Heath. ALL RIGHTS RESERVED SUBJECT TO ATTACHED LICENSE.
+ * Copyright 2025 Clifford Heath. ALL RIGHTS RESERVED SUBJECT TO ATTACHED LICENSE.
  */
 #include	<char_encoding.h>
 #include	<peg.h>
@@ -17,56 +17,52 @@
 #include	<strval.h>
 #include	<variant.h>
 
-#include	"memory_monitor.h"
-
-#if	defined(PEG_UNICODE)
-using	PegChar = UCS4;
 using	Source = GuardedUTF8Ptr;
-using	PegTestSourceSup = PegexpPointerSource<GuardedUTF8Ptr>;
-#else
-using	PegChar = char;
-using	Source = PegChar*;
-using	PegTestSourceSup = PegexpPointerSource<>;
-#endif
+using	PegMemorySourceSup = PegexpPointerSource<GuardedUTF8Ptr>;
 
 // We need some help to extract captured data from PegexpPointerSource:
-class PegTestSource : public PegTestSourceSup
+class PegMemorySource : public PegexpPointerSource<GuardedUTF8Ptr>
 {
+	using PegMemorySourceSup = PegexpPointerSource<GuardedUTF8Ptr>;
 public:
-	PegTestSource() : PegTestSourceSup() {}
-	PegTestSource(const Source cp) : PegTestSourceSup(cp) {}
-	PegTestSource(const PegTestSource& pi) : PegTestSourceSup(pi) {}
+	PegMemorySource() : PegMemorySourceSup() {}
+	PegMemorySource(const char* cp) : PegMemorySourceSup(cp) {}
+	PegMemorySource(const PegMemorySource& pi) : PegMemorySourceSup(pi) {}
 
 	const UTF8*	peek() const { return data; }
 };
 
-class PegTestFailure {
+class PegFailure {
 public:
 	PegexpPC	atom;		// Start of the Pegexp literal we failed to match
 	int		atom_len;	// Length of the literal (for reporting)
 };
-typedef Array<PegTestFailure>	PegTestFailures;	// A Failure for each atom tried at furthermost_success location
+// A Failure for each atom tried at furthermost_success location
+typedef Array<PegFailure>	PegFailures;
 
-class PegTestMatch
+class PegMatch
 {
 public:
-	using Source = PegTestSource;
+	using Source = PegMemorySource;
 
-	PegTestMatch()
+	PegMatch()
 	{}
 
 	// Capture matched text:
-	PegTestMatch(Source from, Source to)
+	PegMatch(Source from, Source to)
 	{
-		if (!to.is_null())
+		if (to.is_null())
+			var = Variant();	// type=None -> failure
+		else
 			var = StrVal(from.peek(), (int)(to - from));
 	}
 
-	PegTestMatch(Variant _var)
+	PegMatch(Variant _var)
 	: var(_var)
 	{ }
 
-	PegTestMatch(Variant _var, Source reached, PegTestFailures f)
+	// Final result constructor with termination point:
+	PegMatch(Variant _var, Source reached, PegFailures f)
 	: var(_var)
 	, furthermost_success(reached)
 	, failures(f)
@@ -78,8 +74,8 @@ public:
 	Variant		var;
 
 	// Furthermost failure and reasons, only populated on return from parse() (outermost Context)
-	Source		furthermost_success;	// Source location of the farthest location the parser reached
-	PegTestFailures	failures;	// A Failure for each atom tried at furthermost_success location
+	Source		furthermost_success;
+	PegFailures	failures;
 };
 
 template<
@@ -97,7 +93,7 @@ public:
 	// Labelled atoms or rules matching these capture names should be returned in the parse match:
 	const char**	captures;	// Pointer to zero-terminated array of string pointers.
 
-	bool is_captured(const char* label)	// label maybe not nul-terminated
+	bool is_captured(const char* label)	// label maybe not nul-terminated!
 	{
 		if (!captures)
 			return false;
@@ -117,8 +113,8 @@ public:
 class	PegContext
 {
 public:
-	using	Source = PegTestSource;
-	using	Match = PegTestMatch;
+	using	Source = PegMemorySource;
+	using	Match = PegMatch;
 	using	PegT = Peg<Source, Match, PegContext>;
 	using	PegexpT = PegPegexp<PegContext>;
 	using	Rule = PegCaptureRule<PegexpT>;
@@ -137,7 +133,40 @@ public:
 	int		capture(PegexpPC name, int name_len, Match r, bool in_repetition)
 	{
 		StrVal		key(name, name_len);
+		Variant		value(r.var);
 		Variant		existing;
+
+		if (value.get_type() == Variant::String && value.as_strval().length() == 0)
+			return num_captures;
+
+		// If this rule captures one item only, collapse the AST:
+		if (rule->captures && rule->captures[0] && rule->captures[1] == 0)
+		{	// Only one thing is being captured here. Don't nest it, return it.
+#if 0
+			if (value.get_type() == Variant::StrVarMap
+			 && value.as_variant_map().size() == 1)
+			{	// This map has only one entry. Return that
+				auto	entry = value.as_variant_map().begin();
+				printf(
+					"eliding %s in favour of %s\n",
+					key.asUTF8(),
+					StrVal(entry->first).asUTF8()
+				);
+				value = entry->second;
+				key = entry->first;
+
+#ifdef FLATTEN_ARRAYS
+				if (value.get_type() == Variant::VarArray
+				 && value.as_variant_array().length() == 1)
+				{
+					printf("flattening array\n");
+					value = value.as_variant_array()[0];
+				}
+#endif
+
+			}
+#endif
+		}
 
 		if (ast.contains(key))
 		{		// There are previous captures under this name
@@ -145,35 +174,15 @@ public:
 			if (existing.get_type() != Variant::VarArray)
 				existing = Variant(&existing, 1);	// Convert it to an array
 			VariantArray va = existing.as_variant_array();
-			va += r.var;		// This Unshares va from the entry stored in the map, so
+			va += value;		// This Unshares va from the entry stored in the map, so
 			ast.erase(key);		// Remove that
 			ast.insert(key, va);	// and save the new version
 			existing = ast[key];
 		}
 		else	// Insert the match as the first element in an array, or just as itself:
-			ast.insert(key, in_repetition ? Variant(&r.var, 1) : r.var);
+			ast.insert(key, in_repetition ? Variant(&value, 1) : value);
 
-
-#ifdef PEG_CAPTURES
-		StrVal	rep_display;
-		if (existing.get_type() == Variant::VarArray)
-		{				// repetition display
-			char	buf[16];
-			snprintf(buf, sizeof(buf), "[%d]", existing.as_variant_array().length());
-			rep_display = StrVal(buf);
-		}
-		printf(
-			"%s%s[%d]: %s%s=%s\n",
-			(StrVal("  ")*depth()).asUTF8(),
-			rule->name,
-			num_captures,
-			key.asUTF8(),
-			rep_display.asUTF8(),
-			r.var.as_json(-2).asUTF8()	// Compact JSON
-		);
-#endif
 		num_captures++;
-
 		return 0;
 	}
 
@@ -181,6 +190,8 @@ public:
 	{
 		return num_captures;
 	}
+
+	// This grammar should not capture anything that rolls back except to zero, unless on failure:
 	void		rollback_capture(int count)
 	{
 		if (count >= num_captures)
@@ -224,33 +235,33 @@ public:
 	}
 
 	Match		match_result(Source from, Source to)
-			{
-				if (parent == 0)
-					return Match(Variant(ast), furthermost_success, failures);
-				else if (capture_count() > 0)
-					return Match(Variant(ast));
-				else
-					return Match(from, to);
-			}
+	{
+		if (parent == 0)
+			return Match(Variant(ast), furthermost_success, failures);
+		else if (capture_count() > 0)
+			return Match(ast);
+		else
+			return Match(from, to);
+	}
 	Match		match_failure(Source at)
-			{ return Match(at, Source()); }
+	{ return Match(at, Source()); }
 
+#if 0
 	int		depth()
-			{
-				return parent ? parent->depth()+1 : 0;
-			}
+	{ return parent ? parent->depth()+1 : 0; }
 
 	void		print_path(int depth = 0) const
-			{
-				if (parent)
-				{
-					parent->print_path(depth+1);
-					printf("->");
-				}
-				else
-					printf("@depth=%d: ", depth);
-				printf("%s", rule->name);
-			}
+	{
+		if (parent)
+		{
+			parent->print_path(depth+1);
+			printf("->");
+		}
+		else
+			printf("@depth=%d: ", depth);
+		printf("%s", rule->name);
+	}
+#endif
 
 	Rule*		rule;		// The Rule this context applies to
 	PegT*		peg;		// Place to look up subrules
@@ -266,14 +277,14 @@ protected:
 
 	// The next two are populated only on the outermost Context, to be returned from the parse
 	Source		furthermost_success;	// Source location of the farthest location the parser reached
-	PegTestFailures	failures;	// A Failure for each atom tried at furthermost_success location
+	PegFailures	failures;	// A Failure for each atom tried at furthermost_success location
 };
 
-typedef	Peg<PegTestSource, PegTestMatch, PegContext>	TestPeg;
+typedef	Peg<PegMemorySource, PegMatch, PegContext>	PxParser;
 
 void usage()
 {
-	fprintf(stderr, "Usage: peg_test peg.px\n");
+	fprintf(stderr, "Usage: px peg.px\n");
 	exit(1);
 }
 
@@ -313,7 +324,7 @@ const char*	label_captures[] = { "name", 0 };
 const char*	atom_captures[] = { "a", 0 };
 const char*	group_captures[] = { "alternates", 0 };
 
-TestPeg::Rule	rules[] =
+PxParser::Rule	rules[] =
 {
 	{ "blankline",				// A line containing no printing characters
 	  "\\n*[ \\t\\r](|\\n|!.)",
@@ -329,8 +340,10 @@ TestPeg::Rule	rules[] =
 	  0
 	},
 	{ "TOP",				// Start; a repetition of zero or more rules
-	  "*<space>*<rule>:rule",
+	  // "*<space>*<rule>:rule",
+	  "*<space><rule>:rule",		// Parse one rule at a time
 	  TOP_captures
+	  // { "rule" }				// -> rule
 	},
 	{ "rule",				// Rule: name of a rule that matches one or more alternates
 	  "<name><s>=<s>"
@@ -426,48 +439,55 @@ TestPeg::Rule	rules[] =
 	},
 };
 
-TestPeg::Match
-parse_file(char* text)
+PxParser::Match
+parse_rule(PxParser::Source source)
 {
-	TestPeg		peg(rules, sizeof(rules)/sizeof(rules[0]));
+	PxParser	peg(rules, sizeof(rules)/sizeof(rules[0]));
 
-	TestPeg::Source	source(text);
 	return peg.parse(source);
 }
 
 int
 parse_and_report(const char* filename)
 {
-	off_t	file_size;
-	char*	text = slurp_file(filename, &file_size);
+	off_t		file_size;
+	char*		text = slurp_file(filename, &file_size);
+	PxParser::Source source(text);
+	int		bytes_parsed = 0;
+	int		rules_parsed = 0;
 
-	TestPeg::Match match = parse_file(text);
+	do {
+		PxParser::Match match = parse_rule(source);
 
-	int		bytes_parsed;
-
-	bytes_parsed = match.is_failure() ? 0 : match.furthermost_success.peek() - text;
-
-	if (bytes_parsed < file_size)
-	{
-		printf("Parse %s at line %lld column %lld (byte %lld of %d). Next tokens anticipated were:\n",
-			bytes_parsed > 0 ? "finished early" : "failed",
-			match.furthermost_success.current_line(),
-			match.furthermost_success.current_column(),
-			match.furthermost_success.current_byte(),
-			(int)file_size
-		);
-
-		for (int i = 0; i < match.failures.length(); i++)
+		if (match.is_failure())
 		{
-			PegTestFailure	f = match.failures[i];
-			printf("\t%.*s\n", f.atom_len, f.atom);
-		}
-	}
-	else
-		printf("Parsed %d bytes of %d\n", bytes_parsed, (int)file_size);
+			printf("Parse failed at line %lld column %lld (byte %lld of %d) after %d rules. Next tokens anticipated were:\n",
+				source.current_line()+match.furthermost_success.current_line()-1,
+				source.current_column()+match.furthermost_success.current_column()-1,
+				source.current_byte()+match.furthermost_success.current_byte(),
+				(int)file_size,
+				rules_parsed
+			);
 
-	if (bytes_parsed > 0)
+			for (int i = 0; i < match.failures.length(); i++)
+			{
+				PegFailure	f = match.failures[i];
+				printf("\t%.*s\n", f.atom_len, f.atom);
+			}
+			break;
+		}
+
+		bytes_parsed = match.furthermost_success.peek() - text;
+
+		printf("===== Rule %d:\n", rules_parsed+1);
 		printf("Parse Tree:\n%s\n", match.var.as_json(0).asUTF8());
+
+		// Start again at the next rule:
+		source = match.furthermost_success;
+		rules_parsed++;
+	} while (bytes_parsed < file_size);
+
+	printf("Parsed %d bytes of %d\n", bytes_parsed, (int)file_size);
 
 	delete text;
 
@@ -480,12 +500,16 @@ main(int argc, const char** argv)
 	if (argc < 2)
 		usage();
 
+	/*
 	start_recording_allocations();
+	*/
 
 	int code = parse_and_report(argv[1]);
 
+	/*
 	if (allocation_growth_count() > 0)	// No allocation should remain unfreed
 		report_allocation_growth();
+	*/
 
 	return code;
 }

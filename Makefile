@@ -6,8 +6,8 @@ CXX	=	g++
 CXXFLAGS =	-std=c++11
 
 DEBUG	=	-O2 $(COPT)
-# DEBUG	=	-O2 $(COPT) -lprofiler
 # DEBUG	=	-g $(COPT) # -DPEG_TRACE
+# DEBUG	=	-O2 $(COPT) -lprofiler
 # DEBUG	=	-g -DTRACK_RESULTS $(COPT)
 
 HDRS	=	\
@@ -41,6 +41,7 @@ TESTS	=	\
 		medley_test		\
 		peg_test		\
 		pegexp_test		\
+		px			\
 		reassembly_test		\
 		rxcompile_test		\
 		rxmatch_test		\

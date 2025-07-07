@@ -50,12 +50,13 @@ repetition	= ?repeat_count				// How many times must the following be seen
 label		= ':' name				// Apply a name to the previous atom
 		-> name
 
-atom		=| '.'					// Any character
-		 | name					// call to another rule
-		 | literal				// A literal
-		 | property				// A character property
-		 | class				// A character class
-		 | group
+atom		=| '.':a				// Any character
+		 | name:a				// call to another rule
+		 | literal:a				// A literal
+		 | property:a				// A character property
+		 | class:a				// A character class
+		 | group:a
+		 -> a
 
 group		= '(' s +alternates ')'			// A parenthesised group
 		-> alternates
