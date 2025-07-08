@@ -253,6 +253,9 @@ public:	// Expose our template types for subclasses to use:
 	using 		Source = typename Match::Source;
 	using 		Char = typename Source::Char;
 
+	// Special characters that should be backslash escaped to use a random string as a literal:
+	static	const char*	special;
+
 	// State is used to manage matching progress and backtracking locations.
 	class State
 	{
@@ -803,5 +806,7 @@ protected:
 		return pc;
 	}
 };
+
+template<typename Context> const char* Pegexp<Context>::special = "^$.\\[?*+(|&!~@#%_;<`:";
 
 #endif	// PEGEXP_H
