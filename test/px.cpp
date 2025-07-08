@@ -321,7 +321,7 @@ const char*	repeat_count_captures[] = { "limit", 0 };
 const char*	count_captures[] = { "val", 0 };
 const char*	repetition_captures[] = { "repeat_count", "atom", "label", 0 };
 const char*	label_captures[] = { "name", 0 };
-const char*	atom_captures[] = { "a", 0 };
+const char*	atom_captures[] = { "atom", 0 };
 const char*	group_captures[] = { "alternates", 0 };
 
 PxParser::Rule	rules[] =
@@ -390,12 +390,12 @@ PxParser::Rule	rules[] =
 	  label_captures
 	},
 	{ "atom",
-	  "|\\.:a"				// Any character
-	  "|<name>:a"				// call to another rule
-	  "|<property>:a"			// A character property
-	  "|<literal>:a"			// A literal
-	  "|<class>:a"				// A character class
-	  "|<group>:a",
+	  "|\\.:atom"				// Any character
+	  "|<name>:atom"			// call to another rule
+	  "|<property>:atom"			// A character property
+	  "|<literal>:atom"			// A literal
+	  "|<class>:atom"			// A character class
+	  "|<group>:atom",
 	  atom_captures
 	},
 	{ "group",
@@ -584,16 +584,21 @@ StrVal generate_re(Variant re)
 			// REVISIT: Quote regexp special chars like [ :
 			return s;
 		}
-	/* REVISIT: Complete these
 		else if (node_type == "property")
 		{
+			return element.as_strval();
 		}
+		else if (node_type == "atom")
+		{
+			return element.as_strval();
+		}
+	/* REVISIT: Complete these
 		else if (node_type == "param")
 		{
 		}
 	*/
-		else
-			return node_type;
+		else	// Report incomplete node type:
+			return StrVal("INCOMPLETE<") + node_type + ">=" + element.as_json(-2);
 	}
 	else if (re.get_type() == Variant::VarArray)
 	{
