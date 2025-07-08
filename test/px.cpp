@@ -556,11 +556,6 @@ StrVal generate_re(Variant re)
 				return generate_re(alternates[0]);
 
 			return	"REVISIT: unexpected alternates count";
-	/*
-			for (int i = 0; i < alternates.length(); i++)
-				ret += StrVal("|")+generate_re(alternates[i]);
-			return ret;
-	*/
 		}
 		else if (node_type == "literal")
 		{
@@ -572,16 +567,29 @@ StrVal generate_re(Variant re)
 				{
 					UCS4    ch = UTF8Get(cp);       // Get UCS4 character
 
-					// If char is non-ASCII or nor special, return it unmolested:
-					if (ch & ~0x7F
-					 || 0 == strchr(PxParser::PegexpT::special, (char)ch))
+					// If the String is Unicode or a control-char, emit \u{...}
+					if (ch > 0xFF || ch < ' ')
+					{
+						StrVal	u("\\u{");
+						while (ch)
+						{
+							u.insert(3, "0123456789ABCDEF"[ch&0xF]);
+							ch >>= 4;
+						}
+						u += "}";
+						return u;
+					}
+
+					// If char is 8-bit but not special, return it unmolested:
+					if (ch >= ' '
+					 && 0 == strchr(PxParser::PegexpT::special, (char)ch))
 						return StrVal(ch);
 
+					// Backslash the string
 					return StrVal("\\")+ch;
 				}
 			);
 
-			// REVISIT: Quote regexp special chars like [ :
 			return s;
 		}
 		else if (node_type == "property")
@@ -614,6 +622,31 @@ StrVal generate_re(Variant re)
 	}
 }
 
+StrVal
+generate_parameters(Variant parameters)
+{
+	StrVal	p("{ ");
+	StrVal	dquot("\"");
+
+	// parameters might be an individual StrVariantMap or an array of them?
+	if (parameters.get_type() == Variant::VarArray)
+	{	// Extract the "reference" value from each element
+		VariantArray	a = parameters.as_variant_array();
+		for (int i = 0; i < a.length(); i++)
+		{
+			if (i)
+				p += ", ";
+			p += dquot+a[i].as_variant_map()["reference"].as_strval()+dquot;
+		}
+	}
+	else	// type is Variant::StrVarMap
+	{
+		p += dquot+parameters.as_variant_map()["reference"].as_strval()+dquot;
+	}
+	p += " }";
+	return p;
+}
+
 void emit_rule(Variant _rule)
 {
 	// printf("Parse Tree:\n%s\n", _rule.as_json(-2).asUTF8());
@@ -621,10 +654,32 @@ void emit_rule(Variant _rule)
 	StrVariantMap	rule = _rule.as_variant_map()["rule"].as_variant_map();
 	Variant		vr = rule["name"];
 	Variant		va = rule["alternates"];
+	Variant		vact = rule["action"];
 	StrVariantMap	alternates = va.as_variant_map();
+
+	// Generate the pegular expression for this rule:
 	StrVal		re = generate_re(alternates);
 
-	printf("Rule: %s -> %s\n", vr.as_strval().asUTF8(), re.asUTF8());
+	printf("Rule: %s =\n\t%s\n", vr.as_strval().asUTF8(), re.asUTF8());
+
+	if (vact.get_type() != Variant::None)
+	{
+		// REVISIT: parameters are requested as "list" but saved as "parameter" - why?
+		StrVal		parameters = generate_parameters(vact.as_variant_map()["parameter"]);
+		Variant		function = vact.as_variant_map()["name"];	// StrVal or None
+
+		printf(
+			"\t-> %s%s\n",
+			function.is_null() ? "" : (function.as_strval()+": ").asUTF8(),
+			parameters.asUTF8()
+		);
+	}
+}
+
+void check_rules(VariantArray rules)
+{
+	// REVISIT: Ensure that all called rules exist
+	// REVISIT: Ensure that actions only request available captures
 }
 
 void emit(VariantArray rules)
@@ -646,8 +701,12 @@ main(int argc, const char** argv)
 	VariantArray	rules;
 	bool	success = parse_and_report(argv[1], rules);
 
-	if (success)
-		emit(rules);
+	if (!success)
+		exit(1);
+
+	check_rules(rules);
+
+	emit(rules);
 
 	/*
 	if (allocation_growth_count() > 0)	// No allocation should remain unfreed
