@@ -148,6 +148,7 @@ public:
 
 	VariantType		get_type() const { return type; }
 
+	bool			is_null() const { return type == None; }
 	const char*		type_name() const
 	{
 		if (type >= None && type <= VariantTypeMax)
