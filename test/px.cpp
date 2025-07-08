@@ -566,6 +566,21 @@ StrVal generate_re(Variant re)
 		{
 			StrVal	s = element.as_strval();
 			s = s.substr(1, s.length()-2);
+			// Escape special characters:
+			s.transform(
+				[&](const UTF8*& cp, const UTF8* ep) -> StrVal
+				{
+					UCS4    ch = UTF8Get(cp);       // Get UCS4 character
+
+					// If char is non-ASCII or nor special, return it unmolested:
+					if (ch & ~0x7F
+					 || 0 == strchr(PxParser::PegexpT::special, (char)ch))
+						return StrVal(ch);
+
+					return StrVal("\\")+ch;
+				}
+			);
+
 			// REVISIT: Quote regexp special chars like [ :
 			return s;
 		}
