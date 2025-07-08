@@ -38,6 +38,7 @@ public:
 		//, VarVarMap
 		VariantTypeMax = StrVarMap
 	} VariantType;
+	static const char*	type_names[];
 
 	~Variant()
 	{ coerce_none(); }
@@ -94,7 +95,6 @@ public:
 	Variant(const Variant& v)
 	: type(v.type)
 	{
-		u.zero();	// Or is this already done?
 		switch (v.type)
 		{
 		default:		break;
@@ -359,7 +359,7 @@ protected:
 	{
 		if (type == t)
 			return;
-		printf("Expected type %d, got type %d\n", t, type);
+		printf("Expected %s, got type %s\n", type_names[t], type_names[type]);
 		assert(!"Mismatched type");
 	}
 
@@ -378,8 +378,6 @@ protected:
 		~u()		{}	// Destruction happens outside here
 		void zero()	{ memset(this, 0, sizeof(*this)); }
 	} u;
-
-	static const char*	type_names[];
 };
 
 const char*	Variant::type_names[] = {
