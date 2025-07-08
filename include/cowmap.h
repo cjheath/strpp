@@ -56,7 +56,8 @@ public:
 			{ return body->begin(); }
 	Iter	end() const
 			{ return body->end(); }
-	size_t	size()	{ return body->size(); }
+	size_t	size() const
+			{ return body->size(); }
 
 	// Mutating methods:
 	void	clear() { body = new Body(); }
