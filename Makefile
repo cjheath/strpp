@@ -93,6 +93,9 @@ run_variant_test: variant_test
 %:	%.cpp $(LIB) test/memory_monitor.cpp
 	$(CXX) $(DEBUG) $(CXXFLAGS) -Iinclude -Itest -o $@ $< test/memory_monitor.cpp $(LIB)
 
+px:	px.cpp $(LIB)
+	$(CXX) $(DEBUG) $(CXXFLAGS) -Iinclude -Itest -o $@ $< $(LIB)
+
 build/%.o:	%.cpp $(HDRS) Makefile
 	$(CXX) $(DEBUG) $(CXXFLAGS) -Iinclude -Isrc -o $@ -c $<
 
