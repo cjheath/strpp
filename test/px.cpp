@@ -447,8 +447,8 @@ parse_rule(PxParser::Source source)
 	return peg.parse(source);
 }
 
-int
-parse_and_report(const char* filename)
+bool
+parse_and_report(const char* filename, VariantArray& rules)
 {
 	off_t		file_size;
 	char*		text = slurp_file(filename, &file_size);
@@ -479,8 +479,10 @@ parse_and_report(const char* filename)
 
 		bytes_parsed = match.furthermost_success.peek() - text;
 
-		printf("===== Rule %d:\n", rules_parsed+1);
-		printf("Parse Tree:\n%s\n", match.var.as_json(0).asUTF8());
+		// printf("===== Rule %d:\n", rules_parsed+1);
+		// printf("Parse Tree:\n%s\n", match.var.as_json(0).asUTF8());
+
+		rules.append(match.var);
 
 		// Start again at the next rule:
 		source = match.furthermost_success;
@@ -491,7 +493,124 @@ parse_and_report(const char* filename)
 
 	delete text;
 
-	return bytes_parsed == file_size ? 0 : 1;
+	bool	success = bytes_parsed == file_size;
+
+	if (!success)
+	{
+		rules.clear();
+		return false;	// exit code
+	}
+
+	return success;
+}
+
+StrVal generate_re(Variant re)
+{
+	if (re.get_type() == Variant::StrVarMap
+	 && re.as_variant_map().size() == 1)
+	{
+		StrVariantMap	map = re.as_variant_map();
+		auto		entry = map.begin();
+		StrVal		node_type = entry->first;
+		Variant		element = entry->second;
+		if (node_type == "sequence")
+		{
+			return generate_re(element);
+		}
+		else if (node_type == "repetition")
+		{
+			// Each repetition has {optional repeat_count, atom, optional label}
+			VariantArray	repetitions = element.as_variant_array();
+
+			StrVal	ret;
+			for (int i = 0; i < repetitions.length(); i++)
+			{
+				StrVariantMap	repetition = repetitions[i].as_variant_map();
+				Variant		atom = repetition["atom"];
+				Variant		repeat_count = repetition["repeat_count"]; // Maybe None
+				if (repeat_count.get_type() != Variant::None)
+					ret += repeat_count.as_variant_map()["limit"].as_strval();
+				ret += generate_re(atom);
+				Variant		label = repetition["label"];	// Maybe None
+				if (label.get_type() != Variant::None)
+					ret += StrVal(":")+label.as_variant_map()["name"].as_strval()+":";
+			}
+			return ret;
+		}
+		else if (node_type == "name")
+		{
+			return StrVal("<")+element.as_strval()+">";
+		}
+		else if (node_type == "class")
+		{
+			return element.as_strval();
+		}
+		else if (node_type == "group")
+		{
+			return StrVal("(")+generate_re(element)+")";
+		}
+		else if (node_type == "alternates")
+		{
+			VariantArray	alternates = element.as_variant_array();
+			if (alternates.length() == 1)
+				return generate_re(alternates[0]);
+
+			return	"REVISIT: unexpected alternates count";
+	/*
+			for (int i = 0; i < alternates.length(); i++)
+				ret += StrVal("|")+generate_re(alternates[i]);
+			return ret;
+	*/
+		}
+		else if (node_type == "literal")
+		{
+			StrVal	s = element.as_strval();
+			s = s.substr(1, s.length()-2);
+			// REVISIT: Quote regexp special chars like [ :
+			return s;
+		}
+	/* REVISIT: Complete these
+		else if (node_type == "property")
+		{
+		}
+		else if (node_type == "param")
+		{
+		}
+	*/
+		else
+			return node_type;
+	}
+	else if (re.get_type() == Variant::VarArray)
+	{
+		VariantArray	va = re.as_variant_array();
+		StrVal	ret;
+		for (int i = 0; i < va.length(); i++)
+			ret += StrVal("|")+generate_re(va[i]);
+		return ret;
+	}
+	else
+	{
+		return StrVal(re.type_name()) + "=" + re.as_json(-2);
+	}
+}
+
+void emit_rule(Variant _rule)
+{
+	// printf("Parse Tree:\n%s\n", _rule.as_json(-2).asUTF8());
+
+	StrVariantMap	rule = _rule.as_variant_map()["rule"].as_variant_map();
+	Variant		vr = rule["name"];
+	Variant		va = rule["alternates"];
+	StrVariantMap	alternates = va.as_variant_map();
+	StrVal		re = generate_re(alternates);
+
+	printf("Rule: %s -> %s\n", vr.as_strval().asUTF8(), re.asUTF8());
+}
+
+void emit(VariantArray rules)
+{
+	for (int i = 0; i < rules.length(); i++)
+		emit_rule(rules[i]);
 }
 
 int
@@ -504,12 +623,16 @@ main(int argc, const char** argv)
 	start_recording_allocations();
 	*/
 
-	int code = parse_and_report(argv[1]);
+	VariantArray	rules;
+	bool	success = parse_and_report(argv[1], rules);
+
+	if (success)
+		emit(rules);
 
 	/*
 	if (allocation_growth_count() > 0)	// No allocation should remain unfreed
 		report_allocation_growth();
 	*/
 
-	return code;
+	return success ? 0 : 1;
 }
