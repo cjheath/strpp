@@ -175,8 +175,7 @@ public:
 				existing = Variant(&existing, 1);	// Convert it to an array
 			VariantArray va = existing.as_variant_array();
 			va += value;		// This Unshares va from the entry stored in the map, so
-			ast.erase(key);		// Remove that
-			ast.insert(key, va);	// and save the new version
+			ast.put(key, va);	// replace it with this value
 			existing = ast[key];
 		}
 		else	// Insert the match as the first element in an array, or just as itself:
@@ -447,68 +446,12 @@ parse_rule(PxParser::Source source)
 	return peg.parse(source);
 }
 
-bool
-parse_and_report(const char* filename, VariantArray& rules)
-{
-	off_t		file_size;
-	char*		text = slurp_file(filename, &file_size);
-	PxParser::Source source(text);
-	int		bytes_parsed = 0;
-	int		rules_parsed = 0;
-
-	do {
-		PxParser::Match match = parse_rule(source);
-
-		if (match.is_failure())
-		{
-			printf("Parse failed at line %lld column %lld (byte %lld of %d) after %d rules. Next tokens anticipated were:\n",
-				source.current_line()+match.furthermost_success.current_line()-1,
-				source.current_column()+match.furthermost_success.current_column()-1,
-				source.current_byte()+match.furthermost_success.current_byte(),
-				(int)file_size,
-				rules_parsed
-			);
-
-			for (int i = 0; i < match.failures.length(); i++)
-			{
-				PegFailure	f = match.failures[i];
-				printf("\t%.*s\n", f.atom_len, f.atom);
-			}
-			break;
-		}
-
-		bytes_parsed = match.furthermost_success.peek() - text;
-
-		// printf("===== Rule %d:\n", rules_parsed+1);
-		// printf("Parse Tree:\n%s\n", match.var.as_json(0).asUTF8());
-
-		rules.append(match.var);
-
-		// Start again at the next rule:
-		source = match.furthermost_success;
-		rules_parsed++;
-	} while (bytes_parsed < file_size);
-
-	printf("Parsed %d bytes of %d\n", bytes_parsed, (int)file_size);
-
-	delete text;
-
-	bool	success = bytes_parsed == file_size;
-
-	if (!success)
-	{
-		rules.clear();
-		return false;	// exit code
-	}
-
-	return success;
-}
-
 StrVal generate_re(Variant re)
 {
-	if (re.get_type() == Variant::StrVarMap
-	 && re.as_variant_map().size() == 1)
+	if (re.get_type() == Variant::StrVarMap)
 	{
+		assert(re.as_variant_map().size() == 1);
+
 		StrVariantMap	map = re.as_variant_map();
 		auto		entry = map.begin();
 		StrVal		node_type = entry->first;
@@ -618,6 +561,7 @@ StrVal generate_re(Variant re)
 	}
 	else
 	{
+		// This indicates the code above is incomplete. Dump the unhandled structure:
 		return StrVal(re.type_name()) + "=" + re.as_json(-2);
 	}
 }
@@ -653,12 +597,11 @@ void emit_rule(Variant _rule)
 
 	StrVariantMap	rule = _rule.as_variant_map()["rule"].as_variant_map();
 	Variant		vr = rule["name"];
-	Variant		va = rule["alternates"];
+	Variant		va = rule["alternates"]; // Variant(StrVariantMap)
 	Variant		vact = rule["action"];
-	StrVariantMap	alternates = va.as_variant_map();
 
 	// Generate the pegular expression for this rule:
-	StrVal		re = generate_re(alternates);
+	StrVal		re = generate_re(va);
 
 	printf("Rule: %s =\n\t%s\n", vr.as_strval().asUTF8(), re.asUTF8());
 
@@ -676,16 +619,157 @@ void emit_rule(Variant _rule)
 	}
 }
 
-void check_rules(VariantArray rules)
+typedef	Array<StrVal>	StringArray;
+typedef	CowMap<bool> 	StringSet;
+
+/*
+ * Descend into the AST of a regular expression, saving any new rule names that are called
+ */
+void accumulate_called_rules(StringSet& called, Variant re)
 {
-	// REVISIT: Ensure that all called rules exist
+	if (re.get_type() == Variant::StrVarMap)
+	{
+		assert(re.as_variant_map().size() == 1);	// There is only one entry in the map
+		StrVariantMap	map = re.as_variant_map();
+		auto		entry = map.begin();
+		StrVal		node_type = entry->first;	// Extract the node_type and value
+		Variant		element = entry->second;
+
+		if (node_type == "name")
+			called.put(element.as_strval(), true);
+		else if (node_type == "sequence")	// Process the VarArray
+			accumulate_called_rules(called, element);
+		else if (node_type == "group")
+			return accumulate_called_rules(called, element);
+		else if (node_type == "alternates")
+			generate_re(element.as_variant_array()[0]);
+		else if (node_type == "repetition")
+		{		// Each repetition has {optional repeat_count, atom, optional label}
+			VariantArray	repetitions = element.as_variant_array();
+
+			for (int i = 0; i < repetitions.length(); i++)
+			{
+				StrVariantMap	repetition = repetitions[i].as_variant_map();
+				Variant		atom = repetition["atom"];
+				accumulate_called_rules(called, atom);
+			}
+		}
+	}
+	else if (re.get_type() == Variant::VarArray)
+	{
+		VariantArray	va = re.as_variant_array();
+		for (int i = 0; i < va.length(); i++)
+			accumulate_called_rules(called, va[i]);
+	}
+}
+
+bool check_rules(VariantArray rules)
+{
+	StringSet	defined_rules;
+	StringSet	called_rules;
+
+	// Find names of all rules that are called:
+	for (int i = 0; i < rules.length(); i++)
+	{
+		StrVariantMap	rule = rules[i].as_variant_map()["rule"].as_variant_map();
+		StrVal		rule_name = rule["name"].as_strval();
+		Variant		va = rule["alternates"];	// Definition of the rule's RE
+
+		// record that this rule is defined:
+		defined_rules.put(rule_name, true);
+
+#if 0
 	// REVISIT: Ensure that actions only request available captures
+		// record which rules this rule calls and what labels it has, for checking actions:
+		StringSet	local_called_rules;
+		accumulate_called_rules(local_called_rules, va);
+		Variant		vact = rule["action"];		// Ensure that capture names are defined
+#endif
+
+		// accumulate all called rules:
+		accumulate_called_rules(called_rules, va);
+	}
+
+	// Ensure that all called rules exist:
+	bool ok = true;
+	for (auto i = called_rules.begin(); i != called_rules.end(); i++)
+	{
+		if (!defined_rules[i->first])
+		{
+			ok = false;
+			printf("Rule %s is called but not defined\n", StrVal(i->first).asUTF8());
+		}
+	}
+
+	return ok;
 }
 
 void emit(VariantArray rules)
 {
 	for (int i = 0; i < rules.length(); i++)
 		emit_rule(rules[i]);
+}
+
+bool
+parse_and_emit(const char* filename, VariantArray& rules)
+{
+	off_t		file_size;
+	char*		text = slurp_file(filename, &file_size);
+	PxParser::Source source(text);
+	int		bytes_parsed = 0;
+	int		rules_parsed = 0;
+
+	do {
+		PxParser::Match match = parse_rule(source);
+
+		if (match.is_failure())
+		{
+			printf("Parse failed at line %lld column %lld (byte %lld of %d) after %d rules. Next tokens anticipated were:\n",
+				source.current_line()+match.furthermost_success.current_line()-1,
+				source.current_column()+match.furthermost_success.current_column()-1,
+				source.current_byte()+match.furthermost_success.current_byte(),
+				(int)file_size,
+				rules_parsed
+			);
+
+			for (int i = 0; i < match.failures.length(); i++)
+			{
+				PegFailure	f = match.failures[i];
+				printf("\t%.*s\n", f.atom_len, f.atom);
+			}
+			break;
+		}
+
+		bytes_parsed = match.furthermost_success.peek() - text;
+
+		// printf("===== Rule %d:\n", rules_parsed+1);
+		// printf("Parse Tree:\n%s\n", match.var.as_json(0).asUTF8());
+
+		rules.append(match.var);
+
+		// Start again at the next rule:
+		source = match.furthermost_success;
+		rules_parsed++;
+	} while (bytes_parsed < file_size);
+
+	printf("Parsed %d bytes of %d\n", bytes_parsed, (int)file_size);
+
+	delete text;
+
+	bool	success = bytes_parsed == file_size;
+
+	if (!success)
+	{
+		rules.clear();
+		return false;
+	}
+
+	if (!check_rules(rules))
+		return false;
+
+	emit(rules);
+
+	return true;
 }
 
 int
@@ -699,19 +783,13 @@ main(int argc, const char** argv)
 	*/
 
 	VariantArray	rules;
-	bool	success = parse_and_report(argv[1], rules);
-
-	if (!success)
+	if (!parse_and_emit(argv[1], rules))
 		exit(1);
-
-	check_rules(rules);
-
-	emit(rules);
 
 	/*
 	if (allocation_growth_count() > 0)	// No allocation should remain unfreed
 		report_allocation_growth();
 	*/
 
-	return success ? 0 : 1;
+	return 1;
 }
