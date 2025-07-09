@@ -36,7 +36,7 @@ factType =
 	-> predicate, typename
 
 alternatePredicate =
-	'AlternatePredicate' s '(' s predicate s comma predicate
+	'AlternatePredicate' s '(' s predicate s ',' s predicate
 		?( '(' s +(roleNumber s) ')' s)
 	')'
 	-> predicate, roleNumber
@@ -131,7 +131,7 @@ objectifies =
 
 // A new predicate name for the binary associated with the role of the objectified predicate
 linkFactType =
-	'LinkFactType' s '(' s predicate s comma predicateRole ')'
+	'LinkFactType' s '(' s predicate s ',' s predicateRole ')'
 	-> predicate, predicateRole
 
 valuesOf =
@@ -242,7 +242,7 @@ term =
 	-> term
 
 functionCall =
-	id lparen s ?(term *(s sep s term) ) rparen s
+	id '(' s ?(term *(s sep s term) ) ')' s
 	-> id, term
 
 variable =
@@ -283,11 +283,11 @@ comment_c_style =
 sep =	',' s
 
 or =	(| '∨'			// downward wedge
-	 | 'v' !alphanumeric	// ASCII substitute
+	 | 'v' !\w		// ASCII substitute
 	) s
 
 and =	(| '∧'			// wedge
-	 | 'A' !alphanumeric	// ASCII substitute
+	 | 'A' !\w	// ASCII substitute
 	) s
 
 except =
@@ -307,9 +307,9 @@ literal =
         ) s
 
 boolean_literal =
-        (| 'true' !alphanumeric s
-         | 'false' !alphanumeric s
-        ) !alphanumeric
+        (| 'true' !\w s
+         | 'false' !\w s
+        ) !\w
 
 string =
         '\'' *(string_char) '\''
@@ -323,12 +323,27 @@ string_char =
         | '\\u' [0-9A-Fa-f] [0-9A-Fa-f] [0-9A-Fa-f] [0-9A-Fa-f]
         | (![\'\\\0-\x07\x0A-\x1F] .)
 
+range =
+        | numeric_range:range
+	| string_range:range
+	-> range
+
+numeric_range =
+        | number:low s ?('..' s ?number:high s)
+        | '..' s number:high s
+	-> low, high
+
+string_range =
+        | string:low s ?('..' s ?string:high s)
+        | '..' s string:high s
+	-> low, high
+
 number =
         (| real:number
          | fractional_real:number
          | hexnumber:number
          | octalnumber:number
-        ) !alphanumeric
+        ) !\w
 	-> number
 
 real =
@@ -343,6 +358,9 @@ fraction =
 exponent =
         [Ee] ?[-+] +[0-9]
 
+naturalNumber =
+	[1-9] *[0-9]
+
 hexnumber =
         '0x' +[0-9A-Fa-f]
 
@@ -355,5 +373,39 @@ zero =			// Allow zero at start of a range, but not a decimal or hex number
 infinity =
 	'∞' s
 
+arrow =			// right-pointing arrowhead
+	(| '=>'
+	 | '➤'
+	 | '▶') s
+
+equalTo =
+	'=' ![>]
+
+notEqualTo =
+	| '<>'
+	| '!='
+	| '≠'
+
+lessOrGreater =
+	'≶'
+
+lessThan =
+	'<' !'='
+
+lessOrEqual =
+	| '<='
+	| '≤'
+
+greaterOrEqual =
+	| '>='
+	| '≥'
+
+greaterThan =
+	'>' ![=<]
+
 id =
         \a *\w
+
+typename =
+	id s *(id s)			// multi-word typenames include white-space
+	-> id
