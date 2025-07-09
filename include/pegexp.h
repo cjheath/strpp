@@ -807,6 +807,6 @@ protected:
 	}
 };
 
-template<typename Context> const char* Pegexp<Context>::special = "^$.\\[?*+(|&!~@#%_;<`:";
+template<typename Context> const char* Pegexp<Context>::special = "^$.\\[?*+{(|&!~@#%_;<`:";
 
 #endif	// PEGEXP_H

@@ -38,7 +38,7 @@ parameter =
 	-> parameter
 
 reference =
-	name *([.*]:joiner s name)	// Name/Path of a subrule or labelled atom to capture
+	name s *([.*]:joiner s name)	// Name/Path of a subrule or labelled atom to capture
 	-> name, joiner
 
 alternates =
@@ -101,7 +101,7 @@ literal_char =
 	| [^\\\n]			// any normal character except backslash or newline
 
 property =
-	'\\' [adhsw] s			// alpha, digit, hexadecimal, whitespace, word (alpha or digit)
+	'\\' [adhsw]			// alpha, digit, hexadecimal, whitespace, word (alpha or digit)
 
 class =
 	'[' ?'^' ?'-' +class_part ']'	// a character class

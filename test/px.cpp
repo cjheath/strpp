@@ -326,13 +326,16 @@ const char*	group_captures[] = { "alternates", 0 };
 
 PxParser::Rule	rules[] =
 {
-	{ "blankline",				// A line containing no printing characters
-	  "\\n*[ \\t\\r](|\\n|!.)",
+	{ "EOF",
+	  "!.",
 	  0
 	},
 	{ "space",				// Any single whitespace
-	  "|[ \\t\\r\\n]"
-	  "|//*[^\\n]",				// including a comment to end-of-line
+	  "|[ \\t\\r\\n]|//*[^\\n]",		// including a comment to end-of-line
+	  0
+	},
+	{ "blankline",				// A line containing no printing characters
+	  "\\n*[ \\t\\r](|\\n|<EOF>)",
 	  0
 	},
 	{ "s",					// Any whitespace but not a blankline
@@ -340,10 +343,9 @@ PxParser::Rule	rules[] =
 	  0
 	},
 	{ "TOP",				// Start; a repetition of zero or more rules
-	  // "*<space>*<rule>:rule",
-	  "*<space><rule>:rule",		// Parse one rule at a time
+	  // "*<space>*<rule>",
+	  "*<space><rule>",			// Parse one rule at a time
 	  TOP_captures
-	  // { "rule" }				// -> rule
 	},
 	{ "rule",				// Rule: name of a rule that matches one or more alternates
 	  "<name><s>=<s>"
@@ -373,12 +375,12 @@ PxParser::Rule	rules[] =
 	  sequence_captures
 	},
 	{ "repeat_count",			// How many times must the following be seen:
-	  "(|[?*+!&]:limit<s>"			// zero or one, zero or more, one or more, none, and
+	  "|[?*+!&]:limit<s>"			// zero or one, zero or more, one or more, none, and
 	  "|<count>:limit",
 	  repeat_count_captures
 	},
 	{ "count",
-	  "\\{(|(+\\d):val|<name>:val)<s>\\}",	// {literal count or a reference to a captured variable}
+	  "\\{(|(+\\d):val|<name>:val)<s>}",	// {literal count or a reference to a captured variable}
 	  count_captures
 	},
 	{ "repetition",				// a repeated atom perhaps with label
@@ -407,10 +409,10 @@ PxParser::Rule	rules[] =
 	  0
 	},
 	{ "literal",
-	  "'*(!'<lit_char>)'",
+	  "'*(!'<literal_char>)'",
 	  0
 	},
-	{ "lit_char",
+	{ "literal_char",
 	  "|\\\\(|?[0-3][0-7]?[0-7]"		// octal character constant
 	      "|x\\h?\\h"			// hexadecimal constant \x12
 	      "|x{+\\h}"			// hexadecimal constant \x{...}
@@ -418,7 +420,7 @@ PxParser::Rule	rules[] =
 	      "|u{+\\h}"			// Unicode character \u{...}
 	      "|[^\\n]"				// Other special escape except newline
 	     ")"
-	  "|[^\\\\\\n]",				// any normal character except backslash or newline
+	  "|[^\\\\\\n]",			// any normal character except backslash or newline
 	  0
 	},
 	{ "property",				// alpha, digit, hexadecimal, whitespace, word (alpha or digit)
@@ -434,7 +436,7 @@ PxParser::Rule	rules[] =
 	  0
 	},
 	{ "class_char",
-	  "![-\\]]<lit_char>",
+	  "![-\\]]<literal_char>",
 	  0
 	},
 };
