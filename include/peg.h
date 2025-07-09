@@ -1,4 +1,3 @@
-#include	<cstdio>
 #if !defined(PEG_H)
 #define PEG_H
 /*
