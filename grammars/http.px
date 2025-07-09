@@ -1,0 +1,113 @@
+// Px grammar for HTTP protocol requests (full header)
+
+// Derived from https://github.com/evan/mongrel/blob/master/ext/http11/http11_parser_common.rl
+
+CRLF =			// line endings
+	'\r\n'
+
+// character types
+ctl =
+	[\x7F\x00-\x1F]
+
+safe =
+	[-$_.]
+
+extra =
+	[!*'(),]
+
+reserved =
+	[;/?:@&=+]
+
+unsafe =
+	ctl [ "#%<>]
+
+national =
+	!(| \w		// alphanumerics
+	  | reserved
+	  | safe
+	  | extra
+	  | unsafe
+	) .
+
+unreserved =
+	| \w
+	| safe
+	| extra
+	| national
+
+escape =
+	'%'\h\h
+
+uchar =
+	| unreserved
+	| escape
+
+pchar =
+	| uchar
+	| [:@&|+]
+
+// elements
+token =
+	![()<>@,;:\\"/[\]?={}\t] [ -\x7E]
+
+// URI schemes and absolute paths
+scheme =
+	*(| \w
+	  | '+'
+	  | '-' 
+	  | '.'
+	)
+
+absolute_uri =
+	scheme ':' *(| uchar | reserved)
+
+path =
+	+pchar *('/' *pchar)
+
+query_string =
+	*(| uchar | reserved)
+
+param =
+	*(| pchar | '/')
+
+params =
+	param *(';' param)
+
+rel_path =
+	?path ?(';' params) ?('?' query_string)
+
+absolute_path =
+	+'/' rel_path
+
+request_URI =
+	| '*' | absolute_uri | absolute_path
+
+fragment =
+	'#' *(| uchar | reserved)
+
+method =
+	+[-$_.A-Z0-9]	// upper or digit or safe
+
+http_number =
+	+\d '.' +\d
+
+http_version =
+	'HTTP/' http_number
+
+request_line =
+	method ' ' request_URI ?fragment ' ' http_version CRLF
+
+field_name =
+	+(!':' token)
+
+field_value =
+	*[^\r\n]
+
+message_header =
+	field_name ':' *' ' field_value CRLF
+
+request =
+	request_line *message_header CRLF
+
+TOP =
+	request
