@@ -163,14 +163,19 @@ public:
 			printf("continuing /%s/ text `%.10s`...\n", call_end, state.text.peek());
 #endif
 
-			// If the call is not labelled and the parent wants calls to this rule captured, do that
+			// If the call is not labelled it can still be captured:
+			int label_size = call_end-label;
 			if (!label)
+			{
 				label = sub_rule->name;
+				label_size = strlen(label);
+			}
+
 			if (context->capture_disabled == 0	// If we're capturing
 			 && context->rule->is_captured(label))	// And the parent wants it
 			{
 				(void)context->capture(
-					sub_rule->name, strlen(sub_rule->name),
+					label, label_size,
 					sub_context.match_result(start_state.text, state.text),
 					context->repetition_nesting > 0
 				);

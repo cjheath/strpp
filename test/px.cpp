@@ -312,8 +312,9 @@ char* slurp_file(const char* filename, off_t* size_p)
 // It's a pity that C++ has no way to initialise these string arrays inline:
 const char*	TOP_captures[] = { "rule", 0 };
 const char*	rule_captures[] = { "name", "alternates", "action" };
-const char*	action_captures[] = { "function", "list", 0 };
-const char*	parameter_captures[] = { "param", 0 };
+const char*	action_captures[] = { "function", "parameter", 0 };
+const char*	parameter_captures[] = { "parameter", 0 };
+const char*	reference_captures[] = { "name", "joiner", 0 };
 const char*	alternates_captures[] = { "sequence", 0 };
 const char*	sequence_captures[] = { "repetition", 0 };
 const char*	repeat_count_captures[] = { "limit", 0 };
@@ -351,16 +352,16 @@ PxParser::Rule	rules[] =
 	  rule_captures
 	},
 	{ "action",				// Looks like "-> function: param, ..."
-	  "-><s>?(<name>:function\\:<s>)<parameter>:list*(,<s><parameter>:list)<s>",
+	  "-><s>?(<name>:function\\:<s>)<parameter>*(,<s><parameter>)<s>",
 	  action_captures
 	},
 	{ "parameter",				// A parameter to an action
-	  "(|<reference>:param|<literal>:param)<s>",
+	  "(|<reference>:parameter|<literal>:parameter)<s>",
 	  parameter_captures
 	},
 	{ "reference",				// A reference (name sequence) to descendents of a match.
-	  "<name><s>*([.*]<s><name>)",		// . means only one, * means "all"
-	  0
+	  "<name><s>*([.*]:joiner<s><name>)",	// . means only one, * means "all"
+	  reference_captures
 	},
 	{ "alternates",				// Alternates:
 	  "|+(\\|<s><sequence>)"		// either a list of alternates each prefixed by |
@@ -446,6 +447,42 @@ parse_rule(PxParser::Source source)
 	return peg.parse(source);
 }
 
+StrVal generate_literal(StrVal literal)
+{
+	StrVal	s = literal.substr(1, literal.length()-2);
+
+	// Escape special characters:
+	s.transform(
+		[&](const UTF8*& cp, const UTF8* ep) -> StrVal
+		{
+			UCS4    ch = UTF8Get(cp);       // Get UCS4 character
+
+			// If the String is Unicode or a control-char, emit \u{...}
+			if (ch > 0xFF || ch < ' ')
+			{
+				StrVal	u("\\u{");
+				while (ch)
+				{
+					u.insert(3, "0123456789ABCDEF"[ch&0xF]);
+					ch >>= 4;
+				}
+				u += "}";
+				return u;
+			}
+
+			// If char is 8-bit but not special, return it unmolested:
+			if (ch >= ' '
+			 && 0 == strchr(PxParser::PegexpT::special, (char)ch))
+				return StrVal(ch);
+
+			// Backslash the string
+			return StrVal("\\")+ch;
+		}
+	);
+
+	return s;
+}
+
 StrVal generate_re(Variant re)
 {
 	if (re.get_type() == Variant::StrVarMap)
@@ -502,38 +539,7 @@ StrVal generate_re(Variant re)
 		}
 		else if (node_type == "literal")
 		{
-			StrVal	s = element.as_strval();
-			s = s.substr(1, s.length()-2);
-			// Escape special characters:
-			s.transform(
-				[&](const UTF8*& cp, const UTF8* ep) -> StrVal
-				{
-					UCS4    ch = UTF8Get(cp);       // Get UCS4 character
-
-					// If the String is Unicode or a control-char, emit \u{...}
-					if (ch > 0xFF || ch < ' ')
-					{
-						StrVal	u("\\u{");
-						while (ch)
-						{
-							u.insert(3, "0123456789ABCDEF"[ch&0xF]);
-							ch >>= 4;
-						}
-						u += "}";
-						return u;
-					}
-
-					// If char is 8-bit but not special, return it unmolested:
-					if (ch >= ' '
-					 && 0 == strchr(PxParser::PegexpT::special, (char)ch))
-						return StrVal(ch);
-
-					// Backslash the string
-					return StrVal("\\")+ch;
-				}
-			);
-
-			return s;
+			return generate_literal(element.as_strval());
 		}
 		else if (node_type == "property")
 		{
@@ -541,7 +547,30 @@ StrVal generate_re(Variant re)
 		}
 		else if (node_type == "atom")
 		{
-			return element.as_strval();
+			// atom can be:
+			// . (any character)
+			// 'string' (literal)
+			// name (subroutine call)
+			// \p Property
+			// [class] a character class
+			// a map containing an array of atoms in a group
+			if (element.get_type() == Variant::String)
+			{
+				StrVal	s = element.as_strval();
+				switch (s[0])
+				{
+				case '\'':
+					return generate_literal(s);
+				case '.': case '[': case '\\':
+					return s;
+				default:
+					return StrVal('<')+element.as_strval()+">";
+				}
+			}
+			else if (element.get_type() == Variant::StrVarMap)
+				return StrVal("(")+generate_re(element)+")";
+			else
+				assert(!"Unexpected atom type");
 		}
 	/* REVISIT: Complete these
 		else if (node_type == "param")
@@ -567,6 +596,28 @@ StrVal generate_re(Variant re)
 }
 
 StrVal
+generate_parameter(Variant parameter_map)
+{
+	StrVal		dquot("\"");
+	Variant		name_v = parameter_map.as_variant_map()["name"];
+
+	if (name_v.get_type() == Variant::String)
+		return dquot+name_v.as_strval()+dquot;
+
+	VariantArray	joiners = parameter_map.as_variant_map()["joiner"].as_variant_array();
+	VariantArray	names = name_v.as_variant_array();
+	StrVal		p(dquot);
+	for (int i = 0; i < names.length(); i++)
+	{
+		if (i)
+			p += joiners[i-1].as_strval();
+		p += names[i].as_strval();
+	}
+	p += dquot;
+	return p;
+}
+
+StrVal
 generate_parameters(Variant parameters)
 {
 	StrVal	p("{ ");
@@ -574,18 +625,21 @@ generate_parameters(Variant parameters)
 
 	// parameters might be an individual StrVariantMap or an array of them?
 	if (parameters.get_type() == Variant::VarArray)
-	{	// Extract the "reference" value from each element
+	{	// Extract the "parameter" value from each element
 		VariantArray	a = parameters.as_variant_array();
 		for (int i = 0; i < a.length(); i++)
 		{
 			if (i)
 				p += ", ";
-			p += dquot+a[i].as_variant_map()["reference"].as_strval()+dquot;
+			Variant	pn = a[i].as_variant_map()["parameter"];
+			p += generate_parameter(pn);
 		}
 	}
 	else	// type is Variant::StrVarMap
 	{
-		p += dquot+parameters.as_variant_map()["reference"].as_strval()+dquot;
+		// E.g. foo.bar*baz yields:
+		// { "parameter": { "joiner": [ ".", "*" ], "name": [ "foo", "bar", "baz" ] } }
+		p += generate_parameter(parameters.as_variant_map()["parameter"]);
 	}
 	p += " }";
 	return p;

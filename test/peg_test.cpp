@@ -268,7 +268,7 @@ protected:
 	PegTestFailures	failures;	// A Failure for each atom tried at furthermost_success location
 };
 
-typedef	Peg<PegTestSource, PegTestMatch, PegContext>	TestPeg;
+typedef	Peg<PegTestSource, PegTestMatch, PegContext>	PxParser;
 
 void usage()
 {
@@ -301,18 +301,19 @@ char* slurp_file(const char* filename, off_t* size_p)
 // It's a pity that C++ has no way to initialise these string arrays inline:
 const char*	TOP_captures[] = { "rule", 0 };
 const char*	rule_captures[] = { "name", "alternates", "action" };
-const char*	action_captures[] = { "function", "list", 0 };
-const char*	parameter_captures[] = { "param", 0 };
+const char*	action_captures[] = { "function", "parameter", 0 };
+const char*	parameter_captures[] = { "parameter", 0 };
+const char*	reference_captures[] = { "name", "joiner", 0 };
 const char*	alternates_captures[] = { "sequence", 0 };
 const char*	sequence_captures[] = { "repetition", 0 };
 const char*	repeat_count_captures[] = { "limit", 0 };
 const char*	count_captures[] = { "val", 0 };
 const char*	repetition_captures[] = { "repeat_count", "atom", "label", 0 };
 const char*	label_captures[] = { "name", 0 };
-const char*	atom_captures[] = { "a", 0 };
+const char*	atom_captures[] = { "atom", 0 };
 const char*	group_captures[] = { "alternates", 0 };
 
-TestPeg::Rule	rules[] =
+PxParser::Rule	rules[] =
 {
 	{ "blankline",				// A line containing no printing characters
 	  "\\n*[ \\t\\r](|\\n|!.)",
@@ -329,7 +330,9 @@ TestPeg::Rule	rules[] =
 	},
 	{ "TOP",				// Start; a repetition of zero or more rules
 	  "*<space>*<rule>:rule",
+	  // "*<space><rule>:rule",		// Parse one rule at a time
 	  TOP_captures
+	  // { "rule" }				// -> rule
 	},
 	{ "rule",				// Rule: name of a rule that matches one or more alternates
 	  "<name><s>=<s>"
@@ -338,16 +341,16 @@ TestPeg::Rule	rules[] =
 	  rule_captures
 	},
 	{ "action",				// Looks like "-> function: param, ..."
-	  "-><s>?(<name>:function\\:<s>)<parameter>:list*(,<s><parameter>:list)<s>",
+	  "-><s>?(<name>:function\\:<s>)<parameter>*(,<s><parameter>)<s>",
 	  action_captures
 	},
 	{ "parameter",				// A parameter to an action
-	  "(|<reference>:param|<literal>:param)<s>",
+	  "(|<reference>:parameter|<literal>:parameter)<s>",
 	  parameter_captures
 	},
 	{ "reference",				// A reference (name sequence) to descendents of a match.
-	  "<name><s>*([.*]<s><name>)",		// . means only one, * means "all"
-	  0
+	  "<name><s>*([.*]:joiner<s><name>)",	// . means only one, * means "all"
+	  reference_captures
 	},
 	{ "alternates",				// Alternates:
 	  "|+(\\|<s><sequence>)"		// either a list of alternates each prefixed by |
@@ -376,12 +379,12 @@ TestPeg::Rule	rules[] =
 	  label_captures
 	},
 	{ "atom",
-	  "|\\.:a"				// Any character
-	  "|<name>:a"				// call to another rule
-	  "|<property>:a"			// A character property
-	  "|<literal>:a"			// A literal
-	  "|<class>:a"				// A character class
-	  "|<group>:a",
+	  "|\\.:atom"				// Any character
+	  "|<name>:atom"			// call to another rule
+	  "|<property>:atom"			// A character property
+	  "|<literal>:atom"			// A literal
+	  "|<class>:atom"			// A character class
+	  "|<group>:atom",
 	  atom_captures
 	},
 	{ "group",
@@ -425,12 +428,12 @@ TestPeg::Rule	rules[] =
 	},
 };
 
-TestPeg::Match
+PxParser::Match
 parse_file(char* text)
 {
-	TestPeg		peg(rules, sizeof(rules)/sizeof(rules[0]));
+	PxParser		peg(rules, sizeof(rules)/sizeof(rules[0]));
 
-	TestPeg::Source	source(text);
+	PxParser::Source	source(text);
 	return peg.parse(source);
 }
 
@@ -440,7 +443,7 @@ parse_and_report(const char* filename)
 	off_t	file_size;
 	char*	text = slurp_file(filename, &file_size);
 
-	TestPeg::Match match = parse_file(text);
+	PxParser::Match match = parse_file(text);
 
 	int		bytes_parsed;
 

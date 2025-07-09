@@ -30,16 +30,16 @@ rule =
 action =				// An action says which bits of a rule to capture
 	'->' s
 	  ?(name:function ':' s)	// I'm not sure that function is needed here
-	  parameter:list *(',' s parameter:list) s
-	-> function, list
+	  parameter *(',' s parameter) s
+	-> function, parameter
 
 parameter =
-	(| reference:param | literal:param) s	// A parameter to an action
-	-> param
+	(| reference:parameter | literal:parameter) s	// A parameter to an action
+	-> parameter
 
 reference =
-	name *([.*] s name)		// Name/Path of a subrule or labelled atom to capture
-	-> name
+	name *([.*]:joiner s name)	// Name/Path of a subrule or labelled atom to capture
+	-> name, joiner
 
 alternates =
 	| +('|' s sequence)		// Either a list of alternates
@@ -71,7 +71,7 @@ label =
 	-> name
 
 atom =
-	| '.':atom			// Any character
+	| '.':atom			// The "Any" character
 	| name:atom			// call to another rule
 	| literal:atom			// A literal
 	| property:atom			// A character property
