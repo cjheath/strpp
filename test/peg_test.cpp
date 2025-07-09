@@ -146,8 +146,7 @@ public:
 				existing = Variant(&existing, 1);	// Convert it to an array
 			VariantArray va = existing.as_variant_array();
 			va += r.var;		// This Unshares va from the entry stored in the map, so
-			ast.erase(key);		// Remove that
-			ast.insert(key, va);	// and save the new version
+			ast.put(key, va);	// replace it with this value
 			existing = ast[key];
 		}
 		else	// Insert the match as the first element in an array, or just as itself:
