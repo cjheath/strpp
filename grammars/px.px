@@ -1,85 +1,113 @@
-// Pegexp grammar; a prefix Backus-Naur form.
-EOF		= !.
+// Px grammar for the Px grammar-specification language.
+// Px is a Backus-Naur form with operators in prefix position
 
-// Whitespace may include an end-of-line, or a //comment to eol, but not a blank line (two newlines separated by nothing but whitespace)
-blankline	= '\n' *[ \t\r] (|'\n' | EOF)		// A line containing no printing characters (ends with newline or EOF)
+EOF =					// End of file is where nothing follows
+	!.
 
-space		=| [ \t\r\n]				// Any single whitespace
-		 | '//' *[^\n]				// including a comment to end-of-line
+// space may include an end-of-line, or a //comment to eol
+space =
+	| [ \t\r\n]			// Any single whitespace
+	| '//' *[^\n]			// including a comment to end-of-line
 
-s		= *( !blankline space )			// Any space not including a blankline
+// A blankline is defined as two newlines separated by nothing but whitespace
+blankline =
+	'\n' *[ \t\r] (| '\n' | EOF)
 
-TOP		= *space *rule
-		-> rule
+// optional embedded whitespace is any amount of space not including a blank line
+s =
+	*(!blankline space)		// Any space not including a blankline
 
-rule		= name s '=' s				// Rule: name of a rule that matches one or more alternates
-		alternates ?action			// and perhaps has an action.
-		blankline *space			// It ends in a blank line
-		-> name, alternates, action
+TOP =					// This grammar expects some rules
+	*space *rule
+	-> rule
 
-action		= '->' s
-		  ?(name:function ':' s )		// REVISIT: I'm not sure that function is needed here
-		  parameter:list *( ',' s parameter:list ) s
-		-> function, list
+rule =
+	name s '=' s			// A named rule matches...
+	alternates ?action		// alternates perhaps followed by an action
+	blankline *space		// and ends in a blank line
+	-> name, alternates, action
 
-parameter	= ( |reference:param |literal:param ) s	// A parameter to an action
-		-> param
+action =				// An action says which bits of a rule to capture
+	'->' s
+	  ?(name:function ':' s)	// I'm not sure that function is needed here
+	  parameter:list *(',' s parameter:list) s
+	-> function, list
 
-reference	= name					// A reference to a result (which may be inside a repetition)
+parameter =
+	(| reference:param | literal:param) s	// A parameter to an action
+	-> param
 
-alternates	=| +('|' s sequence)			// Either a list of alternates
-		 | sequence				// or just one alternate
-		-> sequence
+reference =
+	name *([.*] s name)		// Name/Path of a subrule or labelled atom to capture
+	-> name
 
-sequence	= *repetition
-		-> repetition
+alternates =
+	| +('|' s sequence)		// Either a list of alternates
+	| sequence			// or just one alternate
+	-> sequence
 
-repeat_count	=| [?*+!&]:limit s			// zero or one, zero or more, one or more, none
-		 | count:limit
-		-> limit
+sequence =
+	*repetition
+	-> repetition
 
-count		= '{' (|(+\d):val |name:val) s '}' s	// {literal count or reference to a saved variable}
-		-> val
+repeat_count =
+	| [?*+!&]:limit s		// zero or one, zero or more, one or more, none
+	| count:limit			// Either a number literal or a variable reference
+	-> limit
 
-repetition	= ?repeat_count				// How many times must the following be seen
-		  atom
-		  ?label
-		  s
-		  -> repetition: repeat_count, atom, label
+count =
+	'{' (| (+\d):val | name:val) s '}' s	// {literal count or reference to a saved variable}
+	-> val
 
-label		= ':' name				// Apply a name to the previous atom
-		-> name
+repetition =
+	?repeat_count			// How many times must the following be seen
+	atom
+	?label
+	s
+	-> repetition: repeat_count, atom, label
 
-atom		=| '.':atom				// Any character
-		 | name:atom				// call to another rule
-		 | literal:atom				// A literal
-		 | property:atom			// A character property
-		 | class:atom				// A character class
-		 | group:atom
-		 -> atom
+label =
+	':' name			// Apply a name to the previous atom
+	-> name
 
-group		= '(' s +alternates ')'			// A parenthesised group
-		-> alternates
+atom =
+	| '.':atom			// Any character
+	| name:atom			// call to another rule
+	| literal:atom			// A literal
+	| property:atom			// A character property
+	| class:atom			// A character class
+	| group:atom
+	-> atom
+
+group =
+	'(' s +alternates ')'		// A parenthesised group
+	-> alternates
 
 // Character properties here: \a = any letter, \w = any letter or digit
-name		= [\a_] *[\w_]
+name =
+	[\a_] *[\w_]
 
-literal		= ['] *(!['] literal_char) [']
+literal =
+	['] *(!['] literal_char) [']
 
-literal_char	=| '\\' (
-			| ?[0-3] [0-7] ?[0-7]		// octal character constant
-			| 'x\h' ?\h			// hex character \x12
-			| 'x{' +\h '}'			// hex character \x{...}
-			| 'u' ?[01] \h ?\h ?\h ?\h	// Unicode character \u12345
-			| 'u{' +\h '}'	 		// Unicode character \u{...}
-			| [^\\n]			// other special escape except newline
-			)
-		| [^\\\n]				// any normal character except backslash or newline
+literal_char =
+	| '\\'
+	  (| ?[0-3] [0-7] ?[0-7]	// octal character constant
+	   | 'x\h' ?\h			// hex character \x12
+	   | 'x{' +\h '}'		// hex character \x{...}
+	   | 'u' ?[01] \h ?\h ?\h ?\h	// Unicode character \u12345
+	   | 'u{' +\h '}'		// Unicode character \u{...}
+	   | [^\\n] )			// other special escape except newline
+	| [^\\\n]			// any normal character except backslash or newline
 
-property	= '\\' [adhsw] s			// alpha, digit, hexadecimal, whitespace, word (alpha or digit)
+property =
+	'\\' [adhsw] s			// alpha, digit, hexadecimal, whitespace, word (alpha or digit)
 
-class		= '[' ?'^' ?'-' +class_part ']'		// A character class
+class =
+	'[' ?'^' ?'-' +class_part ']'	// a character class
 
-class_part	= !']' class_char ?( '-' !']' class_char )
+class_part =
+	!']' class_char ?('-' !']' class_char)
 
-class_char	= ![-\]] literal_char
+class_char =
+	![-\]] literal_char
