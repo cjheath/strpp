@@ -65,6 +65,14 @@ public:
 			{ Unshare(); body->insert(BaseVP(k, v)); }
 	void	erase(const Key& k)
 			{ Unshare(); body->erase(k); }
+	Key	put(const Key& k, Value v)
+			{
+				auto search = find(k);
+				if (search != end())
+					erase(k);
+				insert(k, v);
+				return k;
+			}
 
 private:
 	Ref<Body>	body;		// The storage structure for the elements
