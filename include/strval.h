@@ -1018,7 +1018,7 @@ template<typename Index>
 void
 StrBodyI<Index>::toJSON()
 {
-	UTF8		one_char[12];
+	UTF8		one_char[14];			// \u{12345678} or \u1234\u4321
 	StrBodyI	temp_body;
 	static const char hex[] = "0123456789ABCDEF";
 
@@ -1031,6 +1031,12 @@ StrBodyI<Index>::toJSON()
 			{
 			case '\0':	// Null Byte
 				*op++ = '\\'; *op++ = '0'; break;
+			case '\"':	// Double quote
+				*op++ = '\\'; *op++ = '\"'; break;
+			case '\\':	// Backslash character
+				*op++ = '\\'; *op++ = '\\'; break;
+			case '/':	// Forward slash
+				*op++ = '\\'; *op++ = '/'; break;
 			case '\b':	// Backspace
 				*op++ = '\\'; *op++ = 'b'; break;
 			case '\f':	// Form Feed
@@ -1041,47 +1047,39 @@ StrBodyI<Index>::toJSON()
 				*op++ = '\\'; *op++ = 'r'; break;
 			case '\t':	// Tab
 				*op++ = '\\'; *op++ = 't'; break;
-			case '\v':	// Vertical tab
-				*op++ = '\\'; *op++ = 'v'; break;
-			case '\'':	// Apostrophe or single quote
-				*op++ = '\\'; *op++ = '\''; break;
-			case '\"':	// Double quote
-				*op++ = '\\'; *op++ = '\"'; break;
-			case '\\':	// Backslash character
-				*op++ = '\\'; *op++ = '\\'; break;
 
 			default:
-				if (ch >= ' ' && ch < 128)
+				// JSON allows direct representation of any legal code point that's not
+				// a control-char, \, ' or a surrogate, but we don't have to do that.
+
+				// if (ch >= ' ' && ch < 128)					// ASCII but not ctl
+				// if (ch >= ' ' && ch < 256)					// ISO8859-1 but not ctl
+				if (ch >= ' ' && ch <= 0xFFFF && (ch & ~0x7FF) != 0xD800)	// Not ctl, emoji or surrogate 
 				{
-					*op++ = ch;
+					UTF8Put(op, ch);
 					break;
 				}
 
-				*op++ = '\\';
-
-				// Else use \xXX for a single Latin1 byte or \uXXXX or \u{XXXXX}
-				if (ch < 256)
-				{
-					*op++ = 'x';
-					*op++ = hex[(ch>>4)&0xF];
-					*op++ = hex[ch&0xF];
+				// Use \u1234 format, as a surrogate pair if needed, per JSON spec
+				auto	u4 = [](unsigned short u, UTF8*& op){
+						*op++ = '\\';
+						*op++ = 'u';
+						*op++ = hex[(u>>12)&0xF];
+						*op++ = hex[(u>>8)&0xF];
+						*op++ = hex[(u>>4)&0xF];
+						*op++ = hex[u&0xF];
+					};
+				if (ch <= 0xFFFF)
+				{		// Character fits in one \u escape
+					u4(ch, op);
 					break;
 				}
 
-				// Fall back to 4 or 5-character Unicode
-				*op++ = 'u';
-				if (ch >= 65536)
-				{
-					*op++ = '{';
-					*op++ = hex[(ch>>16)&0xF];
-				}
-				*op++ = hex[(ch>>12)&0xF];
-				*op++ = hex[(ch>>8)&0xF];
-				*op++ = hex[(ch>>4)&0xF];
-				*op++ = hex[(ch>>4)&0xF];
-				*op++ = hex[ch&0xF];
-				if (ch >= 65536)
-					*op++ = '}';
+				// We need two surrogates.
+				assert(ch <= 0xFFFFF);
+				// Surrogate pair: D800 to DBFF, Low surrogate: D800 to DBFF
+				u4(0xD800+((ch>>10)&0x3FF), op);
+				u4(0xDC00+(ch&0x3FF), op);
 				break;
 			}
 			*op = '\0';
