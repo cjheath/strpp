@@ -198,7 +198,7 @@ public:
 			{
 				assert(s1.num_alloc == 0);	// Must not do this if we would make two references to allocated data
 				start = s1.start;
-				this->ArrayBody<Index>::AddRef();	// Ensure we don't get deleted
+				this->AddRef();			// Ensure we don't get deleted
 				num_chars = s1.num_chars;
 				num_elements = s1.num_elements;
 				num_alloc = 0;

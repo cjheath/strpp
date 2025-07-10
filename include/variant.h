@@ -172,7 +172,9 @@ public:
 		char	buf[2+sizeof(long long)*5/2];	// long enough for decimal long long, sign and nul
 		switch (type)
 		{
-		default:		break;
+		default:                
+			return "REVISIT: Data corruption (Variant::type)";
+
 		case None:		// FALL THROUGH
 			return "null";
 
