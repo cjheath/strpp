@@ -1,10 +1,26 @@
 ## strpp - StringPlusPlus - pronounced "strip"
 
-A value-oriented C++ library implementing Array and string slices, Unicode processing and pattern-matching.
+A value-oriented C++ library implementing maps, arrays and strings, with
+slices, Unicode processing, a Variant type, pattern-matching and parsing.
 
-This lightweight template library eschews the complexity and memory impost of the standard template library,
-allowing it to provide efficient but advanced functionality on machines with restricted memory, such as embedded systems.
-It makes use of atomic counted references to shared objects which are copied to a single reference before mutation.
+This lightweight library implements *value semantics* on shared objects
+and sliced arrays using atomic reference-counting with copy-on-write.
+
+Values may be passed by (atomically) copying references, which means you
+can pass or "copy" complex structures cheaply without fear of aliasing,
+memory leaks, or object lifetime violations.
+
+A ReDOS-safe (Thompson algorithm) implementation of regular expressions
+is provided, but is deprecated in favour of greedy PEG expressions
+with look-ahead assertions, which do not require a compilation step for
+efficient execution. These _Pegular expressions_ are composed into full
+PEG grammars with a parser generator, and can use the Variant class
+to construct Abstract Syntax Trees for any grammar specified in the
+Px language.
+
+Designed to minimise dynamic memory allocation, _strpp_ provides efficient
+but advanced functionality on machines with restricted memory, such as
+many embedded systems.
 
 ## Raw Unicode character processing
 
@@ -16,15 +32,22 @@ typedef uint16_t	UTF16;		// Used in Unicode 2, and 3 with surrogates
 typedef	char32_t	UCS4;		// A UCS4 character, aka UTF-32, aka Rune
 </pre>
 
-The full 32-bit range of UCS4 may be encoded using six-byte UTF-8 (not just 31 bits as in some implementations).
-But beware, because an illegal UTF-8 sequence is processed as a series of replacement characters, encoded as
-the `xx` bits in 0x800000xx. In this way there is no need for an exception to be thrown on an illegal sequence.
+The full 32-bit range of UCS4 may be encoded using six-byte UTF-8
+(not just 31 bits as in some implementations).  But beware, because an
+illegal UTF-8 sequence is processed as a series of replacement characters,
+encoded as the `xx` bits in 0x800000xx. In this way there is no need for
+an exception to be thrown on an illegal sequence.
 
-A number of functions deal with classifying UCS4 values. A short list is here, but read the header file for details.
-UCS4IsAlphabetic, UCS4IsIdeographic, UCS4IsDecimal, UCS4Digit, UCS4ToUpper, UCS4ToLower, UCS4ToTitle,
-UCS4IsWhite, UCS4IsASCII, UCS4IsLatin1, UCS4IsUTF16, UCS4IsUnicode, and others.
+A number of functions deal with classifying UCS4 values. A short list
+is here, but read the header file for details:
 
-The actual classification functions use reduced tables. You might wish to expand these for fully legal Unicode processing.
+UCS4IsAlphabetic, UCS4IsIdeographic, UCS4IsDecimal, UCS4Digit, UCS4ToUpper,
+UCS4ToLower, UCS4ToTitle, UCS4IsWhite, UCS4IsASCII, UCS4IsLatin1,
+UCS4IsUTF16, UCS4IsUnicode, and others.
+
+The actual classification functions use reduced tables. You might wish
+to expand these for fully legal Unicode processing (or a future implementation
+may provide them as a compile-time option).
 
 There are three useful inline functions for dealing with UTF8 pointers:
 <pre>
@@ -45,10 +68,15 @@ It includes:
 - a <strong>const char*</strong> to a default message text format string
 - an optional counted reference to an array of variable typed arguments to be inserted into a format string (this array type is not yet implemented)
 
-Error and the ErrNum class has a constexpr cast to <strong>int32_t</strong> which allows the values to be used in switch statements.
-The actual number is made up of a 16-bit subsystem identifier (a message set number) and a 14-bit message number within that set.
-Message Numbers in each set should be defined in a message catalog file, and generated to #defines in a header file.
-The intention is that each message may contain text in one or more natural languages, allowing a message to be formatted with parameter values in the user's locale.
+Error and the ErrNum class has a constexpr cast to <strong>int32_t</strong>
+which allows the values to be used in switch statements.  The actual
+number is made up of a 16-bit subsystem identifier (a message set number)
+and a 14-bit message number within that set.  Message Numbers in each set
+should be defined in a message catalog file, and generated to #defines
+in a header file.  The intention is that each message may contain text
+in one or more natural languages, allowing a message to be formatted with
+parameter values in the user's locale.
+
 The tooling to automate this will be included in this repository later.
 
 Example:
