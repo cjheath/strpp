@@ -29,7 +29,7 @@ do
 
 			if [ "$verbose" = "-v" ]
 			then
-				$verbose_echo "$pegexp1	$text1	$offset1	$result1	$comment" |
+				$verbose_echo "$pegexp	$text	$offset1	$result1	$comment" |
 					expand -t 32,48,56,64 |unexpand -a
 			fi
 

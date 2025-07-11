@@ -159,7 +159,8 @@ UCS4ToUpper(UCS4 ch)
 		}
 	}
 
-	if (ch >= UnicodeToUpper[hi].firstchar
+	if (hi >= 0
+	 && ch >= UnicodeToUpper[hi].firstchar
 	 && ch <= UnicodeToUpper[hi].lastchar)
 	{
 		last_memo = hi;
@@ -201,7 +202,8 @@ UCS4ToLower(UCS4 ch)
 		}
 	}
 
-	if (ch >= UnicodeToLower[hi].firstchar
+	if (hi >= 0
+	 && ch >= UnicodeToLower[hi].firstchar
 	 && ch <= UnicodeToLower[hi].lastchar)
 	{
 		last_memo = hi;
