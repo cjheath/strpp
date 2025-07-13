@@ -225,7 +225,7 @@ StrVal generate_literal(StrVal literal)
 
 StrVal generate_re(Variant re)
 {
-	if (re.get_type() == Variant::StrVarMap)
+	if (re.type() == Variant::StrVarMap)
 	{
 		assert(re.as_variant_map().size() == 1);
 
@@ -248,11 +248,11 @@ StrVal generate_re(Variant re)
 				StrVariantMap	repetition = repetitions[i].as_variant_map();
 				Variant		atom = repetition["atom"];
 				Variant		repeat_count = repetition["repeat_count"]; // Maybe None
-				if (repeat_count.get_type() != Variant::None)
+				if (repeat_count.type() != Variant::None)
 					ret += repeat_count.as_variant_map()["limit"].as_strval();
 				ret += generate_re(atom);
 				Variant		label = repetition["label"];	// Maybe None
-				if (label.get_type() != Variant::None)
+				if (label.type() != Variant::None)
 					ret += StrVal(":")+label.as_variant_map()["name"].as_strval()+":";
 			}
 			return ret;
@@ -294,7 +294,7 @@ StrVal generate_re(Variant re)
 			// \p Property
 			// [class] a character class
 			// a map containing an array of atoms in a group
-			if (element.get_type() == Variant::String)
+			if (element.type() == Variant::String)
 			{
 				StrVal	s = element.as_strval();
 				switch (s[0])
@@ -307,7 +307,7 @@ StrVal generate_re(Variant re)
 					return StrVal('<')+element.as_strval()+">";
 				}
 			}
-			else if (element.get_type() == Variant::StrVarMap)
+			else if (element.type() == Variant::StrVarMap)
 				return StrVal("(")+generate_re(element)+")";
 			else
 				assert(!"Unexpected atom type");
@@ -320,7 +320,7 @@ StrVal generate_re(Variant re)
 		else	// Report incomplete node type:
 			return StrVal("INCOMPLETE<") + node_type + ">=" + element.as_json(-2);
 	}
-	else if (re.get_type() == Variant::VarArray)
+	else if (re.type() == Variant::VarArray)
 	{
 		VariantArray	va = re.as_variant_array();
 		StrVal	ret;
@@ -341,7 +341,7 @@ generate_parameter(Variant parameter_map)
 	StrVal		dquot("\"");
 	Variant		name_v = parameter_map.as_variant_map()["name"];
 
-	if (name_v.get_type() == Variant::String)
+	if (name_v.type() == Variant::String)
 		return dquot+name_v.as_strval()+dquot;
 
 	VariantArray	joiners = parameter_map.as_variant_map()["joiner"].as_variant_array();
@@ -364,7 +364,7 @@ generate_parameters(Variant parameters)
 	StrVal	dquot("\"");
 
 	// parameters might be an individual StrVariantMap or an array of them?
-	if (parameters.get_type() == Variant::VarArray)
+	if (parameters.type() == Variant::VarArray)
 	{	// Extract the "parameter" value from each element
 		VariantArray	a = parameters.as_variant_array();
 		for (int i = 0; i < a.length(); i++)
@@ -399,7 +399,7 @@ void emit_rule(Variant _rule)
 
 	printf("Rule: %s =\n\t%s\n", vr.as_strval().asUTF8(), re.asUTF8());
 
-	if (vact.get_type() != Variant::None)
+	if (vact.type() != Variant::None)
 	{
 		// REVISIT: parameters are requested as "list" but saved as "parameter" - why?
 		StrVal		parameters = generate_parameters(vact.as_variant_map()["parameter"]);
@@ -421,7 +421,7 @@ typedef	CowMap<bool> 	StringSet;
  */
 void accumulate_called_rules(StringSet& called, Variant re)
 {
-	if (re.get_type() == Variant::StrVarMap)
+	if (re.type() == Variant::StrVarMap)
 	{
 		assert(re.as_variant_map().size() == 1);	// There is only one entry in the map
 		StrVariantMap	map = re.as_variant_map();
@@ -449,7 +449,7 @@ void accumulate_called_rules(StringSet& called, Variant re)
 			}
 		}
 	}
-	else if (re.get_type() == Variant::VarArray)
+	else if (re.type() == Variant::VarArray)
 	{
 		VariantArray	va = re.as_variant_array();
 		for (int i = 0; i < va.length(); i++)

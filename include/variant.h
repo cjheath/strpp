@@ -1,7 +1,7 @@
 #if !defined(VARIANT_H)
 #define VARIANT_H
 /*
- * Variant data type
+ * Variant data type.
  */
 #include <assert.h>
 #include <cstdio>
@@ -45,39 +45,39 @@ public:
 
 	// Constructors of various types:
 	Variant()							// None
-	{ type = None; }
+	{ _type = None; }
 	Variant(int _i)							// Integer
-	{ type = Integer; u.i = _i; }
+	{ _type = Integer; u.i = _i; }
 	Variant(long _l)						// Long
-	{ type = Long; u.l = _l; }
+	{ _type = Long; u.l = _l; }
 	Variant(long long _ll)						// LongLong
-	{ type = LongLong; u.ll = _ll; }
+	{ _type = LongLong; u.ll = _ll; }
 	Variant(StrVal v)						// StrVal
-	{ type = String; new(&u.str) StrVal(v); }
+	{ _type = String; new(&u.str) StrVal(v); }
 	Variant(StrArray a)						// StringArray
-	{ type = StringArray; new(&u.str_arr) StrArray(a); }
+	{ _type = StringArray; new(&u.str_arr) StrArray(a); }
 	Variant(StrVal* v, StrArray::Index count)
-	{ type = StringArray; new(&u.str_arr) StrArray(v, count); }
+	{ _type = StringArray; new(&u.str_arr) StrArray(v, count); }
 	Variant(VariantArray a)						// VarArray
-	{ type = VarArray; new(&u.str_arr) VariantArray(a); }
+	{ _type = VarArray; new(&u.str_arr) VariantArray(a); }
 	Variant(Variant* v, VariantArray::Index count)
-	{ type = VarArray; new(&u.var_arr) VariantArray(v, count); }
+	{ _type = VarArray; new(&u.var_arr) VariantArray(v, count); }
 	Variant(StrVal* keys, Variant* values, StrArray::Index count)	// StrVarMap
-	{ 	type = StrVarMap;
+	{ 	_type = StrVarMap;
 		new(&u.var_map) StrVariantMap();
 		for (StrArray::Index i = 0; i < count; i++)
 			u.var_map.insert(keys[i], values[i]);
 	}
 	Variant(StrVariantMap map)					// StrVarMap
-	{ type = StrVarMap; u.var_map = map; }
+	{ _type = StrVarMap; u.var_map = map; }
 
-	// Default-initialise any type
+	// Default-initialise any _type
 	Variant(VariantType t)
 	{
-		type = t;
+		_type = t;
 		switch (t)
 		{
-		default: type = None;	// FALL THROUGH
+		default: _type = None;	// FALL THROUGH
 		case None:		// FALL THROUGH
 		case Integer:		// FALL THROUGH
 		case Long:		// FALL THROUGH
@@ -93,9 +93,9 @@ public:
 
 	// Copy constructor: No previous value exists.
 	Variant(const Variant& v)
-	: type(v.type)
+	: _type(v._type)
 	{
-		switch (v.type)
+		switch (v._type)
 		{
 		default:		break;
 		case None:		break;
@@ -113,7 +113,7 @@ public:
 	Variant& operator=(const Variant v)
 	{
 		coerce_none();
-		switch (v.type)
+		switch (v._type)
 		{
 		default:		break;
 		case None:		break;
@@ -125,11 +125,11 @@ public:
 		case VarArray:		new(&u.var_arr) VariantArray(v.as_variant_array()); break;
 		case StrVarMap:		new(&u.var_map) StrVariantMap(v.as_variant_map()); break;
 		}
-		type = v.type;
+		_type = v._type;
 		return *this;
 	}
 
-	// For const references (e.g. when copying) we cannot coerce the type, just assert if it's wrong
+	// For const references (e.g. when copying) we cannot coerce the _type, just assert if it's wrong
 	const int&		as_int() const { must_be(Integer); return u.i; }
 	const long&		as_long() const { must_be(Long); return u.l; }
 	const long long&	as_longlong() const { must_be(LongLong); return u.ll; }
@@ -146,13 +146,13 @@ public:
 	VariantArray		as_variant_array() { coerce(VarArray); return u.var_arr; }
 	StrVariantMap		as_variant_map() { coerce(StrVarMap); return u.var_map; }
 
-	VariantType		get_type() const { return type; }
+	VariantType		type() const { return _type; }
 
-	bool			is_null() const { return type == None; }
+	bool			is_null() const { return _type == None; }
 	const char*		type_name() const
 	{
-		if (type >= None && type <= VariantTypeMax)
-			return type_names[type];
+		if (_type >= None && _type <= VariantTypeMax)
+			return type_names[_type];
 		return "Corrupt type";
 	}
 
@@ -170,10 +170,10 @@ public:
 		}
 
 		char	buf[2+sizeof(long long)*5/2];	// long enough for decimal long long, sign and nul
-		switch (type)
+		switch (_type)
 		{
 		default:                
-			return "REVISIT: Data corruption (Variant::type)";
+			return "REVISIT: Data corruption (Variant::_type)";
 
 		case None:		// FALL THROUGH
 			return "null";
@@ -230,7 +230,7 @@ protected:
 	// Discard any value and nullify the type
 	void	coerce_none()
 	{
-		switch (type)
+		switch (_type)
 		{
 		default:		break;
 		case None:		// FALL THROUGH
@@ -244,12 +244,12 @@ protected:
 		case VarArray:		u.var_arr.~VariantArray(); break;
 		case StrVarMap:		u.var_map.~StrVariantMap(); break;
 		}
-		type = None;
+		_type = None;
 	}
 
 	void	coerce(VariantType new_type)
 	{
-		VariantType	old_type = type;
+		VariantType	old_type = _type;
 
 		if (old_type == new_type)
 			return;		// Nothing to do
@@ -277,7 +277,7 @@ protected:
 					if (!e)				// Some error in conversion
 						break;
 					u.i = i32;
-					type = new_type;
+					_type = new_type;
 					return;
 			case None:		// FALL THROUGH
 			case StringArray:	// FALL THROUGH
@@ -298,7 +298,7 @@ protected:
 					if (!e)				// Some error in conversion
 						break;
 					u.l = i32;
-					type = new_type;
+					_type = new_type;
 					return;
 			case None:		// FALL THROUGH
 			case StringArray:	// FALL THROUGH
@@ -318,7 +318,7 @@ protected:
 					if (e)				// Some error in conversion
 						break;
 					u.ll = i32;
-					type = new_type;
+					_type = new_type;
 					return;
 			case None:		// FALL THROUGH
 			case StringArray:	// FALL THROUGH
@@ -360,13 +360,13 @@ protected:
 	// Type assertion:
 	void	must_be(VariantType t) const
 	{
-		if (type == t)
+		if (_type == t)
 			return;
-		printf("Expected %s, got type %s\n", type_names[t], type_names[type]);
+		printf("Expected %s, got type %s\n", type_names[t], type_names[_type]);
 		assert(!"Mismatched type");
 	}
 
-	VariantType		type;
+	VariantType		_type;
 	union u
 	{
 		int		i;

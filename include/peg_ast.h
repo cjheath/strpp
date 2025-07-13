@@ -65,7 +65,7 @@ public:
 	{ }
 
 	bool		is_failure() const
-			{ return var.get_type() == Variant::None; }
+			{ return var.type() == Variant::None; }
 
 	Variant		var;
 
@@ -132,14 +132,14 @@ public:
 		Variant		value(r.var);
 		Variant		existing;
 
-		if (value.get_type() == Variant::String && value.as_strval().length() == 0)
+		if (value.type() == Variant::String && value.as_strval().length() == 0)
 			return num_captures;
 
 		// If this rule captures one item only, collapse the AST:
 		if (rule->captures && rule->captures[0] && rule->captures[1] == 0)
 		{	// Only one thing is being captured here. Don't nest it, return it.
 #if 0
-			if (value.get_type() == Variant::StrVarMap
+			if (value.type() == Variant::StrVarMap
 			 && value.as_variant_map().size() == 1)
 			{	// This map has only one entry. Return that
 				auto	entry = value.as_variant_map().begin();
@@ -152,7 +152,7 @@ public:
 				key = entry->first;
 
 #ifdef FLATTEN_ARRAYS
-				if (value.get_type() == Variant::VarArray
+				if (value.type() == Variant::VarArray
 				 && value.as_variant_array().length() == 1)
 				{
 					printf("flattening array\n");
@@ -167,7 +167,7 @@ public:
 		if (ast.contains(key))
 		{		// There are previous captures under this name
 			existing = ast[key];
-			if (existing.get_type() != Variant::VarArray)
+			if (existing.type() != Variant::VarArray)
 				existing = Variant(&existing, 1);	// Convert it to an array
 			VariantArray va = existing.as_variant_array();
 			va += value;		// This Unshares va from the entry stored in the map, so
