@@ -7,6 +7,8 @@
  */
 #include	<char_encoding.h>
 
+// A text pointer class which understands UTF-8 and will not advance beyond a Nul character
+// Incrementing and decrementing the pointer works in UTF-8 characters
 class	NulGuardedUTF8Ptr
 {
 protected:
@@ -63,6 +65,7 @@ public:
 	long		operator-(const char* cp)	{ return data-cp; }
 };
 
+// Similar, but will never back up before the origin either.
 class	GuardedUTF8Ptr
 : public NulGuardedUTF8Ptr
 {

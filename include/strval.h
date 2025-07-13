@@ -9,6 +9,9 @@
  * - Character indexing, not byte offsets
  * - Efficient forward and backward scanning using bookmarks to assist
  *
+ * You can cheaply pass a StrVal by copying (and should not pass by reference except for "out" parameters).
+ * The body of the string is shared but will be copied to isolate it from any other StrVals before mutation.
+ *
  * Not yet:
  * - Unicode normalization (de/composition), see https://en.wikipedia.org/wiki/Unicode_equivalence
  *

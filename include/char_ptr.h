@@ -54,6 +54,7 @@ public:
 	long			operator-(const char* cp)	{ return data-cp; }
 };
 
+// Will not advance past a Nul (\0) character:
 class	NulGuardedCharPtr
 : public UnGuardedCharPtr
 {
@@ -88,6 +89,7 @@ public:
 	long			operator-(const char* s)	{ return data-s; }
 };
 
+// Will not advance beyond a Nul or retreat before the original start:
 class	GuardedCharPtr
 : public NulGuardedCharPtr
 {

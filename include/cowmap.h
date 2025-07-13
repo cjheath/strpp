@@ -2,6 +2,11 @@
 #define COWMAP_H
 /*
  * A copy-on-write Map template.
+ * You can cheaply pass a CowMap (passing it doesn't copy the contents).
+ * When you try to change a CowMap that has any other reference,
+ * the entire map is copied before your change is attempted.
+ *
+ * Internally, it's just a std::map, which is a red-black tree.
  */
 #include	<cstdlib>
 #include	<cstdint>
