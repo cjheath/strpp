@@ -35,10 +35,18 @@ public:
 		StringArray,
 		VarArray,
 		StrVarMap,
-		//, VarVarMap
 		VariantTypeMax = StrVarMap
 	} VariantType;
+
+	VariantType		type() const { return _type; }
+	bool			is_null() const { return _type == None; }
 	static const char*	type_names[];
+	const char*		type_name() const
+	{
+		if (_type >= None && _type <= VariantTypeMax)
+			return type_names[_type];
+		return "Corrupt type";
+	}
 
 	~Variant()
 	{ coerce_none(); }
@@ -82,7 +90,7 @@ public:
 		case Integer:		// FALL THROUGH
 		case Long:		// FALL THROUGH
 		case LongLong:
-			return;
+			return;		// The union u has been zeroed already
 
 		case String:		new(&u.str) StrVal(); break;
 		case StringArray:	new(&u.str_arr) StrArray(); break;
@@ -91,7 +99,7 @@ public:
 		}
 	}
 
-	// Copy constructor: No previous value exists.
+	// Copy constructor
 	Variant(const Variant& v)
 	: _type(v._type)
 	{
@@ -112,7 +120,7 @@ public:
 	// Assignment operator. Discards any previous value
 	Variant& operator=(const Variant v)
 	{
-		coerce_none();
+		coerce_none();		// Discard previous value and zero the union
 		switch (v._type)
 		{
 		default:		break;
@@ -129,6 +137,7 @@ public:
 		return *this;
 	}
 
+	// Type coercion is never lossy. It just fails with an assertion if loss would occur. So don't do that.
 	// For const references (e.g. when copying) we cannot coerce the _type, just assert if it's wrong
 	const int&		as_int() const { must_be(Integer); return u.i; }
 	const long&		as_long() const { must_be(Long); return u.l; }
@@ -146,16 +155,9 @@ public:
 	VariantArray		as_variant_array() { coerce(VarArray); return u.var_arr; }
 	StrVariantMap		as_variant_map() { coerce(StrVarMap); return u.var_map; }
 
-	VariantType		type() const { return _type; }
-
-	bool			is_null() const { return _type == None; }
-	const char*		type_name() const
-	{
-		if (_type >= None && _type <= VariantTypeMax)
-			return type_names[_type];
-		return "Corrupt type";
-	}
-
+	// as_json(-1) emits single-line JSON with single spaces added for readability.
+	// as_json(-2) emits maximally compact JSON.
+	// as_json(n) emits formatted/indented json (two spaces per level) starting with indent n.
 	StrVal			as_json(int indent = -1) const
 	{
 		int		next_indent = indent;
@@ -191,7 +193,7 @@ public:
 			return buf;
 
 		case String:
-			return StrVal("\"")+u.str.asJSON()+"\"";	// REVISIT: Convert to escaped string
+			return StrVal("\"")+u.str.asJSON()+"\"";
 
 		case StringArray:
 			{
@@ -245,6 +247,7 @@ protected:
 		case StrVarMap:		u.var_map.~StrVariantMap(); break;
 		}
 		_type = None;
+		u.zero();
 	}
 
 	void	coerce(VariantType new_type)
@@ -394,6 +397,5 @@ const char*	Variant::type_names[] = {
 	"StringArray",
 	"VarArray",
 	"StrVarMap"
-	//, "VarVarMap"
 };
 #endif // VARIANT_H
