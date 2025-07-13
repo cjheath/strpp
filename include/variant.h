@@ -3,12 +3,13 @@
 /*
  * Variant data type.
  */
-#include <assert.h>
-#include <cstdio>
+#include	<assert.h>
+#include	<cstdio>
+#include	<functional>
 
-#include <strval.h>
-#include <array.h>
-#include <cowmap.h>
+#include	<strval.h>
+#include	<array.h>
+#include	<cowmap.h>
 
 class	Variant;
 

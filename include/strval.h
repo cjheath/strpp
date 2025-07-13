@@ -1017,6 +1017,10 @@ not_number:
 	return 0;
 }
 
+/*
+ * Represent the string as JSON, using UTF16 surrogates if necessary.
+ * Does not include the enclosing double-quote characters that are part of the JSON spec.
+ */
 template<typename Index>
 void
 StrBodyI<Index>::toJSON()
@@ -1054,6 +1058,7 @@ StrBodyI<Index>::toJSON()
 			default:
 				// JSON allows direct representation of any legal code point that's not
 				// a control-char, \, ' or a surrogate, but we don't have to do that.
+				// Here we leave valid UTF-16 characters inline, represented as UTF-8
 
 				// if (ch >= ' ' && ch < 128)					// ASCII but not ctl
 				// if (ch >= ' ' && ch < 256)					// ISO8859-1 but not ctl
@@ -1073,12 +1078,12 @@ StrBodyI<Index>::toJSON()
 						*op++ = hex[u&0xF];
 					};
 				if (ch <= 0xFFFF)
-				{		// Character fits in one \u escape
+				{		// Character fits in one \u escape, do that
 					u4(ch, op);
 					break;
 				}
 
-				// We need two surrogates.
+				// We need two surrogates for Emoji's etc.
 				assert(ch <= 0xFFFFF);
 				// Surrogate pair: D800 to DBFF, Low surrogate: D800 to DBFF
 				u4(0xD800+((ch>>10)&0x3FF), op);

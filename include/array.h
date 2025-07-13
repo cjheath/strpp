@@ -300,7 +300,6 @@ public:
 			}
 
 	// Functional methods (these don't mutate or Unshare the subject):
-	// Linear search for an element using a match function
 	void		each(std::function<void(const Element& e)> operation) const
 			{
 				const Element*	dp = body->data()+offset;	// Start of our slice
@@ -340,6 +339,8 @@ public:
 					}
 				return found;
 			}
+
+	// Linear search for an element using a match function
 	int		find(std::function<bool(const Element& e)> match, int after = -1) const
 			{
 				const Element*	dp = body->data()+offset;	// Start of our slice
