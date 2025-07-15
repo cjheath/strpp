@@ -53,6 +53,7 @@ TESTS	=	\
 		rxcompile_test		\
 		rxmatch_test		\
 		strval_test		\
+		thread_test		\
 		utf8pointer_test	\
 		variant_test
 
