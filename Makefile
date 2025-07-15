@@ -5,8 +5,10 @@
 CXX	=	g++
 CXXFLAGS =	-std=c++11
 
+COPT	=	-DHAVE_PTHREADS # -DPEG_TRACE
+
 DEBUG	=	-O2 $(COPT)
-# DEBUG	=	-g $(COPT) # -DPEG_TRACE
+# DEBUG	=	-g $(COPT)
 # DEBUG	=	-O2 $(COPT) -lprofiler
 # DEBUG	=	-g -DTRACK_RESULTS $(COPT)
 
@@ -14,6 +16,7 @@ HDRS	=	\
 		array.h			\
 		char_encoding.h		\
 		charpointer.h		\
+		condition.h		\
 		cowmap.h		\
 		error.h			\
 		char_ptr.h		\
@@ -23,10 +26,14 @@ HDRS	=	\
 		refcount.h		\
 		strval.h		\
 		strregex.h		\
+		thread.h		\
 		variant.h
 
 SRCS	=	\
-		char_encoding.cpp	
+		char_encoding.cpp	\
+		condition.cpp		\
+		lockfree.cpp		\
+		thread.cpp
 
 RX_SRCS	=	\
 		rxcompile.cpp		\
@@ -93,7 +100,11 @@ run_variant_test: variant_test
 %:	%.cpp $(LIB) test/memory_monitor.cpp
 	$(CXX) $(DEBUG) $(CXXFLAGS) -Iinclude -Itest -o $@ $< test/memory_monitor.cpp $(LIB)
 
+# Don't use memory_monitor on threaded code:
 px:	px.cpp $(LIB)
+	$(CXX) $(DEBUG) $(CXXFLAGS) -Iinclude -Itest -o $@ $< $(LIB)
+
+thread_test:	thread_test.cpp $(LIB)
 	$(CXX) $(DEBUG) $(CXXFLAGS) -Iinclude -Itest -o $@ $< $(LIB)
 
 build/%.o:	%.cpp $(HDRS) Makefile
