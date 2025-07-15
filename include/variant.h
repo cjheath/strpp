@@ -14,10 +14,11 @@
 class	Variant;
 
 // Complex reference-counted types we can use in a Variant:
+typedef	Array<Variant>	VariantArray;
 typedef Array<StrVal>	StrArray;	// Array of StrVal
-typedef Array<Variant>	VariantArray;	// Array of Variant
+
 class	StrVariantMap			// Map from StrVal to Variant
-	: public CowMap<Variant, StrVal>
+: public CowMap<Variant, StrVal>
 {
 public:
 };
@@ -63,6 +64,8 @@ public:
 	{ _type = LongLong; u.ll = _ll; }
 	Variant(StrVal v)						// StrVal
 	{ _type = String; new(&u.str) StrVal(v); }
+	Variant(const char* s)						// StrVal
+	{ _type = String; new(&u.str) StrVal(s); }
 	Variant(StrArray a)						// StringArray
 	{ _type = StringArray; new(&u.str_arr) StrArray(a); }
 	Variant(StrVal* v, StrArray::Index count)
@@ -399,4 +402,5 @@ const char*	Variant::type_names[] = {
 	"VarArray",
 	"StrVarMap"
 };
+
 #endif // VARIANT_H

@@ -1,28 +1,57 @@
 #include	"memory_monitor.h"
 #include	<variant.h>
 
-void tests();
+void variant_array_tests();
+void variant_tests();
 
 int
 main(int argc, const char** argv)
 {
-        start_recording_allocations();
+	start_recording_allocations();
 
 	printf("sizeof(Variant) == %ld\n", sizeof(Variant));
 
-	tests();
+	variant_array_tests();
+	variant_tests();
 
-        if (allocation_growth_count() > 0)      // No allocation should remain unfreed
-                report_allocation_growth();
+	if (allocation_growth_count() > 0)	// No allocation should remain unfreed
+		report_allocation_growth();
 
 	return 0;
 }
 
-void tests()
+void variant_array_tests()
 {
-	Variant	vi(23);
-	Variant	vll(47LL);
-	Variant	vstr("foo");
+	VariantArray	va;
+	StrArray	sa;
+
+	sa << "foo";
+	sa << "bar";
+
+	VariantArray	va2;
+	va2 << 69;
+	va2 << 81729L;
+
+	StrVariantMap	map;
+	map.put("fred", 23);
+	map.put("fly", "boo");
+
+	va << true;	// Gets cast to int
+	va << 4;
+	va << 4L;
+	va << 8LL;
+	va << "baz";
+	va << sa;
+	va << va2;
+	va << map;
+	printf("VariantArray = %s\n", Variant(va).as_json().asUTF8());
+}
+
+void variant_tests()
+{
+	Variant vi(23);
+	Variant vll(47LL);
+	Variant vstr("foo");
 	Variant vmap(Variant::StrVarMap);
 
 	StrVal		s("foo");
@@ -40,7 +69,7 @@ printf("v has %ld elements\n", v.size());
 printf("vm2 has %ld elements\n", vm2.size());
 printf("vm has %ld elements\n", vm.size());
 
-	Variant	f = vm["foo"];
+	Variant f = vm["foo"];
 	printf("Found \"foo\" as type %s\n", f.type_name());
 
 	int	fl = f.as_long();
