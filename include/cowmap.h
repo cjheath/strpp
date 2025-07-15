@@ -49,7 +49,10 @@ public:
 
 	Value	operator[](const Key& k)
 			{
-				return (*body)[k];
+				auto	it = (*body).find(k);
+				if (it != (*body).end())
+					return it->second;
+				return Value();
 			}
 	bool	contains(const Key& k)
 			{
@@ -68,13 +71,13 @@ public:
 	void	clear() { body = new Body(); }
 	void	insert(const Key k, const Value v)
 			{ Unshare(); body->insert(BaseVP(k, v)); }
-	void	erase(const Key& k)
+	void	remove(const Key& k)
 			{ Unshare(); body->erase(k); }
 	Key	put(const Key& k, Value v)
 			{
 				auto search = find(k);
 				if (search != end())
-					erase(k);
+					body->erase(k);
 				insert(k, v);
 				return k;
 			}
