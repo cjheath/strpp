@@ -612,7 +612,6 @@ protected:
 			{
 				state = start_state;
 				state.pc = next_alternate+1;
-				// REVISIT: This means failure reports the last alternative. Should it report the first?
 				start_state.pc = next_alternate+1;
 
 				// Work through all atoms of the current alternate:
@@ -807,6 +806,6 @@ protected:
 	}
 };
 
-template<typename Context> const char* Pegexp<Context>::special = "^$.\\[?*+{(|&!~@#%_;<`:";
+template<typename Context> const char* Pegexp<Context>::special = "^$.\\[]?*+{()}|&!~@#%_;<`:";
 
 #endif	// PEGEXP_H

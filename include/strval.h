@@ -28,7 +28,7 @@
 #include	<refcount.h>
 #include	<char_encoding.h>
 
-#define	StrValIndexBits	16
+#define	StrValIndexBits	32
 typedef typename std::conditional<(StrValIndexBits <= 16), uint16_t, uint32_t>::type StrValIndex;
 
 #define	STRERR_SET		1	// Message set number for StrVal

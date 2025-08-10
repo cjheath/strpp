@@ -102,11 +102,17 @@ run_variant_test: variant_test
 	$(CXX) $(DEBUG) $(CXXFLAGS) -Iinclude -Itest -o $@ $< test/memory_monitor.cpp $(LIB)
 
 # Don't use memory_monitor on threaded code:
-px:	px.cpp $(LIB)
+px:	px.cpp $(LIB) peg_ast.h
 	$(CXX) $(DEBUG) $(CXXFLAGS) -Iinclude -Itest -o $@ $< $(LIB)
 
 thread_test:	thread_test.cpp $(LIB)
 	$(CXX) $(DEBUG) $(CXXFLAGS) -Iinclude -Itest -o $@ $< $(LIB)
+
+rxcompile_test: rxcompile_test.cpp $(LIB) $(RX_OBJS)
+	$(CXX) $(DEBUG) $(CXXFLAGS) -Iinclude -Itest -o $@ $< $(RX_OBJS) test/memory_monitor.cpp $(LIB)
+
+rxmatch_test: rxmatch_test.cpp $(LIB)  $(RX_OBJS)
+	$(CXX) $(DEBUG) $(CXXFLAGS) -Iinclude -Itest -o $@ $< $(RX_OBJS) test/memory_monitor.cpp $(LIB)
 
 build/%.o:	%.cpp $(HDRS) Makefile
 	$(CXX) $(DEBUG) $(CXXFLAGS) -Iinclude -Isrc -o $@ -c $<

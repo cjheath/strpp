@@ -241,7 +241,7 @@ public:
 	Match		match_failure(Source at)
 	{ return Match(at, Source()); }
 
-#if 0
+#if defined(PEG_TRACE)
 	int		depth()
 	{ return parent ? parent->depth()+1 : 0; }
 

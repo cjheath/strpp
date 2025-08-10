@@ -518,12 +518,13 @@ parse_and_emit(const char* filename, VariantArray& rules)
 
 		if (match.is_failure())
 		{
-			printf("Parse failed at line %lld column %lld (byte %lld of %d) after %d rules. Next tokens anticipated were:\n",
+			printf("Parse failed at line %lld column %lld (byte %lld of %d) after %d rules. Possible next %d tokens were:\n",
 				source.current_line()+match.furthermost_success.current_line()-1,
 				source.current_column()+match.furthermost_success.current_column()-1,
 				source.current_byte()+match.furthermost_success.current_byte(),
 				(int)file_size,
-				rules_parsed
+				rules_parsed,
+				match.failures.length()
 			);
 
 			for (int i = 0; i < match.failures.length(); i++)

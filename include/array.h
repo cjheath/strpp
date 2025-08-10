@@ -17,7 +17,7 @@
 
 #include	<refcount.h>
 
-#define ArrayIndexBits	16
+#define ArrayIndexBits	32
 typedef typename std::conditional<(ArrayIndexBits <= 16), uint16_t, uint32_t>::type  ArrayIndex;
 
 template<typename E, typename I = ArrayIndex>	class	ArrayBody;
