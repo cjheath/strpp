@@ -143,8 +143,8 @@ public:
 			{ return data == other.data; }
 	size_t		bytes_from(PegexpPointerSource origin)
 			{ return byte_count - origin.byte_count; }
-	bool		operator<(PegexpPointerSource& other) { assert(data && other.data); return data < other.data; }
-	off_t		operator-(PegexpPointerSource& other) { assert(data && other.data); return data - other.data; }
+	bool		operator<(PegexpPointerSource& other) { assert(data && other.data || (!data && !other.data)); return data < other.data; }
+	off_t		operator-(PegexpPointerSource& other) { assert(data && other.data || (!data && !other.data)); return data - other.data; }
 
 	// These may be used for error reporting. They're not required by Pegexp
 	off_t		current_byte() const { return byte_count; }
@@ -283,7 +283,6 @@ public:	// Expose our template types for subclasses to use:
 	{
 		int	initial_captures = context ? context->capture_count() : 0;
 		off_t	offset = 0;
-		Match	match;
 
 		while (true)
 		{
@@ -291,7 +290,7 @@ public:	// Expose our template types for subclasses to use:
 			if (context)
 				context->rollback_capture(initial_captures);
 
-			match = match_here(attempt, context);
+			Match	match = match_here(attempt, context);
 			if (!match.is_failure())
 				return match;
 
@@ -301,27 +300,26 @@ public:	// Expose our template types for subclasses to use:
 			(void)source.get_char();
 			offset++;
 		}
-		return match;	// Failure
+		return context->match_failure(source);
 	}
 
 	Match		match_here(Source& source, Context* context = 0)
 	{
 		State	state(pegexp, source);
-		Match	match(source, Source());		// Default to match failure
 
 		bool ok = match_sequence(state, context);
 		if (ok && *state.pc == '\0')	// An extra ')' can cause match_sequence to succeed incorrectly
 		{
-			if (context)
-				match = context->match_result(source, state.text);
-			else
-				match = Match(source, state.text);
+			Match	match = context
+				? context->match_result(source, state.text)
+				: Match(source, state.text);
 
 			// point source at the text following the successful attempt:
 			source = state.text;
 			return match;
 		}
-		return match;
+		else
+			return context->match_failure(source);
 	}
 
 protected:

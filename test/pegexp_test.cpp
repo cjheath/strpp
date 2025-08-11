@@ -81,6 +81,9 @@ public:
 	Match		match_result(Source _from, Source _to)
 			{ return match = Match(_from, _to); }
 
+	Match		match_failure(Source _from)
+			{ return match = Match(_from, Source()); }
+
 	struct Captured
 	{
 		Captured() : capture() {}
