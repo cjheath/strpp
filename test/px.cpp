@@ -385,7 +385,11 @@ generate_parameters(Variant parameters)
 	return p;
 }
 
-void emit_rule(Variant _rule)
+void emit_rule(
+	Variant		_rule,
+	StrVal&		capture_arrays,
+	StrVal&		rules
+)
 {
 	// printf("Parse Tree:\n%s\n", _rule.as_json(-2).asUTF8());
 
@@ -394,23 +398,32 @@ void emit_rule(Variant _rule)
 	Variant		va = rule["alternates"]; // Variant(StrVariantMap)
 	Variant		vact = rule["action"];
 
-	// Generate the pegular expression for this rule:
-	StrVal		re = generate_re(va);
-
-	printf("Rule: %s =\n\t%s\n", vr.as_strval().asUTF8(), re.asUTF8());
-
+	// Append the capture array for this rule:
+	capture_arrays += StrVal("const char*\t")+vr.as_strval()+"_captures[] = ";
 	if (vact.type() != Variant::None)
 	{
-		// REVISIT: parameters are requested as "list" but saved as "parameter" - why?
 		StrVal		parameters = generate_parameters(vact.as_variant_map()["parameter"]);
-		Variant		function = vact.as_variant_map()["name"];	// StrVal or None
-
-		printf(
-			"\t-> %s%s\n",
-			function.is_null() ? "" : (function.as_strval()+": ").asUTF8(),
-			parameters.asUTF8()
-		);
+		capture_arrays += parameters.asUTF8();
 	}
+	else
+		capture_arrays += "{}";
+	capture_arrays += ";";
+	// The Parser doesn't yet use the function, if any:
+	if (!vact.is_null())
+	{
+		Variant	function = vact.as_variant_map()["name"];	// StrVal or None
+		if (!function.is_null())
+			capture_arrays += StrVal("\t\t// ")+function.as_strval();
+	}
+	capture_arrays += "\n";
+
+	// Generate the pegular expression for this rule:
+	StrVal		re = generate_re(va);
+	rules += StrVal("\t{ \"")
+		+ vr.as_strval()
+		+ "\",\n\t  \""
+		+ re			// .substitute("\\", "\\\\")
+		+ "\",\n\t  "+vr.as_strval()+"_captures\n\t}";
 }
 
 typedef	Array<StrVal>	StringArray;
@@ -471,7 +484,6 @@ bool check_rules(VariantArray rules)
 
 		// record that this rule is defined:
 		defined_rules.put(rule_name, true);
-
 #if 0
 	// REVISIT: Ensure that actions only request available captures
 		// record which rules this rule calls and what labels it has, for checking actions:
@@ -500,8 +512,24 @@ bool check_rules(VariantArray rules)
 
 void emit(VariantArray rules)
 {
+	StrVal	capture_arrays;
+	StrVal	rules_text;
+
 	for (int i = 0; i < rules.length(); i++)
-		emit_rule(rules[i]);
+	{
+		if (i)
+			rules_text += ",";
+		rules_text += "\n";
+		emit_rule(rules[i], capture_arrays, rules_text);
+	}
+
+	printf(	"%s\n"
+		"XXParser::Rule\trules[] =\n{"
+		"%s\n"
+		"};\n",
+		capture_arrays.asUTF8(),
+		rules_text.asUTF8()
+	);
 }
 
 bool
