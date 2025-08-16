@@ -419,10 +419,20 @@ void emit_rule(
 
 	// Generate the pegular expression for this rule:
 	StrVal		re = generate_re(va);
+	re.transform(		// Double each backslash for the C++ compiler to revert
+		[&](const UTF8*& cp, const UTF8* ep) -> StrVal
+		{
+			UCS4    ch = UTF8Get(cp);       // Get UCS4 character
+			if (ch == '\\')
+				return "\\\\";
+			return ch;
+		}
+	);
+
 	rules += StrVal("\t{ \"")
 		+ vr.as_strval()
 		+ "\",\n\t  \""
-		+ re			// .substitute("\\", "\\\\")
+		+ re
 		+ "\",\n\t  "+vr.as_strval()+"_captures\n\t}";
 }
 
