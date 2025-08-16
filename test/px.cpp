@@ -520,7 +520,7 @@ bool check_rules(VariantArray rules)
 	return ok;
 }
 
-void emit(VariantArray rules)
+void emit(const char* parser_name, VariantArray rules)
 {
 	StrVal	capture_arrays;
 	StrVal	rules_text;
@@ -533,11 +533,15 @@ void emit(VariantArray rules)
 		emit_rule(rules[i], capture_arrays, rules_text);
 	}
 
-	printf(	"%s\n"
-		"XXParser::Rule\trules[] =\n{"
+	printf(
+		"typedef Peg<PegMemorySource, PegMatch, PegContext>      %sParser;\n\n"
+		"%s\n"
+		"%sParser::Rule\trules[] =\n{"
 		"%s\n"
 		"};\n",
+		parser_name,
 		capture_arrays.asUTF8(),
+		parser_name,
 		rules_text.asUTF8()
 	);
 }
@@ -547,9 +551,20 @@ parse_and_emit(const char* filename, VariantArray& rules)
 {
 	off_t		file_size;
 	char*		text = slurp_file(filename, &file_size);
+	char*		basename;
 	PxParser::Source source(text);
 	int		bytes_parsed = 0;
 	int		rules_parsed = 0;
+
+	// Figure out the basename, isolate and null-terminate it:
+	if ((basename = (char*)strrchr(filename, '/')) != 0)
+		basename++;
+	else
+		basename = (char*)filename;
+	basename = strdup(basename);
+	if (strchr(basename, '.'))
+		*strchr(basename, '.') = '\0';
+	*basename = toupper(*basename);
 
 	do {
 		PxParser::Match match = parse_rule(source);
@@ -585,7 +600,7 @@ parse_and_emit(const char* filename, VariantArray& rules)
 		rules_parsed++;
 	} while (bytes_parsed < file_size);
 
-	printf("Parsed %d bytes of %d\n", bytes_parsed, (int)file_size);
+	// printf("Parsed %d bytes of %d\n", bytes_parsed, (int)file_size);
 
 	delete text;
 
@@ -600,7 +615,7 @@ parse_and_emit(const char* filename, VariantArray& rules)
 	if (!check_rules(rules))
 		return false;
 
-	emit(rules);
+	emit(basename, rules);
 
 	return true;
 }
