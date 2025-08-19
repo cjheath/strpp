@@ -110,6 +110,8 @@ a(bc|b)c		abcc		failed
 \\r					+0	
 \\e					+0	
 \\f					+0	
+\\L			Ll		+1	l
+\\U			uU		+1	U
 \\x0D					+0	
 \\x{D}0			0		+0	0
 \\010					+0	

@@ -24,6 +24,8 @@
  *	\d	digit character (alternately, byte)
  *	\h	hexadecimal
  *	\s	whitespace character (alternately, byte)
+ *	\L	lowercase character
+ *	\U	uppercase character
  *	\w	word (alpha or digit) character (alternately, byte)
  *	\177	match the specified octal character
  *	\xXX	match the specified hexadecimal (0-9a-fA-F)
@@ -430,6 +432,8 @@ protected:
 		case 'a':	return isalpha(ch);	// Alphabetic
 		case 'd':	return isdigit(ch);	// Digit
 		case 'h':	return isdigit(ch) || (ch >= 'a' && ch <= 'f') || (ch >= 'A' && ch <= 'F');	// Hexadecimal
+		case 'L':	return islower(ch);
+		case 'U':	return isupper(ch);
 		case 's':	return isspace(ch);
 		case 'w':	return isalnum(ch);	// Alphabetic or digit
 		default:	pc -= 2;		// oops, not a property
