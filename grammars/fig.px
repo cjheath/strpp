@@ -72,7 +72,7 @@ externalIdentification =
 // For Frequency, the predicates must be all the same
 // For ExternalFrequency, the predicates may be all different
 frequency =
-	?'External':e 'Frequency' s '(' s predicateRole *(sep predicateRole) frequencyRanges ')'
+	?'External':e 'Frequency' s '(' s frequencyRanges sep predicateRole *(sep predicateRole) ')'
 	-> e, predicateRole, frequencyRanges
 
 frequencyRanges =
@@ -85,7 +85,7 @@ frequencyRange =
 	-> low, high
 
 subtype =
-	'Subtype' s '(' s typename sep typename ')'
+	'Subtype' ?'s' s '(' s typename sep ( | typename | '(' typename *(sep typename) ')' ) ')'
 	-> typename
 
 subtypeConstrained =
