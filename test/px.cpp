@@ -161,8 +161,8 @@ PxParser::Rule	rules[] =
 	  "|[^\\\\\\n]",			// any normal character except backslash or newline
 	  0
 	},
-	{ "property",				// alpha, digit, hexadecimal, whitespace, word (alpha or digit)
-	  "\\\\[adhsw]",
+	{ "property",				// alpha, digit, hexadecimal, whitespace, word (alpha or digit), lower, upper
+	  "\\\\[adhswLU]",
 	  0
 	},
 	{ "class",				// A character class

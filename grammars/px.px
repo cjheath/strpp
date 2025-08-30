@@ -101,7 +101,7 @@ literal_char =
 	| [^\\\n]			// any normal character except backslash or newline
 
 property =
-	'\\' [adhsw]			// alpha, digit, hexadecimal, whitespace, word (alpha or digit)
+	'\\' [adhswLU]			// alpha, digit, hexadecimal, whitespace, word (alpha or digit), lower, upper
 
 class =
 	'[' ?'^' ?'-' +class_part ']'	// a character class
