@@ -34,7 +34,7 @@ action =				// An action says which bits of a rule to capture
 	-> function, parameter
 
 parameter =
-	(| reference:parameter | literal:parameter) s	// A parameter to an action
+	(| reference:parameter | '\'' literal:parameter '\'') s	// A parameter to an action
 	-> parameter
 
 reference =
@@ -71,40 +71,40 @@ label =
 	-> name
 
 atom =
-	| '.':atom			// The "Any" character
-	| name:atom			// call to another rule
-	| literal:atom			// A literal
-	| property:atom			// A character property
-	| class:atom			// A character class
-	| group:atom
-	-> atom
+	| '.':any			// The "Any" character
+	| name:call			// call to another rule
+	| '\\' property			// A character property
+	| '\'' literal '\''		// A literal
+	| '[' class ']'			// A character class
+	| '(' group ')'
+	-> any, call, property, literal, class, group
 
 group =
-	'(' s +alternates ')'		// A parenthesised group
+	s +alternates			// Contents of a parenthesised group
 	-> alternates
 
 // Character properties here: \a = any letter, \w = any letter or digit
 name =
 	[\a_] *[\w_]
 
-literal =
-	['] *(!['] literal_char) [']
+literal =				// Contents of a literal string
+	*(!['] literal_char)
 
 literal_char =
 	| '\\'
 	  (| ?[0-3] [0-7] ?[0-7]	// octal character constant
 	   | 'x\h' ?\h			// hex character \x12
 	   | 'x{' +\h '}'		// hex character \x{...}
-	   | 'u' ?[01] \h ?\h ?\h ?\h	// Unicode character \u12345
+	   | 'u' \h ?\h ?\h ?\h		// Unicode character \u1234
 	   | 'u{' +\h '}'		// Unicode character \u{...}
 	   | [^\\n] )			// other special escape except newline
 	| [^\\\n]			// any normal character except backslash or newline
 
-property =
-	'\\' [adhswLU]			// alpha, digit, hexadecimal, whitespace, word (alpha or digit), lower, upper
+property =				// Contents of a property
+	[adhswLU]			// alpha, digit, hexadecimal, whitespace, word (alpha or digit), lower, upper
 
-class =
-	'[' ?'^' ?'-' +class_part ']'	// a character class
+class =					// Contents of a character class
+	?'^' ?'-' +class_part
 
 class_part =
 	!']' class_char ?('-' !']' class_char)

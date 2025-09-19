@@ -127,6 +127,19 @@ UCS4Digit(UCS4 ch)
 	return -1;
 }
 
+int
+UCS4HexDigit(UCS4 ch)		// Digit value 0-9, a-f/A-F or -1 if not digit
+{
+	int digit = UCS4Digit(ch);
+	if (digit >= 0)
+		return digit;
+	if (ch >= 'A' && ch <= 'F')
+		return ch-'A'+10;
+	if (ch >= 'a' && ch <= 'f')
+		return ch-'a'+10;
+	return -1;
+}
+
 /*
  * Convert to upper case
  */

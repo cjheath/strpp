@@ -59,6 +59,7 @@ bool		UCS4IsAlphabetic(UCS4 ch);	// Letters used to form words
 bool		UCS4IsIdeographic(UCS4 ch);	// Asian pictograms, mostly
 bool		UCS4IsDecimal(UCS4 ch);		// Decimal digits only
 int		UCS4Digit(UCS4 ch);		// Digit value 0-9 or -1 if not digit
+int		UCS4HexDigit(UCS4 ch);		// Digit value 0-9, a-f/A-F or -1 if not digit
 UCS4		UCS4ToUpper(UCS4 ch);		// To upper case
 UCS4		UCS4ToLower(UCS4 ch);		// To lower case
 UCS4		UCS4ToTitle(UCS4 ch);		// To Title or upper case
@@ -222,6 +223,14 @@ UTF8Get(const UTF8*& cp)	// REVISIT: Add an error callback pointer here?
 		return UTF8EncodeIllegal(*sp);
 #endif
 	}
+}
+
+inline UCS4
+UTF8Peek(const UTF8*& cp)
+{
+	const UTF8*	tp = cp;
+	UCS4		ch = UTF8Get(tp);
+	return ch;
 }
 
 inline const UTF8*

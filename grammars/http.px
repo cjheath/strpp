@@ -60,7 +60,7 @@ query =
 	*(| uchar | reserved)
 
 param =
-	*(param | '/')
+	*(| param | '/')
 
 params =
 	param *(';' param)

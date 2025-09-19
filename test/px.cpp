@@ -59,7 +59,7 @@ const char*	repeat_count_captures[] = { "limit", 0 };
 const char*	count_captures[] = { "val", 0 };
 const char*	repetition_captures[] = { "repeat_count", "atom", "label", 0 };
 const char*	label_captures[] = { "name", 0 };
-const char*	atom_captures[] = { "atom", 0 };
+const char*	atom_captures[] = { "any", "call", "property", "literal", "class", "group", 0 };
 const char*	group_captures[] = { "alternates", 0 };
 
 PxParser::Rule	rules[] =
@@ -96,7 +96,7 @@ PxParser::Rule	rules[] =
 	  action_captures
 	},
 	{ "parameter",				// A parameter to an action
-	  "(|<reference>:parameter|<literal>:parameter)<s>",
+	  "(|<reference>:parameter|'<literal>:parameter')<s>",
 	  parameter_captures
 	},
 	{ "reference",				// A reference (name sequence) to descendents of a match.
@@ -118,7 +118,7 @@ PxParser::Rule	rules[] =
 	  repeat_count_captures
 	},
 	{ "count",
-	  "\\{(|(+\\d):val|<name>:val)<s>}",	// {literal count or a reference to a captured variable}
+	  "\\{(|(+\\d):val|<name>:val)<s>}",	// {numeric count or a reference to a captured variable}
 	  count_captures
 	},
 	{ "repetition",				// a repeated atom perhaps with label
@@ -130,43 +130,43 @@ PxParser::Rule	rules[] =
 	  label_captures
 	},
 	{ "atom",
-	  "|\\.:atom"				// Any character
-	  "|<name>:atom"			// call to another rule
-	  "|<property>:atom"			// A character property
-	  "|<literal>:atom"			// A literal
-	  "|<class>:atom"			// A character class
-	  "|<group>:atom",
+	  "|\\.:any"				// Any character
+	  "|<name>:call"			// call to another rule
+	  "|\\\\<property>"			// A character by property
+	  "|'<literal>'"			// A literal string
+	  "|\\[<class>\\]"			// A character class
+	  "|\\(<group>\\)",			// A parenthesized group
 	  atom_captures
 	},
 	{ "group",
-	  "\\(<s>+<alternates>\\)",		// A parenthesised group
+	  "<s>+<alternates>",			// Contents of a parenthesised group
 	  group_captures
 	},
 	{ "name",
 	  "[\\a_]*[\\w_]",
 	  0
 	},
-	{ "literal",
-	  "'*(!'<literal_char>)'",
+	{ "literal",				// Contents of a literal string
+	  "*(!'<literal_char>)",
 	  0
 	},
 	{ "literal_char",
 	  "|\\\\(|?[0-3][0-7]?[0-7]"		// octal character constant
 	      "|x\\h?\\h"			// hexadecimal constant \x12
 	      "|x{+\\h}"			// hexadecimal constant \x{...}
-	      "|u?[01]\\h?\\h?\\h?\\h"		// Unicode character \u1234
+	      "|u\\h?\\h?\\h?\\h"		// Unicode character \u1234
 	      "|u{+\\h}"			// Unicode character \u{...}
 	      "|[^\\n]"				// Other special escape except newline
 	     ")"
 	  "|[^\\\\\\n]",			// any normal character except backslash or newline
 	  0
 	},
-	{ "property",				// alpha, digit, hexadecimal, whitespace, word (alpha or digit), lower, upper
-	  "\\\\[adhswLU]",
+	{ "property",				// Contents of a property
+	  "[adhswLU]",
 	  0
 	},
-	{ "class",				// A character class
-	  "\\[?\\^?-+<class_part>]",
+	{ "class",				// Contents of a character class
+	  "?\\^?-+<class_part>",
 	  0
 	},
 	{ "class_part",
@@ -187,55 +187,106 @@ parse_rule(PxParser::Source source)
 	return peg.parse(source);
 }
 
+// Turn the characters that make up a Px literal string into the encoded characters they represent:
 StrVal generate_literal(StrVal literal)
 {
-	StrVal	s = literal.substr(1, literal.length()-2);
-
 	// Escape special characters:
-	s.transform(
+	literal.transform(
 		[&](const UTF8*& cp, const UTF8* ep) -> StrVal
 		{
 			UCS4    ch = UTF8Get(cp);       // Get UCS4 character
 
-			// If the String is Unicode or a control-char, emit \u{...}
-			if (ch > 0xFF || ch < ' ')
+			if (ch == '\\')
 			{
-				StrVal	u("\\u{");
-				while (ch)
+				int	digit;
+				UCS4	out = 0;
+				bool	curly;
+				int	max_digits;
+
+				// Turn Px escaped chars into raw chars
+				ch = UTF8Get(cp);
+				switch (ch)
 				{
-					u.insert(3, "0123456789ABCDEF"[ch&0xF]);
-					ch >>= 4;
+				case '0': case '1': case '2': case '3': case '4': case '5': case '6': case '7':
+					out = UCS4Digit(ch);		// First Octal digit. Accept 2 more.
+					for (int i = 0; i < 2; i++)
+					{
+						ch = UTF8Peek(cp);
+						if ((digit = UCS4Digit(ch)) < 0 || digit > 7)
+							break;
+						out = (out<<3) + digit;
+						UTF8Get(cp);
+					}
+					ch = out;
+					break;
+
+				case 'x':			// 2-digit hexadecimal
+					max_digits = 2;
+					goto read_hex;
+
+				case 'u':			// 2-digit hexadecimal
+					max_digits = 4;
+					if (UTF8Peek(cp) == '{')
+						max_digits = 5;
+			read_hex:
+					ch = UTF8Peek(cp);
+					curly = ch == '{';
+					if (curly)
+						ch = UTF8Get(cp);
+
+					for (int i = 0; i < max_digits; i++)
+					{
+						ch = UTF8Get(cp);
+						if ((digit = UCS4HexDigit(ch)) < 0)
+							break;
+						out = (out << 4) + digit;
+					}
+					if (curly && ch != '}' && UTF8Peek(cp) == '}')
+						UTF8Get(cp);	// Eat the anticpated closing curly, don't complain otherwise
+					ch = out;
+					break;
+
+				// C special character escapes:
+				case 'n': ch = '\n'; break;	// newline
+				case 't': ch = '\t'; break;	// tab
+				case 'r': ch = '\r'; break;	// return
+				case 'b': ch = '\b'; break;	// backspace
+				case 'e': ch = '\033'; break;	// escape
+				case 'f': ch = '\f'; break;	// formfeed
+				// case 'z': ch = '\0'; break;	// Inject a NUL. Not done because it gets dropped
+
+				default:	// Backslashed ordinary character, keep the backslash
+					return StrVal("\\")+ch;
 				}
-				u += "}";
-				return u;
+
 			}
 
-			// If char is 8-bit but not special, return it unmolested:
-			if (ch >= ' '
-			 && 0 == strchr(PxParser::PegexpT::special, (char)ch))
-				return StrVal(ch);
-
-			// Backslash the string
-			return StrVal("\\")+ch;
+			// otherwise no backslash is needed
+			return StrVal(ch);
 		}
 	);
 
-	return s;
+	return literal;
 }
 
-StrVal generate_re(Variant re)
+/*
+ * For the Variant node passed, generate the Pegexp expression which corresponds
+ *
+ * Conversion into a valid literal for e.g. C++ will happen later, this function returns the value which should be used at runtime.
+ */
+StrVal generate_pegexp(Variant re)
 {
 	if (re.type() == Variant::StrVarMap)
 	{
-		assert(re.as_variant_map().size() == 1);
-
 		StrVariantMap	map = re.as_variant_map();
+		assert(map.size() == 1);
+
 		auto		entry = map.begin();
 		StrVal		node_type = entry->first;
 		Variant		element = entry->second;
 		if (node_type == "sequence")
 		{
-			return generate_re(element);
+			return generate_pegexp(element);
 		}
 		else if (node_type == "repetition")
 		{
@@ -250,73 +301,43 @@ StrVal generate_re(Variant re)
 				Variant		repeat_count = repetition["repeat_count"]; // Maybe None
 				if (repeat_count.type() != Variant::None)
 					ret += repeat_count.as_variant_map()["limit"].as_strval();
-				ret += generate_re(atom);
+				ret += generate_pegexp(atom);
 				Variant		label = repetition["label"];	// Maybe None
 				if (label.type() != Variant::None)
 					ret += StrVal(":")+label.as_variant_map()["name"].as_strval()+":";
 			}
 			return ret;
 		}
-		else if (node_type == "name")
+		else if (node_type == "any")
 		{
+			return StrVal(".");
+		}
+		else if (node_type == "call")
+		{		// name of a rule to be called
 			return StrVal("<")+element.as_strval()+">";
 		}
+		else if (node_type == "property")
+		{		// a property character, just backslash it:
+			return StrVal("\\")+element.as_strval();
+		}
+		else if (node_type == "literal")
+		{		// body of a literal string
+			return generate_literal(element.as_strval());
+		}
 		else if (node_type == "class")
-		{
-			return element.as_strval();
+		{		// body of a character class (backslashed properties keep their backslash)
+			return StrVal("[") + generate_literal(element.as_strval()) + "]";
 		}
 		else if (node_type == "group")
 		{
-			return StrVal("(")+generate_re(element)+")";
-		}
-		else if (node_type == "alternates")
-		{
-			VariantArray	alternates = element.as_variant_array();
-			if (alternates.length() == 1)
-				return generate_re(alternates[0]);
-
-			return	"REVISIT: unexpected alternates count";
-		}
-		else if (node_type == "literal")
-		{
-			return generate_literal(element.as_strval());
-		}
-		else if (node_type == "property")
-		{
-			return element.as_strval();
-		}
-		else if (node_type == "atom")
-		{
-			// atom can be:
-			// . (any character)
-			// 'string' (literal)
-			// name (subroutine call)
-			// \p Property
-			// [class] a character class
-			// a map containing an array of atoms in a group
-			if (element.type() == Variant::String)
+			VariantArray	alternates = element.as_variant_map()["alternates"].as_variant_array();
+			if (alternates.length() != 1)
 			{
-				StrVal	s = element.as_strval();
-				switch (s[0])
-				{
-				case '\'':
-					return generate_literal(s);
-				case '.': case '[': case '\\':
-					return s;
-				default:
-					return StrVal('<')+element.as_strval()+">";
-				}
+				// This happens e.g. on (a|b) when it should be (|a|b)
+				assert(!"REVISIT: unexpected alternates count");
 			}
-			else if (element.type() == Variant::StrVarMap)
-				return StrVal("(")+generate_re(element)+")";
-			else
-				assert(!"Unexpected atom type");
+			return StrVal("(") + generate_pegexp(alternates[0]) + ")";
 		}
-	/* REVISIT: Complete these
-		else if (node_type == "param")
-		{
-		}
-	*/
 		else	// Report incomplete node type:
 			return StrVal("INCOMPLETE<") + node_type + ">=" + element.as_json(-2);
 	}
@@ -325,13 +346,13 @@ StrVal generate_re(Variant re)
 		VariantArray	va = re.as_variant_array();
 		StrVal	ret;
 		for (int i = 0; i < va.length(); i++)
-			ret += StrVal("|")+generate_re(va[i]);
+			ret += StrVal("|")+generate_pegexp(va[i]);
 		return ret;
 	}
 	else
 	{
 		// This indicates the code above is incomplete. Dump the unhandled structure:
-		return StrVal(re.type_name()) + "=" + re.as_json(-2);
+		return StrVal("INCOMPLETE CODE for ") + re.type_name() + "=" + re.as_json(-2);
 	}
 }
 
@@ -360,32 +381,32 @@ generate_parameter(Variant parameter_map)
 StrVal
 generate_parameters(Variant parameters)
 {
-	StrVal	p("{ ");
+	StrVal	p;
 	StrVal	dquot("\"");
 
 	// parameters might be an individual StrVariantMap or an array of them?
 	if (parameters.type() == Variant::VarArray)
 	{	// Extract the "parameter" value from each element
 		VariantArray	a = parameters.as_variant_array();
+		if (a.length() == 0)
+			return "";	// There are no captured parameters
+
 		for (int i = 0; i < a.length(); i++)
 		{
-			if (i)
-				p += ", ";
 			Variant	pn = a[i].as_variant_map()["parameter"];
-			p += generate_parameter(pn);
+			p += generate_parameter(pn) + ", ";
 		}
 	}
 	else	// type is Variant::StrVarMap
 	{
 		// E.g. foo.bar*baz yields:
 		// { "parameter": { "joiner": [ ".", "*" ], "name": [ "foo", "bar", "baz" ] } }
-		p += generate_parameter(parameters.as_variant_map()["parameter"]);
+		p += generate_parameter(parameters.as_variant_map()["parameter"]) + ", ";
 	}
-	p += " }";
 	return p;
 }
 
-void emit_rule(
+void emit_rule_cpp(
 	Variant		_rule,
 	StrVal&		capture_arrays,
 	StrVal&		rules
@@ -399,23 +420,26 @@ void emit_rule(
 	Variant		vact = rule["action"];
 
 	// Append the capture array for this rule:
-	capture_arrays += StrVal("const char*\t")+vr.as_strval()+"_captures[] = ";
+	StrVal		parameters;
 	if (vact.type() != Variant::None)
+		parameters = generate_parameters(vact.as_variant_map()["parameter"]);
+	if (parameters != "")
 	{
-		StrVal		parameters = generate_parameters(vact.as_variant_map()["parameter"]);
-		capture_arrays += parameters.asUTF8();
+		capture_arrays +=
+			StrVal("const char*\t")
+			+ vr.as_strval()
+			+ "_captures[] = { "
+			+ parameters
+			+ "0 };\n";
 	}
-	else
-		capture_arrays += "{}";
-	capture_arrays += ";";
+
 	// The Parser doesn't yet use the function, if any:
 	if (!vact.is_null())
 	{
 		Variant	function = vact.as_variant_map()["name"];	// StrVal or None
 		if (!function.is_null())
-			capture_arrays += StrVal("\t\t// ")+function.as_strval();
+			capture_arrays += StrVal("\t\t// FUNCTION: ")+function.as_strval()+"\n";
 	}
-	capture_arrays += "\n";
 
 	// Generate the pegular expression for this rule:
 	StrVal		re = generate_re(va);
@@ -433,7 +457,9 @@ void emit_rule(
 		+ vr.as_strval()
 		+ "\",\n\t  \""
 		+ re
-		+ "\",\n\t  "+vr.as_strval()+"_captures\n\t}";
+		+ "\",\n\t  "
+		+ (parameters != "" ? vr.as_strval()+"_captures" : "0")
+		+ "\n\t}";
 }
 
 typedef	Array<StrVal>	StringArray;
@@ -459,7 +485,16 @@ void accumulate_called_rules(StringSet& called, Variant re)
 		else if (node_type == "group")
 			return accumulate_called_rules(called, element);
 		else if (node_type == "alternates")
-			generate_re(element.as_variant_array()[0]);
+		{
+			VariantArray	repetitions = element.as_variant_array();
+
+			for (int i = 0; i < repetitions.length(); i++)
+			{
+				StrVariantMap	repetition = repetitions[i].as_variant_map();
+				Variant		atom = repetition["atom"];
+				accumulate_called_rules(called, atom);
+			}
+		}
 		else if (node_type == "repetition")
 		{		// Each repetition has {optional repeat_count, atom, optional label}
 			VariantArray	repetitions = element.as_variant_array();
@@ -520,7 +555,7 @@ bool check_rules(VariantArray rules)
 	return ok;
 }
 
-void emit(const char* parser_name, VariantArray rules)
+void emit_cpp(const char* parser_name, VariantArray rules)
 {
 	StrVal	capture_arrays;
 	StrVal	rules_text;
@@ -530,7 +565,7 @@ void emit(const char* parser_name, VariantArray rules)
 		if (i)
 			rules_text += ",";
 		rules_text += "\n";
-		emit_rule(rules[i], capture_arrays, rules_text);
+		emit_rule_cpp(rules[i], capture_arrays, rules_text);
 	}
 
 	printf(
@@ -615,7 +650,7 @@ parse_and_emit(const char* filename, VariantArray& rules)
 	if (!check_rules(rules))
 		return false;
 
-	emit(basename, rules);
+	emit_cpp(basename, rules);
 
 	return true;
 }
