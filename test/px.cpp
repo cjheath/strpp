@@ -17,8 +17,6 @@
 #include	<unistd.h>
 #include	<fcntl.h>
 
-typedef	Peg<PegMemorySource, PegMatch, PegContext>	PxParser;
-
 void usage()
 {
 	fprintf(stderr, "Usage: px peg.px\n");
@@ -46,6 +44,8 @@ char* slurp_file(const char* filename, off_t* size_p)
 
 	return px;
 }
+
+typedef	Peg<PegMemorySource, PegMatch, PegContext>	PxParser;
 
 // It's a pity that C++ has no way to initialise these string arrays inline:
 const char*	TOP_captures[] = { "rule", 0 };
@@ -92,7 +92,7 @@ PxParser::Rule	rules[] =
 	  rule_captures
 	},
 	{ "action",				// Looks like "-> function: param, ..."
-	  "-><s>?(<name>:function\\:<s>)<parameter>*(,<s><parameter>)<s>",
+	  "-><s>?(<name>:function:\\:<s>)<parameter>*(,<s><parameter>)<s>",
 	  action_captures
 	},
 	{ "parameter",				// A parameter to an action
@@ -188,7 +188,7 @@ parse_rule(PxParser::Source source)
 }
 
 // Turn the characters that make up a Px literal string into the encoded characters they represent:
-StrVal generate_literal(StrVal literal)
+StrVal generate_literal(StrVal literal, bool leave_specials = false)
 {
 	// Escape special characters:
 	literal.transform(
@@ -246,21 +246,14 @@ StrVal generate_literal(StrVal literal)
 					ch = out;
 					break;
 
-				// C special character escapes:
-				case 'n': ch = '\n'; break;	// newline
-				case 't': ch = '\t'; break;	// tab
-				case 'r': ch = '\r'; break;	// return
-				case 'b': ch = '\b'; break;	// backspace
-				case 'e': ch = '\033'; break;	// escape
-				case 'f': ch = '\f'; break;	// formfeed
-
-				default:	// Backslashed ordinary character, keep the backslash
+				default:	// Backslashed ordinary character or C escape, keep the backslash
 					return StrVal("\\")+ch;
 				}
 				return ch;
 			}
 
-			if (ch < 0x7F
+			if (!leave_specials
+			 && ch < 0x7F
                          && 0 != strchr(PxParser::PegexpT::special, (char)ch))
 				return StrVal("\\")+ch;
 
@@ -329,7 +322,7 @@ StrVal generate_pegexp(Variant re)
 		}
 		else if (node_type == "class")
 		{		// body of a character class (backslashed properties keep their backslash)
-			return StrVal("[") + generate_literal(element.as_strval()) + "]";
+			return StrVal("[") + generate_literal(element.as_strval(), true) + "]";
 		}
 		else if (node_type == "group")
 		{
@@ -635,7 +628,7 @@ void emit_cpp(const char* parser_name, VariantArray rules)
 	}
 
 	printf(
-		"typedef Peg<PegMemorySource, PegMatch, PegContext>      %sParser;\n\n"
+		"typedef\tPeg<PegMemorySource, PegMatch, PegContext>\t%sParser;\n\n"
 		"%s\n"
 		"%sParser::Rule\trules[] =\n{"
 		"%s\n"
