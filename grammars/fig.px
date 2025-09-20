@@ -321,7 +321,7 @@ string_char =
         | '\\0'
         | '\\x' [0-9A-Fa-f] [0-9A-Fa-f]
         | '\\u' [0-9A-Fa-f] [0-9A-Fa-f] [0-9A-Fa-f] [0-9A-Fa-f]
-        | (![\'\\\0-\x07\x0A-\x1F] .)
+        | (!['\1-\7\x0A-\x1F] .)	// Exclude control characters except tab. Cannot exclude NUL here
 
 range =
         | numeric_range:range
