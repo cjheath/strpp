@@ -257,8 +257,8 @@ question =
 	'?' !'?'
 
 predicate =
-	(|id:start |question:start) s *((|id:t |question:t) s)
-	-> start, t
+	(|id:t |question:t) s *((|id:t |question:t) s)
+	-> t
 
 predicateRole =
 	predicate '.' roleNumber s
