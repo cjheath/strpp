@@ -242,7 +242,7 @@ StrVal generate_literal(StrVal literal)
 						out = (out << 4) + digit;
 					}
 					if (curly && ch != '}' && UTF8Peek(cp) == '}')
-						UTF8Get(cp);	// Eat the anticpated closing curly, don't complain otherwise
+						UTF8Get(cp);	// Eat the anticipated closing curly, don't complain otherwise
 					ch = out;
 					break;
 
@@ -253,16 +253,16 @@ StrVal generate_literal(StrVal literal)
 				case 'b': ch = '\b'; break;	// backspace
 				case 'e': ch = '\033'; break;	// escape
 				case 'f': ch = '\f'; break;	// formfeed
-				// case 'z': ch = '\0'; break;	// Inject a NUL. Not done because it gets dropped
 
 				default:	// Backslashed ordinary character, keep the backslash
 					return StrVal("\\")+ch;
 				}
-
 			}
 
+			assert(UCS4IsUnicode(ch));
+
 			// otherwise no backslash is needed
-			return StrVal(ch);
+			return ch;
 		}
 	);
 
@@ -406,6 +406,76 @@ generate_parameters(Variant parameters)
 	return p;
 }
 
+StrVal transform_literal_to_cpp(StrVal str)
+{
+	static	auto	c_escapes = "\\\n\t\r\b\f\"\'";	// C also defines \a, \v but they're not well-known
+	static	auto	c_esc_chars = "\\ntrbf\"\'";
+	static	auto	hex = "0123456789ABCDEF";
+	static	char	ubuf[20];
+	auto	u4 = [&](char* cp, UTF16 ch) -> void
+	{
+		strcpy(cp, "\\\\u{");
+		cp += 4;
+		*cp++ = hex[(ch>>12)&0xF];
+		*cp++ = hex[(ch>>8)&0xF];
+		*cp++ = hex[(ch>>4)&0xF];
+		*cp++ = hex[ch&0xF];
+		*cp++ = '}';
+		*cp = '\0';
+	};
+
+	/*
+	 * Double each backslash for the C++ compiler to revert.
+	 * Convert Unicode characters to \\u1234 (or a surrogate pair)
+	 * Convert \n \t \r \b \e \f to the backslashed form
+	 */
+	str.transform(
+		[&](const UTF8*& cp, const UTF8* ep) -> StrVal
+		{
+			UCS4    ch = UTF8Get(cp);       // Get UCS4 character
+			if (ch > 0xF7)
+			{
+				if (!UCS4IsUnicode(ch))
+					ch = UCS4_REPLACEMENT;	// Substitute, we can't put this into UTF16
+
+				if (UCS4IsUTF16(ch))
+				{	// Return single-char UTF16 
+					// if (UTF16IsSurrogate((UTF16)ch)) ERROR;
+					u4(ubuf, ch);
+					return ubuf;
+				}
+
+				// REVISIT: It would also be possible to use \U12345678 (since which C standard though?)
+				// Return a UTF-16 surrogate pair
+				u4(ubuf, UCS4HighSurrogate(ch));
+				u4(ubuf+9, UCS4LowSurrogate(ch));
+				return ubuf;
+			}
+
+			// Check for C backslash escapes:
+			const char*	sp = strchr(c_escapes, (char)ch);
+			if (sp)				// C special escapes
+			{
+				int c = c_esc_chars[sp-c_escapes];
+				return StrVal("\\")+StrVal(c);
+			}
+			if (ch >= ' ' && ch < 0x7F)
+				return ch;		// Safe ASCII
+
+			// return a \xHH hex character
+			ubuf[0] = '\\';
+			ubuf[1] = '\\';
+			ubuf[2] = 'x';
+			ubuf[3] = hex[(ch>>4)&0xF];
+			ubuf[4] = hex[ch&0xF];
+			ubuf[5] = '\0';
+			return ubuf;
+		}
+	);
+	// printf("Cooked pegular-expression: '%s'\n", str.asUTF8());
+	return str;
+}
+
 void emit_rule_cpp(
 	Variant		_rule,
 	StrVal&		capture_arrays,
@@ -442,21 +512,13 @@ void emit_rule_cpp(
 	}
 
 	// Generate the pegular expression for this rule:
-	StrVal		re = generate_re(va);
-	re.transform(		// Double each backslash for the C++ compiler to revert
-		[&](const UTF8*& cp, const UTF8* ep) -> StrVal
-		{
-			UCS4    ch = UTF8Get(cp);       // Get UCS4 character
-			if (ch == '\\')
-				return "\\\\";
-			return ch;
-		}
-	);
+	StrVal		re = generate_pegexp(va);
+	StrVal		re_cpp = transform_literal_to_cpp(re);
 
 	rules += StrVal("\t{ \"")
 		+ vr.as_strval()
 		+ "\",\n\t  \""
-		+ re
+		+ re_cpp
 		+ "\",\n\t  "
 		+ (parameters != "" ? vr.as_strval()+"_captures" : "0")
 		+ "\n\t}";
