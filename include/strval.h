@@ -152,7 +152,9 @@ public:
 	UTF8*		endChar() const { return startChar()+num_elements-1; }
 	bool		isNulTerminated() const				// If we allocated memory, it's always terminated
 			{ return num_alloc > 0 || start[num_elements] == '\0'; }
-	void		insert(Index pos, const char* addend, Index len)
+private:		// Prevent accidental use of Array insert by outsiders
+	void		insert(Index pos, const char* addend, Index len) { Body::insert(pos, addend, len); }
+public:	void		insertBytes(Index pos, const char* addend, Index len)
 			{
 				Body::insert(pos, addend, len);
 				num_chars = 0;
@@ -642,7 +644,7 @@ public:
 				Unshare();
 				Index		addend_length;
 				const UTF8*	ap = addend.asUTF8(addend_length);
-				body->insert(pos, ap, addend_length);
+				body->insertBytes(nthChar(pos)-nthChar(0), ap, addend_length);
 				num_chars += addend.length();
 			}
 	void		append(const StrValI& addend)
@@ -827,6 +829,7 @@ void StrBodyI<Index>::transform(const std::function<Val(const UTF8*& cp, const U
 		if (processed_chars+1 > after+1	// Not yet reached the point to start transforming
 		 && !stopped)			// We have stopped transforming
 		{
+			assert(next < ep);
 			StrVal		replacement = xform(next, ep);
 			Index		replaced_bytes = next-up;	// How many bytes were consumed?
 			Index		replaced_chars = replacement.length();	// Replaced by how many chars?
