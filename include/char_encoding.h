@@ -74,8 +74,8 @@ inline bool	UCS4IsWhite(UCS4 ch)
 		}
 inline bool	UCS4IsASCII(UCS4 ch) { return ch < 0x00000080; }
 inline bool	UCS4IsLatin1(UCS4 ch) { return ch < 0x00000100; }
-inline bool	UCS4IsUTF16(UCS4 ch) { return ch < 0x00010000; }
 inline bool	UCS4IsUnicode(UCS4 ch) { return ch < 0x00110000; }
+inline bool	UCS4IsUTF16(UCS4 ch) { return ch < 0x00010000; }
 
 // Overloads of ctype functions. Those better not be macros!
 inline bool	isalpha(UCS4 c) { return UCS4IsAlphabetic(c); }
@@ -348,6 +348,18 @@ UTF16Is2nd(UTF16 ch)
 }
 
 inline UTF16
+UCS4HighSurrogate(UCS4 ch)		// First of pair
+{
+	return 0xD800 + (UTF16)((ch - 0x10000) >> 10);
+}
+
+inline UTF16
+UCS4LowSurrogate(UCS4 ch)		// Second of pair
+{
+	return 0xDC00 + (UTF16)(ch & 0x3FF);
+}
+
+inline UTF16
 UTF16Swab(UTF16 x)
 {
 	return (UTF16)(
@@ -415,8 +427,8 @@ UTF16Put(UTF16*& cp, UCS4 ch, bool swap = false)	// Store UTF16 from UCS4
 	assert(UCS4IsUnicode(ch));
 	if (UCS4IsUnicode(ch))
 	{
-		UTF16 v1 = 0xD800 + (UTF16)((ch - 0x10000) >> 10);
-		UTF16 v2 = 0xDC00 + (UTF16)(ch & 0x3FF);
+		UTF16 v1 = UCS4HighSurrogate(ch);
+		UTF16 v2 = UCS4LowSurrogate(ch);
 
 		*cp++ = (swap ? UTF16Swab(v1) : v1);
 		*cp++ = (swap ? UTF16Swab(v2) : v2);
