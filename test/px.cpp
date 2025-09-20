@@ -257,9 +257,12 @@ StrVal generate_literal(StrVal literal)
 				default:	// Backslashed ordinary character, keep the backslash
 					return StrVal("\\")+ch;
 				}
+				return ch;
 			}
 
-			assert(UCS4IsUnicode(ch));
+			if (ch < 0x7F
+                         && 0 != strchr(PxParser::PegexpT::special, (char)ch))
+				return StrVal("\\")+ch;
 
 			// otherwise no backslash is needed
 			return ch;
@@ -409,7 +412,7 @@ generate_parameters(Variant parameters)
 StrVal transform_literal_to_cpp(StrVal str)
 {
 	static	auto	c_escapes = "\\\n\t\r\b\f\"\'";	// C also defines \a, \v but they're not well-known
-	static	auto	c_esc_chars = "\\ntrbf\"\'";
+	static	auto	c_esc_chars = "\\ntrbf\"\'";	// Match the character positions
 	static	auto	hex = "0123456789ABCDEF";
 	static	char	ubuf[20];
 	auto	u4 = [&](char* cp, UTF16 ch) -> void
@@ -513,6 +516,7 @@ void emit_rule_cpp(
 
 	// Generate the pegular expression for this rule:
 	StrVal		re = generate_pegexp(va);
+	// printf("Pegexp: '%s'\n", re.asUTF8());
 	StrVal		re_cpp = transform_literal_to_cpp(re);
 
 	rules += StrVal("\t{ \"")
