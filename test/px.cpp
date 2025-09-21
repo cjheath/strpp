@@ -23,6 +23,124 @@ void usage()
 	exit(1);
 }
 
+typedef	Peg<PegMemorySource, PegMatch, PegContext>	PxParser;
+
+const char*	TOP_captures[] = { "rule", 0 };
+const char*	rule_captures[] = { "name", "alternates", "action", 0 };
+const char*	action_captures[] = { "function", "parameter", 0 };
+const char*	parameter_captures[] = { "parameter", 0 };
+const char*	reference_captures[] = { "name", "joiner", 0 };
+const char*	alternates_captures[] = { "sequence", 0 };
+const char*	sequence_captures[] = { "repetition", 0 };
+const char*	repeat_count_captures[] = { "limit", 0 };
+const char*	count_captures[] = { "val", 0 };
+const char*	repetition_captures[] = { "repeat_count", "atom", "label", 0 };
+const char*	label_captures[] = { "name", 0 };
+const char*	atom_captures[] = { "any", "call", "property", "literal", "class", "group", 0 };
+const char*	group_captures[] = { "alternates", 0 };
+
+PxParser::Rule	rules[] =
+{
+	{ "EOF",
+	  "!.",
+	  0
+	},
+	{ "space",
+	  "|[ \\t\\r\\n]|//*[^\\n]",
+	  0
+	},
+	{ "blankline",
+	  "\\n*[ \\t\\r](|\\n|<EOF>)",
+	  0
+	},
+	{ "s",
+	  "*(!<blankline><space>)",
+	  0
+	},
+	{ "TOP",
+	  "*<space><rule>",
+	  TOP_captures
+	},
+	{ "rule",
+	  "<name><s>=<s><alternates>?<action><blankline>*<space>",
+	  rule_captures
+	},
+	{ "action",
+	  "-><s>?(<name>:function\\:<s>)<parameter>*(,<s><parameter>)<s>",
+	  action_captures
+	},
+	{ "parameter",
+	  "(|<reference>:parameter|\\\'<literal>:parameter\\\')<s>",
+	  parameter_captures
+	},
+	{ "reference",
+	  "<name><s>*([.*]:joiner<s><name>)",
+	  reference_captures
+	},
+	{ "alternates",
+	  "|+(\\|<s><sequence>)|<sequence>",
+	  alternates_captures
+	},
+	{ "sequence",
+	  "*<repetition>",
+	  sequence_captures
+	},
+	{ "repeat_count",
+	  "|[?*+!&]:limit<s>|<count>:limit",
+	  repeat_count_captures
+	},
+	{ "count",
+	  "\\{(|(+\\d):val|<name>:val)<s>\\}<s>",
+	  count_captures
+	},
+	{ "repetition",
+	  "?<repeat_count><atom>?<label><s>",
+	  repetition_captures
+	},
+	{ "label",
+	  "\\:<name>",
+	  label_captures
+	},
+	{ "atom",
+	  "|\\.:any|<name>:call|\\\\<property>|\\\'<literal>\\\'|\\[<class>\\]|\\(<group>\\)",
+	  atom_captures
+	},
+	{ "group",
+	  "<s>+<alternates>",
+	  group_captures
+	},
+	{ "name",
+	  "[\\a_]*[\\w_]",
+	  0
+	},
+	{ "literal",
+	  "*(![\']<literal_char>)",
+	  0
+	},
+	{ "literal_char",
+	  "|\\\\(|?[0-3][0-7]?[0-7]|x\\h?\\h|x{+\\h}|u\\h?\\h?\\h?\\h|u{+\\h}|[^\\n])|[^\\\\\\n]",
+//	  The generated Pegexp escapes { and }, and double-escapes the backslashes in \\n
+//	  "|\\\\(|?[0-3][0-7]?[0-7]|x\\h?\\h|x\\{+\\h\\}|u\\h?\\h?\\h?\\h|u\\{+\\h\\}|[^\\\\n])|[^\\\\\\n]",
+	  0
+	},
+	{ "property",
+	  "[adhswLU]",
+	  0
+	},
+	{ "class",
+	  "?\\^?-+<class_part>",
+	  0
+	},
+	{ "class_part",
+	  "!\\]<class_char>?(-!\\]<class_char>)",
+	  0
+	},
+	{ "class_char",
+	  "![-\\]]<literal_char>",
+	  0
+	}
+};
+
 char* slurp_file(const char* filename, off_t* size_p)
 {
 	// Open the file and get its size
@@ -45,140 +163,6 @@ char* slurp_file(const char* filename, off_t* size_p)
 	return px;
 }
 
-typedef	Peg<PegMemorySource, PegMatch, PegContext>	PxParser;
-
-// It's a pity that C++ has no way to initialise these string arrays inline:
-const char*	TOP_captures[] = { "rule", 0 };
-const char*	rule_captures[] = { "name", "alternates", "action" };
-const char*	action_captures[] = { "function", "parameter", 0 };
-const char*	parameter_captures[] = { "parameter", 0 };
-const char*	reference_captures[] = { "name", "joiner", 0 };
-const char*	alternates_captures[] = { "sequence", 0 };
-const char*	sequence_captures[] = { "repetition", 0 };
-const char*	repeat_count_captures[] = { "limit", 0 };
-const char*	count_captures[] = { "val", 0 };
-const char*	repetition_captures[] = { "repeat_count", "atom", "label", 0 };
-const char*	label_captures[] = { "name", 0 };
-const char*	atom_captures[] = { "any", "call", "property", "literal", "class", "group", 0 };
-const char*	group_captures[] = { "alternates", 0 };
-
-PxParser::Rule	rules[] =
-{
-	{ "EOF",
-	  "!.",
-	  0
-	},
-	{ "space",				// Any single whitespace
-	  "|[ \\t\\r\\n]|//*[^\\n]",		// including a comment to end-of-line
-	  0
-	},
-	{ "blankline",				// A line containing no printing characters
-	  "\\n*[ \\t\\r](|\\n|<EOF>)",
-	  0
-	},
-	{ "s",					// Any whitespace but not a blankline
-	  "*(!<blankline><space>)",
-	  0
-	},
-	{ "TOP",				// Start; a repetition of zero or more rules
-	  // "*<space>*<rule>",
-	  "*<space><rule>",			// Parse one rule at a time
-	  TOP_captures
-	},
-	{ "rule",				// Rule: name of a rule that matches one or more alternates
-	  "<name><s>=<s>"
-	  "<alternates>?<action>"		// and perhaps has an action
-	  "<blankline>*<space>",		// it ends in a blank line
-	  rule_captures
-	},
-	{ "action",				// Looks like "-> function: param, ..."
-	  "-><s>?(<name>:function:\\:<s>)<parameter>*(,<s><parameter>)<s>",
-	  action_captures
-	},
-	{ "parameter",				// A parameter to an action
-	  "(|<reference>:parameter|'<literal>:parameter')<s>",
-	  parameter_captures
-	},
-	{ "reference",				// A reference (name sequence) to descendents of a match.
-	  "<name><s>*([.*]:joiner<s><name>)",	// . means only one, * means "all"
-	  reference_captures
-	},
-	{ "alternates",				// Alternates:
-	  "|+(\\|<s><sequence>)"		// either a list of alternates each prefixed by |
-	  "|<sequence>",			// or just one alternate
-	  alternates_captures
-	},
-	{ "sequence",				// Alternates:
-	  "*<repetition>",			// either a list of alternates each prefixed by |
-	  sequence_captures
-	},
-	{ "repeat_count",			// How many times must the following be seen:
-	  "|[?*+!&]:limit<s>"			// zero or one, zero or more, one or more, none, and
-	  "|<count>:limit",
-	  repeat_count_captures
-	},
-	{ "count",
-	  "\\{(|(+\\d):val|<name>:val)<s>}",	// {numeric count or a reference to a captured variable}
-	  count_captures
-	},
-	{ "repetition",				// a repeated atom perhaps with label
-	  "?<repeat_count><atom>?<label><s>",
-	  repetition_captures
-	},
-	{ "label",				// A name for the previous atom
-	  "\\:<name>",
-	  label_captures
-	},
-	{ "atom",
-	  "|\\.:any"				// Any character
-	  "|<name>:call"			// call to another rule
-	  "|\\\\<property>"			// A character by property
-	  "|'<literal>'"			// A literal string
-	  "|\\[<class>\\]"			// A character class
-	  "|\\(<group>\\)",			// A parenthesized group
-	  atom_captures
-	},
-	{ "group",
-	  "<s>+<alternates>",			// Contents of a parenthesised group
-	  group_captures
-	},
-	{ "name",
-	  "[\\a_]*[\\w_]",
-	  0
-	},
-	{ "literal",				// Contents of a literal string
-	  "*(!'<literal_char>)",
-	  0
-	},
-	{ "literal_char",
-	  "|\\\\(|?[0-3][0-7]?[0-7]"		// octal character constant
-	      "|x\\h?\\h"			// hexadecimal constant \x12
-	      "|x{+\\h}"			// hexadecimal constant \x{...}
-	      "|u\\h?\\h?\\h?\\h"		// Unicode character \u1234
-	      "|u{+\\h}"			// Unicode character \u{...}
-	      "|[^\\n]"				// Other special escape except newline
-	     ")"
-	  "|[^\\\\\\n]",			// any normal character except backslash or newline
-	  0
-	},
-	{ "property",				// Contents of a property
-	  "[adhswLU]",
-	  0
-	},
-	{ "class",				// Contents of a character class
-	  "?\\^?-+<class_part>",
-	  0
-	},
-	{ "class_part",
-	  "!]<class_char>?(-!]<class_char>)",
-	  0
-	},
-	{ "class_char",
-	  "![-\\]]<literal_char>",
-	  0
-	},
-};
-
 PxParser::Match
 parse_rule(PxParser::Source source)
 {
@@ -187,9 +171,29 @@ parse_rule(PxParser::Source source)
 	return peg.parse(source);
 }
 
-// Turn the characters that make up a Px literal string into the encoded characters they represent:
+/*
+ * This function converts the Px text into what Pegexp requires as input (at runtime).
+ *
+ * Px accepts Unicode characters in literals. Pegexp only accepts printable ASCII.
+ * Characters that are not ASCII printable must be converted for Pegexp, into
+ * either c-style character escapes, \x or \u escape sequences.
+ *
+ * Both Px and Pegexp accept \x and \u escapes, with the same syntax, no translation required.
+ *
+ * Px and Pegexp accept backslashed ASCII printable characters in literals, character classes and (in Px) bare.
+ * These sequences should be copied unchanged.
+ *
+ * A number of characters which don't require a backslash in Px do require them in Pegexp,
+ * unless inside a character class. Add those here.
+ *
+ * A code generator requires a subsequent transformation to a source-code form.
+ */
 StrVal generate_literal(StrVal literal, bool leave_specials = false)
 {
+	static	auto	c_escaped = "\n\t\r\b\f";	// C also defines \a, \v but they're not well-known
+	static	auto	c_esc_chars = "ntrbf";		// Match the character positions
+	static	auto	hex = "0123456789ABCDEF";
+
 	// Escape special characters:
 	literal.transform(
 		[&](const UTF8*& cp, const UTF8* ep) -> StrVal
@@ -198,63 +202,45 @@ StrVal generate_literal(StrVal literal, bool leave_specials = false)
 
 			if (ch == '\\')
 			{
-				int	digit;
-				UCS4	out = 0;
-				bool	curly;
-				int	max_digits;
-
-				// Turn Px escaped chars into raw chars
 				ch = UTF8Get(cp);
-				switch (ch)
-				{
-				case '0': case '1': case '2': case '3': case '4': case '5': case '6': case '7':
-					out = UCS4Digit(ch);		// First Octal digit. Accept 2 more.
-					for (int i = 0; i < 2; i++)
-					{
-						ch = UTF8Peek(cp);
-						if ((digit = UCS4Digit(ch)) < 0 || digit > 7)
-							break;
-						out = (out<<3) + digit;
-						UTF8Get(cp);
-					}
-					ch = out;
-					break;
+				if (UCS4IsASCIIPrintable(ch))
+					return StrVal("\\")+ch;	// Backslashed printable
+				// Otherwise the backslash may be ignored.
+			}
+			
+			if (!UCS4IsASCIIPrintable(ch))
+			{		// Convert to c-escape, \x or \u sequence
+				const char*	sp;
 
-				case 'x':			// 2-digit hexadecimal
-					max_digits = 2;
-					goto read_hex;
+				// Translate C special escapes
+				if (ch < ' ' && (sp = strchr(c_escaped, (char)ch)))
+					return StrVal("\\") + (UCS4)c_esc_chars[sp-c_escaped];
 
-				case 'u':			// 2-digit hexadecimal
-					max_digits = 4;
-					if (UTF8Peek(cp) == '{')
-						max_digits = 5;
-			read_hex:
-					ch = UTF8Peek(cp);
-					curly = ch == '{';
-					if (curly)
-						ch = UTF8Get(cp);
+				// Latin1 can be a \xHH escape
+				if (UCS4IsLatin1(ch))
+					return StrVal("\\x") + (UCS4)hex[(ch>>4)&0xF] + (UCS4)hex[ch&0xF];
 
-					for (int i = 0; i < max_digits; i++)
-					{
-						ch = UTF8Get(cp);
-						if ((digit = UCS4HexDigit(ch)) < 0)
-							break;
-						out = (out << 4) + digit;
-					}
-					if (curly && ch != '}' && UTF8Peek(cp) == '}')
-						UTF8Get(cp);	// Eat the anticipated closing curly, don't complain otherwise
-					ch = out;
-					break;
-
-				default:	// Backslashed ordinary character or C escape, keep the backslash
-					return StrVal("\\")+ch;
+				static	char	ubuf[20];
+				auto	cp = ubuf;
+				*cp++ = '\\';
+				*cp++ = 'u';
+				if (UCS4IsUTF16(ch))
+				{		// 4-byte Unicode escape without braces
+					*cp++ = hex[(ch>>12)&0xF];
+					*cp++ = hex[(ch>>8)&0xF];
+					*cp++ = hex[(ch>>4)&0xF];
+					*cp++ = hex[ch&0xF];
+					*cp = '\0';
+					return ubuf;
 				}
-				return ch;
+				// Unicode with braces. Sorry for printf, but StrVal::format doesn't exist yet
+				snprintf(cp, sizeof(ubuf)-(cp-ubuf), "%lX}", (long)(ch & 0xFFFFFFFF));
+				return ubuf;
 			}
 
-			if (!leave_specials
+			if (!leave_specials				// Don't escape specials inside a char class
 			 && ch < 0x7F
-                         && 0 != strchr(PxParser::PegexpT::special, (char)ch))
+                         && 0 != strchr(PxParser::PegexpT::special, (char)ch))	// Char is special to Pegexp
 				return StrVal("\\")+ch;
 
 			// otherwise no backslash is needed
