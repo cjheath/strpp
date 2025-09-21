@@ -96,7 +96,7 @@ literal_char =
 	   | 'x\h' ?\h			// hex character \x12
 	   | 'x{' +\h '}'		// hex character \x{...}
 	   | 'u' \h ?\h ?\h ?\h		// Unicode character \u1234
-	   | 'u{' +\h '}'		// Unicode character \u{...}
+	   | 'u{' +\h '}'		// Unicode character \u{...} (max 8 digits but that's not enforced)
 	   | [^\\n] )			// other special escape except newline
 	| [^\\\n]			// any normal character except backslash or newline
 

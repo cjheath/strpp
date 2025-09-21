@@ -30,8 +30,8 @@
  *	\177	match the specified octal character
  *	\xXX	match the specified hexadecimal (0-9a-fA-F)
  *	\x{1-2}	match the specified hexadecimal (0-9a-fA-F)
- *	\u12345	match the specified 1-5 digit Unicode character (only if compiled for Unicode support)
- *	\u{1-5}	match the specified 1-5 digit Unicode character (only if compiled for Unicode support)
+ *	\u1234	match the specified 1-4 digit Unicode character (only if compiled for Unicode support)
+ *	\u{1-8}	match the specified 1-8 digit Unicode character (only if compiled for Unicode support)
  *	[a-z]	Normal character (alternately, byte) class (a literal hyphen may occur at start)
  *	[^a-z]	Negated character (alternately, byte) class. Characters may include the \escapes listed above
  *	`	Prefix to specify 8-bit byte only, not UTF-8 character (REVISIT: accepted but not implemented)
@@ -403,7 +403,7 @@ protected:
 			rc = 0;
 			if ((braces = (*pc == '{')))
 				pc++;
-			for (int i = 0; *pc != '\0' && i < 5; i++)
+			for (int i = 0; *pc != '\0' && i < (braces ? 8 : 4); i++)
 			{
 				int	digit = unhex(*pc);
 				if (digit < 0)

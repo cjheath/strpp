@@ -120,6 +120,10 @@ a(bc|b)c		abcc		failed
 \\u0010					+0	
 \\u{10}0		0		+0	0
 \\y			y		+0	y
+# Check \u escape lengths
+\\u002Q			Q		+0	Q
+\\u00024		4		+0	4
+\\u{00000024}		x$		+1	$
 
 # Character properties:
 \\a			-		failed
