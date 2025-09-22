@@ -49,6 +49,7 @@ TESTS	=	\
 		peg_test		\
 		pegexp_test		\
 		px			\
+		fig			\
 		reassembly_test		\
 		rxcompile_test		\
 		rxmatch_test		\
@@ -102,8 +103,10 @@ run_variant_test: variant_test
 	$(CXX) $(DEBUG) $(CXXFLAGS) -Iinclude -Itest -o $@ $< test/memory_monitor.cpp $(LIB)
 
 # Don't use memory_monitor on threaded code:
-px:	px.cpp $(LIB) peg_ast.h
+px:	px.cpp $(LIB) peg_ast.h px_parser.cpp
 	$(CXX) $(DEBUG) $(CXXFLAGS) -Iinclude -Itest -o $@ $< $(LIB)
+
+fig:	fig.cpp $(LIB) peg_ast.h fig_parser.cpp
 
 thread_test:	thread_test.cpp $(LIB)
 	$(CXX) $(DEBUG) $(CXXFLAGS) -Iinclude -Itest -o $@ $< $(LIB)
