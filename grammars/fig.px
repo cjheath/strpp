@@ -1,6 +1,7 @@
 // Fact Interchange Grammar. An ORM dialect
 TOP	=
 	+definition
+	-> definition
 
 definition =
 	s (
@@ -168,11 +169,11 @@ ringConstraintType =
 	| 'Acyclic'
 
 subTypeRule =
-	'SubType' ?'Semi':semi 'Rule' s '(' s typename sep path ')'
+	'SubType' ?('Semi':semi) 'Rule' s '(' s typename sep path ')'
 	-> semi, typename, path
 
 factTypeRule =
-	'FactType' ?'Semi':semi 'Rule' s '(' s predicate sep path *(sep path) ')'
+	'FactType' ?('Semi':semi) 'Rule' s '(' s predicate sep path *(sep path) ')'
 	-> semi, predicate, path
 
 // Declare a new predicate to join the first role of the first pair through to the second of the last:
@@ -287,7 +288,7 @@ or =	(| '∨'			// downward wedge
 	) s
 
 and =	(| '∧'			// wedge
-	 | 'A' !\w	// ASCII substitute
+	 | '/\\'		// ASCII substitute
 	) s
 
 except =
