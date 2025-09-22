@@ -1,0 +1,161 @@
+// FIM Examples, with space removed everywhere possible
+RoleNaming(smokes.1,isSmoker)
+RoleNaming(employs.1,employer)
+RoleNaming(employs.2,employee)
+
+FactType(smokes(Person))
+FactType(wasBornIn(Person,Country))
+FactType(employs(Company,Person))
+
+FactType(made(Company,Product))
+FactType(drives(Person,Car))
+FactType(reportsTo(Person,Person))
+
+FactType(?played?for?(Person,Sport,Country))
+
+FactType(?introduced?to?(Person,Person,Person))
+FactType(?ate?on?(Cat,Food,Date))
+
+FactType(?in?on?ate?(Person,City,Date,Food))
+
+FactType(enrolledIn(Student,Course))
+Objectifies(Enrolment,enrollediIn)
+
+FactType(resultedIn(Enrolment,Grade))
+
+Unique(isOf.1)
+Unique(wasBornIn.1)
+Unique(speaks.1,speaks.2)
+Unique(isPresidentOf.1)
+Unique(isPresidentOf.2)
+
+Unique(?got?in?.1,?got?in?.3)
+Unique(?got?in?.2,?got?in?.3)
+
+Unique(?played?for?.1,?played?for?.2,?played?for?.3)
+
+Mandatory(Person,wasBornIn.1)
+
+// Must have passport *or* driverLicence
+Mandatory(Visitor,hasPassport.1,hasDriverLicence.1)
+
+SimpleIdentification(Country,has.1,has.2)
+
+ExternalIdentification(State(hasStateCode.2,isIn.2))
+
+ExternalUnique(hasStateName.2,isIn.2)
+
+ValuesOf(GenderCode('M' 'F'))
+
+// The predicate "has" will occur in many places with different object types. This role identifier in inadequate:
+ValuesOf(has.2(0..140))
+
+Subset((smokes.1,isCancerProne.1))
+
+Subset((?for?obtained?.1,enrollediIn.1)(?for?obtained?.2,enrollediIn.2))
+
+JoinPath(P(speaks.1,speaks.2)(isOftenUsedIn.1,isOftenUsedIn.2))
+
+Subset((servesIn.1,P.1)(servesIn.2,P.2))
+
+Exclusive((isWidowed.1,isMarried.1))
+
+Exclusive((reviewed.1,authored.1)(reviewed.2,authored.2))
+
+Equal((hasSystolic.1,hasDiasystolic.1))
+
+Subtype(Lecturer,Employee)
+Subtype(Employee,Person)
+Subtype(Student,Person)
+Subtype(StudentEmployee,Student)
+Subtype(StudentEmployee,Employee)
+
+ExclusiveSubtypes((Dog,Cat)Animal)
+
+ExhaustiveSubtypes((Player,Coach)TeamMember)
+
+ExclusiveSubtypes((MalePerson,FemalePerson)Person)
+ExhaustiveSubtypes((MalePerson,FemalePerson)Person)
+
+Frequency((12),isAMemberOf.2)
+Frequency((4,7),isOn.2)
+Frequency((..5),reviews.1)
+Frequency((2..),reviews.2)
+
+Frequency((2),?in?hadStaffOf?in?.1,?in?hadStaffOf?in?.2)
+
+ExternalFrequency((..2),isBy.2,isIn.2)
+
+>=(endedOn.2,startedOn.2)
+<(p.1,p.2)
+<=(p.1,p.2)
+=(p.1,p.2)
+!=(p.1,p.2)
+
+// RingConstraints:
+LocallyReflexive(p.1,p.2)
+PurelyReflexive(p.1,p.2)
+Irreflexive(p.1,p.2)
+Symmetric(p.1,p.2)
+Asymmetric(p.1,p.2)
+Antisymmetric(p.1,p.2)
+Transitive(p.1,p.2)
+Intransitive(p.1,p.2)
+StronglyIntransitive(p.1,p.2)
+Acyclic(p.1,p.2)
+// etc.
+
+TypeCardinality(President(0 ..1)) 
+TypeCardinality(President(0..1))
+
+RoleCardinality(isThePresidentOf.2(0..1))
+
+// each Smoker is a kind of Person where
+//	that Person smokes
+SubTypeRule(Smoker,Person∧smokes)
+
+// each Resident is a kind of Person where
+//	that Person is a resident citizen or is a resident alien
+SubTypeRule(Resident, Person∧(isAResidentCitizen∨isAResidentAlien))
+
+// each SelfTransporter is a kind of Person where
+//	that Person drives some Car or rides some Motorcycle
+SubTypeRule(SelfTransporter,Person∧((drives.1➤[drives.2⨝Car])∨(rides.1➤[rides.2⨝Motorcycle])))
+
+// each NonSmoker is a kind of Person where
+//	it is not the case that that Person smokes
+SubTypeRule(NonSmoker,Person∖smokes)
+
+// each NonDriver is a kind of Person where
+//	that Person drives no Car
+// Missing paren
+SubTypeRule(NonDriver,Person∖(drives.1➤[drives.2⨝Car]))
+
+// each Teetotaller is a kind of Person where
+//	that Person drinks no Beverage that is alcoholic
+SubTypeRule(TeeTotaller,Person∖(drinks.1➤[drinks.2⨝(Beverage∧isAlcoholic)]))
+
+// Person is a typical sports person where
+//	that Person played some Sport that is popular or
+//	that Person played some Sport for some Country that is large
+FactTypeRule(isATypicalSportsPerson,Person∧?played?for?.1➤[?played?for?.2⨝(Sport∧isPopular)][?played?for?.3⨝(Country∧isLarge)])
+
+// Person lives in Country where
+//	that Person lives in some State that is in that Country
+FactTypeRule(livesInCountry,Person∧livesInState.1➤[livesInState.2⨝(State∧isIn.1➤[isIn.2⨝(Country∧?x)])],(Country∧?x))
+
+// Person can fully communicate in Language where
+//	that Person can speak that Language and can write that Language
+FactTypeRule(canFullyCommunicateIn,Person∧(canSpeak.1➤[canSpeak.2⨝(Language∧?x)])∧(canWrite.1➤[canwrite.2⨝(Language∧?x)]),(Language∧?x))
+
+// Person can communicate in Language where
+//	that Person can speak that Language or can write that Language
+FactTypeRule(canCommunicateIn,Person∧((canSpeak.1➤[canSpeak.2⨝(Language∧?x)])∨(canWrite.1➤[canwrite.2⨝(Language∧?x)])),(Language∧?x))
+
+// CarModel was sold in Region where
+//	some Customer who lives in that Region bought some Car that is of that CarModel
+FactTypeRule(soldIn,CarModel∧?x,Region∧(livesIn.2➤[livesIn.1⨝Customer∧(bought.1➤[bought.2⨝Car∧(isOf.1➤[isOf.2⨝(CarModel∧?x)])])]))
+
+// Customer in Region bought CarModel where
+//	that Customer lives in that Region and bought some Car that is of that CarModel y
+FactTypeRule(?in?bought?,Customer∧(livesIn.1➤[livesIn.2⨝(Region∧?x)])∧(bought.1➤[bought.2⨝(Car∧(isOf.1➤[isOf.2⨝CarModel∧?y]))]),(Region∧?x),(CarModel∧?y))

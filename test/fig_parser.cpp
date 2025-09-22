@@ -369,7 +369,7 @@ template<>FigParser::Rule	FigParser::rules[] =
 	  0
 	},
 	{ "zero",
-	  "0(|&\\.\\.|![0-9x.])",
+	  "0&(|\\.\\.|![0-9x.])",
 	  0
 	},
 	{ "infinity",

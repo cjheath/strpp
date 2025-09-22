@@ -369,7 +369,7 @@ octalnumber =
         '0' *[0-7]
 
 zero =			// Allow zero at start of a range, but not a decimal or hex number
-	'0' (| &'..' | ![0-9x.])
+	'0' &(| '..' | ![0-9x.])
 
 infinity =
 	'∞' s
