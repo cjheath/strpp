@@ -162,10 +162,15 @@ public:
 			printf("continuing /%s/ text `%.10s`...\n", call_end, state.text.peek());
 #endif
 
-			// If the call is not labelled it can still be captured:
-			int label_size = call_end-label;
-			if (!label)
+			int label_size;
+			if (label)
 			{
+				label_size = call_end-label;
+				if (call_end[-1] == ':')
+					label_size--;
+			}
+			else
+			{		// If the call is not labelled it can still be captured:
 				label = sub_rule->name;
 				label_size = strlen(label);
 			}
