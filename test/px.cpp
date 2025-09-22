@@ -66,15 +66,15 @@ PxParser::Rule	rules[] =
 	  rule_captures
 	},
 	{ "action",
-	  "-><s>?(<name>:function\\:<s>)<parameter>*(,<s><parameter>)<s>",
+	  "-><s>?(<name>:function:\\:<s>)<parameter>*(,<s><parameter>)<s>",
 	  action_captures
 	},
 	{ "parameter",
-	  "(|<reference>:parameter|\\\'<literal>:parameter\\\')<s>",
+	  "(|<reference>:parameter:|\\\'<literal>:parameter:\\\')<s>",
 	  parameter_captures
 	},
 	{ "reference",
-	  "<name><s>*([.*]:joiner<s><name>)",
+	  "<name><s>*([.*]:joiner:<s><name>)",
 	  reference_captures
 	},
 	{ "alternates",
@@ -86,11 +86,11 @@ PxParser::Rule	rules[] =
 	  sequence_captures
 	},
 	{ "repeat_count",
-	  "|[?*+!&]:limit<s>|<count>:limit",
+	  "|[?*+!&]:limit:<s>|<count>:limit:",
 	  repeat_count_captures
 	},
 	{ "count",
-	  "\\{(|(+\\d):val|<name>:val)<s>\\}<s>",
+	  "\\{(|(+\\d):val:|<name>:val:)<s>\\}<s>",
 	  count_captures
 	},
 	{ "repetition",
@@ -102,7 +102,7 @@ PxParser::Rule	rules[] =
 	  label_captures
 	},
 	{ "atom",
-	  "|\\.:any|<name>:call|\\\\<property>|\\\'<literal>\\\'|\\[<class>\\]|\\(<group>\\)",
+	  "|\\.:any:|<name>:call:|\\\\<property>|\\\'<literal>\\\'|\\[<class>\\]|\\(<group>\\)",
 	  atom_captures
 	},
 	{ "group",
@@ -192,6 +192,7 @@ StrVal generate_literal(StrVal literal, bool leave_specials = false)
 	static	auto	c_esc_chars = "ntrbf";		// Match the character positions
 	static	auto	hex = "0123456789ABCDEF";
 
+	// printf("generate_literal from %s", literal.asUTF8());
 	// Escape special characters:
 	literal.transform(
 		[&](const UTF8*& cp, const UTF8* ep) -> StrVal
@@ -245,6 +246,7 @@ StrVal generate_literal(StrVal literal, bool leave_specials = false)
 			return ch;
 		}
 	);
+	// printf(" to %s\n", literal.asUTF8());
 
 	return literal;
 }
@@ -493,7 +495,7 @@ void emit_rule_cpp(
 
 	// Generate the pegular expression for this rule:
 	StrVal		re = generate_pegexp(va);
-	// printf("Pegexp: '%s'\n", re.asUTF8());
+	// printf("Pegexp:\t %s\n", re.asUTF8());
 	StrVal		re_cpp = transform_literal_to_cpp(re);
 
 	rules += StrVal("\t{ \"")
