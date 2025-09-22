@@ -73,11 +73,11 @@ externalIdentification =
 // For Frequency, the predicates must be all the same
 // For ExternalFrequency, the predicates may be all different
 frequency =
-	?'External':e 'Frequency' s '(' s frequencyRanges sep predicateRole *(sep predicateRole) ')'
+	?('External':e) 'Frequency' s '(' s frequencyRanges sep predicateRole *(sep predicateRole) ')'
 	-> e, predicateRole, frequencyRanges
 
 frequencyRanges =
-	'(' s +frequencyRange ')' s
+	'(' s frequencyRange *(sep frequencyRange) ')' s
 	-> frequencyRange
 
 frequencyRange =
@@ -119,7 +119,7 @@ typeCardinality =
 	-> typename, cardinalityRange
 
 roleCardinality =
-	'RoleCardinality' s '(' s predicateRole ','? s cardinalityRange ')'
+	'RoleCardinality' s '(' s predicateRole ?',' s cardinalityRange ')'
 	-> predicateRole, cardinalityRange
 
 cardinalityRange =

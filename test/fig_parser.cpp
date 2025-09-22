@@ -105,11 +105,11 @@ template<>FigParser::Rule	FigParser::rules[] =
 	  externalIdentification_captures
 	},
 	{ "frequency",
-	  "?External:e:Frequency<s>\\(<s><frequencyRanges><sep><predicateRole>*(<sep><predicateRole>)\\)",
+	  "?(External:e:)Frequency<s>\\(<s><frequencyRanges><sep><predicateRole>*(<sep><predicateRole>)\\)",
 	  frequency_captures
 	},
 	{ "frequencyRanges",
-	  "\\(<s>+<frequencyRange>\\)<s>",
+	  "\\(<s><frequencyRange>*(<sep><frequencyRange>)\\)<s>",
 	  frequencyRanges_captures
 	},
 	{ "frequencyRange",
@@ -149,7 +149,7 @@ template<>FigParser::Rule	FigParser::rules[] =
 	  typeCardinality_captures
 	},
 	{ "roleCardinality",
-	  "RoleCardinality<s>\\(<s><predicateRole>,?<s><cardinalityRange>\\)",
+	  "RoleCardinality<s>\\(<s><predicateRole>?,<s><cardinalityRange>\\)",
 	  roleCardinality_captures
 	},
 	{ "cardinalityRange",
