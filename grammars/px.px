@@ -18,7 +18,7 @@ s =
 	*(!blankline space)		// Any space not including a blankline
 
 TOP =					// This grammar expects some rules
-	*space *rule
+	*space rule			// parse one rule at a time
 	-> rule
 
 rule =
