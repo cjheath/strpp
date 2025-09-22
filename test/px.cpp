@@ -118,9 +118,7 @@ PxParser::Rule	rules[] =
 	  0
 	},
 	{ "literal_char",
-	  "|\\\\(|?[0-3][0-7]?[0-7]|x\\h?\\h|x{+\\h}|u\\h?\\h?\\h?\\h|u{+\\h}|[^\\n])|[^\\\\\\n]",
-//	  The generated Pegexp escapes { and }, and double-escapes the backslashes in \\n
-//	  "|\\\\(|?[0-3][0-7]?[0-7]|x\\h?\\h|x\\{+\\h\\}|u\\h?\\h?\\h?\\h|u\\{+\\h\\}|[^\\\\n])|[^\\\\\\n]",
+	  "|\\\\(|?[0-3][0-7]?[0-7]|x\\h?\\h|x\\{+\\h\\}|u\\h?\\h?\\h?\\h|u\\{+\\h\\}|[^\\n])|[^\\\\\\n]",
 	  0
 	},
 	{ "property",
