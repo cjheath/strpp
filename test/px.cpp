@@ -3,13 +3,12 @@
  *
  * Copyright 2025 Clifford Heath. ALL RIGHTS RESERVED SUBJECT TO ATTACHED LICENSE.
  */
-#include	<char_encoding.h>
-#include	<refcount.h>
+#include	<px_parser.h>
+#include	<px_parser.cpp>
+
 #include	<strval.h>
 #include	<variant.h>
-
-#include	<peg.h>
-#include	<peg_ast.h>
+#include	<char_encoding.h>
 
 #include	<cstdio>
 #include	<cctype>
@@ -17,127 +16,15 @@
 #include	<unistd.h>
 #include	<fcntl.h>
 
+void emit_cpp(const char* parser_name, VariantArray rules);
+
+typedef	CowMap<bool>	StringSet;
+
 void usage()
 {
 	fprintf(stderr, "Usage: px peg.px\n");
 	exit(1);
 }
-
-typedef	Peg<PegMemorySource, PegMatch, PegContext>	PxParser;
-
-const char*	TOP_captures[] = { "rule", 0 };
-const char*	rule_captures[] = { "name", "alternates", "action", 0 };
-const char*	action_captures[] = { "function", "parameter", 0 };
-const char*	parameter_captures[] = { "parameter", 0 };
-const char*	reference_captures[] = { "name", "joiner", 0 };
-const char*	alternates_captures[] = { "sequence", 0 };
-const char*	sequence_captures[] = { "repetition", 0 };
-const char*	repeat_count_captures[] = { "limit", 0 };
-const char*	count_captures[] = { "val", 0 };
-const char*	repetition_captures[] = { "repeat_count", "atom", "label", 0 };
-const char*	label_captures[] = { "name", 0 };
-const char*	atom_captures[] = { "any", "call", "property", "literal", "class", "group", 0 };
-const char*	group_captures[] = { "alternates", 0 };
-
-PxParser::Rule	rules[] =
-{
-	{ "EOF",
-	  "!.",
-	  0
-	},
-	{ "space",
-	  "|[ \\t\\r\\n]|//*[^\\n]",
-	  0
-	},
-	{ "blankline",
-	  "\\n*[ \\t\\r](|\\n|<EOF>)",
-	  0
-	},
-	{ "s",
-	  "*(!<blankline><space>)",
-	  0
-	},
-	{ "TOP",
-	  "*<space><rule>",
-	  TOP_captures
-	},
-	{ "rule",
-	  "<name><s>=<s><alternates>?<action><blankline>*<space>",
-	  rule_captures
-	},
-	{ "action",
-	  "-><s>?(<name>:function:\\:<s>)<parameter>*(,<s><parameter>)<s>",
-	  action_captures
-	},
-	{ "parameter",
-	  "(|<reference>:parameter:|\\\'<literal>:parameter:\\\')<s>",
-	  parameter_captures
-	},
-	{ "reference",
-	  "<name><s>*([.*]:joiner:<s><name>)",
-	  reference_captures
-	},
-	{ "alternates",
-	  "|+(\\|<s><sequence>)|<sequence>",
-	  alternates_captures
-	},
-	{ "sequence",
-	  "*<repetition>",
-	  sequence_captures
-	},
-	{ "repeat_count",
-	  "|[?*+!&]:limit:<s>|<count>:limit:",
-	  repeat_count_captures
-	},
-	{ "count",
-	  "\\{(|(+\\d):val:|<name>:val:)<s>\\}<s>",
-	  count_captures
-	},
-	{ "repetition",
-	  "?<repeat_count><atom>?<label><s>",
-	  repetition_captures
-	},
-	{ "label",
-	  "\\:<name>",
-	  label_captures
-	},
-	{ "atom",
-	  "|\\.:any:|<name>:call:|\\\\<property>|\\\'<literal>\\\'|\\[<class>\\]|\\(<group>\\)",
-	  atom_captures
-	},
-	{ "group",
-	  "<s>+<alternates>",
-	  group_captures
-	},
-	{ "name",
-	  "[\\a_]*[\\w_]",
-	  0
-	},
-	{ "literal",
-	  "*(![\']<literal_char>)",
-	  0
-	},
-	{ "literal_char",
-	  "|\\\\(|?[0-3][0-7]?[0-7]|x\\h?\\h|x\\{+\\h\\}|u\\h?\\h?\\h?\\h|u\\{+\\h\\}|[^\\n])|[^\\\\\\n]",
-	  0
-	},
-	{ "property",
-	  "[adhswLU]",
-	  0
-	},
-	{ "class",
-	  "?\\^?-+<class_part>",
-	  0
-	},
-	{ "class_part",
-	  "!\\]<class_char>?(-!\\]<class_char>)",
-	  0
-	},
-	{ "class_char",
-	  "![-\\]]<literal_char>",
-	  0
-	}
-};
 
 char* slurp_file(const char* filename, off_t* size_p)
 {
@@ -161,16 +48,8 @@ char* slurp_file(const char* filename, off_t* size_p)
 	return px;
 }
 
-PxParser::Match
-parse_rule(PxParser::Source source)
-{
-	PxParser	peg(rules, sizeof(rules)/sizeof(rules[0]));
-
-	return peg.parse(source);
-}
-
 /*
- * This function converts the Px text into what Pegexp requires as input (at runtime).
+ * This function converts Px literal text into what Pegexp requires as input (at runtime).
  *
  * Px accepts Unicode characters in literals. Pegexp only accepts printable ASCII.
  * Characters that are not ASCII printable must be converted for Pegexp, into
@@ -388,6 +267,202 @@ generate_parameters(Variant parameters)
 	return p;
 }
 
+/*
+ * Descend into the AST of a regular expression, saving any new rule names that are called
+ */
+void accumulate_called_rules(StringSet& called, Variant re)
+{
+	if (re.type() == Variant::StrVarMap)
+	{
+		assert(re.as_variant_map().size() == 1);	// There is only one entry in the map
+		StrVariantMap	map = re.as_variant_map();
+		auto		entry = map.begin();
+		StrVal		node_type = entry->first;	// Extract the node_type and value
+		Variant		element = entry->second;
+
+		if (node_type == "name")
+			called.put(element.as_strval(), true);
+		else if (node_type == "sequence")	// Process the VarArray
+			accumulate_called_rules(called, element);
+		else if (node_type == "group")
+			return accumulate_called_rules(called, element);
+		else if (node_type == "alternates")
+		{
+			VariantArray	repetitions = element.as_variant_array();
+
+			for (int i = 0; i < repetitions.length(); i++)
+			{
+				StrVariantMap	repetition = repetitions[i].as_variant_map();
+				Variant		atom = repetition["atom"];
+				accumulate_called_rules(called, atom);
+			}
+		}
+		else if (node_type == "repetition")
+		{		// Each repetition has {optional repeat_count, atom, optional label}
+			VariantArray	repetitions = element.as_variant_array();
+
+			for (int i = 0; i < repetitions.length(); i++)
+			{
+				StrVariantMap	repetition = repetitions[i].as_variant_map();
+				Variant		atom = repetition["atom"];
+				accumulate_called_rules(called, atom);
+			}
+		}
+	}
+	else if (re.type() == Variant::VarArray)
+	{
+		VariantArray	va = re.as_variant_array();
+		for (int i = 0; i < va.length(); i++)
+			accumulate_called_rules(called, va[i]);
+	}
+}
+
+bool check_rules(VariantArray rules)
+{
+	StringSet	defined_rules;
+	StringSet	called_rules;
+
+	// Find names of all rules that are called:
+	for (int i = 0; i < rules.length(); i++)
+	{
+		StrVariantMap	rule = rules[i].as_variant_map()["rule"].as_variant_map();
+		StrVal		rule_name = rule["name"].as_strval();
+		Variant		va = rule["alternates"];	// Definition of the rule's RE
+
+		// record that this rule is defined:
+		defined_rules.put(rule_name, true);
+#if 0
+	// REVISIT: Ensure that actions only request available captures
+		// record which rules this rule calls and what labels it has, for checking actions:
+		StringSet	local_called_rules;
+		accumulate_called_rules(local_called_rules, va);
+		Variant		vact = rule["action"];		// Ensure that capture names are defined
+#endif
+
+		// accumulate all called rules:
+		accumulate_called_rules(called_rules, va);
+	}
+
+	// Ensure that all called rules exist:
+	bool ok = true;
+	for (auto i = called_rules.begin(); i != called_rules.end(); i++)
+	{
+		if (!defined_rules[i->first])
+		{
+			ok = false;
+			printf("Rule %s is called but not defined\n", StrVal(i->first).asUTF8());
+		}
+	}
+
+	return ok;
+}
+
+typedef void (*Emitter)(const char* parser_name, VariantArray rules);
+
+bool
+parse_and_emit(const char* filename, VariantArray& rules, Emitter emit)
+{
+	off_t		file_size;
+	char*		text = slurp_file(filename, &file_size);
+	char*		basename;
+	PxParser::Source source(text);
+	int		bytes_parsed = 0;
+	int		rules_parsed = 0;
+
+	// Figure out the basename, isolate and null-terminate it:
+	if ((basename = (char*)strrchr(filename, '/')) != 0)
+		basename++;
+	else
+		basename = (char*)filename;
+	basename = strdup(basename);
+	if (strchr(basename, '.'))
+		*strchr(basename, '.') = '\0';
+
+	PxParser	peg;
+
+	do {
+		PxParser::Match match = peg.parse(source);
+
+		if (match.is_failure())
+		{
+			printf("Parse failed at line %lld column %lld (byte %lld of %d) after %d rules. Possible next %d tokens were:\n",
+				source.current_line()+match.furthermost_success.current_line()-1,
+				source.current_column()+match.furthermost_success.current_column()-1,
+				source.current_byte()+match.furthermost_success.current_byte(),
+				(int)file_size,
+				rules_parsed,
+				match.failures.length()
+			);
+
+			for (int i = 0; i < match.failures.length(); i++)
+			{
+				PegFailure	f = match.failures[i];
+				printf("\t%.*s\n", f.atom_len, f.atom);
+			}
+			break;
+		}
+
+		bytes_parsed = match.furthermost_success.peek() - text;
+
+		// printf("===== Rule %d:\n", rules_parsed+1);
+		// printf("Parse Tree:\n%s\n", match.var.as_json(0).asUTF8());
+
+		rules.append(match.var);
+
+		// Start again at the next rule:
+		source = match.furthermost_success;
+		rules_parsed++;
+	} while (bytes_parsed < file_size);
+
+	// printf("Parsed %d bytes of %d\n", bytes_parsed, (int)file_size);
+
+	delete text;
+
+	bool	success = bytes_parsed == file_size;
+
+	if (!success)
+	{
+		rules.clear();
+		return false;
+	}
+
+	if (!check_rules(rules))
+		return false;
+
+	emit(basename, rules);
+
+	return true;
+}
+
+int
+main(int argc, const char** argv)
+{
+	if (argc < 2)
+		usage();
+
+	/*
+	start_recording_allocations();
+	*/
+
+	VariantArray	rules;
+	if (!parse_and_emit(argv[1], rules, emit_cpp))
+		exit(1);
+
+	/*
+	if (allocation_growth_count() > 0)	// No allocation should remain unfreed
+		report_allocation_growth();
+	*/
+
+	return 1;
+}
+
+/*
+ * C++ code generator for a parser
+ */
+
+/*
+ * Take a literal string containing the Pegexp text of a rule, and turn it into a C++ literal
+ */
 StrVal transform_literal_to_cpp(StrVal str)
 {
 	static	auto	c_escapes = "\\\n\t\r\b\f\"\'";	// C also defines \a, \v but they're not well-known
@@ -507,103 +582,12 @@ void emit_rule_cpp(
 		+ "\n\t}";
 }
 
-typedef	Array<StrVal>	StringArray;
-typedef	CowMap<bool> 	StringSet;
-
-/*
- * Descend into the AST of a regular expression, saving any new rule names that are called
- */
-void accumulate_called_rules(StringSet& called, Variant re)
-{
-	if (re.type() == Variant::StrVarMap)
-	{
-		assert(re.as_variant_map().size() == 1);	// There is only one entry in the map
-		StrVariantMap	map = re.as_variant_map();
-		auto		entry = map.begin();
-		StrVal		node_type = entry->first;	// Extract the node_type and value
-		Variant		element = entry->second;
-
-		if (node_type == "name")
-			called.put(element.as_strval(), true);
-		else if (node_type == "sequence")	// Process the VarArray
-			accumulate_called_rules(called, element);
-		else if (node_type == "group")
-			return accumulate_called_rules(called, element);
-		else if (node_type == "alternates")
-		{
-			VariantArray	repetitions = element.as_variant_array();
-
-			for (int i = 0; i < repetitions.length(); i++)
-			{
-				StrVariantMap	repetition = repetitions[i].as_variant_map();
-				Variant		atom = repetition["atom"];
-				accumulate_called_rules(called, atom);
-			}
-		}
-		else if (node_type == "repetition")
-		{		// Each repetition has {optional repeat_count, atom, optional label}
-			VariantArray	repetitions = element.as_variant_array();
-
-			for (int i = 0; i < repetitions.length(); i++)
-			{
-				StrVariantMap	repetition = repetitions[i].as_variant_map();
-				Variant		atom = repetition["atom"];
-				accumulate_called_rules(called, atom);
-			}
-		}
-	}
-	else if (re.type() == Variant::VarArray)
-	{
-		VariantArray	va = re.as_variant_array();
-		for (int i = 0; i < va.length(); i++)
-			accumulate_called_rules(called, va[i]);
-	}
-}
-
-bool check_rules(VariantArray rules)
-{
-	StringSet	defined_rules;
-	StringSet	called_rules;
-
-	// Find names of all rules that are called:
-	for (int i = 0; i < rules.length(); i++)
-	{
-		StrVariantMap	rule = rules[i].as_variant_map()["rule"].as_variant_map();
-		StrVal		rule_name = rule["name"].as_strval();
-		Variant		va = rule["alternates"];	// Definition of the rule's RE
-
-		// record that this rule is defined:
-		defined_rules.put(rule_name, true);
-#if 0
-	// REVISIT: Ensure that actions only request available captures
-		// record which rules this rule calls and what labels it has, for checking actions:
-		StringSet	local_called_rules;
-		accumulate_called_rules(local_called_rules, va);
-		Variant		vact = rule["action"];		// Ensure that capture names are defined
-#endif
-
-		// accumulate all called rules:
-		accumulate_called_rules(called_rules, va);
-	}
-
-	// Ensure that all called rules exist:
-	bool ok = true;
-	for (auto i = called_rules.begin(); i != called_rules.end(); i++)
-	{
-		if (!defined_rules[i->first])
-		{
-			ok = false;
-			printf("Rule %s is called but not defined\n", StrVal(i->first).asUTF8());
-		}
-	}
-
-	return ok;
-}
-
-void emit_cpp(const char* parser_name, VariantArray rules)
+void emit_cpp(const char* base_name, VariantArray rules)
 {
 	StrVal	capture_arrays;
 	StrVal	rules_text;
+	StrVal	parser_name = StrVal((UCS4)base_name[0]).asUpper()+(base_name+1);
+	StrVal	file_base_name = StrVal(base_name)+"_parser";
 
 	for (int i = 0; i < rules.length(); i++)
 	{
@@ -613,111 +597,34 @@ void emit_cpp(const char* parser_name, VariantArray rules)
 		emit_rule_cpp(rules[i], capture_arrays, rules_text);
 	}
 
+	const UTF8*	parser_name_u = parser_name.asUTF8();
+	const UTF8*	file_base_name_u = file_base_name.asUTF8();
+
 	printf(
-		"typedef\tPeg<PegMemorySource, PegMatch, PegContext>\t%sParser;\n\n"
-		"%s\n"
-		"%sParser::Rule\trules[] =\n{"
-		"%s\n"
-		"};\n",
-		parser_name,
+		"/*\n"
+		" * Rules for a %sParser\n"
+		" *\n"
+		" * You must declare this type in %s.h by expanding the Peg<> template\n"
+		" */\n"
+		"#include\t<%s.h>\n"
+		"\n"
+		"%s\n"				// capture_arrays
+		"template<>%sParser::Rule\t%sParser::rules[] =\n{"
+		"%s\n"				// rules_text
+		"};\n"
+		"\n"
+		"template<>int\t%sParser::num_rule = sizeof(%sParser::rules)/sizeof(%sParser::rules[0]);\n",
+
+		parser_name_u,			// Rules for a XXX
+		file_base_name_u,		// You must declare...
+		file_base_name_u,		// #include...
 		capture_arrays.asUTF8(),
-		parser_name,
-		rules_text.asUTF8()
+		parser_name_u,			// XxParser::Rule XxParser::rules[] = {
+		parser_name_u,
+		rules_text.asUTF8(),
+		parser_name_u,			// XxParser::num_rule
+		parser_name_u,			// XxParser::rules
+		parser_name_u			// XxParser::rules[0]
 	);
 }
 
-bool
-parse_and_emit(const char* filename, VariantArray& rules)
-{
-	off_t		file_size;
-	char*		text = slurp_file(filename, &file_size);
-	char*		basename;
-	PxParser::Source source(text);
-	int		bytes_parsed = 0;
-	int		rules_parsed = 0;
-
-	// Figure out the basename, isolate and null-terminate it:
-	if ((basename = (char*)strrchr(filename, '/')) != 0)
-		basename++;
-	else
-		basename = (char*)filename;
-	basename = strdup(basename);
-	if (strchr(basename, '.'))
-		*strchr(basename, '.') = '\0';
-	*basename = toupper(*basename);
-
-	do {
-		PxParser::Match match = parse_rule(source);
-
-		if (match.is_failure())
-		{
-			printf("Parse failed at line %lld column %lld (byte %lld of %d) after %d rules. Possible next %d tokens were:\n",
-				source.current_line()+match.furthermost_success.current_line()-1,
-				source.current_column()+match.furthermost_success.current_column()-1,
-				source.current_byte()+match.furthermost_success.current_byte(),
-				(int)file_size,
-				rules_parsed,
-				match.failures.length()
-			);
-
-			for (int i = 0; i < match.failures.length(); i++)
-			{
-				PegFailure	f = match.failures[i];
-				printf("\t%.*s\n", f.atom_len, f.atom);
-			}
-			break;
-		}
-
-		bytes_parsed = match.furthermost_success.peek() - text;
-
-		// printf("===== Rule %d:\n", rules_parsed+1);
-		// printf("Parse Tree:\n%s\n", match.var.as_json(0).asUTF8());
-
-		rules.append(match.var);
-
-		// Start again at the next rule:
-		source = match.furthermost_success;
-		rules_parsed++;
-	} while (bytes_parsed < file_size);
-
-	// printf("Parsed %d bytes of %d\n", bytes_parsed, (int)file_size);
-
-	delete text;
-
-	bool	success = bytes_parsed == file_size;
-
-	if (!success)
-	{
-		rules.clear();
-		return false;
-	}
-
-	if (!check_rules(rules))
-		return false;
-
-	emit_cpp(basename, rules);
-
-	return true;
-}
-
-int
-main(int argc, const char** argv)
-{
-	if (argc < 2)
-		usage();
-
-	/*
-	start_recording_allocations();
-	*/
-
-	VariantArray	rules;
-	if (!parse_and_emit(argv[1], rules))
-		exit(1);
-
-	/*
-	if (allocation_growth_count() > 0)	// No allocation should remain unfreed
-		report_allocation_growth();
-	*/
-
-	return 1;
-}
