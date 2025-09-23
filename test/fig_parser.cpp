@@ -281,11 +281,11 @@ template<>FigParser::Rule	FigParser::rules[] =
 	  0
 	},
 	{ "comment_to_eol",
-	  "//*(!\\n.)",
+	  "//*(!(\\n).)",
 	  0
 	},
 	{ "comment_c_style",
-	  "/\\**(!\\*/.)\\*/",
+	  "/\\**(!(\\*/).)\\*/",
 	  0
 	},
 	{ "sep",

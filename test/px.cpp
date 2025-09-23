@@ -130,6 +130,24 @@ StrVal generate_literal(StrVal literal, bool leave_specials = false)
 	return literal;
 }
 
+// a repetition operator applies to this atom. Ensure it is wrapped in () if necessary
+bool single_atom(Variant atom)
+{
+	if (atom.type() == Variant::StrVarMap)
+	{
+		auto	element = atom.as_variant_map().begin();
+		StrVal	map_content_type = element->first;
+		if (map_content_type == "literal")
+			return element->second.as_strval().length() <= 1;
+		return map_content_type != "sequence";
+	}
+	else if (atom.type() == Variant::VarArray)
+	{
+		return false;
+	}
+	return true;
+}
+
 /*
  * For the Variant node passed, generate the Pegexp expression which corresponds
  *
@@ -160,12 +178,18 @@ StrVal generate_pegexp(Variant re)
 				StrVariantMap	repetition = repetitions[i].as_variant_map();
 				Variant		atom = repetition["atom"];
 				Variant		repeat_count = repetition["repeat_count"]; // Maybe None
-				if (repeat_count.type() != Variant::None)
+				bool		repeating = repeat_count.type() != Variant::None;
+				if (repeating)
 					ret += repeat_count.as_variant_map()["limit"].as_strval();
+				bool sa = single_atom(atom);
+				if (!sa && repeating)
+					ret += "(";
 				ret += generate_pegexp(atom);
 				Variant		label = repetition["label"];	// Maybe None
 				if (label.type() != Variant::None)
 					ret += StrVal(":")+label.as_variant_map()["name"].as_strval()+":";
+				if (!sa && repeating)
+					ret += ")";
 			}
 			return ret;
 		}

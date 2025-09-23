@@ -73,7 +73,7 @@ externalIdentification =
 // For Frequency, the predicates must be all the same
 // For ExternalFrequency, the predicates may be all different
 frequency =
-	?('External':e) 'Frequency' s '(' s frequencyRanges sep predicateRole *(sep predicateRole) ')'
+	?'External':e 'Frequency' s '(' s frequencyRanges sep predicateRole *(sep predicateRole) ')'
 	-> e, predicateRole, frequencyRanges
 
 frequencyRanges =
@@ -169,11 +169,11 @@ ringConstraintType =
 	| 'Acyclic'
 
 subTypeRule =
-	'SubType' ?('Semi':semi) 'Rule' s '(' s typename sep path ')'
+	'SubType' ?'Semi':semi 'Rule' s '(' s typename sep path ')'
 	-> semi, typename, path
 
 factTypeRule =
-	'FactType' ?('Semi':semi) 'Rule' s '(' s predicate sep path *(sep path) ')'
+	'FactType' ?'Semi':semi 'Rule' s '(' s predicate sep path *(sep path) ')'
 	-> semi, predicate, path
 
 // Declare a new predicate to join the first role of the first pair through to the second of the last:

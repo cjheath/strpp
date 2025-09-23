@@ -1,4 +1,6 @@
-// FIM Examples, with space everywhere space is allowed
+/*
+ * FIM Examples, with space everywhere space is allowed
+ */
 RoleNaming ( smokes.1 , isSmoker ) 
 RoleNaming ( employs.1 , employer ) 
 RoleNaming ( employs.2 , employee ) 
@@ -39,7 +41,7 @@ Unique ( ?played?for?.1 , ?played?for?.2 ,
 
 Mandatory ( Person , wasBornIn.1 ) 
 
-///* Must have passport *or* driverLicence */
+/* Must have passport *or* driverLicence */
 Mandatory ( Visitor ,
 	hasPassport.1 , hasDriverLicence.1 ) 
 
@@ -121,68 +123,92 @@ TypeCardinality ( President ( 0 .. 1 ) )
 
 RoleCardinality ( isThePresidentOf.2 ( 0 .. 1 ) ) 
 
-// each Smoker is a kind of Person where
-//	that Person smokes
+/*
+ each Smoker is a kind of Person where
+ 	that Person smokes
+ */
 SubTypeRule ( Smoker , Person ∧ smokes )
 
-//each Resident is a kind of Person where
-//	that Person is a resident citizen or is a resident alien
+/*
+ each Resident is a kind of Person where
+ 	that Person is a resident citizen or is a resident alien
+ */
+// Missing paren
 SubTypeRule ( Resident ,
 	 Person ∧ ( isAResidentCitizen ∨ isAResidentAlien ) ) 
 
-//each SelfTransporter is a kind of Person where
-//	that Person drives some Car or rides some Motorcycle
+/*
+ each SelfTransporter is a kind of Person where
+ 	that Person drives some Car or rides some Motorcycle
+ */
 SubTypeRule ( SelfTransporter ,
 	 ( Person ∧ ( ( drives.1 ➤ [ drives.2 ⨝ Car ] ) ∨
 		 ( rides.1 ➤ [ rides.2 ⨝ Motorcycle ] ) ) ) ) 
 
-// each NonSmoker is a kind of Person where
-//	it is not the case that that Person smokes
+/*
+ each NonSmoker is a kind of Person where
+ 	it is not the case that that Person smokes
+ */
 SubTypeRule ( NonSmoker, Person ∖ smokes ) 
 
-// each NonDriver is a kind of Person where
-//	that Person drives no Car
+/*
+ each NonDriver is a kind of Person where
+ 	that Person drives no Car
+ */
 SubTypeRule ( NonDriver,
 	 Person ∖ ( drives.1 ➤ [ drives.2 ⨝ Car ] ) ) 
 
-// each Teetotaller is a kind of Person where
-//	that Person drinks no Beverage that is alcoholic
+/*
+ each Teetotaller is a kind of Person where
+ 	that Person drinks no Beverage that is alcoholic
+ */
+// Missing paren
 SubTypeRule ( TeeTotaller , Person ∖ ( drinks.1 ➤ [ drinks.2 ⨝ ( Beverage ∧ isAlcoholic ) ] ) ) 
 
-// Person is a typical sports person where
-//	that Person played some Sport that is popular or
-//	that Person played some Sport for some Country that is large
+/*
+ Person is a typical sports person where
+ 	that Person played some Sport that is popular or
+	that Person played some Sport for some Country that is large
+ */
 FactTypeRule ( isATypicalSportsPerson ,
 	 Person ∧ ?played?for?.1 ➤
 	 [ ?played?for?.2 ⨝ ( Sport ∧ isPopular ) ] 
 	 [ ?played?for?.3 ⨝ ( Country ∧ isLarge ) ] ) 
 
-// Person lives in Country where
-//	that Person lives in some State that is in that Country
+/*
+ Person lives in Country where
+	that Person lives in some State that is in that Country
+ */
 FactTypeRule ( livesInCountry ,
 	 ( Person ∧ livesInState.1 ➤
 	 [ livesInState.2 ⨝ ( State ∧ isIn.1 ➤
 	 [ isIn.2 ⨝ ( Country ∧ ?x ) ] ) ] ) ,
 	 ( Country ∧ ?x ) ) 
 
-// Person can fully communicate in Language where
-//	that Person can speak that Language and can write that Language
+/*
+ Person can fully communicate in Language where
+	that Person can speak that Language and can write that Language
+ */
 FactTypeRule ( canFullyCommunicateIn ,
 	 ( Person ∧
 	 ( canSpeak.1 ➤ [ canSpeak.2 ⨝ ( Language ∧ ?x ) ] ) ∧
 	 ( canWrite.1 ➤ [ canwrite.2 ⨝ ( Language ∧ ?x ) ] ) ) , 
 	 ( Language ∧ ?x ) ) 
 
-// Person can communicate in Language where
-//	that Person can speak that Language or can write that Language
+/*
+ Person can communicate in Language where
+	that Person can speak that Language or can write that Language
+ */
 FactTypeRule ( canCommunicateIn ,
 	 ( Person ∧
 	 ( ( canSpeak.1 ➤ [ canSpeak.2 ⨝ ( Language ∧ ?x ) ] ) ∨
 	 ( canWrite.1 ➤ [ canwrite.2 ⨝ ( Language ∧ ?x ) ] ) ) ) , 
 	 ( Language ∧ ?x ) ) 
 
-// CarModel was sold in Region where
-//	some Customer who lives in that Region bought some Car that is of that CarModel
+/*
+ CarModel was sold in Region where
+	some Customer who lives in that Region bought some Car that is of that CarModel
+*/
 FactTypeRule ( soldIn ,
 	 ( CarModel ∧ ?x ) , 
 	 ( Region ∧
@@ -190,8 +216,10 @@ FactTypeRule ( soldIn ,
 	     ( bought.1 ➤ [ bought.2 ⨝ Car ∧
 	       ( isOf.1 ➤ [ isOf.2 ⨝ ( CarModel ∧ ?x ) ] ) ] ) ] ) ) ) 
 
-// Customer in Region bought CarModel where
-//	that Customer lives in that Region and bought some Car that is of that CarModel y
+/*
+ Customer in Region bought CarModel where
+	that Customer lives in that Region and bought some Car that is of that CarModel y
+*/
 FactTypeRule ( ?in?bought? ,
 	 ( Customer ∧
 	 ( livesIn.1 ➤ [ livesIn.2 ⨝ ( Region ∧ ?x ) ] ) ∧
