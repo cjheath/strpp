@@ -67,6 +67,7 @@ typedef	const char*	PegexpPC;	// The Pegexp is always 8-bit, not UTF-8
 
 /*
  * Pegexp and Peg require a Source, which represents a location in a byte stream, and only moves forwards.
+ * A Source may be copied. Each copy will re-read the same data as it moves forward. This is how Pegexp backtracks.
  * This is a default example of the API a Source must implement. You can derive from this, or make your own.
  *
  * Adapt DataPtr (a pointer-ish thing) to be a suitable input for a Pegexp,
@@ -145,8 +146,10 @@ public:
 			{ return data == other.data; }
 	size_t		bytes_from(PegexpPointerSource origin)
 			{ return byte_count - origin.byte_count; }
-	bool		operator<(PegexpPointerSource& other) { assert(data && other.data || (!data && !other.data)); return data < other.data; }
-	off_t		operator-(PegexpPointerSource& other) { assert(data && other.data || (!data && !other.data)); return data - other.data; }
+	bool		operator<(PegexpPointerSource& other)
+			{ assert(data && other.data || (!data && !other.data)); return data < other.data; }
+	off_t		operator-(PegexpPointerSource& other)
+			{ assert(data && other.data || (!data && !other.data)); return data - other.data; }
 
 	// These may be used for error reporting. They're not required by Pegexp
 	off_t		current_byte() const { return byte_count; }
@@ -175,6 +178,7 @@ using	PegexpDefaultSource = PegexpPointerSource<>;
 
 /*
  * The default Match is just a POD copy of the start and end Source locations.
+ * A null end Source indicates match failure at the start location.
  * It does not otherwise save the Match or allocate memory.
  */
 template <typename _Source = PegexpDefaultSource>
@@ -222,13 +226,13 @@ public:
 	// Calls to capture() inside a repetition happen with in_repetition set. This holds the nesting.
 	int		repetition_nesting;	// A counter of repetition nesting
 
-	// Every capture gets a capture number, so we can roll it back if needed:
+	// Every capture gets a consecutive capture number, so we can roll back recent captures if needed:
 	int		capture_count() const { return 0; }
 
 	// A capture is a named Match. capture() should return the capture_count afterwards.
 	int		capture(PegexpPC name, int name_len, Match, bool in_repetition) { return 0; }
 
-	// In some grammars, capture can occur within a failing expression, so we can roll back to a count:
+	// In some grammars, capture can occur within a failing path, so we can roll back to a count:
 	void		rollback_capture(int count) {}
 
 	// When an atom of a Pegexp fails, the atom (pointer to start and end) and Source location are passed here.
