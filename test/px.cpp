@@ -131,7 +131,7 @@ StrVal generate_literal(StrVal literal, bool leave_specials = false)
 }
 
 // a repetition operator applies to this atom. Ensure it is wrapped in () if necessary
-bool single_atom(Variant atom)
+bool is_single_atom(Variant atom)
 {
 	if (atom.type() == Variant::StrVarMap)
 	{
@@ -181,7 +181,7 @@ StrVal generate_pegexp(Variant re)
 				bool		repeating = repeat_count.type() != Variant::None;
 				if (repeating)
 					ret += repeat_count.as_variant_map()["limit"].as_strval();
-				bool sa = single_atom(atom);
+				bool sa = is_single_atom(atom);
 				if (!sa && repeating)
 					ret += "(";
 				ret += generate_pegexp(atom);
