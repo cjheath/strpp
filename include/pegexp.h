@@ -285,16 +285,15 @@ public:	// Expose our template types for subclasses to use:
 
 	// Match the Peg expression at or after the start of the source,
 	// Advance to the end of the matched text and return the starting offset, or -1 on failure
-	Match		match(Source& source, Context* context = 0)
+	Match		match(Source& source, Context* context)
 	{
-		int	initial_captures = context ? context->capture_count() : 0;
+		int	initial_captures = context->capture_count();
 		off_t	offset = 0;
 
 		while (true)
 		{
 			Source	attempt = source;
-			if (context)
-				context->rollback_capture(initial_captures);
+			context->rollback_capture(initial_captures);
 
 			Match	match = match_here(attempt, context);
 			if (!match.is_failure())
@@ -309,16 +308,14 @@ public:	// Expose our template types for subclasses to use:
 		return context->match_failure(source);
 	}
 
-	Match		match_here(Source& source, Context* context = 0)
+	Match		match_here(Source& source, Context* context)
 	{
 		State	state(pegexp, source);
 
 		bool ok = match_sequence(state, context);
 		if (ok && *state.pc == '\0')	// An extra ')' can cause match_sequence to succeed incorrectly
 		{
-			Match	match = context
-				? context->match_result(source, state.text)
-				: Match(source, state.text);
+			Match	match = context->match_result(source, state.text);
 
 			// point source at the text following the successful attempt:
 			source = state.text;
@@ -329,25 +326,25 @@ public:	// Expose our template types for subclasses to use:
 	}
 
 protected:
-	bool		match_sequence(Source& source, Context* context = 0)
+	bool		match_sequence(Source& source, Context* context)
 	{
 		State	state(pegexp, source);
 		return match_sequence(state, context);
 	}
 
-	bool		match_sequence(State& state, Context* context = 0)
+	bool		match_sequence(State& state, Context* context)
 	{
 		if (state.at_expr_end())
 			return true;	// We matched nothing, successfully
 
-		int		sequence_capture_start = context ? context->capture_count() : 0;
+		int		sequence_capture_start = context->capture_count();
 
 		bool	ok = match_atom(state, context);
 		while (ok && !state.at_expr_end())
 			ok = match_atom(state, context);
 
 		// If we didn't get to the end of the sequence, rollback any captures in the incomplete sequence:
-		if (context && !ok)
+		if (!ok)
 			context->rollback_capture(sequence_capture_start);
 		return ok;
 	}
@@ -513,7 +510,7 @@ protected:
 	 */
 	bool		match_atom(State& state, Context* context)
 	{
-		int		initial_captures = context ? context->capture_count() : 0;
+		int		initial_captures = context->capture_count();
 		State		start_state(state);
 
 		bool		matched = false;
@@ -565,7 +562,7 @@ protected:
 			State		iteration_start = state;	// revert here on iteration failure
 			int		repetitions = 0;
 
-			if (context && max != 1)
+			if (max != 1)
 				context->repetition_nesting++;
 
 			// Attempt the minimum iterations:
@@ -580,13 +577,14 @@ protected:
 			// Continue up to max iterations:
 			while (max == 0 || repetitions < max)
 			{
-				int		iteration_captures = context ? context->capture_count() : 0;
+				int		iteration_captures = context->capture_count();
 				iteration_start = state;
 				state.pc = repeat_pc;
 				if (!match_atom(state, context))
 				{
-					if (context)	// Undo new captures on failure of an unmatched iteration
-						context->rollback_capture(iteration_captures);
+					// Undo new captures on failure of an unmatched iteration
+					context->rollback_capture(iteration_captures);
+
 					// printf("iterated %d (>=min %d <=max %d)\n", repetitions, min, max);
 					skip_atom(state.pc);	// We're done with these repetitions, move on
 					break;
@@ -596,7 +594,7 @@ protected:
 				repetitions++;
 			}
 			matched = true;
-	repeat_fail:	if (context && max != 1)
+	repeat_fail:	if (max != 1)
 				context->repetition_nesting--;
 			break;
 		}
@@ -613,7 +611,7 @@ protected:
 		case '|':	// Alternates
 		{
 			PegexpPC	next_alternate = state.pc-1;
-			int		alternate_captures = context ? context->capture_count() : 0;
+			int		alternate_captures = context->capture_count();
 			while (*next_alternate == '|')	// There's another alternate
 			{
 				state = start_state;
@@ -633,8 +631,8 @@ protected:
 					break;
 				}
 				next_alternate = skip_atom(next_alternate);
-				if (context)	// Undo new captures on failure of an alternate
-					context->rollback_capture(initial_captures);
+				// Undo new captures on failure of an alternate
+				context->rollback_capture(initial_captures);
 			}
 			break;
 		}
@@ -642,13 +640,11 @@ protected:
 		case '&':	// Positive lookahead assertion
 		case '!':	// Negative lookahead assertion
 		{
-			if (context)
-				context->capture_disabled++;
+			context->capture_disabled++;
 			matched = match_atom(state, context);
 			if (rc == '!')
 				matched = !matched;
-			if (context)
-				context->capture_disabled--;
+			context->capture_disabled--;
 
 			state = start_state;	// Continue with the same text
 			if (matched)	// Assertion succeeded, skip it
@@ -672,8 +668,8 @@ protected:
 		}
 		if (!matched)
 		{
-			if (context)	// Undo new captures on failure
-				context->rollback_capture(initial_captures);
+			// Undo new captures on failure
+			context->rollback_capture(initial_captures);
 
 			/*
 			 * If this is the furthest point reached in the text so far,
@@ -681,8 +677,7 @@ protected:
 			 * attempted at this point, we want to know what characters would
 			 * have allowed the parse to proceed.
 			 */
-			if (context		// We need something to report to
-			 && (char*)0 == strchr("?*+(|&!", rc))		// Don't report composite operators
+			if ((char*)0 == strchr("?*+(|&!", rc))		// Don't report composite operators
 			{
 				/*
 				 * Terminal symbols for which we can report failure:
@@ -717,15 +712,12 @@ protected:
 			PegexpPC	name_end = state.pc;
 			if (*state.pc == ':')
 				state.pc++;
-			if (context && context->capture_disabled == 0)
-			{
-				Match	r(start_state.text, state.text);
-
+			if (context->capture_disabled == 0)
 				(void)context->capture(
 					name, name_end-name,
-					r, context->repetition_nesting > 0
+					context->match_result(start_state.text, state.text),
+					context->repetition_nesting > 0
 				);
-			}
 		}
 		return true;
 	}
