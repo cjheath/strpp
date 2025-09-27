@@ -65,7 +65,7 @@ const char*	label_captures[] = { "name", 0 };
 const char*	atom_captures[] = { "atom", 0 };
 const char*	group_captures[] = { "alternates", 0 };
 
-PxParser::Rule	rules[] =
+template<>PxParser::Rule	PxParser::rules[] =
 {
 	{ "blankline",				// A line containing no printing characters
 	  "\\n*[ \\t\\r](|\\n|!.)",
@@ -179,11 +179,12 @@ PxParser::Rule	rules[] =
 	  0
 	},
 };
+template<>int	PxParser::num_rule = sizeof(PxParser::rules)/sizeof(PxParser::rules[0]);
 
 PxParser::Match
 parse_file(char* text)
 {
-	PxParser		peg(rules, sizeof(rules)/sizeof(rules[0]));
+	PxParser		peg;
 
 	PxParser::Source	source(text);
 	return peg.parse(source);
