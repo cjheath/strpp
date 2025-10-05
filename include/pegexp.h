@@ -176,6 +176,28 @@ protected:
 
 using	PegexpDefaultSource = PegexpPointerSource<>;
 
+// State is used to manage matching progress and backtracking locations.
+template<
+	typename _Source = PegexpDefaultSource
+>
+class PegexpState
+{
+public:
+	using Source = _Source;
+
+	// Constructor, copy, and assignment:
+	PegexpState(PegexpPC _pc, Source _text) : pc(_pc), text(_text) {}
+	PegexpState(const PegexpState& c) : pc(c.pc), text(c.text) {}
+	PegexpState&	operator=(const PegexpState& c)
+			{ pc = c.pc; text = c.text; return *this; }
+
+	bool		at_expr_end()
+			{ return *pc == '\0' || *pc == ')'; }
+
+	PegexpPC	pc;		// Current location in the pegexp
+	Source		text;		// Current text we're looking at
+};
+
 /*
  * The default Match is just a POD copy of the start and end Source locations.
  * A null end Source indicates match failure at the start location.
@@ -263,20 +285,10 @@ public:	// Expose our template types for subclasses to use:
 	static	const char*	special;
 
 	// State is used to manage matching progress and backtracking locations.
-	class State
+	class State : public PegexpState<Source>
 	{
 	public:
-		// Constructor, copy, and assignment:
-		State(PegexpPC _pc, Source _text) : pc(_pc), text(_text) {}
-		State(const State& c) : pc(c.pc), text(c.text) {}
-		State&		operator=(const State& c)
-				{ pc = c.pc; text = c.text; return *this; }
-
-		bool		at_expr_end()
-				{ return *pc == '\0' || *pc == ')'; }
-
-		PegexpPC	pc;		// Current location in the pegexp
-		Source		text;		// Current text we're looking at
+		State(PegexpPC pc, Source source) : PegexpState<Source>(pc, source) {};
 	};
 
 	PegexpPC	pegexp;	// The text of the Peg expression: 8-bit data, not UTF-8
@@ -305,7 +317,7 @@ public:	// Expose our template types for subclasses to use:
 			(void)source.get_char();
 			offset++;
 		}
-		return context->match_failure(source);
+		return context->match_failure(source);	// Always at_eof()
 	}
 
 	Match		match_here(Source& source, Context* context)
@@ -322,16 +334,14 @@ public:	// Expose our template types for subclasses to use:
 			return match;
 		}
 		else
-			return context->match_failure(source);
+		{
+			// state.pc points to the start of the atom of the pattern which failed,
+			// state.text to the next unmatched input
+			return context->match_failure(state.text);
+		}
 	}
 
 protected:
-	bool		match_sequence(Source& source, Context* context)
-	{
-		State	state(pegexp, source);
-		return match_sequence(state, context);
-	}
-
 	bool		match_sequence(State& state, Context* context)
 	{
 		if (state.at_expr_end())

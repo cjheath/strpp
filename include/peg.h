@@ -201,7 +201,6 @@ public:
 		}
 	}
 
-	// Null extension; treat extensions like literal characters
 	virtual void	skip_extended(PegexpPC& pc)
 	{
 		if (*pc++ == '<')
