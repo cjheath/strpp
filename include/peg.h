@@ -39,12 +39,13 @@ template<
 	typename _Source = PegexpDefaultSource
 >
 class PegDefaultMatch
-: public PegexpDefaultMatch<_Source>
+: public PegexpDefaultMatch<PegexpState<_Source>>
 {
 public:
 	using Source = _Source;
-	PegDefaultMatch() : PegexpDefaultMatch<Source>() {}	// Default constructor
-	PegDefaultMatch(Source from, Source to) : PegexpDefaultMatch<Source>(from, to) {}
+	using State = PegexpState<Source>;
+	PegDefaultMatch() : PegexpDefaultMatch<State>() {}	// Default constructor
+	PegDefaultMatch(State from, State to) : PegexpDefaultMatch<State>(from, to) {}
 };
 
 /*
@@ -83,13 +84,13 @@ public:
 	int		capture_count() const { return 0; }
 
 	// A capture is a named Match. capture() should return the capture_count afterwards.
-	int		capture(PegexpPC name, int name_len, Match, bool in_repetition) { return 0; }
+	int		capture(PatternP name, int name_len, Match, bool in_repetition) { return 0; }
 
 	// In some grammars, capture can occur within a failing expression, so we can roll back to a count:
 	void		rollback_capture(int count) {}
 
 	// When an atom of a Pegexp fails, the atom (pointer to start and end) and Source location are passed here
-	void		record_failure(PegexpPC op, PegexpPC op_end, Source location) {}
+	void		record_failure(PatternP op, PatternP op_end, Source location) {}
 
 	Match		match_result(Source from, Source to)	// Capture the range of text
 			{ return Match(from, to); }
@@ -117,19 +118,19 @@ public:
 	using	State = typename Base::State;
 	using	PegT = Peg<Source, Match, Context>;
 
-	PegPegexp(PegexpPC _pegexp_pc) : Base(_pegexp_pc) {}
+	PegPegexp(PatternP _pattern) : Base(_pattern) {}
 
 	virtual bool	match_extended(State& state, Context* context)
 	{
-		switch (*state.pc)
+		switch (*state.pattern)
 		{
 		case '<':
 			{
 			// Parse the call to a sub-rule. Note: These are not nul-terminated
-			PegexpPC	rule_name = 0;		// The name of the rule being called
-			PegexpPC	label = 0;		// The label assignd to the call
-			PegexpPC	call_end = 0;		// Where to continue if the sub_rule succeeds
-			parse_call(state.pc, rule_name, label, call_end);
+			PatternP	rule_name = 0;		// The name of the rule being called
+			PatternP	label = 0;		// The label assignd to the call
+			PatternP	call_end = 0;		// Where to continue if the sub_rule succeeds
+			parse_call(state.pattern, rule_name, label, call_end);
 
 			// Find the rule being called:
 			PegT*		peg = context->peg;
@@ -138,13 +139,13 @@ public:
 				return false;			// Problem in the Peg definition, undefined rule
 
 			// Open a nested Context to parse the current text with the new Pegexp:
-			Context		sub_context(peg, context, sub_rule, state.text);
+			Context		sub_context(peg, context, sub_rule, state.source);
 			State		start_state(state);	// Save for a failure exit
-			state.pc = sub_rule->expression.pegexp;
+			state.pattern = sub_rule->expression.pattern;
 
 #if defined(PEG_TRACE)
 			context->print_path();
-			printf(": calling %s /%s/ at `%.10s...`\n", sub_rule->name, state.pc, state.text.peek());
+			printf(": calling %s /%s/ at `%.10s...`\n", sub_rule->name, state.pattern, state.source.peek());
 #endif
 
 			Match	match = peg->recurse(sub_rule, state, &sub_context);
@@ -153,13 +154,13 @@ public:
 #if defined(PEG_TRACE)
 				printf("FAIL\n");
 #endif
-				state.pc = call_end;	// Allow report_failure to say what call failed
+				state.pattern = call_end;	// Allow report_failure to say what call failed
 				return false;
 			}
 
 #if defined(PEG_TRACE)
-			printf("MATCH %s `%.*s`\n", sub_rule->name, (int)state.text.bytes_from(start_state.text), start_state.text.peek());
-			printf("continuing /%s/ text `%.10s`...\n", call_end, state.text.peek());
+			printf("MATCH %s `%.*s`\n", sub_rule->name, (int)state.source.bytes_from(start_state.source), start_state.source.peek());
+			printf("continuing /%s/ text `%.10s`...\n", call_end, state.source.peek());
 #endif
 
 			int label_size;
@@ -180,13 +181,13 @@ public:
 			{
 				(void)context->capture(
 					label, label_size,
-					sub_context.match_result(start_state.text, state.text),
+					sub_context.match_result(start_state, state),
 					context->repetition_nesting > 0
 				);
 			}
 
 			// Continue after the matched text, but with the code following the call:
-			state.pc = call_end;
+			state.pattern = call_end;
 			return true;
 			}
 
@@ -196,27 +197,27 @@ public:
 		case '%':
 		case '_':
 		case ';':
-		default:	// Control characters: (*state.pc > 0 && *state.pc < ' ')
+		default:	// Control characters: (*state.pattern > 0 && *state.pattern < ' ')
 			return Base::match_literal(state, context);
 		}
 	}
 
-	virtual void	skip_extended(PegexpPC& pc)
+	virtual void	skip_extended(PatternP& pattern)
 	{
-		if (*pc++ == '<')
-			while (*pc != '\0' && *pc++ != '>')
+		if (*pattern++ == '<')
+			while (*pattern != '\0' && *pattern++ != '>')
 				;
 	}
 
 protected:
-	void	parse_call(PegexpPC pc, PegexpPC& rule_name, PegexpPC& label, PegexpPC& call_end)
+	void	parse_call(PatternP pattern, PatternP& rule_name, PatternP& label, PatternP& call_end)
 	{
-		pc++;
-		rule_name = pc;
+		pattern++;
+		rule_name = pattern;
 
 		// Find the end of the rule name in the Pegexp
-		PegexpPC	brangle = strchr(pc, '>');
-		call_end = brangle ? brangle+1 : pc+strlen(pc);
+		PatternP	brangle = strchr(pattern, '>');
+		call_end = brangle ? brangle+1 : pattern+strlen(pattern);
 		if (*call_end == ':')
 		{				// The call has an optional label
 			label = ++call_end;
@@ -253,24 +254,24 @@ public:
 		});
 	}
 
-	Match	parse(Source& text)
+	Match	parse(Source& source)
 	{
 		Rule*	top_rule = lookup("TOP");
 		assert(top_rule);
 
 #if defined(PEG_TRACE)
 		printf(
-			"Starting %s at `%.10s...` (pegexp `%s`)\n",
+			"Starting %s at `%.10s...` (pattern `%s`)\n",
 			top_rule->name,
-			text.peek(),
-			top_rule->expression.pegexp
+			source.peek(),
+			top_rule->expression.pattern
 		);
 #endif
 
-		Context		context(this, 0, top_rule, text);
-		Source		start(text);
+		Context		context(this, 0, top_rule, source);
+		Source		start(source);
 
-		return top_rule->expression.match_here(text, &context);
+		return top_rule->expression.match_here(source, &context);
 	}
 
 	Rule*	lookup(const char* name)
@@ -300,16 +301,16 @@ public:
 		// Check for left recursion (infinite loop)
 		for (Context* pp = context->parent; pp; pp = pp->parent)
 		{
-			if (pp->origin < state.text)
+			if (pp->origin < state.source)
 				break;	// This rule is starting ahead of pp and all its ancestors
 			if (pp->rule == sub_rule)
 			{
 				left_recursion(state);
-				return context->match_failure(state.text);
+				return context->match_failure(state);
 			}
 		}
 
-		return sub_rule->expression.match_here(state.text, context);
+		return sub_rule->expression.match_here(state.source, context);
 	}
 
 protected:
@@ -317,7 +318,7 @@ protected:
 	{
 #if defined(PEG_TRACE)
 		//pp->print_path();
-		printf(": left recursion detected at `%.10s`\n", state.text.peek());
+		printf(": left recursion detected at `%.10s`\n", state.source.peek());
 #endif
 	}
 };

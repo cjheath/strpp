@@ -1,3 +1,5 @@
+#include	<stdio.h>
+
 #if !defined(PEGEXP_H)
 #define PEGEXP_H
 /*
@@ -63,7 +65,7 @@
 #include	<cctype>
 #include	<char_encoding.h>
 
-typedef	const char*	PegexpPC;	// The Pegexp is always 8-bit, not UTF-8
+typedef	const char*	PatternP;	// The Pegexp is always 8-bit, not UTF-8
 
 /*
  * Pegexp and Peg require a Source, which represents a location in a byte stream, and only moves forwards.
@@ -142,7 +144,7 @@ public:
 			{ return column_char == 1; }
 
 	// REVISIT: I'm not sure these definitions are the best way to manage their requirements:
-	bool		same(PegexpPointerSource& other) const
+	bool		same(const PegexpPointerSource& other) const
 			{ return data == other.data; }
 	size_t		bytes_from(PegexpPointerSource origin)
 			{ return byte_count - origin.byte_count; }
@@ -186,44 +188,49 @@ public:
 	using Source = _Source;
 
 	// Constructor, copy, and assignment:
-	PegexpState(PegexpPC _pc, Source _text) : pc(_pc), text(_text) {}
-	PegexpState(const PegexpState& c) : pc(c.pc), text(c.text) {}
+	PegexpState() : pattern(0), source() {}
+	PegexpState(PatternP _pattern, Source _source) : pattern(_pattern), source(_source) {}
+	PegexpState(const PegexpState& c) : pattern(c.pattern), source(c.source) {}
 	PegexpState&	operator=(const PegexpState& c)
-			{ pc = c.pc; text = c.text; return *this; }
+			{ pattern = c.pattern; source = c.source; return *this; }
 
 	bool		at_expr_end()
-			{ return *pc == '\0' || *pc == ')'; }
+			{ return *pattern == '\0' || *pattern == ')'; }
 
-	PegexpPC	pc;		// Current location in the pegexp
-	Source		text;		// Current text we're looking at
+	PatternP	pattern;	// Current location in the Pegexp
+	Source		source;		// Current source we're looking at
 };
 
 /*
- * The default Match is just a POD copy of the start and end Source locations.
- * A null end Source indicates match failure at the start location.
+ * The default Match is just a copy of a start and end State.
  * It does not otherwise save the Match or allocate memory.
  */
-template <typename _Source = PegexpDefaultSource>
+template <typename _State = PegexpState<>>
 class	PegexpDefaultMatch
 {
 public:
-	using Source = _Source;
+	typedef	_State	State;
 
 	PegexpDefaultMatch() {}	// Default constructor
 
 	// Any subclasses must have this constructor, to capture text matches:
-	PegexpDefaultMatch(Source _from, Source _to)
-	: from(_from)		// Source of the start of the matched text
-	, to(_to)		// Source of the text following the match
+	PegexpDefaultMatch(State _from, State _to)
+	: from(_from)		// State (expression and source) before attempting matching
+	, to(_to)		// State after attempting matching
 	{ }
 
 	// Additional data and constructors may be present in implementations, depending on the Context.
 
-	// A match failure is indicated by a null "to" Source:
-	bool		is_failure() const { return to.is_null(); }
+	bool		is_failure() const
+			{
+				if (*from.pattern == '\0')
+					return false;	// We can always match the empty pattern
+				// We failed if the pattern didn't advance and nothing was matched
+				return from.pattern == to.pattern && from.source.same(to.source);
+			}
 
-	Source		from;
-	Source		to;
+	State		from;
+	State		to;
 };
 
 /*
@@ -231,11 +238,12 @@ public:
  * Implement your own template class having this signature to capture matches,
  * or to pass your own context down to a match_extended (as in Peg).
  */
-template <typename _Match = PegexpDefaultMatch<>>
+template <typename _Match = PegexpDefaultMatch<PegexpState<PegexpDefaultSource>>>
 class	PegexpDefaultContext
 {
 public:
 	using	Match = _Match;
+	using	State = typename Match::State;
 	using	Source = typename Match::Source;
 	PegexpDefaultContext()
 	: capture_disabled(0)
@@ -252,48 +260,42 @@ public:
 	int		capture_count() const { return 0; }
 
 	// A capture is a named Match. capture() should return the capture_count afterwards.
-	int		capture(PegexpPC name, int name_len, Match, bool in_repetition) { return 0; }
+	int		capture(PatternP name, int name_len, Match, bool in_repetition) { return 0; }
 
 	// In some grammars, capture can occur within a failing path, so we can roll back to a count:
 	void		rollback_capture(int count) {}
 
 	// When an atom of a Pegexp fails, the atom (pointer to start and end) and Source location are passed here.
 	// Recording this can be useful to see why a Pegexp didn't proceed further, for example.
-	void		record_failure(PegexpPC op, PegexpPC op_end, Source location) {}
+	void		record_failure(PatternP op, PatternP op_end, Source location) {}
 
-	// Declare match failure starting at "from". Failure is indicated here by a null "to" Source.
-	Match		match_failure(Source at)
-			{ return Match(at, Source()); }
+	// Declare a match failure
+	Match		match_failure(State at)
+			{ return Match(at, at); }
 
 	// Success is indicated by a "from" and "to" Source location:
-	Match		match_result(Source from, Source to)
+	Match		match_result(State from, State to)
 			{ return Match(from, to); }
 };
 
 template<
-	typename _Context = PegexpDefaultContext<PegexpDefaultMatch<PegexpDefaultSource>>
+	typename _Context = PegexpDefaultContext<PegexpDefaultMatch<PegexpState<PegexpDefaultSource>>>
 >
 class Pegexp
 {
 public:	// Expose our template types for subclasses to use:
 	using		Context = _Context;
 	using		Match = typename Context::Match;
-	using 		Source = typename Match::Source;
+	using 		State = typename Match::State;
+	using 		Source = typename State::Source;
 	using 		Char = typename Source::Char;
 
 	// Special characters that should be backslash escaped to use a random string as a literal:
 	static	const char*	special;
 
-	// State is used to manage matching progress and backtracking locations.
-	class State : public PegexpState<Source>
-	{
-	public:
-		State(PegexpPC pc, Source source) : PegexpState<Source>(pc, source) {};
-	};
+	PatternP	pattern;	// The text of the Peg expression: 8-bit data, not UTF-8
 
-	PegexpPC	pegexp;	// The text of the Peg expression: 8-bit data, not UTF-8
-
-	Pegexp(PegexpPC _pegexp) : pegexp(_pegexp) {}
+	Pegexp(PatternP _pattern) : pattern(_pattern) {}
 
 	// Match the Peg expression at or after the start of the source,
 	// Advance to the end of the matched text and return the starting offset, or -1 on failure
@@ -317,27 +319,27 @@ public:	// Expose our template types for subclasses to use:
 			(void)source.get_char();
 			offset++;
 		}
-		return context->match_failure(source);	// Always at_eof()
+		return context->match_failure(State(pattern, source));	// Always at_eof()
 	}
 
 	Match		match_here(Source& source, Context* context)
 	{
-		State	state(pegexp, source);
+		State	state(pattern, source);
 
 		bool ok = match_sequence(state, context);
-		if (ok && *state.pc == '\0')	// An extra ')' can cause match_sequence to succeed incorrectly
+		if (ok && *state.pattern == '\0')	// An extra ')' can cause match_sequence to succeed incorrectly
 		{
-			Match	match = context->match_result(source, state.text);
+			Match	match = context->match_result(State(pattern, source), state);
 
 			// point source at the text following the successful attempt:
-			source = state.text;
+			source = state.source;
 			return match;
 		}
 		else
 		{
-			// state.pc points to the start of the atom of the pattern which failed,
-			// state.text to the next unmatched input
-			return context->match_failure(state.text);
+			// state.pattern points to the start of the atom of the pattern which failed,
+			// state.source to the next unmatched input
+			return context->match_failure(state);
 		}
 	}
 
@@ -371,59 +373,59 @@ protected:
 	}
 
 	// The Pegexp wants to match a single Char, so extract it from various representations:
-	Char		literal_char(PegexpPC& pc)
+	Char		literal_char(PatternP& pattern)
 	{
-		Char		rc = *pc++;
+		Char		rc = *pattern++;
 		bool		braces = false;
 
 		if (rc == '\0')
 		{
-			pc--;
+			pattern--;
 			return 0;
 		}
 		if (rc != '\\')
 			return rc;
-		rc = *pc++;
+		rc = *pattern++;
 		if (rc >= '0' && rc <= '7')		// Octal
 		{
 			rc -= '0';
-			if (*pc >= '0' && *pc <= '7')
-				rc = (rc<<3) + *pc++-'0';
-			if (*pc >= '0' && *pc <= '7')
-				rc = (rc<<3) + *pc++-'0';
+			if (*pattern >= '0' && *pattern <= '7')
+				rc = (rc<<3) + *pattern++-'0';
+			if (*pattern >= '0' && *pattern <= '7')
+				rc = (rc<<3) + *pattern++-'0';
 		}
 		else if (rc == 'x')			// Hexadecimal
 		{
-			if (*pc == '\0')
+			if (*pattern == '\0')
 				return 0;
-			if ((braces = (*pc == '{')))
-				pc++;
-			rc = unhex(*pc++);
+			if ((braces = (*pattern == '{')))
+				pattern++;
+			rc = unhex(*pattern++);
 			if (rc < 0)
 				return 0;		// Error: invalid first hex digit
-			int second = unhex(*pc++);
+			int second = unhex(*pattern++);
 			if (second >= 0)
 				rc = (rc << 4) | second;
 			else
-				pc--;			// Invalid second hex digit
-			if (braces && *pc == '}')
-				pc++;
+				pattern--;		// Invalid second hex digit
+			if (braces && *pattern == '}')
+				pattern++;
 		}
 		else if (rc == 'u')			// Unicode
 		{
 			rc = 0;
-			if ((braces = (*pc == '{')))
-				pc++;
-			for (int i = 0; *pc != '\0' && i < (braces ? 8 : 4); i++)
+			if ((braces = (*pattern == '{')))
+				pattern++;
+			for (int i = 0; *pattern != '\0' && i < (braces ? 8 : 4); i++)
 			{
-				int	digit = unhex(*pc);
+				int	digit = unhex(*pattern);
 				if (digit < 0)
 					break;
 				rc = (rc<<4) | digit;
-				pc++;
+				pattern++;
 			}
-			if (braces && *pc == '}')
-				pc++;
+			if (braces && *pattern == '}')
+				pattern++;
 		}
 		else
 		{
@@ -436,9 +438,9 @@ protected:
 		return rc;
 	}
 
-	bool		char_property(PegexpPC& pc, Char ch)
+	bool		char_property(PatternP& pattern, Char ch)
 	{
-		switch (char32_t esc = *pc++)
+		switch (char32_t esc = *pattern++)
 		{
 		case 'a':	return isalpha(ch);	// Alphabetic
 		case 'd':	return isdigit(ch);	// Digit
@@ -447,52 +449,52 @@ protected:
 		case 'U':	return isupper(ch);
 		case 's':	return isspace(ch);
 		case 'w':	return isalnum(ch);	// Alphabetic or digit
-		default:	pc -= 2;		// oops, not a property
-				esc = literal_char(pc);
+		default:	pattern -= 2;		// oops, not a property
+				esc = literal_char(pattern);
 				return esc == ch;	// Other escaped character, exact match
 		}
 	}
 
 	bool		char_class(State& state)
 	{
-		if (state.text.at_eof())		// End of input never matches a char_class
+		if (state.source.at_eof())		// End of input never matches a char_class
 			return false;
 
 		State	start_state(state);
-		start_state.pc--;
+		start_state.pattern--;
 
 		bool	negated;
-		if ((negated = (*state.pc == '^')))
-			state.pc++;
+		if ((negated = (*state.pattern == '^')))
+			state.pattern++;
 
 		bool	in_class = false;
-		Char	ch = state.text.get_char();
-		while (*state.pc != '\0' && *state.pc != ']')
+		Char	ch = state.source.get_char();
+		while (*state.pattern != '\0' && *state.pattern != ']')
 		{
 			Char	c1;
 
 			// Handle actual properties, not other escapes
-			if (*state.pc == '\\' && isalpha(state.pc[1]))
+			if (*state.pattern == '\\' && isalpha(state.pattern[1]))
 			{
-				state.pc++;
-				if (char_property(state.pc, ch))
+				state.pattern++;
+				if (char_property(state.pattern, ch))
 					in_class = true;
 				continue;
 			}
 
-			c1 = literal_char(state.pc);
-			if (*state.pc == '-')
+			c1 = literal_char(state.pattern);
+			if (*state.pattern == '-')
 			{
 				Char	c2;
-				state.pc++;
-				c2 = literal_char(state.pc);
+				state.pattern++;
+				c2 = literal_char(state.pattern);
 				in_class |= (ch >= c1 && ch <= c2);
 			}
 			else
 				in_class |= (ch == c1);
 		}
-		if (*state.pc == ']')
-			state.pc++;
+		if (*state.pattern == ']')
+			state.pattern++;
 		if (negated)
 			in_class = !in_class;
 		return in_class;
@@ -506,17 +508,17 @@ protected:
 
 	bool		match_literal(State& state, Context* context)
 	{
-		if (state.text.at_eof() || *state.pc != state.text.get_char())
+		if (state.source.at_eof() || *state.pattern != state.source.get_char())
 			return false;
-		state.pc++;
+		state.pattern++;
 		return true;
 	}
 
 	/*
 	 * The guts of the algorithm. Match one atom against the current text.
 	 *
-	 * If this returns true, state.pc has been advanced to the next atom,
-	 * and state.text has consumed any input that matched.
+	 * If this returns true, state.pattern has been advanced to the next atom,
+	 * and state.source has consumed any input that matched.
 	 */
 	bool		match_atom(State& state, Context* context)
 	{
@@ -525,36 +527,36 @@ protected:
 
 		bool		matched = false;
 		char		rc;
-		switch (rc = *state.pc++)
+		switch (rc = *state.pattern++)
 		{
 		case '\0':	// End of expression
-			state.pc--;
+			state.pattern--;
 		case ')':	// End of group
 			matched = true;
 			break;
 
 		case '^':	// Start of line
-			matched = state.text.at_bol();
+			matched = state.source.at_bol();
 			break;
 
 		case '$':	// End of line or end of input
-			matched = state.text.at_eof() || state.text.get_char() == '\n';
-			state.text = start_state.text;
+			matched = state.source.at_eof() || state.source.get_char() == '\n';
+			state.source = start_state.source;
 			break;
 
 		case '.':	// Any character
-			if ((matched = !state.text.at_eof()))
-				(void)state.text.get_char();
+			if ((matched = !state.source.at_eof()))
+				(void)state.source.get_char();
 			break;
 
 		default:	// Literal character
 			if (rc > 0 && rc < ' ')		// Control characters
 				goto extended;
-			matched = !state.text.at_eof() && rc == state.text.get_char();
+			matched = !state.source.at_eof() && rc == state.source.get_char();
 			break;
 
 		case '\\':	// Escaped literal char
-			matched = !state.text.at_eof() && char_property(state.pc, state.text.get_char());
+			matched = !state.source.at_eof() && char_property(state.pattern, state.source.get_char());
 			break;
 
 		case '[':	// Character class
@@ -568,7 +570,7 @@ protected:
 		{
 			int		min = rc == '+' ? 1 : 0;
 			int		max = rc == '?' ? 1 : 0;
-			const PegexpPC	repeat_pc = state.pc;		// This is the code we'll repeat
+			const PatternP	repeat_pattern = state.pattern;		// This is the code we'll repeat
 			State		iteration_start = state;	// revert here on iteration failure
 			int		repetitions = 0;
 
@@ -578,7 +580,7 @@ protected:
 			// Attempt the minimum iterations:
 			while (repetitions < min)
 			{
-				state.pc = repeat_pc;	// We run the same atom more than once
+				state.pattern = repeat_pattern;	// We run the same atom more than once
 				if (!match_atom(state, context))
 					goto repeat_fail;	// We didn't meet the minimum repetitions
 				repetitions++;
@@ -589,17 +591,17 @@ protected:
 			{
 				int		iteration_captures = context->capture_count();
 				iteration_start = state;
-				state.pc = repeat_pc;
+				state.pattern = repeat_pattern;
 				if (!match_atom(state, context))
 				{
 					// Undo new captures on failure of an unmatched iteration
 					context->rollback_capture(iteration_captures);
 
 					// printf("iterated %d (>=min %d <=max %d)\n", repetitions, min, max);
-					skip_atom(state.pc);	// We're done with these repetitions, move on
+					skip_atom(state.pattern);	// We're done with these repetitions, move on
 					break;
 				}
-				if (state.text.same(iteration_start.text))
+				if (state.source.same(iteration_start.source))
 					break;	// We didn't advance, so don't keep trying. Can happen e.g. on *()
 				repetitions++;
 			}
@@ -610,34 +612,34 @@ protected:
 		}
 
 		case '(':	// Parenthesised group
-			start_state.pc = state.pc-1;	// Fail back to the start of the group
+			start_state.pattern = state.pattern-1;	// Fail back to the start of the group
 			if (!match_sequence(state, context))
 				break;
-			if (*state.pc != '\0')		// Don't advance past group if it was not closed
-				state.pc++;		// Skip the ')'
+			if (*state.pattern != '\0')		// Don't advance past group if it was not closed
+				state.pattern++;		// Skip the ')'
 			matched = true;
 			break;
 
 		case '|':	// Alternates
 		{
-			PegexpPC	next_alternate = state.pc-1;
+			PatternP	next_alternate = state.pattern-1;
 			int		alternate_captures = context->capture_count();
 			while (*next_alternate == '|')	// There's another alternate
 			{
 				state = start_state;
-				state.pc = next_alternate+1;
-				start_state.pc = next_alternate+1;
+				state.pattern = next_alternate+1;
+				start_state.pattern = next_alternate+1;
 
 				// Work through all atoms of the current alternate:
 				do {
 					if (!match_atom(state, context))
 						break;
-				} while (!(matched = state.at_expr_end() || *state.pc == '|'));
+				} while (!(matched = state.at_expr_end() || *state.pattern == '|'));
 
 				if (matched)
 				{		// This alternate matched, skip to the end of the alternates
-					while (*state.pc == '|')	// There's another alternate
-						skip_atom(state.pc);
+					while (*state.pattern == '|')	// There's another alternate
+						skip_atom(state.pattern);
 					break;
 				}
 				next_alternate = skip_atom(next_alternate);
@@ -656,9 +658,9 @@ protected:
 				matched = !matched;
 			context->capture_disabled--;
 
-			state = start_state;	// Continue with the same text
+			state = start_state;	// Continue with the same source
 			if (matched)	// Assertion succeeded, skip it
-				state.pc = skip_atom(state.pc);
+				state.pattern = skip_atom(state.pattern);
 			break;
 		}
 
@@ -672,7 +674,7 @@ protected:
 		case '<':
 		case '`':
 		extended:
-			state.pc--;
+			state.pattern--;
 			matched = match_extended(state, context);
 			break;
 		}
@@ -682,7 +684,7 @@ protected:
 			context->rollback_capture(initial_captures);
 
 			/*
-			 * If this is the furthest point reached in the text so far,
+			 * If this is the furthest point reached in the source so far,
 			 * record the rule that was last attempted. Multiple rules may be
 			 * attempted at this point, we want to know what characters would
 			 * have allowed the parse to proceed.
@@ -702,10 +704,10 @@ protected:
 				 * (reporting might also show subsequent literals in a string)
 				 */
 				context->record_failure(
-					start_state.pc,		// The PegexPC of the operator
-					state.pc,		// The PegexPC of the end of the operator
-					start_state.text	// The Source location
-				); // ... record only if state.text >= context->furthest_success
+					start_state.pattern,	// The PegexPC of the operator
+					state.pattern,		// The PegexPC of the end of the operator
+					start_state.source	// The Source location
+				); // ... record only if state.source >= context->furthest_success
 			}
 
 			state = start_state;
@@ -713,19 +715,19 @@ protected:
 		}
 
 		// Detect a label and save the matched atom
-		PegexpPC	name = 0;
-		if (*state.pc == ':')
+		PatternP	name = 0;
+		if (*state.pattern == ':')
 		{
-			name = ++state.pc;
-			while (isalnum(*state.pc) || *state.pc == '_')
-				state.pc++;
-			PegexpPC	name_end = state.pc;
-			if (*state.pc == ':')
-				state.pc++;
+			name = ++state.pattern;
+			while (isalnum(*state.pattern) || *state.pattern == '_')
+				state.pattern++;
+			PatternP	name_end = state.pattern;
+			if (*state.pattern == ':')
+				state.pattern++;
 			if (context->capture_disabled == 0)
 				(void)context->capture(
 					name, name_end-name,
-					context->match_result(start_state.text, state.text),
+					context->match_result(start_state, state),
 					context->repetition_nesting > 0
 				);
 		}
@@ -733,51 +735,51 @@ protected:
 	}
 
 	// Null extension; treat extensions like literal characters
-	virtual void	skip_extended(PegexpPC& pc)
+	virtual void	skip_extended(PatternP& pattern)
 	{
-		pc++;
+		pattern++;
 	}
 
-	const PegexpPC	skip_atom(PegexpPC& pc)
+	const PatternP	skip_atom(PatternP& pattern)
 	{
-		switch (char rc = *pc++)
+		switch (char rc = *pattern++)
 		{
 		case '\\':	// Escaped literal char
-			pc--;
-			(void)literal_char(pc);
+			pattern--;
+			(void)literal_char(pattern);
 			break;
 
 		case '[':	// Skip char class
-			if (*pc == '^')
-				pc++;
-			while (*pc != '\0' && *pc != ']')
+			if (*pattern == '^')
+				pattern++;
+			while (*pattern != '\0' && *pattern != ']')
 			{
-				(void)literal_char(pc);
-				if (*pc == '-')
+				(void)literal_char(pattern);
+				if (*pattern == '-')
 				{
-					pc++;
-					(void)literal_char(pc);
+					pattern++;
+					(void)literal_char(pattern);
 				}
 			}
-			if (*pc == ']')
-				pc++;
+			if (*pattern == ']')
+				pattern++;
 			break;
 
 		case '(':	// Group
-			while (*pc != '\0' && *pc != ')')
-				skip_atom(pc);
-			if (*pc != '\0')
-				pc++;
+			while (*pattern != '\0' && *pattern != ')')
+				skip_atom(pattern);
+			if (*pattern != '\0')
+				pattern++;
 			break;
 
 		case '|':	// First or next alternate; skip to next alternate
-			while (*pc != '|' && *pc != ')' && *pc != '\0')
-				skip_atom(pc);
+			while (*pattern != '|' && *pattern != ')' && *pattern != '\0')
+				skip_atom(pattern);
 			break;
 
 		case '&':	// Positive lookahead assertion
 		case '!':	// Negative lookahead assertion
-			skip_atom(pc);
+			skip_atom(pattern);
 			break;
 
 		// Extended commands:
@@ -790,8 +792,8 @@ protected:
 		case ';':
 		case '<':	// often used for recursive rule calls
 		extended:
-			pc--;
-			skip_extended(pc);
+			pattern--;
+			skip_extended(pattern);
 			break;
 
 		default:
@@ -802,15 +804,15 @@ protected:
 		// As-yet unimplemented features:
 		// case '{':	// REVISIT: Implement counted repetition
 		}
-		if (*pc == ':')
+		if (*pattern == ':')
 		{		// Skip a label
-			pc++;
-			while (isalnum(*pc) || *pc == '_')
-				pc++;
-			if (*pc == ':')
-				pc++;
+			pattern++;
+			while (isalnum(*pattern) || *pattern == '_')
+				pattern++;
+			if (*pattern == ':')
+				pattern++;
 		}
-		return pc;
+		return pattern;
 	}
 };
 

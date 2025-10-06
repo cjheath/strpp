@@ -30,31 +30,38 @@ public:
 
 class PegFailure {
 public:
-	PegexpPC	atom;		// Start of the Pegexp literal we failed to match
+	PatternP	atom;		// Start of the Pegexp literal we failed to match
 	int		atom_len;	// Length of the literal (for reporting)
 };
 // A Failure for each atom tried at furthermost_success location
 typedef Array<PegFailure>	PegFailures;
 
 class PegMatch
+: public PegexpDefaultMatch<PegexpState<PegMemorySource>>
 {
 public:
 	using Source = PegMemorySource;
+	using State = PegexpState<Source>;
 
 	PegMatch()
 	{}
 
 	// Capture matched text:
-	PegMatch(Source from, Source to)
+	PegMatch(State from, State to)
+	: PegexpDefaultMatch<State>(from, to)
 	{
-		if (to.is_null())
-			var = Variant();	// type=None -> failure
+		if (!is_failure())
+		{
+			var = StrVal(from.source.peek(), (int)(to.source - from.source));
+			furthermost_success = to.source;
+		}
 		else
-			var = StrVal(from.peek(), (int)(to - from));
+			var = Variant();	// type=None -> failure
 	}
 
-	PegMatch(Variant _var)
+	PegMatch(Variant _var, Source reached)
 	: var(_var)
+	, furthermost_success(reached)
 	{ }
 
 	// Final result constructor with termination point:
@@ -111,6 +118,7 @@ class	PegContext
 public:
 	using	Source = PegMemorySource;
 	using	Match = PegMatch;
+	using	State = PegMatch::State;
 	using	PegT = Peg<Source, Match, PegContext>;
 	using	PegexpT = PegPegexp<PegContext>;
 	using	Rule = PegCaptureRule<PegexpT>;
@@ -126,7 +134,7 @@ public:
 	, furthermost_success(_origin)	// Farthest Source location we reached
 	{}
 
-	int		capture(PegexpPC name, int name_len, Match r, bool in_repetition)
+	int		capture(PatternP name, int name_len, Match r, bool in_repetition)
 	{
 		StrVal		key(name, name_len);
 		Variant		value(r.var);
@@ -200,7 +208,7 @@ public:
 		printf("REVISIT: Not rolling back to %d from %d\n", count, num_captures);
 	}
 
-	void		record_failure(PegexpPC op, PegexpPC op_end, Source location)
+	void		record_failure(PatternP op, PatternP op_end, Source location)
 	{
 		if (location < furthermost_success)
 			return;	// We got further previously
@@ -208,7 +216,7 @@ public:
 		if (capture_disabled)
 			return;	// Failure in lookahead isn't interesting
 
-		// We only need to know about failures of literals, not pegexp operators:
+		// We only need to know about failures of literals, not Pegexp operators:
 		static	const char*	pegexp_ops = "~@#%_;<`)^$.\\?*+(|&!";
 		if (0 != strchr(pegexp_ops, *op))
 			return;
@@ -220,7 +228,7 @@ public:
 		if (furthermost_success < location)
 			failures.clear();	// We got further this time, previous failures don't matter
 
-		// Don't double-up failures of the same pegexp against the same text:
+		// Don't double-up failures of the same Pegexp against the same text:
 		for (int i = 0; i < failures.length(); i++)
 			if (failures[i].atom == op)
 				return;		// Nothing new here, move along.
@@ -229,17 +237,18 @@ public:
 		failures.append({op, (int)(op_end-op)});
 	}
 
-	Match		match_result(Source from, Source to)
+	Match		match_result(State from, State to)
 	{
 		if (parent == 0)
 			return Match(Variant(ast), furthermost_success, failures);
 		else if (capture_count() > 0)
-			return Match(ast);
+			return Match(ast, to.source);
 		else
 			return Match(from, to);
 	}
-	Match		match_failure(Source at)
-	{ return Match(at, Source()); }
+
+	Match		match_failure(State at)
+	{ return Match(at, at); }
 
 #if defined(PEG_TRACE)
 	int		depth()

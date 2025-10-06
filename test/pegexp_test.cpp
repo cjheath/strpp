@@ -41,13 +41,14 @@ protected:
 	const char*	start;
 };
 
-using	PegexpTestMatch = PegexpDefaultMatch<PegexpTestSource>;
+using	PegexpTestMatch = PegexpDefaultMatch<PegexpState<PegexpTestSource>>;
 
 class	PegexpTestContext
 {
 public:
 	using	Source = PegexpTestSource;
 	using	Match = PegexpTestMatch;
+	using	State = Match::State;
 
 	PegexpTestContext()
 	: capture_disabled(0)
@@ -65,9 +66,9 @@ public:
 	int		capture_count() const { return 0; }
 
 	// A capture is a named Match. capture() should return the capture_count afterwards.
-	int		capture(PegexpPC name, int name_len, Match r, bool in_repetition)
+	int		capture(PatternP name, int name_len, Match r, bool in_repetition)
 			{
-				captures.push({name, name_len, r.from, r.to-r.from});
+				captures.push({name, name_len, r.from.source, r.to.source-r.from.source});
 				return captures.length();
 			}
 
@@ -76,22 +77,22 @@ public:
 
 	// When an atom of a Pegexp fails, the atom (pointer to start and end) and Source location are passed here
 	// Recording this can be useful to see why a Pegexp didn't proceed further, for example.
-	void		record_failure(PegexpPC op, PegexpPC op_end, Source location) {}
+	void		record_failure(PatternP op, PatternP op_end, Source location) {}
 
-	Match		match_result(Source _from, Source _to)
+	Match		match_result(State _from, State _to)
 			{ return match = Match(_from, _to); }
 
-	Match		match_failure(Source _from)
-			{ return match = Match(_from, Source()); }
+	Match		match_failure(State at)
+			{ return match = Match(at, at); }
 
 	struct Captured
 	{
 		Captured() : capture() {}
-		Captured(PegexpPC _name, int _name_len, Source _capture, int _length)
+		Captured(PatternP _name, int _name_len, Source _capture, int _length)
 		: name(_name), name_len(_name_len), capture(_capture), length(_length)
 		{}
 
-		PegexpPC	name;
+		PatternP	name;
 		int		name_len;
 		Source		capture;
 		int		length;
@@ -144,9 +145,9 @@ main(int argc, const char** argv)
 		}
 		else
 		{
-			offset = match.from - origin;
-			match_start = context.match.from.rest();
-			length = context.match.to.rest() - match_start;
+			offset = match.from.source - origin;
+			match_start = context.match.from.source.rest();
+			length = context.match.to.source.rest() - match_start;
 
 //			if (context.captures.length()) ...  // REVISIT: Work out how to integrate this into the test automation
 
