@@ -7,6 +7,10 @@
 
 const char*	TOP_captures[] = { "bom", "definition", 0 };
 const char*	definition_captures[] = { "node", 0 };
+const char*	unrecognised_captures[] = { "id", "list", 0 };
+const char*	list_captures[] = { "atom", 0 };
+const char*	atom_captures[] = { "a", 0 };
+const char*	keyed_literal_captures[] = { "id", "term", 0 };
 const char*	factType_captures[] = { "predicate", "typename", 0 };
 const char*	alternatePredicate_captures[] = { "predicate", "roleNumber", 0 };
 const char*	roleNaming_captures[] = { "predicateRole", "roleName", 0 };
@@ -51,7 +55,6 @@ const char*	variableBinding_captures[] = { "variable", 0 };
 const char*	subexpression_captures[] = { "path", 0 };
 const char*	term_captures[] = { "term", 0 };
 const char*	functionCall_captures[] = { "id", "term", 0 };
-const char*	variable_captures[] = { "id", 0 };
 const char*	roleName_captures[] = { "id", 0 };
 const char*	predicate_captures[] = { "t", 0 };
 const char*	predicateRole_captures[] = { "predicate", "roleNumber", 0 };
@@ -65,7 +68,7 @@ const char*	typename_captures[] = { "id", 0 };
 template<>FigParser::Rule	FigParser::rules[] =
 {
 	{ "TOP",
-	  "?(<BOM>:bom)*<definition>",
+	  "?(<BOM>:bom:)*<definition>",
 	  TOP_captures
 	},
 	{ "BOM",
@@ -73,8 +76,24 @@ template<>FigParser::Rule	FigParser::rules[] =
 	  0
 	},
 	{ "definition",
-	  "<s>(|<factType>:node:|<valuesOf>:node:|<alternatePredicate>:node:|<roleNaming>:node:|<mandatory>:node:|<unique>:node:|<simpleIdentification>:node:|<externalUnique>:node:|<externalIdentification>:node:|<frequency>:node:|<subtype>:node:|<subtypeConstrained>:node:|<subset>:node:|<exclusive>:node:|<equality>:node:|<typeCardinality>:node:|<roleCardinality>:node:|<objectifies>:node:|<linkFactType>:node:|<comparison>:node:|<ringConstraint>:node:|<subTypeRule>:node:|<factTypeRule>:node:|<joinPath>:node:)<s>",
+	  "<s>(|<factType>:node:|<valuesOf>:node:|<alternatePredicate>:node:|<roleNaming>:node:|<mandatory>:node:|<unique>:node:|<simpleIdentification>:node:|<externalUnique>:node:|<externalIdentification>:node:|<frequency>:node:|<subtype>:node:|<subtypeConstrained>:node:|<subset>:node:|<exclusive>:node:|<equality>:node:|<typeCardinality>:node:|<roleCardinality>:node:|<objectifies>:node:|<linkFactType>:node:|<comparison>:node:|<ringConstraint>:node:|<subTypeRule>:node:|<factTypeRule>:node:|<joinPath>:node:|<unrecognised>:node:)<s>",
 	  definition_captures
+	},
+	{ "unrecognised",
+	  "<id><s><list>",
+	  unrecognised_captures
+	},
+	{ "list",
+	  "?(\\(<s>+<atom>\\))<s>?(\\{<s>+<atom>\\})<s>",
+	  list_captures
+	},
+	{ "atom",
+	  "|<keyed_literal>:a:?(,<s>)|<range>:a:?(,<s>)|<term>:a:?(,<s>)|<id>:a:<s>?(,<s>)|<list>:a:<s>",
+	  atom_captures
+	},
+	{ "keyed_literal",
+	  "<id><s>\\:<s><term><s>",
+	  keyed_literal_captures
 	},
 	{ "factType",
 	  "FactType<s>\\(<s><predicate><s>\\(<s><typename>*(<sep><typename>)\\)<s>\\)",
@@ -169,7 +188,7 @@ template<>FigParser::Rule	FigParser::rules[] =
 	  linkFactType_captures
 	},
 	{ "valuesOf",
-	  "ValuesOf<s>\\(<s>(|<predicateRole>:target:|<typename>:target:)\\(<s>+<range>\\)<s>\\)<s>",
+	  "ValuesOf<s>\\(<s>(|<predicateRole>:target:|<typename>:target:)\\(<s><range>*(,<s><range>)\\)<s>\\)<s>",
 	  valuesOf_captures
 	},
 	{ "comparison",
@@ -257,8 +276,8 @@ template<>FigParser::Rule	FigParser::rules[] =
 	  functionCall_captures
 	},
 	{ "variable",
-	  "\\?<id>",
-	  variable_captures
+	  "\\?<id><s>",
+	  0
 	},
 	{ "roleName",
 	  "<id><s>",
@@ -325,7 +344,7 @@ template<>FigParser::Rule	FigParser::rules[] =
 	  0
 	},
 	{ "string_char",
-	  "|\\\\[befntr\\\\\']|\\\\[0-7][0-7][0-7]|\\\\*[\\r][\\n]*[\\r]|\\\\0|\\\\x[0-9A-Fa-f][0-9A-Fa-f]|\\\\u[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]|(![\'\\1-\\7\\x0A-\\x1F].)",
+	  "|\\\\[befntr\\\\\']|\\\\[0-7][0-7][0-7]|\\\\*[\\r][\\n]*[\\r]|\\\\0|\\\\x[0-9A-Fa-f][0-9A-Fa-f]|\\\\u[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]|![\'\\1-\\7\\x0A-\\x1F].",
 	  0
 	},
 	{ "range",

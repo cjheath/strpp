@@ -33,9 +33,33 @@ definition =
 	  | subTypeRule:node
 	  | factTypeRule:node
 	  | joinPath:node
+	  | unrecognised:node
 	) s
 	-> node
 
+// First handle the catch-all for unrecognised declarations of otherwise valid syntax
+unrecognised =
+	id s list
+	-> id, list
+
+list	=
+	?( '(' s +atom ')') s
+	?( '{' s +atom '}') s
+	-> atom
+
+atom	=
+	| keyed_literal:a ?(',' s)		// id: term
+	| range:a ?(',' s)
+	| term:a ?(',' s)
+	| id:a s ?(',' s)
+	| list:a s
+	-> a
+
+keyed_literal =
+	id s ':' s term s
+	-> id, term
+
+// Ok, now the actual supported declaration types:
 factType =
 	'FactType' s '(' s predicate s '(' s typename *(sep typename) ')' s ')'
 	-> predicate, typename
@@ -140,7 +164,7 @@ linkFactType =
 	-> predicate, predicateRole
 
 valuesOf =
-	'ValuesOf' s '(' s (|predicateRole:target |typename:target) '(' s +range ')' s ')' s
+	'ValuesOf' s '(' s (|predicateRole:target |typename:target) '(' s range *(',' s range) ')' s ')' s
 	-> target, range
 
 comparison =
@@ -251,8 +275,7 @@ functionCall =
 	-> id, term
 
 variable =
-	'?' id 
-	-> id
+	'?' id s
 
 roleName =
 	id s
@@ -326,7 +349,7 @@ string_char =
         | '\\0'
         | '\\x' [0-9A-Fa-f] [0-9A-Fa-f]
         | '\\u' [0-9A-Fa-f] [0-9A-Fa-f] [0-9A-Fa-f] [0-9A-Fa-f]
-        | (!['\1-\7\x0A-\x1F] .)	// Exclude control characters except tab. Cannot exclude NUL here
+        | !['\1-\7\x0A-\x1F] .	// Exclude control characters except tab. Cannot exclude NUL here
 
 range =
         | numeric_range:range
