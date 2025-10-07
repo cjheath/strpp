@@ -197,6 +197,8 @@ a(bc|b)c		abcc		failed
 +[^\\]]X		-]]-X		failed
 +[^\\]]X		-X		failed
 +[^a]X			bX		failed
++[\\x41-\\x5A]		aBCDEZz		+1	BCDEZ
++[\\u0041-\\u005A]	aBCDEZz		+1	BCDEZ
 
 # Character properties in classes
 [\\a]			-		failed

@@ -484,7 +484,8 @@ protected:
 			Char	c1;
 
 			// Handle actual properties, not other escapes
-			if (*state.pattern == '\\' && isalpha(state.pattern[1]))
+			char	esc = state.pattern[1];
+			if (*state.pattern == '\\' && isalpha(esc) && esc != 'x' && esc != 'u')
 			{
 				state.pattern++;
 				if (char_property(state.pattern, ch))
