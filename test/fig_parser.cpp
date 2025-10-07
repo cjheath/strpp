@@ -5,7 +5,7 @@
  */
 #include	<fig_parser.h>
 
-const char*	TOP_captures[] = { "definition", 0 };
+const char*	TOP_captures[] = { "bom", "definition", 0 };
 const char*	definition_captures[] = { "node", 0 };
 const char*	factType_captures[] = { "predicate", "typename", 0 };
 const char*	alternatePredicate_captures[] = { "predicate", "roleNumber", 0 };
@@ -65,8 +65,12 @@ const char*	typename_captures[] = { "id", 0 };
 template<>FigParser::Rule	FigParser::rules[] =
 {
 	{ "TOP",
-	  "+<definition>",
+	  "?(<BOM>:bom)*<definition>",
 	  TOP_captures
+	},
+	{ "BOM",
+	  "\\uFEFF",
+	  0
 	},
 	{ "definition",
 	  "<s>(|<factType>:node:|<valuesOf>:node:|<alternatePredicate>:node:|<roleNaming>:node:|<mandatory>:node:|<unique>:node:|<simpleIdentification>:node:|<externalUnique>:node:|<externalIdentification>:node:|<frequency>:node:|<subtype>:node:|<subtypeConstrained>:node:|<subset>:node:|<exclusive>:node:|<equality>:node:|<typeCardinality>:node:|<roleCardinality>:node:|<objectifies>:node:|<linkFactType>:node:|<comparison>:node:|<ringConstraint>:node:|<subTypeRule>:node:|<factTypeRule>:node:|<joinPath>:node:)<s>",

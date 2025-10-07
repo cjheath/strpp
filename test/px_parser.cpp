@@ -38,8 +38,12 @@ template<>PxParser::Rule	PxParser::rules[] =
 	  0
 	},
 	{ "TOP",
-	  "*<space><rule>",
+	  "?(<BOM>:bom:)*<space><rule>",
 	  TOP_captures
+	},
+	{ "BOM",
+	  "\\uFEFF",
+	  0
 	},
 	{ "rule",
 	  "<name><s>=<s><alternates>?<action><blankline>*<space>",

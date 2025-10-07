@@ -1,7 +1,11 @@
 // Fact Interchange Grammar. An ORM dialect
 TOP	=
-	+definition
-	-> definition
+	?(BOM:bom)
+	*definition
+	-> bom, definition
+
+BOM	=
+	  '\uFEFF'
 
 definition =
 	s (

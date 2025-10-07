@@ -42,15 +42,16 @@ class PegMatch
 public:
 	using Source = PegMemorySource;
 	using State = PegexpState<Source>;
+	using Base = PegexpDefaultMatch<State>;
 
 	PegMatch()
 	{}
 
 	// Capture matched text:
 	PegMatch(State from, State to)
-	: PegexpDefaultMatch<State>(from, to)
+	: Base(from, to)
 	{
-		if (!is_failure())
+		if (!Base::is_failure())
 		{
 			var = StrVal(from.source.peek(), (int)(to.source - from.source));
 			furthermost_success = to.source;

@@ -199,11 +199,21 @@ public:
 
 	PatternP	pattern;	// Current location in the Pegexp
 	Source		source;		// Current source we're looking at
+
+//	void		display() const;
 };
 
 /*
- * The default Match is just a copy of a start and end State.
- * It does not otherwise save the Match or allocate memory.
+ * The default Match is just a copy of a start (from) and end (to) State.
+ *
+ * Success is where either:
+ * - The "from" pattern is empty (we can always match nothing), or
+ * - The pattern has advanced (from > to), or
+ * - The source has advanced (from > to)
+ *
+ * Note that the pattern may advance without source advancing, when zero repetitions matched.
+ * If the source advances but more repetitions are allowed, the pattern may remain unchanged, but
+ * this isn't used in practise, because we don't declare a Match until all repetitions are attempted.
  */
 template <typename _State = PegexpState<>>
 class	PegexpDefaultMatch

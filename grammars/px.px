@@ -18,8 +18,12 @@ s =
 	*(!blankline space)		// Any space not including a blankline
 
 TOP =					// This grammar expects some rules
+	?(BOM:bom)			// optional byte-order mark
 	*space rule			// parse one rule at a time
 	-> rule
+
+BOM	=
+	  '\uFEFF'
 
 rule =
 	name s '=' s			// A named rule matches...
