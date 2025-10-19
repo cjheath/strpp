@@ -20,7 +20,7 @@ definition =
 	  | externalIdentification:node
 	  | frequency:node
 	  | subtype:node
-	  | subtypeConstrained:node
+	  | subtypeConstraint:node
 	  | subset:node
 	  | exclusive:node
 	  | equality:node
@@ -113,14 +113,23 @@ frequencyRange =
 	| '..' s naturalNumber:high s
 	-> low, high
 
+// Define subtype(s) of a single supertype
 subtype =
-	'Subtype' ?'s' s '(' s typename sep ( | typename | '(' typename *(sep typename) ')' ) ')'
-	-> typename
+	'Subtype' s '(' s
+	  (| typename:subtype
+	   | '(' typename:subtype *(sep typename:subtype) ')'
+	  )
+	  typename:supertype sep
+	')'
+	-> subtype, supertype
 
-subtypeConstrained =
-	(|'Exclusive' |'Exhaustive'):e 'Subtype' ?'s' s
-	'(' s '(' s typename *(sep typename) ')' s typename:super ')'
-	-> e, super, typename
+subtypeConstraint =
+	(|'Exclusive' |'Exhaustive'):e
+	'Subtype' ?'s' s '(' s
+	  '(' s typename:subtype *(sep typename:subtype) ')' s
+	  typename:supertype
+	')'
+	-> e, supertype, subtype
 
 subset =
 	'Subset' s '(' s rolePairs ')'
