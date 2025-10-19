@@ -65,8 +65,9 @@ factType =
 	-> predicate, typename
 
 alternatePredicate =
-	'AlternatePredicate' s '(' s predicate s ',' s predicate
-		?( '(' s +(roleNumber s) ')' s)
+	'AlternatePredicate' s '(' s
+		predicate s sep predicate
+		?( '(' s roleNumber +(sep roleNumber s) ')' s)
 	')'
 	-> predicate, roleNumber
 
