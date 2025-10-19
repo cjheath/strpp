@@ -163,13 +163,13 @@ StrVal generate_pegexp(Variant re)
 		auto		entry = map.begin();
 		StrVal		node_type = entry->first;
 		Variant		element = entry->second;
+
 		if (node_type == "sequence")
 		{
 			return generate_pegexp(element);
 		}
 		else if (node_type == "repetition")
-		{
-			// Each repetition has {optional repeat_count, atom, optional label}
+		{		// Each repetition has {optional repeat_count, atom, optional label}
 			VariantArray	repetitions = element.as_variant_array();
 
 			StrVal	ret;
@@ -193,6 +193,16 @@ StrVal generate_pegexp(Variant re)
 			}
 			return ret;
 		}
+		else if (node_type == "group")
+		{
+			VariantArray	alternates = element.as_variant_map()["alternates"].as_variant_array();
+			if (alternates.length() != 1)
+			{
+				// This happens e.g. on (a|b) when it should be (|a|b)
+				assert(!"REVISIT: unexpected alternates count");
+			}
+			return StrVal("(") + generate_pegexp(alternates[0]) + ")";
+		}
 		else if (node_type == "any")
 		{
 			return StrVal(".");
@@ -212,16 +222,6 @@ StrVal generate_pegexp(Variant re)
 		else if (node_type == "class")
 		{		// body of a character class (backslashed properties keep their backslash)
 			return StrVal("[") + generate_literal(element.as_strval(), true) + "]";
-		}
-		else if (node_type == "group")
-		{
-			VariantArray	alternates = element.as_variant_map()["alternates"].as_variant_array();
-			if (alternates.length() != 1)
-			{
-				// This happens e.g. on (a|b) when it should be (|a|b)
-				assert(!"REVISIT: unexpected alternates count");
-			}
-			return StrVal("(") + generate_pegexp(alternates[0]) + ")";
 		}
 		else	// Report incomplete node type:
 			return StrVal("INCOMPLETE<") + node_type + ">=" + element.as_json(-2);
@@ -298,20 +298,19 @@ void accumulate_called_rules(StringSet& called, Variant re)
 {
 	if (re.type() == Variant::StrVarMap)
 	{
-		assert(re.as_variant_map().size() == 1);	// There is only one entry in the map
 		StrVariantMap	map = re.as_variant_map();
+		assert(map.size() == 1);
+
 		auto		entry = map.begin();
 		StrVal		node_type = entry->first;	// Extract the node_type and value
 		Variant		element = entry->second;
 
-		if (node_type == "name")
+		if (node_type == "call")
 			called.put(element.as_strval(), true);
 		else if (node_type == "sequence")	// Process the VarArray
 			accumulate_called_rules(called, element);
-		else if (node_type == "group")
-			return accumulate_called_rules(called, element);
-		else if (node_type == "alternates")
-		{
+		else if (node_type == "repetition")
+		{		// Each repetition has {optional repeat_count, atom, optional label}
 			VariantArray	repetitions = element.as_variant_array();
 
 			for (int i = 0; i < repetitions.length(); i++)
@@ -321,8 +320,13 @@ void accumulate_called_rules(StringSet& called, Variant re)
 				accumulate_called_rules(called, atom);
 			}
 		}
-		else if (node_type == "repetition")
-		{		// Each repetition has {optional repeat_count, atom, optional label}
+		else if (node_type == "group")
+		{
+			VariantArray	alternates = element.as_variant_map()["alternates"].as_variant_array();
+			return accumulate_called_rules(called, alternates[0]);
+		}
+		else if (node_type == "alternates")
+		{
 			VariantArray	repetitions = element.as_variant_array();
 
 			for (int i = 0; i < repetitions.length(); i++)
@@ -367,6 +371,8 @@ bool check_rules(VariantArray rules)
 		accumulate_called_rules(called_rules, va);
 	}
 
+	// printf("Rules: %zu defined, %zu called\n", defined_rules.size(), called_rules.size());
+
 	// Ensure that all called rules exist:
 	bool ok = true;
 	for (auto i = called_rules.begin(); i != called_rules.end(); i++)
@@ -374,8 +380,15 @@ bool check_rules(VariantArray rules)
 		if (!defined_rules[i->first])
 		{
 			ok = false;
-			printf("Rule %s is called but not defined\n", StrVal(i->first).asUTF8());
+			fprintf(stderr, "Rule %s is called but not defined\n", StrVal(i->first).asUTF8());
 		}
+	}
+
+	// Report defined rules that are not called:
+	for (auto i = defined_rules.begin(); i != defined_rules.end(); i++)
+	{
+		if (i->first != "TOP" && !called_rules[i->first])
+			fprintf(stderr, "Rule %s is defined but not called\n", StrVal(i->first).asUTF8());
 	}
 
 	return ok;
