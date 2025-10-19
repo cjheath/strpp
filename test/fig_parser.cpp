@@ -22,8 +22,8 @@ const char*	externalIdentification_captures[] = { "typename", "predicateRole", 0
 const char*	frequency_captures[] = { "e", "predicateRole", "frequencyRanges", 0 };
 const char*	frequencyRanges_captures[] = { "frequencyRange", 0 };
 const char*	frequencyRange_captures[] = { "low", "high", 0 };
-const char*	subtype_captures[] = { "typename", 0 };
-const char*	subtypeConstrained_captures[] = { "e", "super", "typename", 0 };
+const char*	subtype_captures[] = { "subtype", "supertype", 0 };
+const char*	subtypeConstraint_captures[] = { "e", "supertype", "subtype", 0 };
 const char*	subset_captures[] = { "rolePairs", 0 };
 const char*	exclusive_captures[] = { "rolePairs", 0 };
 const char*	equality_captures[] = { "rolePairs", 0 };
@@ -33,7 +33,6 @@ const char*	typeCardinality_captures[] = { "typename", "cardinalityRange", 0 };
 const char*	roleCardinality_captures[] = { "predicateRole", "cardinalityRange", 0 };
 const char*	cardinalityRange_captures[] = { "low", "high", 0 };
 const char*	objectifies_captures[] = { "typename", "predicate", 0 };
-const char*	linkFactType_captures[] = { "predicate", "predicateRole", 0 };
 const char*	valuesOf_captures[] = { "target", "range", 0 };
 const char*	comparison_captures[] = { "comparisonOperator", "predicateRole", 0 };
 const char*	comparisonOperator_captures[] = { "op", 0 };
@@ -76,7 +75,7 @@ template<>FigParser::Rule	FigParser::rules[] =
 	  0
 	},
 	{ "definition",
-	  "<s>(|<factType>:node:|<valuesOf>:node:|<alternatePredicate>:node:|<roleNaming>:node:|<mandatory>:node:|<unique>:node:|<simpleIdentification>:node:|<externalUnique>:node:|<externalIdentification>:node:|<frequency>:node:|<subtype>:node:|<subtypeConstrained>:node:|<subset>:node:|<exclusive>:node:|<equality>:node:|<typeCardinality>:node:|<roleCardinality>:node:|<objectifies>:node:|<linkFactType>:node:|<comparison>:node:|<ringConstraint>:node:|<subTypeRule>:node:|<factTypeRule>:node:|<joinPath>:node:|<unrecognised>:node:)<s>",
+	  "<s>(|<factType>:node:|<valuesOf>:node:|<alternatePredicate>:node:|<roleNaming>:node:|<mandatory>:node:|<unique>:node:|<simpleIdentification>:node:|<externalUnique>:node:|<externalIdentification>:node:|<frequency>:node:|<subtype>:node:|<subtypeConstraint>:node:|<subset>:node:|<exclusive>:node:|<equality>:node:|<typeCardinality>:node:|<roleCardinality>:node:|<objectifies>:node:|<comparison>:node:|<ringConstraint>:node:|<subTypeRule>:node:|<factTypeRule>:node:|<joinPath>:node:|<unrecognised>:node:)<s>",
 	  definition_captures
 	},
 	{ "unrecognised",
@@ -88,7 +87,7 @@ template<>FigParser::Rule	FigParser::rules[] =
 	  list_captures
 	},
 	{ "atom",
-	  "|<keyed_literal>:a:?(,<s>)|<range>:a:?(,<s>)|<term>:a:?(,<s>)|<id>:a:<s>?(,<s>)|<list>:a:<s>",
+	  "(|<keyed_literal>:a:|<range>:a:|<term>:a:|<id>:a:<s>|<list>:a:)?<sep>",
 	  atom_captures
 	},
 	{ "keyed_literal",
@@ -100,7 +99,7 @@ template<>FigParser::Rule	FigParser::rules[] =
 	  factType_captures
 	},
 	{ "alternatePredicate",
-	  "AlternatePredicate<s>\\(<s><predicate><s>,<s><predicate>?(\\(<s>+(<roleNumber><s>)\\)<s>)\\)",
+	  "AlternatePredicate<s>\\(<s><predicate><s><sep><predicate>?(\\(<s><roleNumber>+(<sep><roleNumber><s>)\\)<s>)\\)",
 	  alternatePredicate_captures
 	},
 	{ "roleNaming",
@@ -132,7 +131,7 @@ template<>FigParser::Rule	FigParser::rules[] =
 	  frequency_captures
 	},
 	{ "frequencyRanges",
-	  "\\(<s><frequencyRange>*(<sep><frequencyRange>)\\)<s>",
+	  "|\\(<s><frequencyRange>*(<sep><frequencyRange>)\\)<s>|<frequencyRange><s>",
 	  frequencyRanges_captures
 	},
 	{ "frequencyRange",
@@ -140,12 +139,12 @@ template<>FigParser::Rule	FigParser::rules[] =
 	  frequencyRange_captures
 	},
 	{ "subtype",
-	  "Subtype?s<s>\\(<s><typename><sep>(|<typename>|\\(<typename>*(<sep><typename>)\\))\\)",
+	  "Subtype<s>\\(<s>(|<typename>:subtype:|\\(<typename>:subtype:*(<sep><typename>:subtype:)\\))<typename>:supertype:<sep>\\)",
 	  subtype_captures
 	},
-	{ "subtypeConstrained",
-	  "(|Exclusive|Exhaustive):e:Subtype?s<s>\\(<s>\\(<s><typename>*(<sep><typename>)\\)<s><typename>:super:\\)",
-	  subtypeConstrained_captures
+	{ "subtypeConstraint",
+	  "(|Exclusive|Exhaustive):e:Subtype?s<s>\\(<s>\\(<s><typename>:subtype:*(<sep><typename>:subtype:)\\)<s><typename>:supertype:\\)",
+	  subtypeConstraint_captures
 	},
 	{ "subset",
 	  "Subset<s>\\(<s><rolePairs>\\)",
@@ -168,11 +167,11 @@ template<>FigParser::Rule	FigParser::rules[] =
 	  rolePair_captures
 	},
 	{ "typeCardinality",
-	  "TypeCardinality<s>\\(<s><typename>?,<s><cardinalityRange>\\)",
+	  "TypeCardinality<s>\\(<s><typename>?<sep><cardinalityRange>\\)",
 	  typeCardinality_captures
 	},
 	{ "roleCardinality",
-	  "RoleCardinality<s>\\(<s><predicateRole>?,<s><cardinalityRange>\\)",
+	  "RoleCardinality<s>\\(<s><predicateRole>?<sep><cardinalityRange>\\)",
 	  roleCardinality_captures
 	},
 	{ "cardinalityRange",
@@ -183,12 +182,8 @@ template<>FigParser::Rule	FigParser::rules[] =
 	  "Objectifies<s>\\(<s><typename><sep><predicate><s>\\)",
 	  objectifies_captures
 	},
-	{ "linkFactType",
-	  "LinkFactType<s>\\(<s><predicate><s>,<s><predicateRole>\\)",
-	  linkFactType_captures
-	},
 	{ "valuesOf",
-	  "ValuesOf<s>\\(<s>(|<predicateRole>:target:|<typename>:target:)\\(<s><range>*(,<s><range>)\\)<s>\\)<s>",
+	  "ValuesOf<s>\\(<s>(|<predicateRole>:target:|<typename>:target:)\\(<s><range>*(<sep><range>)\\)<s>\\)<s>",
 	  valuesOf_captures
 	},
 	{ "comparison",
