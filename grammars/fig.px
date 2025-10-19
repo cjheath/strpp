@@ -47,11 +47,12 @@ list	=
 	-> atom
 
 atom	=
-	| keyed_literal:a ?(',' s)		// id: term
-	| range:a ?(',' s)
-	| term:a ?(',' s)
-	| id:a s ?(',' s)
-	| list:a s
+	(| keyed_literal:a
+	 | range:a
+	 | term:a
+	 | id:a s
+	 | list:a
+	) ?sep
 	-> a
 
 keyed_literal =
@@ -151,11 +152,11 @@ rolePair =
 	-> predicateRole
 
 typeCardinality =
-	'TypeCardinality' s '(' s typename ?',' s cardinalityRange ')'
+	'TypeCardinality' s '(' s typename ?sep cardinalityRange ')'
 	-> typename, cardinalityRange
 
 roleCardinality =
-	'RoleCardinality' s '(' s predicateRole ?',' s cardinalityRange ')'
+	'RoleCardinality' s '(' s predicateRole ?sep cardinalityRange ')'
 	-> predicateRole, cardinalityRange
 
 cardinalityRange =
@@ -166,13 +167,8 @@ objectifies =
 	'Objectifies' s '(' s typename sep predicate s ')'
 	-> typename, predicate
 
-// A new predicate name for the binary associated with the role of the objectified predicate
-linkFactType =
-	'LinkFactType' s '(' s predicate s ',' s predicateRole ')'
-	-> predicate, predicateRole
-
 valuesOf =
-	'ValuesOf' s '(' s (|predicateRole:target |typename:target) '(' s range *(',' s range) ')' s ')' s
+	'ValuesOf' s '(' s (|predicateRole:target |typename:target) '(' s range *(sep range) ')' s ')' s
 	-> target, range
 
 comparison =
