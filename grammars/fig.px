@@ -106,7 +106,8 @@ frequency =
 	-> e, predicateRole, frequencyRanges
 
 frequencyRanges =
-	'(' s frequencyRange *(sep frequencyRange) ')' s
+	| '(' s frequencyRange *(sep frequencyRange) ')' s
+	| frequencyRange s
 	-> frequencyRange
 
 frequencyRange =
