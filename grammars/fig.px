@@ -27,7 +27,6 @@ definition =
 	  | typeCardinality:node
 	  | roleCardinality:node
 	  | objectifies:node
-	  | linkFactType:node
 	  | comparison:node
 	  | ringConstraint:node
 	  | subTypeRule:node
