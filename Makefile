@@ -33,7 +33,8 @@ SRCS	=	\
 		char_encoding.cpp	\
 		condition.cpp		\
 		lockfree.cpp		\
-		thread.cpp
+		thread.cpp		\
+		variant.cpp
 
 RX_SRCS	=	\
 		rxcompile.cpp		\
@@ -87,7 +88,7 @@ run_peg_size_test:
 	@rm peg_size_test.o
 
 run_peg_test: peg_test
-	peg_test grammars/px.px
+	peg_test px/px.px
 
 run_pegexp_size_test:
 	@rm pegexp_size_test.o 2>/dev/null || true
@@ -102,9 +103,8 @@ run_variant_test: variant_test
 %:	%.cpp $(LIB) test/memory_monitor.cpp
 	$(CXX) $(DEBUG) $(CXXFLAGS) -Iinclude -Itest -o $@ $< test/memory_monitor.cpp $(LIB)
 
-# Don't use memory_monitor on threaded code:
-px:	px.cpp $(LIB) peg_ast.h px_parser.cpp
-	$(CXX) $(DEBUG) $(CXXFLAGS) -Iinclude -Itest -o $@ $< $(LIB)
+px:
+	cd px; $(MAKE)
 
 fig:	fig.cpp $(LIB) peg_ast.h fig_parser.cpp
 
@@ -129,10 +129,11 @@ build:
 	@mkdir build
 
 clean:
-	rm -rf $(OBJS) $(RX_OBJS) $(TESTS) $(TESTS:=.dSYM)
+	rm -f $(OBJS) $(RX_OBJS) $(TESTS)
+	rm -rf *.dSYM
 	@rmdir build 2>/dev/null || true
 
 clobber:	clean
 	rm -f $(LIB)
 
-.PHONY:	all lib clean test tests clean clobber
+.PHONY:	all lib clean test tests clean clobber px
