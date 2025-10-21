@@ -49,7 +49,6 @@ TESTS	=	\
 		medley_test		\
 		peg_test		\
 		pegexp_test		\
-		px			\
 		fig			\
 		reassembly_test		\
 		rxcompile_test		\
@@ -59,6 +58,9 @@ TESTS	=	\
 		utf8pointer_test	\
 		variant_test
 
+SUBDIRS	=	\
+		px
+
 OBJS	=	$(patsubst %,build/%,$(SRCS:.cpp=.o))
 RX_OBJS	=	$(patsubst %,build/%,$(RX_SRCS:.cpp=.o))
 
@@ -66,6 +68,7 @@ vpath	%.cpp	src:test
 vpath	%.h	include
 
 all:	lib $(RX_OBJS)
+	$(foreach subdir,$(SUBDIRS),$(MAKE) -C $(subdir) $@)
 
 lib:	$(LIB)
 $(LIB):	build $(OBJS)
@@ -132,8 +135,10 @@ clean:
 	rm -f $(OBJS) $(RX_OBJS) $(TESTS)
 	rm -rf *.dSYM
 	@rmdir build 2>/dev/null || true
+	$(foreach subdir,$(SUBDIRS),$(MAKE) -C $(subdir) $@)
 
 clobber:	clean
 	rm -f $(LIB)
+	$(foreach subdir,$(SUBDIRS),$(MAKE) -C $(subdir) $@)
 
 .PHONY:	all lib clean test tests clean clobber px

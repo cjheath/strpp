@@ -13,13 +13,17 @@ DEBUG	=	-O2 $(COPT)
 # DEBUG	=	-g -DTRACK_RESULTS $(COPT)
 
 HDRS	=	\
+		px_pegexp.h \
+		px_cpp.h
 
 SRCS	=	\
+		px_pegexp.cpp \
+		px_cpp.cpp \
 		px.cpp
 
-LIBS	=	-L.. -lstrpp
-
 OBJS	=	$(patsubst %,%,$(SRCS:.cpp=.o))
+
+LIBS	=	-L.. -lstrpp
 
 # vpath	%.cpp	../src
 vpath	%.h	../include
@@ -27,22 +31,24 @@ vpath	%.a	..
 
 all:	px
 
-px:	Makefile lib peg_ast.h px_pegexp.h px_cpp.h px_pegexp.cpp px_cpp.cpp px_parser.cpp px.cpp
-	$(CXX) $(DEBUG) $(CXXFLAGS) -I. -I../include -o $@ px_pegexp.cpp px_cpp.cpp px.cpp $(LIBS)
+px:	Makefile lib peg_ast.h $(HDRS) $(SRCS) px_parser.cpp
+	$(CXX) $(DEBUG) $(CXXFLAGS) -I. -I../include -o $@ $(SRCS) $(LIBS)
 
+# Regenerate px_parser from px.px:
 px_parser.cpp: px.px
 	px px.px >px_parser.cpp
 
 lib:	
 	cd ..; make lib
 
-#%.o:	%.cpp $(HDRS) Makefile
-#	$(CXX) $(DEBUG) $(CXXFLAGS) -Iinclude -Isrc -o $@ -c $<
+test:
+
+tests:
 
 clean:
-	rm -rf px $(OBJS) *.dSYM
+	rm -f px $(OBJS)
+	rm -rf *.dSYM
 
 clobber:	clean
-	rm -f $(LIB)
 
 .PHONY:	all lib clean test tests clean clobber
