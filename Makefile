@@ -25,7 +25,6 @@ HDRS	=	\
 		pegexp.h		\
 		refcount.h		\
 		strval.h		\
-		strregex.h		\
 		thread.h		\
 		variant.h
 
@@ -35,11 +34,6 @@ SRCS	=	\
 		lockfree.cpp		\
 		thread.cpp		\
 		variant.cpp
-
-RX_SRCS	=	\
-		rxcompile.cpp		\
-		rxdump.cpp		\
-		rxmatch.cpp
 
 LIB	=	libstrpp.a
 TESTS	=	\
@@ -51,8 +45,6 @@ TESTS	=	\
 		pegexp_test		\
 		fig			\
 		reassembly_test		\
-		rxcompile_test		\
-		rxmatch_test		\
 		strval_test		\
 		thread_test		\
 		utf8pointer_test	\
@@ -113,12 +105,6 @@ fig:	fig.cpp $(LIB) peg_ast.h fig_parser.cpp
 
 thread_test:	thread_test.cpp $(LIB)
 	$(CXX) $(DEBUG) $(CXXFLAGS) -Iinclude -Itest -o $@ $< $(LIB)
-
-rxcompile_test: rxcompile_test.cpp $(LIB) $(RX_OBJS)
-	$(CXX) $(DEBUG) $(CXXFLAGS) -Iinclude -Itest -o $@ $< $(RX_OBJS) test/memory_monitor.cpp $(LIB)
-
-rxmatch_test: rxmatch_test.cpp $(LIB)  $(RX_OBJS)
-	$(CXX) $(DEBUG) $(CXXFLAGS) -Iinclude -Itest -o $@ $< $(RX_OBJS) test/memory_monitor.cpp $(LIB)
 
 build/%.o:	%.cpp $(HDRS) Makefile
 	$(CXX) $(DEBUG) $(CXXFLAGS) -Iinclude -Isrc -o $@ -c $<

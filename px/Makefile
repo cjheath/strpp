@@ -31,14 +31,14 @@ vpath	%.a	..
 
 all:	px
 
-px:	Makefile lib peg_ast.h $(HDRS) $(SRCS) px_parser.cpp
+px:	Makefile strpp peg_ast.h $(HDRS) $(SRCS) px_parser.cpp
 	$(CXX) $(DEBUG) $(CXXFLAGS) -I. -I../include -o $@ $(SRCS) $(LIBS)
 
 # Regenerate px_parser from px.px:
 px_parser.cpp: px.px
 	px px.px >px_parser.cpp
 
-lib:	
+strpp:	
 	cd ..; make lib
 
 test:
@@ -51,4 +51,4 @@ clean:
 
 clobber:	clean
 
-.PHONY:	all lib clean test tests clean clobber
+.PHONY:	all strpp clean test tests clean clobber
