@@ -1,7 +1,8 @@
 #if !defined(PEG_AST_H)
 #define PEG_AST_H
 /*
- * Px PEG parser generator defined using pegular expression rules
+ * Template instantiations for building an Abstract Syntax Tree from a Peg parser,
+ * using the Variant class.
  *
  * Copyright 2025 Clifford Heath. ALL RIGHTS RESERVED SUBJECT TO ATTACHED LICENSE.
  */

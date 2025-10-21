@@ -29,9 +29,9 @@ LIBS	=	-L.. -lstrpp
 vpath	%.h	../include
 vpath	%.a	..
 
-all:	px
+all:	strpp px
 
-px:	Makefile strpp peg_ast.h $(HDRS) $(SRCS) px_parser.cpp
+px:	Makefile peg_ast.h $(HDRS) $(SRCS) px_parser.cpp
 	$(CXX) $(DEBUG) $(CXXFLAGS) -I. -I../include -o $@ $(SRCS) $(LIBS)
 
 # Regenerate px_parser from px.px:
@@ -51,4 +51,4 @@ clean:
 
 clobber:	clean
 
-.PHONY:	all strpp clean test tests clean clobber
+.PHONY:	all clean test tests clean clobber strpp

@@ -43,7 +43,6 @@ TESTS	=	\
 		medley_test		\
 		peg_test		\
 		pegexp_test		\
-		fig			\
 		reassembly_test		\
 		strval_test		\
 		thread_test		\
@@ -51,6 +50,7 @@ TESTS	=	\
 		variant_test
 
 SUBDIRS	=	\
+		fig			\
 		px
 
 OBJS	=	$(patsubst %,build/%,$(SRCS:.cpp=.o))
@@ -60,7 +60,7 @@ vpath	%.cpp	src:test
 vpath	%.h	include
 
 all:	lib $(RX_OBJS)
-	$(foreach subdir,$(SUBDIRS),$(MAKE) -C $(subdir) $@)
+	$(foreach subdir,$(SUBDIRS),$(MAKE) -C $(subdir) $@; )
 
 lib:	$(LIB)
 $(LIB):	build $(OBJS)
@@ -101,8 +101,6 @@ run_variant_test: variant_test
 px:
 	cd px; $(MAKE)
 
-fig:	fig.cpp $(LIB) peg_ast.h fig_parser.cpp
-
 thread_test:	thread_test.cpp $(LIB)
 	$(CXX) $(DEBUG) $(CXXFLAGS) -Iinclude -Itest -o $@ $< $(LIB)
 
@@ -121,10 +119,10 @@ clean:
 	rm -f $(OBJS) $(RX_OBJS) $(TESTS)
 	rm -rf *.dSYM
 	@rmdir build 2>/dev/null || true
-	$(foreach subdir,$(SUBDIRS),$(MAKE) -C $(subdir) $@)
+	$(foreach subdir,$(SUBDIRS),$(MAKE) -C $(subdir) $@;)
 
 clobber:	clean
 	rm -f $(LIB)
-	$(foreach subdir,$(SUBDIRS),$(MAKE) -C $(subdir) $@)
+	$(foreach subdir,$(SUBDIRS),$(MAKE) -C $(subdir) $@;)
 
 .PHONY:	all lib clean test tests clean clobber px
