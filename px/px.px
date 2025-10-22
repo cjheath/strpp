@@ -28,7 +28,7 @@ BOM	=
 rule =
 	name s '=' s			// A named rule matches...
 	alternates ?action		// alternates perhaps followed by an action
-	blankline *space		// and ends in a blank line
+	blankline s			// and ends in a blank line
 	-> name, alternates, action
 
 action =				// An action says which bits of a rule to capture

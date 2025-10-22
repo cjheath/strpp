@@ -46,7 +46,7 @@ template<>PxParser::Rule	PxParser::rules[] =
 	  0
 	},
 	{ "rule",
-	  "<name><s>=<s><alternates>?<action><blankline>*<space>",
+	  "<name><s>=<s><alternates>?<action><blankline><s>",
 	  rule_captures
 	},
 	{ "action",

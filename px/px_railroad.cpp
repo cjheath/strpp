@@ -18,72 +18,121 @@
 
 /*
  * This function converts Px literal text into a string to display in a Railroad Terminal node.
- * A subsequent function should escape characters as needed, so Javascript passes them.
+ * The first transform produces the expected display. The second ensures that passes the Javascript compiler.
  */
-StrVal generate_railroad_literal(StrVal literal, bool leave_specials = false)
+StrVal generate_railroad_literal(StrVal literal, bool as_char_class = false)
 {
 	static	auto	c_escaped = "\n\t\r\b\f";	// C also defines \a, \v but they're not well-known
 	static	auto	c_esc_chars = "ntrbf";		// Match the character positions
 	static	auto	hex = "0123456789ABCDEF";
 
-	// printf("generate_railroad_literal from %s", literal.asUTF8());
-	// Escape special characters:
+	// fprintf(stderr, "generate_railroad_literal (as_char_class %s) from `%s`", as_char_class ? "true" : "false", literal.asUTF8());
+
+	// Unescape special characters to what we need to match:
+	literal.transform(
+		[&](const UTF8*& cp, const UTF8* ep) -> StrVal
+		{
+			ErrNum		e;
+			unsigned int	i;
+			UCS4    	ch = UTF8Get(cp);       // Get UCS4 character
+
+			if (ch != '\\')
+				return ch;
+
+			// Check for c-style escape:
+			const char*	sp;
+			ch = UTF8Get(cp);
+			if (ch < 0x80 && (sp = strchr(c_esc_chars, (char)ch)))
+				return (UCS4)c_escaped[sp-c_esc_chars];
+
+			// Check for character property: adhswLU
+			if (ch < 0x80 && 0 != strchr("adhswLU", (char)ch))
+				return StrVal("\\")+ch;
+
+			// Handle numeric escapes:
+			StrVal	s;
+			if (ch == '0')		// Octal
+			{
+				StrBody	temp_body(cp, false, 3);		// no-copy string body
+				ch = StrVal(&temp_body).asInt32(&e, 8, &i);
+				if (e == 0 || e == STRERR_TRAIL_TEXT)
+					cp += i;
+			}
+			if (ch == 'x')		// Hex, two formats
+			{
+				if (*cp != '{')
+				{
+					StrBody	temp_body(cp, false, 2);	// no-copy string body
+					ch = StrVal(&temp_body).asInt32(&e, 16, &i);
+				}
+				else
+				{
+					StrBody	temp_body(cp+1, false, 8);	// no-copy string body
+					ch = StrVal(&temp_body).asInt32(&e, 16, &i);
+				}
+				if (e == 0 || e == STRERR_TRAIL_TEXT)
+					cp += i + (*cp == '{' ? 2 : 0);
+			}
+			else if (ch == 'u')	// Unicode, two formats
+			{
+				if (*cp == '{')
+				{
+					StrBody	temp_body(cp+1, false, 8);	// no-copy string body
+					ch = StrVal(&temp_body).asInt32(&e, 16, &i);
+				}
+				else
+				{
+					StrBody	temp_body(cp, false, 4);	// no-copy string body
+					ch = StrVal(&temp_body).asInt32(&e, 16, &i);
+				}
+				if (e == 0 || e == STRERR_TRAIL_TEXT)
+					cp += i + (*cp == '{' ? 2 : 0);
+				else
+					fprintf(stderr, "error 0x%X\n", (int32_t)e);
+			}
+			return ch;
+		}
+	);
+
+	// Now escape the character so it's valid for Javascript:
 	literal.transform(
 		[&](const UTF8*& cp, const UTF8* ep) -> StrVal
 		{
 			UCS4    ch = UTF8Get(cp);       // Get UCS4 character
 
-			if (ch == '\\')
+			switch (ch)
 			{
-				ch = UTF8Get(cp);
-				if (UCS4IsASCIIPrintable(ch))
-					return StrVal("\\")+ch;	// Backslashed printable
-				// Otherwise the backslash may be ignored.
-			}
-			
-			if (!UCS4IsASCIIPrintable(ch))
-			{		// Convert to c-escape, \x or \u sequence
-				const char*	sp;
-
-				// Translate C special escapes
-				if (ch < ' ' && (sp = strchr(c_escaped, (char)ch)))
-					return StrVal("\\") + (UCS4)c_esc_chars[sp-c_escaped];
-
-				// Latin1 can be a \xHH escape
-				if (UCS4IsLatin1(ch))
-					return StrVal("\\x") + (UCS4)hex[(ch>>4)&0xF] + (UCS4)hex[ch&0xF];
-
-				static	char	ubuf[20];
-				auto	cp = ubuf;
-				*cp++ = '\\';
-				*cp++ = 'u';
-				if (UCS4IsUTF16(ch))
-				{		// 4-byte Unicode escape without braces
-					*cp++ = hex[(ch>>12)&0xF];
-					*cp++ = hex[(ch>>8)&0xF];
-					*cp++ = hex[(ch>>4)&0xF];
-					*cp++ = hex[ch&0xF];
-					*cp = '\0';
-					return ubuf;
-				}
-				// Unicode with braces. Sorry for printf, but StrVal::format doesn't exist yet
-				snprintf(cp, sizeof(ubuf)-(cp-ubuf), "%lX}", (long)(ch & 0xFFFFFFFF));
-				return ubuf;
+			case '\\':			// backslash escape is mandatory
+			case '\'':			// We only use ' so that's mandatory
+				break;
+			case '\n': ch = 'n'; break;	// Newline escape is mandatory
+			case '\r': ch = 'r'; break;	// Carriage return escape is mandatory
+			// These replacements aren't mandatory, but nice:
+			case '\0': ch = '0'; break;
+			case '"':  ch = '"'; break;
+			case '\v': ch = 'v'; break;
+			case '\t': ch = 't'; break;
+			case '\b': ch = 'b'; break;
+			case '\f': ch = 'f'; break;
+			default:
+				// Not required to replace control&Unicode characters by \u or \u{} escapes
+				// if (ch < ' ') { }	// REVISIT: Make other control characters display
+				return ch;
 			}
 
-/*
-			if (!leave_specials				// Don't escape specials inside a char class
-			 && ch < 0x7F
-                         && 0 != strchr(PxParser::PegexpT::special, (char)ch))	// Char is special to Pegexp
-				return StrVal("\\")+ch;
-*/
-
-			// otherwise no backslash is needed
-			return ch;
+			return StrVal("\\\\")+ch;
 		}
 	);
-	// printf(" to %s\n", literal.asUTF8());
 
+	if (as_char_class)
+	{
+		if (literal[0] == '^')		// Handle negated classes
+			literal = StrVal("![")+literal.substr(1)+"]";
+		else
+			literal = StrVal("[")+literal+"]";
+	}
+
+	// fprintf(stderr, " to `%s`\n", literal.asUTF8());
 	return literal;
 }
 
@@ -105,123 +154,116 @@ bool railroad_is_single_atom(Variant atom)
 	return true;
 }
 
+StrVal	generate_alternates(StrVariantMap alternates);
+
+StrVal	generated_repeated(Variant repeat_count, StrVal atom_str)
+{
+	if (repeat_count.type() == Variant::None)
+		return atom_str;
+
+	UCS4 repeat_op = repeat_count.as_variant_map()["limit"].as_strval()[0];
+	switch (repeat_op)
+	{
+	default:
+	case '&': case '!':
+		return "";
+	case '?':
+		return StrVal("Optional(")+atom_str+")";
+	case '*':
+		return StrVal("ZeroOrMore(")+atom_str+")";
+	case '+':
+		return StrVal("OneOrMore(")+atom_str+")";
+	}
+}
+
+StrVal	generate_atom(StrVariantMap atom)
+{
+	auto		entry = atom.begin();
+	StrVal		node_type = entry->first;
+	Variant		element = entry->second;
+
+	if (node_type == "any")
+		return "Terminal('any char')";
+	else if (node_type == "call")
+	{
+		StrVal	e = element.as_strval();
+		return StrVal("NonTerminal('") + e + "', {href: '#" + e + "'})";
+	}
+	else if (node_type == "property")
+		return StrVal("Terminal('") + element.as_strval() + "')";
+	else if (node_type == "literal")
+		return StrVal("Terminal('")
+			+ generate_railroad_literal(element.as_strval())
+			+ "')";
+	else if (node_type == "class")
+		return StrVal("Terminal('")
+			+ generate_railroad_literal(element.as_strval(), true)
+			+ "')";
+	else if (node_type == "group")
+	{
+		VariantArray	alternates = element.as_variant_map()["alternates"].as_variant_array();
+		return generate_alternates(alternates[0].as_variant_map());
+	}
+	else
+		assert(!"Surprising atom");
+	return "";
+}
+
+StrVal	generate_repetition(StrVariantMap repetition)
+{
+	Variant		repeat_count = repetition["repeat_count"];
+	StrVariantMap	atom = repetition["atom"].as_variant_map();	//
+			// -> any, call, property, literal, class, group
+
+	return generated_repeated(repeat_count, generate_atom(atom));
+}
+
+StrVal	generate_sequence(VariantArray repetitions)
+{
+	StrVal	ret("Sequence(");
+	for (int i = 0; i < repetitions.length(); i++)
+	{
+		if (i > 0)
+			ret += ", ";
+		ret += generate_repetition(repetitions[i].as_variant_map());
+	}
+	return ret+")";
+}
+
+// rule -> alternates -> sequence -> repetition -> repeat_count & atom -> { any, call, property, literal, class, group }
+
+StrVal generate_alternates(StrVariantMap alternates)
+{
+	Variant	sequence_list = alternates["sequence"];	// Can be VariantArray or StrVariantMap
+	// printf("sequences: %s\n", sequence_list.as_json().asUTF8());
+
+	if (sequence_list.type() == Variant::VarArray)
+	{
+		VariantArray	sequences = sequence_list.as_variant_array();
+		if (sequences.length() == 1)	// Only one alternative
+			return generate_sequence(sequences[0].as_variant_map()["repetition"].as_variant_array());
+
+		StrVal	ret("Choice(0, ");
+		for (int i = 0; i < sequences.length(); i++)
+		{
+			if (i > 0)
+				ret += ", ";
+			ret += generate_sequence(sequences[i].as_variant_map()["repetition"].as_variant_array());
+		}
+		return ret + ")";
+	}
+	else
+	{
+		return generate_sequence(sequence_list.as_variant_map()["repetition"].as_variant_array());
+	}
+}
+
 /*
  * For the Variant node passed, generate the railroad.js expression which corresponds
  */
 StrVal generate_railroad(Variant re)
 {
-	if (re.type() == Variant::StrVarMap)
-	{
-		StrVariantMap	map = re.as_variant_map();
-		assert(map.size() == 1);
-
-		auto		entry = map.begin();
-		StrVal		node_type = entry->first;
-		Variant		element = entry->second;
-
-		if (node_type == "sequence")
-		{
-			return StrVal("Sequence(") + generate_railroad(element) + ")";
-		}
-		else if (node_type == "repetition")
-		{		// Each repetition has {optional repeat_count, atom, optional label}
-			VariantArray	repetitions = element.as_variant_array();
-
-			// Go through each item in the sequence:
-			StrVal	ret;
-			for (int i = 0; i < repetitions.length(); i++)
-			{
-				StrVariantMap	repetition = repetitions[i].as_variant_map();
-				Variant		atom = repetition["atom"];
-				Variant		repeat_count = repetition["repeat_count"]; // Maybe None
-				bool		repeating = repeat_count.type() != Variant::None;
-
-				StrVal rep;
-				if (repeating)
-				{
-					UCS4 repeat_op = repeat_count.as_variant_map()["limit"].as_strval()[0];
-					switch (repeat_op)
-					{
-					default:
-					case '&': case '!':
-						continue;
-					case '?':
-						rep = StrVal("Optional(")+generate_railroad(atom)+")";
-						break;
-					case '*':
-						rep =  StrVal("ZeroOrMore(")+generate_railroad(atom)+")";
-						break;
-					case '+':
-						rep =  StrVal("OneOrMore(")+generate_railroad(atom)+")";
-						break;
-					}
-					// Variant		label = repetition["label"]; // Ignore the label:
-				}
-				else
-					rep =  generate_railroad(atom);
-
-				if (i > 0)
-					ret += ", ";
-
-				ret += rep;
-			}
-			return ret;
-		}
-		else if (node_type == "group")
-		{
-			VariantArray	alternates = element.as_variant_map()["alternates"].as_variant_array();
-			if (alternates.length() != 1)
-			{
-				// This happens e.g. on (a|b) when it should be (|a|b)
-				assert(!"REVISIT: unexpected alternates count");
-			}
-			return StrVal("Sequence(") + generate_railroad(alternates[0]) + ")";
-		}
-		else if (node_type == "any")
-		{
-			return StrVal("Terminal('any char')");
-		}
-		else if (node_type == "call")
-		{		// name of a rule to be called
-			StrVal	e = element.as_strval();
-			return StrVal("NonTerminal('") + e + "', {href: '#" + e + "'})";
-		}
-		else if (node_type == "property")
-		{		// a property character, just backslash it:
-			return StrVal("Terminal('\\\\") + element.as_strval() + "')";
-		}
-		else if (node_type == "literal")
-		{		// body of a literal string
-			return StrVal("Terminal('\\\\")
-				+ generate_railroad_literal(element.as_strval())
-				+ "')";
-		}
-		else if (node_type == "class")
-		{		// body of a character class (backslashed properties keep their backslash)
-			return StrVal("Terminal('[")
-				+ generate_railroad_literal(element.as_strval(), true)
-				+ "]')";
-		}
-		else	// Report incomplete node type:
-			return StrVal("INCOMPLETE<") + node_type + ">=" + element.as_json(-2);
-	}
-	else if (re.type() == Variant::VarArray)
-	{
-		VariantArray	va = re.as_variant_array();
-		StrVal	ret("Choice(0");
-		for (int i = 0; i < va.length(); i++)
-		{
-			ret += ", ";
-			ret += generate_railroad(va[i]);
-		}
-		ret += ")";
-		return ret;
-	}
-	else
-	{
-		// This indicates the code above is incomplete. Dump the unhandled structure:
-		return StrVal("INCOMPLETE CODE for ") + re.type_name() + "=" + re.as_json(-2);
-	}
+	return generate_alternates(re.as_variant_map());
 }
 
 void emit_rule_railroad(
@@ -231,26 +273,6 @@ void emit_rule_railroad(
 	StrVariantMap	rule = _rule.as_variant_map()["rule"].as_variant_map();
 	Variant		rulename_v = rule["name"];
 	Variant		alternates_vmap = rule["alternates"]; // Variant(StrVariantMap)
-
-#if 0
-	Variant		action_v = rule["action"];
-
-	// Append the capture array for this rule:
-	StrVal		parameters;
-	if (action_v.type() != Variant::None)
-		parameters = generate_parameters(action_v.as_variant_map()["parameter"]);
-	if (parameters != "")
-	{
-	}
-
-	// The Parser doesn't yet use the function, if any:
-	if (!action_v.is_null())
-	{
-		Variant	function = action_v.as_variant_map()["name"];	// StrVal or None
-		if (!function.is_null())
-			capture_arrays += StrVal("\t\t// FUNCTION: ")+function.as_strval()+"\n";
-	}
-#endif
 
 	// Generate the Railroad diagram for this rule:
 	printf(
