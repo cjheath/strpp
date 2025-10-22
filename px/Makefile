@@ -14,10 +14,12 @@ DEBUG	=	-O2 $(COPT)
 
 HDRS	=	\
 		px_pegexp.h \
+		px_railroad.h \
 		px_cpp.h
 
 SRCS	=	\
 		px_pegexp.cpp \
+		px_railroad.cpp \
 		px_cpp.cpp \
 		px.cpp
 

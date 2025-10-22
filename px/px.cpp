@@ -16,6 +16,7 @@
 #include	<px_parser.h>
 #include	<px_pegexp.h>
 #include	<px_cpp.h>
+#include	<px_railroad.h>
 #include	<px_parser.cpp>
 
 typedef	CowMap<bool>	StringSet;
@@ -231,15 +232,23 @@ parse_and_emit(const char* filename, VariantArray& rules, Emitter emit)
 int
 main(int argc, const char** argv)
 {
+	Emitter emit = emit_cpp;
+
 	if (argc < 2)
 		usage();
+
+	if (argc > 2 && 0 == strcmp("-r", argv[1]))
+	{
+		argc--, argv++;
+		emit = emit_railroad;
+	}
 
 	/*
 	start_recording_allocations();
 	*/
 
 	VariantArray	rules;
-	if (!parse_and_emit(argv[1], rules, emit_cpp))
+	if (!parse_and_emit(argv[1], rules, emit))
 		exit(1);
 
 	/*
