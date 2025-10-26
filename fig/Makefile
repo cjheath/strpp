@@ -25,7 +25,7 @@ LIBS	=	-L.. -lstrpp
 vpath	%.h	../include
 vpath	%.a	..
 
-all:	strpp fig
+all:	strpp fig doc
 
 fig:	Makefile peg_ast.h $(HDRS) $(SRCS) fig_parser.cpp
 	$(CXX) $(DEBUG) $(CXXFLAGS) -I. -I../include -I../test -o $@ $(SRCS) ../test/memory_monitor.cpp $(LIBS)
@@ -34,10 +34,15 @@ fig:	Makefile peg_ast.h $(HDRS) $(SRCS) fig_parser.cpp
 fig_parser.cpp: ../px/px fig.px
 	../px/px fig.px >fig_parser.cpp
 
+# make grammar documentation:
+doc:	fig.html
+fig.html: px fig.px
+	../px/px -r fig.px > fig.html
+
 strpp:	
 	cd ..; $(MAKE) lib
 
-../px/px:
+px ../px/px:
 	cd ../px; $(MAKE)
 
 test:

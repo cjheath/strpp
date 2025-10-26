@@ -18,7 +18,7 @@
 
 /*
  * This function converts Px literal text into a string to display in a Railroad Terminal node.
- * The first transform produces the expected display. The second ensures that passes the Javascript compiler.
+ * The first transform produces the expected display. The second ensures it passes the Javascript compiler.
  */
 StrVal generate_railroad_literal(StrVal literal, bool as_char_class = false)
 {
@@ -35,17 +35,17 @@ StrVal generate_railroad_literal(StrVal literal, bool as_char_class = false)
 			ErrNum		e;
 			unsigned int	i;
 			UCS4    	ch = UTF8Get(cp);       // Get UCS4 character
+			const char*	sp;
 
 			if (ch != '\\')
 				return ch;
 
-			// Check for c-style escape:
-			const char*	sp;
+			// Check for c-style escape, leaving these escaped
 			ch = UTF8Get(cp);
 			if (ch < 0x80 && (sp = strchr(c_esc_chars, (char)ch)))
-				return (UCS4)c_escaped[sp-c_esc_chars];
+				return StrVal("\\")+ch;
 
-			// Check for character property: adhswLU
+			// Check for character property: adhswLU, leaving these escaped
 			if (ch < 0x80 && 0 != strchr("adhswLU", (char)ch))
 				return StrVal("\\")+ch;
 
@@ -90,9 +90,33 @@ StrVal generate_railroad_literal(StrVal literal, bool as_char_class = false)
 				else
 					fprintf(stderr, "error 0x%X\n", (int32_t)e);
 			}
+
+			// Check for c-style escape:
+			if (ch < 0x80 && (sp = strchr(c_escaped, (char)ch)))
+				return StrVal("\\")+(UCS4)c_esc_chars[sp-c_escaped];
+
+#if 1
+			// Anything that's now not ASCII will hopefully display correctly in Javascript,
+			// but we should expose the BOM at least.
+			// If we had Unicode tables we could do this for all non-printing characters.
+			if (ch == 0xFEFF)
+#else
+			// Turn anything that's now not ASCII into a Unicode escape:
+			if (ch >= 0x80)
+#endif
+			{
+				static	char	buf[16];
+
+				snprintf(buf, sizeof(buf), "\\u{%X}", ch);
+				static StrBody	temp_body(buf, false, strlen(buf));	// zero-touch string body
+				return StrVal(&temp_body);
+			}
+
 			return ch;
 		}
 	);
+
+	// fprintf(stderr, " via `%s`", literal.asUTF8());
 
 	// Now escape the character so it's valid for Javascript:
 	literal.transform(
@@ -104,7 +128,7 @@ StrVal generate_railroad_literal(StrVal literal, bool as_char_class = false)
 			{
 			case '\\':			// backslash escape is mandatory
 			case '\'':			// We only use ' so that's mandatory
-				break;
+				return StrVal("\\")+ch;
 			case '\n': ch = 'n'; break;	// Newline escape is mandatory
 			case '\r': ch = 'r'; break;	// Carriage return escape is mandatory
 			// These replacements aren't mandatory, but nice:
@@ -115,12 +139,14 @@ StrVal generate_railroad_literal(StrVal literal, bool as_char_class = false)
 			case '\b': ch = 'b'; break;
 			case '\f': ch = 'f'; break;
 			default:
-				// Not required to replace control&Unicode characters by \u or \u{} escapes
-				// if (ch < ' ') { }	// REVISIT: Make other control characters display
+				if (ch < ' ')		// Make other control characters display
+					return StrVal("^")+(UCS4)(ch + '@');
+
+				// Not required to replace Unicode characters by \u or \u{} escapes
 				return ch;
 			}
 
-			return StrVal("\\\\")+ch;
+			return StrVal("\\")+ch;
 		}
 	);
 
@@ -132,7 +158,7 @@ StrVal generate_railroad_literal(StrVal literal, bool as_char_class = false)
 			literal = StrVal("[")+literal+"]";
 	}
 
-	// fprintf(stderr, " to `%s`\n", literal.asUTF8());
+//	fprintf(stderr, " to `%s`\n", literal.asUTF8());
 	return literal;
 }
 
@@ -165,8 +191,14 @@ StrVal	generated_repeated(Variant repeat_count, StrVal atom_str)
 	switch (repeat_op)
 	{
 	default:
-	case '&': case '!':
-		return "";
+	case '&':
+	case '!':
+	{
+		int	o = atom_str.find('\'');
+		if (o >= 0) // Insert the predicate symbol at the start of the first string in the atom
+			atom_str.insert(o+1, repeat_op);
+		return atom_str;
+	}
 	case '?':
 		return StrVal("Optional(")+atom_str+")";
 	case '*':
@@ -190,7 +222,7 @@ StrVal	generate_atom(StrVariantMap atom)
 		return StrVal("NonTerminal('") + e + "', {href: '#" + e + "'})";
 	}
 	else if (node_type == "property")
-		return StrVal("Terminal('") + element.as_strval() + "')";
+		return StrVal("Terminal('\\\\") + element.as_strval() + "')";
 	else if (node_type == "literal")
 		return StrVal("Terminal('")
 			+ generate_railroad_literal(element.as_strval())
@@ -204,9 +236,8 @@ StrVal	generate_atom(StrVariantMap atom)
 		VariantArray	alternates = element.as_variant_map()["alternates"].as_variant_array();
 		return generate_alternates(alternates[0].as_variant_map());
 	}
-	else
-		assert(!"Surprising atom");
-	return "";
+	assert(!"Surprising atom");
+	return "'Unexpected'";
 }
 
 StrVal	generate_repetition(StrVariantMap repetition)
@@ -295,6 +326,7 @@ void emit_railroad(const char* base_name, VariantArray rules)
 	printf(
 		"<html xmlns='http://www.w3.org/1999/xhtml'>\n"
 		"<head>\n"
+		"<meta charset='UTF-8'>\n"
 		"<title>%s Grammar</title>\n"
 		"<link rel='stylesheet' href='railroad-diagrams.css'>\n"
 /*

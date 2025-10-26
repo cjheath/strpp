@@ -331,7 +331,7 @@ template<>FigParser::Rule	FigParser::rules[] =
 	  0
 	},
 	{ "boolean_literal",
-	  "(|true!\\w<s>|false!\\w<s>)!\\w",
+	  "|true!\\w<s>|false!\\w<s>",
 	  0
 	},
 	{ "string",
@@ -339,7 +339,7 @@ template<>FigParser::Rule	FigParser::rules[] =
 	  0
 	},
 	{ "string_char",
-	  "|\\\\[befntr\\\\\']|\\\\[0-7][0-7][0-7]|\\\\*[\\r][\\n]*[\\r]|\\\\0|\\\\x[0-9A-Fa-f][0-9A-Fa-f]|\\\\u[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]|![\'\\1-\\7\\x0A-\\x1F].",
+	  "|\\\\[befntr\\\\\']|\\\\[0-7][0-7][0-7]|\\\\*[\\r][\\n]*[\\r]|\\\\0|\\\\x[0-9A-Fa-f][0-9A-Fa-f]|\\\\u[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]|![\'\\x01-\\x07\\x0A-\\x1F].",
 	  0
 	},
 	{ "range",

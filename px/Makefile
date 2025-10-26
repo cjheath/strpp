@@ -7,8 +7,8 @@ CXXFLAGS =	-std=c++11
 
 COPT	=	-DHAVE_PTHREADS # -DPEG_TRACE
 
-# DEBUG	=	-O2 $(COPT)
-DEBUG	=	-g $(COPT) -DUTF8_ASSERT
+DEBUG	=	-O2 $(COPT)
+# DEBUG	=	-g $(COPT) -DUTF8_ASSERT
 # DEBUG	=	-O2 $(COPT) -lprofiler
 # DEBUG	=	-g -DTRACK_RESULTS $(COPT)
 
@@ -31,7 +31,7 @@ LIBS	=	-L.. -lstrpp
 vpath	%.h	../include
 vpath	%.a	..
 
-all:	strpp px
+all:	strpp px doc
 
 px:	Makefile peg_ast.h $(HDRS) $(SRCS) px_parser.cpp
 	$(CXX) $(DEBUG) $(CXXFLAGS) -I. -I../include -o $@ $(SRCS) $(LIBS)
@@ -39,6 +39,11 @@ px:	Makefile peg_ast.h $(HDRS) $(SRCS) px_parser.cpp
 # Regenerate px_parser from px.px:
 px_parser.cpp: px.px
 	px px.px >px_parser.cpp
+
+# make grammar documentation:
+doc:	px.html
+px.html: px px.px
+	px -r px.px > px.html
 
 strpp:	
 	cd ..; make lib

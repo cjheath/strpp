@@ -341,9 +341,8 @@ literal =
         ) s
 
 boolean_literal =
-        (| 'true' !\w s
-         | 'false' !\w s
-        ) !\w
+        | 'true' !\w s
+        | 'false' !\w s
 
 string =
         '\'' *(string_char) '\''
@@ -355,7 +354,7 @@ string_char =
         | '\\0'
         | '\\x' [0-9A-Fa-f] [0-9A-Fa-f]
         | '\\u' [0-9A-Fa-f] [0-9A-Fa-f] [0-9A-Fa-f] [0-9A-Fa-f]
-        | !['\1-\7\x0A-\x1F] .	// Exclude control characters except tab. Cannot exclude NUL here
+        | !['\x01-\x07\x0A-\x1F] .	// Exclude control characters except tab. Cannot exclude NUL here
 
 range =
         | numeric_range:range
