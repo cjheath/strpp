@@ -246,40 +246,71 @@ StrVal	generate_repetition(StrVariantMap repetition)
 	StrVariantMap	atom = repetition["atom"].as_variant_map();	//
 			// -> any, call, property, literal, class, group
 
-	return generated_repeated(repeat_count, generate_atom(atom));
+	StrVal	atom_str = generate_atom(atom);
+	if (atom_str.length() == 0)
+		return "";
+	return generated_repeated(repeat_count, atom_str);
 }
 
 StrVal	generate_sequence(VariantArray repetitions)
 {
-	StrVal	ret("Sequence(");
+	StrArray	items;
 	for (int i = 0; i < repetitions.length(); i++)
 	{
-		if (i > 0)
+		StrVal	item = generate_repetition(repetitions[i].as_variant_map());
+		if (item.length() == 0)
+			continue;
+		items.append(item);
+	}
+
+	if (items.length() == 0)
+		return "";		// None left
+	if (items.length() == 1)
+		return items[0];	// Only one item in sequence -> no Sequence
+
+	bool		started = false;
+	StrVal	ret("Sequence(");
+	for (int i = 0; i < items.length(); i++)
+	{
+		if (started)
 			ret += ", ";
-		ret += generate_repetition(repetitions[i].as_variant_map());
+		started = true;
+		ret += items[i];
 	}
 	return ret+")";
 }
 
-// rule -> alternates -> sequence -> repetition -> repeat_count & atom -> { any, call, property, literal, class, group }
-
 StrVal generate_alternates(StrVariantMap alternates)
 {
 	Variant	sequence_list = alternates["sequence"];	// Can be VariantArray or StrVariantMap
-	// printf("sequences: %s\n", sequence_list.as_json().asUTF8());
 
 	if (sequence_list.type() == Variant::VarArray)
 	{
+		StrArray	choices;
 		VariantArray	sequences = sequence_list.as_variant_array();
-		if (sequences.length() == 1)	// Only one alternative
-			return generate_sequence(sequences[0].as_variant_map()["repetition"].as_variant_array());
-
-		StrVal	ret("Choice(0, ");
 		for (int i = 0; i < sequences.length(); i++)
 		{
-			if (i > 0)
+			VariantArray	seq_items = sequences[i].as_variant_map()["repetition"].as_variant_array();
+			StrVal		rep_str = generate_sequence(seq_items);
+
+			if (rep_str.length() == 0)
+				continue;
+			choices.append(rep_str);
+		}
+
+		if (choices.length() == 0)
+			return "";		// None left
+		if (choices.length() == 1)	// Only one alternative
+			return choices[0];
+
+		bool	started = false;
+		StrVal	ret("Choice(0, ");
+		for (int i = 0; i < choices.length(); i++)
+		{
+			if (started)
 				ret += ", ";
-			ret += generate_sequence(sequences[i].as_variant_map()["repetition"].as_variant_array());
+			started = true;
+			ret += choices[i];
 		}
 		return ret + ")";
 	}
@@ -299,12 +330,11 @@ StrVal generate_railroad(Variant re)
 
 void emit_rule_railroad(
 	StrVal		parser_name,
-	Variant		_rule,
+	StrVariantMap	rule,
 	StrVal&		railroad_script,
 	StrVal&		railroad_calls
 )
 {
-	StrVariantMap	rule = _rule.as_variant_map()["rule"].as_variant_map();
 	StrVal		rulename = rule["name"].as_strval();
 	Variant		alternates_vmap = rule["alternates"]; // Variant(StrVariantMap)
 
@@ -326,10 +356,12 @@ void emit_railroad(const char* base_name, VariantArray rules)
 	StrVal		railroad_calls = "<dl>\n";
 	for (int i = 0; i < rules.length(); i++)
 	{
+		StrVariantMap	rule = rules[i].as_variant_map()["rule"].as_variant_map();
+
 		if (i)
 			railroad_script += ",";
 		railroad_script += "\n";
-		emit_rule_railroad(parser_name, rules[i], railroad_script, railroad_calls);
+		emit_rule_railroad(parser_name, rule, railroad_script, railroad_calls);
 	}
 	railroad_script += "\n};\n";
 	railroad_calls += "</dl>\n";
