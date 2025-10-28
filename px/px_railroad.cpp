@@ -298,24 +298,23 @@ StrVal generate_railroad(Variant re)
 }
 
 void emit_rule_railroad(
-	Variant		_rule
+	StrVal		parser_name,
+	Variant		_rule,
+	StrVal&		railroad_script,
+	StrVal&		railroad_calls
 )
 {
 	StrVariantMap	rule = _rule.as_variant_map()["rule"].as_variant_map();
-	Variant		rulename_v = rule["name"];
+	StrVal		rulename = rule["name"].as_strval();
 	Variant		alternates_vmap = rule["alternates"]; // Variant(StrVariantMap)
 
-	// Generate the Railroad diagram for this rule:
-	printf(
-		"<dt id='%s'>%s</dt>\n"
-		"<dd><script>ComplexDiagram(\n"
-		"%s\n"
-		").addTo();</script>\n"
-		"</dd>\n\n",
-		rulename_v.as_strval().asUTF8(),
-		rulename_v.as_strval().asUTF8(),
-		generate_railroad(alternates_vmap).asUTF8()
-	);
+	railroad_script +=
+		StrVal("  ")+rulename+":\n"+
+		"    "+"ComplexDiagram("+generate_railroad(alternates_vmap)+")";
+
+	railroad_calls +=
+		StrVal("<dt id='")+rulename+"'>"+rulename+"</dt>\n"+
+		"  <dd><script>"+parser_name+"Railroads."+rulename+".addTo();</script></dd>\n";
 }
 
 void emit_railroad(const char* base_name, VariantArray rules)
@@ -323,13 +322,24 @@ void emit_railroad(const char* base_name, VariantArray rules)
 	StrVal		parser_name = StrVal((UCS4)base_name[0]).asUpper()+(base_name+1);
 	const UTF8*	parser_name_u = parser_name.asUTF8();
 
+	StrVal		railroad_script = StrVal("var ")+parser_name+"Railroads = {";
+	StrVal		railroad_calls = "<dl>\n";
+	for (int i = 0; i < rules.length(); i++)
+	{
+		if (i)
+			railroad_script += ",";
+		railroad_script += "\n";
+		emit_rule_railroad(parser_name, rules[i], railroad_script, railroad_calls);
+	}
+	railroad_script += "\n};\n";
+	railroad_calls += "</dl>\n";
+
 	printf(
 		"<html xmlns='http://www.w3.org/1999/xhtml'>\n"
 		"<head>\n"
 		"<meta charset='UTF-8'>\n"
 		"<title>%s Grammar</title>\n"
 		"<link rel='stylesheet' href='railroad-diagrams.css'>\n"
-/*
 		"<link rel='stylesheet' href='local.css' media='screen' type='text/css' />\n"
 		"<style>\n"
 		"body svg.railroad-diagram {\n"
@@ -359,21 +369,20 @@ void emit_railroad(const char* base_name, VariantArray rules)
 		"	padding-bottom: 10px;\n"
 		"}\n"
 		"</style>\n"
-*/
+
 		"<script src='railroad-diagrams.js'></script>\n"
+		"<script>\n"
+		"%s"
+		"</script>\n"
 		"</head>\n"
 		"\n"
 		"<body>\n"
-		"<dl>\n"
-		"\n",
-		parser_name_u			// "Xxx Grammar"
-	);
-
-	for (int i = 0; i < rules.length(); i++)
-		emit_rule_railroad(rules[i]);
-	printf(
-		"</dl>\n"
+		"%s"
+		"\n"
 		"</body>\n"
-		"</html>\n"
+		"</html>\n",
+		parser_name_u,			// "Xxx Grammar"
+		railroad_script.asUTF8(),
+		railroad_calls.asUTF8()
 	);
 }
