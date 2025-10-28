@@ -37,7 +37,7 @@ fig_parser.cpp: ../px/px fig.px
 # make grammar documentation:
 doc:	fig.html
 fig.html: px fig.px
-	../px/px -r fig.px > fig.html
+	../px/px -r -x s fig.px > fig.html
 
 strpp:	
 	cd ..; $(MAKE) lib

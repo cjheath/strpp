@@ -16,6 +16,16 @@
 #include	<px_pegexp.h>
 #include	<px_railroad.h>
 
+StrArray	omitted_rules;
+
+bool is_omitted(StrVal o)
+{
+	for (int i = 0; i < omitted_rules.length(); i++)
+		if (o == omitted_rules[i])
+			return true;
+	return false;
+}
+
 /*
  * This function converts Px literal text into a string to display in a Railroad Terminal node.
  * The first transform produces the expected display. The second ensures it passes the Javascript compiler.
@@ -219,6 +229,8 @@ StrVal	generate_atom(StrVariantMap atom)
 	else if (node_type == "call")
 	{
 		StrVal	e = element.as_strval();
+		if (is_omitted(e))
+			return "";
 		return StrVal("NonTerminal('") + e + "', {href: '#" + e + "'})";
 	}
 	else if (node_type == "property")
@@ -358,6 +370,8 @@ void emit_railroad(const char* base_name, VariantArray rules)
 	{
 		StrVariantMap	rule = rules[i].as_variant_map()["rule"].as_variant_map();
 
+		if (is_omitted(rule["name"].as_strval()))
+			continue;
 		if (i)
 			railroad_script += ",";
 		railroad_script += "\n";

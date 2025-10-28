@@ -43,7 +43,7 @@ px_parser.cpp: px.px
 # make grammar documentation:
 doc:	px.html
 px.html: px px.px
-	px -r px.px > px.html
+	px -r -x s px.px > px.html
 
 strpp:	
 	cd ..; make lib

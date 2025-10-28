@@ -234,12 +234,18 @@ main(int argc, const char** argv)
 {
 	Emitter emit = emit_cpp;
 
-	if (argc < 2)
+	if (argc-- < 2)
 		usage();
+	argv++;
 
-	if (argc > 2 && 0 == strcmp("-r", argv[1]))
+	if (argc > 1 && 0 == strcmp("-r", argv[0]))
 	{
 		argc--, argv++;
+		while (argc > 2 && 0 == strcmp("-x", argv[0]))
+		{
+			argc-=2, argv++;
+			omitted_rules.append(*argv++);
+		}
 		emit = emit_railroad;
 	}
 
@@ -248,7 +254,7 @@ main(int argc, const char** argv)
 	*/
 
 	VariantArray	rules;
-	if (!parse_and_emit(argv[1], rules, emit))
+	if (!parse_and_emit(argv[0], rules, emit))
 		exit(1);
 
 	/*
