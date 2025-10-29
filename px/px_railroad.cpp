@@ -385,7 +385,7 @@ void emit_railroad(const char* base_name, VariantArray rules)
 		"<head>\n"
 		"<meta charset='UTF-8'>\n"
 		"<title>%s Grammar</title>\n"
-		"<link rel='stylesheet' href='railroad-diagrams.css'>\n"
+		"<link rel='stylesheet' href='../scripts/railroad-diagrams.css'>\n"
 		"<link rel='stylesheet' href='local.css' media='screen' type='text/css' />\n"
 		"<style>\n"
 		"body svg.railroad-diagram {\n"
@@ -416,7 +416,7 @@ void emit_railroad(const char* base_name, VariantArray rules)
 		"}\n"
 		"</style>\n"
 
-		"<script src='railroad-diagrams.js'></script>\n"
+		"<script src='../scripts/railroad-diagrams.js'></script>\n"
 		"<script>\n"
 		"%s"
 		"</script>\n"

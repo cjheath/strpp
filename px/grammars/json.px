@@ -1,0 +1,22 @@
+// JSON grammar in Px. See http://json.org/ and ECMA-262 Ed.5
+// Unicode uses 16-bit format, so Emoji's require a surrogate pair, see ISO/IEC 10646
+// High surrogate first: D800 to DBFF, Low surrogate: D800 to DBFF
+// https://www.ecma-international.org/wp-content/uploads/ECMA-404_2nd_edition_december_2017.pdf
+
+s	= *[ \t\r\n]				// Zero or more space characters
+
+TOP	= s (| object |array |string |'true':v |'false':v |'null':v |number ) s
+	-> object, array, string, v, number
+
+object	= '{' *(|(string:k ':' TOP:v *(',' string:k ':' TOP:v)) | s) '}'
+	-> k, v
+
+array	= '[' (|(TOP:e *(',' TOP:e)) |s) ']'
+	-> e
+
+string	= s ["] *(|[^"\\\u{0}-\u{1F}]:c |escape:c) ["] s
+	-> c
+
+escape	= [\\] (|["\\/bfnrt] | 'u' [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] )
+
+number	= ?'-' (|'0' | [1-9] *[0-9]) ?('.' +[0-9]) ?([eE] ?[-+] +[0-9])

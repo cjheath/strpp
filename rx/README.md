@@ -1,6 +1,6 @@
 ## strpp - StringPlusPlus - pronounced "strip" - Regular Expressions
 
-## Regular Expressions
+### Regular Expressions
 
 `#include	<strregex.h>`
 
@@ -32,6 +32,6 @@ Almost supported features may be de/configured by passing a bitmask of <strong>R
 - Optional: * means .* as in the shell (TBD)
 - Optional: case-insensitive matching (TBD)
 
-## LICENSE
+### LICENSE
 
 The MIT License. See the LICENSE file for details.
