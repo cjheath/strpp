@@ -40,7 +40,7 @@ var FigRailroads = {
   BOM:
     ComplexDiagram(Terminal('\\u{FEFF}')),
   definition:
-    ComplexDiagram(Choice(0, NonTerminal('factType', {href: '#factType'}), NonTerminal('valuesOf', {href: '#valuesOf'}), NonTerminal('alternatePredicate', {href: '#alternatePredicate'}), NonTerminal('roleNaming', {href: '#roleNaming'}), NonTerminal('mandatory', {href: '#mandatory'}), NonTerminal('unique', {href: '#unique'}), NonTerminal('simpleIdentification', {href: '#simpleIdentification'}), NonTerminal('externalUnique', {href: '#externalUnique'}), NonTerminal('externalIdentification', {href: '#externalIdentification'}), NonTerminal('frequency', {href: '#frequency'}), NonTerminal('subtype', {href: '#subtype'}), NonTerminal('subtypeConstraint', {href: '#subtypeConstraint'}), NonTerminal('subset', {href: '#subset'}), NonTerminal('exclusive', {href: '#exclusive'}), NonTerminal('equality', {href: '#equality'}), NonTerminal('typeCardinality', {href: '#typeCardinality'}), NonTerminal('roleCardinality', {href: '#roleCardinality'}), NonTerminal('objectifies', {href: '#objectifies'}), NonTerminal('comparison', {href: '#comparison'}), NonTerminal('ringConstraint', {href: '#ringConstraint'}), NonTerminal('subTypeRule', {href: '#subTypeRule'}), NonTerminal('factTypeRule', {href: '#factTypeRule'}), NonTerminal('joinPath', {href: '#joinPath'}), NonTerminal('unrecognised', {href: '#unrecognised'}))),
+    ComplexDiagram(Choice(0, NonTerminal('factType', {href: '#factType'}), NonTerminal('valuesOf', {href: '#valuesOf'}), NonTerminal('alternativePredicate', {href: '#alternativePredicate'}), NonTerminal('roleNaming', {href: '#roleNaming'}), NonTerminal('mandatory', {href: '#mandatory'}), NonTerminal('unique', {href: '#unique'}), NonTerminal('simpleIdentification', {href: '#simpleIdentification'}), NonTerminal('externalUnique', {href: '#externalUnique'}), NonTerminal('externalIdentification', {href: '#externalIdentification'}), NonTerminal('frequency', {href: '#frequency'}), NonTerminal('subtype', {href: '#subtype'}), NonTerminal('subtypeConstraint', {href: '#subtypeConstraint'}), NonTerminal('subset', {href: '#subset'}), NonTerminal('exclusive', {href: '#exclusive'}), NonTerminal('equality', {href: '#equality'}), NonTerminal('typeCardinality', {href: '#typeCardinality'}), NonTerminal('roleCardinality', {href: '#roleCardinality'}), NonTerminal('objectifies', {href: '#objectifies'}), NonTerminal('comparison', {href: '#comparison'}), NonTerminal('ringConstraint', {href: '#ringConstraint'}), NonTerminal('subTypeRule', {href: '#subTypeRule'}), NonTerminal('factTypeRule', {href: '#factTypeRule'}), NonTerminal('joinPath', {href: '#joinPath'}), NonTerminal('unrecognised', {href: '#unrecognised'}))),
   unrecognised:
     ComplexDiagram(Sequence(NonTerminal('id', {href: '#id'}), NonTerminal('list', {href: '#list'}))),
   list:
@@ -51,8 +51,8 @@ var FigRailroads = {
     ComplexDiagram(Sequence(NonTerminal('id', {href: '#id'}), Terminal(':'), NonTerminal('term', {href: '#term'}))),
   factType:
     ComplexDiagram(Sequence(Terminal('FactType'), Terminal('('), NonTerminal('predicate', {href: '#predicate'}), Terminal('('), NonTerminal('typename', {href: '#typename'}), ZeroOrMore(Sequence(NonTerminal('sep', {href: '#sep'}), NonTerminal('typename', {href: '#typename'}))), Terminal(')'), Terminal(')'))),
-  alternatePredicate:
-    ComplexDiagram(Sequence(Terminal('AlternatePredicate'), Terminal('('), NonTerminal('predicate', {href: '#predicate'}), NonTerminal('sep', {href: '#sep'}), NonTerminal('predicate', {href: '#predicate'}), Optional(Sequence(Terminal('('), NonTerminal('roleNumber', {href: '#roleNumber'}), OneOrMore(Sequence(NonTerminal('sep', {href: '#sep'}), NonTerminal('roleNumber', {href: '#roleNumber'}))), Terminal(')'))), Terminal(')'))),
+  alternativePredicate:
+    ComplexDiagram(Sequence(Terminal('AlternativePredicate'), Terminal('('), NonTerminal('predicate', {href: '#predicate'}), NonTerminal('sep', {href: '#sep'}), NonTerminal('predicate', {href: '#predicate'}), Optional(Sequence(Terminal('('), NonTerminal('roleNumber', {href: '#roleNumber'}), OneOrMore(Sequence(NonTerminal('sep', {href: '#sep'}), NonTerminal('roleNumber', {href: '#roleNumber'}))), Terminal(')'))), Terminal(')'))),
   roleNaming:
     ComplexDiagram(Sequence(Terminal('RoleNaming'), Terminal('('), NonTerminal('predicateRole', {href: '#predicateRole'}), NonTerminal('sep', {href: '#sep'}), NonTerminal('roleName', {href: '#roleName'}), Terminal(')'))),
   mandatory:
@@ -85,20 +85,22 @@ var FigRailroads = {
     ComplexDiagram(OneOrMore(NonTerminal('rolePair', {href: '#rolePair'}))),
   rolePair:
     ComplexDiagram(Sequence(Terminal('('), NonTerminal('predicateRole', {href: '#predicateRole'}), NonTerminal('sep', {href: '#sep'}), NonTerminal('predicateRole', {href: '#predicateRole'}), Terminal(')'))),
-  typeCardinality:
-    ComplexDiagram(Sequence(Terminal('TypeCardinality'), Terminal('('), NonTerminal('typename', {href: '#typename'}), Optional(NonTerminal('sep', {href: '#sep'})), NonTerminal('cardinalityRange', {href: '#cardinalityRange'}), Terminal(')'))),
-  roleCardinality:
-    ComplexDiagram(Sequence(Terminal('RoleCardinality'), Terminal('('), NonTerminal('predicateRole', {href: '#predicateRole'}), Optional(NonTerminal('sep', {href: '#sep'})), NonTerminal('cardinalityRange', {href: '#cardinalityRange'}), Terminal(')'))),
-  cardinalityRange:
-    ComplexDiagram(Sequence(Terminal('('), Choice(0, NonTerminal('naturalNumber', {href: '#naturalNumber'}), NonTerminal('zero', {href: '#zero'})), Terminal('..'), Optional(Choice(0, NonTerminal('naturalNumber', {href: '#naturalNumber'}), NonTerminal('infinity', {href: '#infinity'}))), Terminal(')'))),
+  comparison:
+    ComplexDiagram(Sequence(NonTerminal('comparisonOperator', {href: '#comparisonOperator'}), Terminal('('), NonTerminal('predicateRole', {href: '#predicateRole'}), NonTerminal('sep', {href: '#sep'}), NonTerminal('predicateRole', {href: '#predicateRole'}), Terminal(')'))),
+  comparisonOperator:
+    ComplexDiagram(Choice(0, NonTerminal('equalTo', {href: '#equalTo'}), NonTerminal('notEqualTo', {href: '#notEqualTo'}), NonTerminal('lessOrEqual', {href: '#lessOrEqual'}), NonTerminal('lessThan', {href: '#lessThan'}), NonTerminal('greaterOrEqual', {href: '#greaterOrEqual'}), NonTerminal('greaterThan', {href: '#greaterThan'}))),
   objectifies:
     ComplexDiagram(Sequence(Terminal('Objectifies'), Terminal('('), NonTerminal('typename', {href: '#typename'}), NonTerminal('sep', {href: '#sep'}), NonTerminal('predicate', {href: '#predicate'}), Terminal(')'))),
   valuesOf:
     ComplexDiagram(Sequence(Terminal('ValuesOf'), Terminal('('), Choice(0, NonTerminal('predicateRole', {href: '#predicateRole'}), NonTerminal('typename', {href: '#typename'})), Terminal('('), NonTerminal('range', {href: '#range'}), ZeroOrMore(Sequence(NonTerminal('sep', {href: '#sep'}), NonTerminal('range', {href: '#range'}))), Terminal(')'), Terminal(')'))),
-  comparison:
-    ComplexDiagram(Sequence(NonTerminal('comparisonOperator', {href: '#comparisonOperator'}), Terminal('('), NonTerminal('predicateRole', {href: '#predicateRole'}), NonTerminal('sep', {href: '#sep'}), NonTerminal('predicateRole', {href: '#predicateRole'}), Terminal(')'))),
-  comparisonOperator:
-    ComplexDiagram(Choice(0, NonTerminal('equalTo', {href: '#equalTo'}), NonTerminal('notEqualTo', {href: '#notEqualTo'}), NonTerminal('lessThan', {href: '#lessThan'}), NonTerminal('lessOrEqual', {href: '#lessOrEqual'}), NonTerminal('greaterOrEqual', {href: '#greaterOrEqual'}), NonTerminal('greaterThan', {href: '#greaterThan'}))),
+  typeCardinality:
+    ComplexDiagram(Sequence(Terminal('TypeCardinality'), Terminal('('), NonTerminal('typename', {href: '#typename'}), Optional(NonTerminal('sep', {href: '#sep'})), NonTerminal('cardinalityRanges', {href: '#cardinalityRanges'}), Terminal(')'))),
+  roleCardinality:
+    ComplexDiagram(Sequence(Terminal('RoleCardinality'), Terminal('('), NonTerminal('predicateRole', {href: '#predicateRole'}), Optional(NonTerminal('sep', {href: '#sep'})), NonTerminal('cardinalityRanges', {href: '#cardinalityRanges'}), Terminal(')'))),
+  cardinalityRanges:
+    ComplexDiagram(Sequence(Terminal('('), NonTerminal('cardinalityRange', {href: '#cardinalityRange'}), ZeroOrMore(Sequence(NonTerminal('sep', {href: '#sep'}), NonTerminal('cardinalityRange', {href: '#cardinalityRange'}))), Terminal(')'))),
+  cardinalityRange:
+    ComplexDiagram(Sequence(Optional(Choice(0, NonTerminal('naturalNumber', {href: '#naturalNumber'}), NonTerminal('zero', {href: '#zero'}))), Optional(Sequence(Terminal('..'), Optional(Choice(0, NonTerminal('naturalNumber', {href: '#naturalNumber'}), NonTerminal('infinity', {href: '#infinity'}))))))),
   ringConstraint:
     ComplexDiagram(Sequence(NonTerminal('ringConstraintType', {href: '#ringConstraintType'}), Terminal('('), NonTerminal('predicateRole', {href: '#predicateRole'}), NonTerminal('sep', {href: '#sep'}), NonTerminal('predicateRole', {href: '#predicateRole'}), Terminal(')'))),
   ringConstraintType:
@@ -144,7 +146,9 @@ var FigRailroads = {
   question:
     ComplexDiagram(Sequence(Terminal('?'), Terminal('!?'))),
   predicate:
-    ComplexDiagram(Sequence(Choice(0, NonTerminal('id', {href: '#id'}), NonTerminal('question', {href: '#question'})), ZeroOrMore(Choice(0, NonTerminal('id', {href: '#id'}), NonTerminal('question', {href: '#question'}))))),
+    ComplexDiagram(Sequence(Choice(0, NonTerminal('adjective', {href: '#adjective'}), NonTerminal('id', {href: '#id'}), NonTerminal('question', {href: '#question'})), ZeroOrMore(Choice(0, NonTerminal('adjective', {href: '#adjective'}), NonTerminal('id', {href: '#id'}), NonTerminal('question', {href: '#question'}))))),
+  adjective:
+    ComplexDiagram(Choice(0, Sequence(Terminal('-'), NonTerminal('id', {href: '#id'})), Sequence(NonTerminal('id', {href: '#id'}), Terminal('-'), Terminal('!-')), Sequence(Terminal('[_\\a]'), ZeroOrMore(Terminal('[_\\w]')), ZeroOrMore(Sequence(Choice(0, Terminal('-- '), Terminal(' --')), OneOrMore(Terminal('\\w'))))))),
   predicateRole:
     ComplexDiagram(Sequence(NonTerminal('predicate', {href: '#predicate'}), Terminal('.'), NonTerminal('roleNumber', {href: '#roleNumber'}))),
   roleNumber:
@@ -214,7 +218,7 @@ var FigRailroads = {
   greaterThan:
     ComplexDiagram(Sequence(Terminal('>'), Terminal('![=<]'))),
   id:
-    ComplexDiagram(Sequence(Terminal('\\a'), ZeroOrMore(Terminal('\\w')))),
+    ComplexDiagram(Sequence(Terminal('[_\\a]'), ZeroOrMore(Terminal('[_\\w]')), ZeroOrMore(Sequence(Terminal('-'), OneOrMore(Terminal('\\w')))))),
   typename:
     ComplexDiagram(Sequence(NonTerminal('id', {href: '#id'}), ZeroOrMore(NonTerminal('id', {href: '#id'}))))
 };
@@ -239,8 +243,8 @@ var FigRailroads = {
   <dd><script>FigRailroads.keyed_literal.addTo();</script></dd>
 <dt id='factType'>factType</dt>
   <dd><script>FigRailroads.factType.addTo();</script></dd>
-<dt id='alternatePredicate'>alternatePredicate</dt>
-  <dd><script>FigRailroads.alternatePredicate.addTo();</script></dd>
+<dt id='alternativePredicate'>alternativePredicate</dt>
+  <dd><script>FigRailroads.alternativePredicate.addTo();</script></dd>
 <dt id='roleNaming'>roleNaming</dt>
   <dd><script>FigRailroads.roleNaming.addTo();</script></dd>
 <dt id='mandatory'>mandatory</dt>
@@ -273,20 +277,22 @@ var FigRailroads = {
   <dd><script>FigRailroads.rolePairs.addTo();</script></dd>
 <dt id='rolePair'>rolePair</dt>
   <dd><script>FigRailroads.rolePair.addTo();</script></dd>
-<dt id='typeCardinality'>typeCardinality</dt>
-  <dd><script>FigRailroads.typeCardinality.addTo();</script></dd>
-<dt id='roleCardinality'>roleCardinality</dt>
-  <dd><script>FigRailroads.roleCardinality.addTo();</script></dd>
-<dt id='cardinalityRange'>cardinalityRange</dt>
-  <dd><script>FigRailroads.cardinalityRange.addTo();</script></dd>
-<dt id='objectifies'>objectifies</dt>
-  <dd><script>FigRailroads.objectifies.addTo();</script></dd>
-<dt id='valuesOf'>valuesOf</dt>
-  <dd><script>FigRailroads.valuesOf.addTo();</script></dd>
 <dt id='comparison'>comparison</dt>
   <dd><script>FigRailroads.comparison.addTo();</script></dd>
 <dt id='comparisonOperator'>comparisonOperator</dt>
   <dd><script>FigRailroads.comparisonOperator.addTo();</script></dd>
+<dt id='objectifies'>objectifies</dt>
+  <dd><script>FigRailroads.objectifies.addTo();</script></dd>
+<dt id='valuesOf'>valuesOf</dt>
+  <dd><script>FigRailroads.valuesOf.addTo();</script></dd>
+<dt id='typeCardinality'>typeCardinality</dt>
+  <dd><script>FigRailroads.typeCardinality.addTo();</script></dd>
+<dt id='roleCardinality'>roleCardinality</dt>
+  <dd><script>FigRailroads.roleCardinality.addTo();</script></dd>
+<dt id='cardinalityRanges'>cardinalityRanges</dt>
+  <dd><script>FigRailroads.cardinalityRanges.addTo();</script></dd>
+<dt id='cardinalityRange'>cardinalityRange</dt>
+  <dd><script>FigRailroads.cardinalityRange.addTo();</script></dd>
 <dt id='ringConstraint'>ringConstraint</dt>
   <dd><script>FigRailroads.ringConstraint.addTo();</script></dd>
 <dt id='ringConstraintType'>ringConstraintType</dt>
@@ -333,6 +339,8 @@ var FigRailroads = {
   <dd><script>FigRailroads.question.addTo();</script></dd>
 <dt id='predicate'>predicate</dt>
   <dd><script>FigRailroads.predicate.addTo();</script></dd>
+<dt id='adjective'>adjective</dt>
+  <dd><script>FigRailroads.adjective.addTo();</script></dd>
 <dt id='predicateRole'>predicateRole</dt>
   <dd><script>FigRailroads.predicateRole.addTo();</script></dd>
 <dt id='roleNumber'>roleNumber</dt>
