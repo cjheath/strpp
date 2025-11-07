@@ -12,7 +12,7 @@ const char*	list_captures[] = { "atom", 0 };
 const char*	atom_captures[] = { "a", 0 };
 const char*	keyed_literal_captures[] = { "id", "term", 0 };
 const char*	factType_captures[] = { "predicate", "typename", 0 };
-const char*	alternatePredicate_captures[] = { "predicate", "roleNumber", 0 };
+const char*	alternativePredicate_captures[] = { "predicate", "roleNumber", 0 };
 const char*	roleNaming_captures[] = { "predicateRole", "roleName", 0 };
 const char*	mandatory_captures[] = { "typename", "predicateRole", 0 };
 const char*	unique_captures[] = { "predicateRole", 0 };
@@ -29,13 +29,14 @@ const char*	exclusive_captures[] = { "rolePairs", 0 };
 const char*	equality_captures[] = { "rolePairs", 0 };
 const char*	rolePairs_captures[] = { "rolePair", 0 };
 const char*	rolePair_captures[] = { "predicateRole", 0 };
-const char*	typeCardinality_captures[] = { "typename", "cardinalityRange", 0 };
-const char*	roleCardinality_captures[] = { "predicateRole", "cardinalityRange", 0 };
-const char*	cardinalityRange_captures[] = { "low", "high", 0 };
-const char*	objectifies_captures[] = { "typename", "predicate", 0 };
-const char*	valuesOf_captures[] = { "target", "range", 0 };
 const char*	comparison_captures[] = { "comparisonOperator", "predicateRole", 0 };
 const char*	comparisonOperator_captures[] = { "op", 0 };
+const char*	objectifies_captures[] = { "typename", "predicate", 0 };
+const char*	valuesOf_captures[] = { "target", "range", 0 };
+const char*	typeCardinality_captures[] = { "typename", "cardinalityRanges", 0 };
+const char*	roleCardinality_captures[] = { "predicateRole", "cardinalityRanges", 0 };
+const char*	cardinalityRanges_captures[] = { "cardinalityRange", 0 };
+const char*	cardinalityRange_captures[] = { "low", "high", 0 };
 const char*	ringConstraint_captures[] = { "ringConstraintType", "predicateRole", 0 };
 const char*	subTypeRule_captures[] = { "semi", "typename", "path", 0 };
 const char*	factTypeRule_captures[] = { "semi", "predicate", "path", 0 };
@@ -75,7 +76,7 @@ template<>FigParser::Rule	FigParser::rules[] =
 	  0
 	},
 	{ "definition",
-	  "<s>(|<factType>:node:|<valuesOf>:node:|<alternatePredicate>:node:|<roleNaming>:node:|<mandatory>:node:|<unique>:node:|<simpleIdentification>:node:|<externalUnique>:node:|<externalIdentification>:node:|<frequency>:node:|<subtype>:node:|<subtypeConstraint>:node:|<subset>:node:|<exclusive>:node:|<equality>:node:|<typeCardinality>:node:|<roleCardinality>:node:|<objectifies>:node:|<comparison>:node:|<ringConstraint>:node:|<subTypeRule>:node:|<factTypeRule>:node:|<joinPath>:node:|<unrecognised>:node:)<s>",
+	  "<s>(|<factType>:node:|<valuesOf>:node:|<alternativePredicate>:node:|<roleNaming>:node:|<mandatory>:node:|<unique>:node:|<simpleIdentification>:node:|<externalUnique>:node:|<externalIdentification>:node:|<frequency>:node:|<subtype>:node:|<subtypeConstraint>:node:|<subset>:node:|<exclusive>:node:|<equality>:node:|<typeCardinality>:node:|<roleCardinality>:node:|<objectifies>:node:|<comparison>:node:|<ringConstraint>:node:|<subTypeRule>:node:|<factTypeRule>:node:|<joinPath>:node:|<unrecognised>:node:)<s>",
 	  definition_captures
 	},
 	{ "unrecognised",
@@ -98,9 +99,9 @@ template<>FigParser::Rule	FigParser::rules[] =
 	  "FactType<s>\\(<s><predicate><s>\\(<s><typename>*(<sep><typename>)\\)<s>\\)",
 	  factType_captures
 	},
-	{ "alternatePredicate",
-	  "AlternatePredicate<s>\\(<s><predicate><s><sep><predicate>?(\\(<s><roleNumber>+(<sep><roleNumber><s>)\\)<s>)\\)",
-	  alternatePredicate_captures
+	{ "alternativePredicate",
+	  "AlternativePredicate<s>\\(<s><predicate><s><sep><predicate>?(\\(<s><roleNumber>+(<sep><roleNumber><s>)\\)<s>)\\)",
+	  alternativePredicate_captures
 	},
 	{ "roleNaming",
 	  "RoleNaming<s>\\(<s><predicateRole><sep><roleName>\\)",
@@ -131,11 +132,11 @@ template<>FigParser::Rule	FigParser::rules[] =
 	  frequency_captures
 	},
 	{ "frequencyRanges",
-	  "|\\(<s><frequencyRange>*(<sep><frequencyRange>)\\)<s>|<frequencyRange><s>",
+	  "|\\(<s><frequencyRange>*(<sep><frequencyRange>)\\)<s>|<frequencyRange>",
 	  frequencyRanges_captures
 	},
 	{ "frequencyRange",
-	  "|<naturalNumber>:low:?(\\.\\.<s>?<naturalNumber>:high:)<s>|\\.\\.<s><naturalNumber>:high:<s>",
+	  "|<naturalNumber>:low:<s>?(\\.\\.<s>?<naturalNumber>:high:)<s>|\\.\\.<s><naturalNumber>:high:<s>",
 	  frequencyRange_captures
 	},
 	{ "subtype",
@@ -166,17 +167,13 @@ template<>FigParser::Rule	FigParser::rules[] =
 	  "\\(<s><predicateRole><sep><predicateRole>\\)<s>",
 	  rolePair_captures
 	},
-	{ "typeCardinality",
-	  "TypeCardinality<s>\\(<s><typename>?<sep><cardinalityRange>\\)",
-	  typeCardinality_captures
+	{ "comparison",
+	  "<comparisonOperator><s>\\(<s><predicateRole><sep><predicateRole>\\)",
+	  comparison_captures
 	},
-	{ "roleCardinality",
-	  "RoleCardinality<s>\\(<s><predicateRole>?<sep><cardinalityRange>\\)",
-	  roleCardinality_captures
-	},
-	{ "cardinalityRange",
-	  "\\(<s>(|<naturalNumber>:low:|<zero>:low:)<s>\\.\\.<s>?(|<naturalNumber>:high:|<infinity>:high:)<s>\\)<s>",
-	  cardinalityRange_captures
+	{ "comparisonOperator",
+	  "|<equalTo>:op:|<notEqualTo>:op:|<lessOrEqual>:op:|<lessThan>:op:|<greaterOrEqual>:op:|<greaterThan>:op:",
+	  comparisonOperator_captures
 	},
 	{ "objectifies",
 	  "Objectifies<s>\\(<s><typename><sep><predicate><s>\\)",
@@ -186,13 +183,21 @@ template<>FigParser::Rule	FigParser::rules[] =
 	  "ValuesOf<s>\\(<s>(|<predicateRole>:target:|<typename>:target:)\\(<s><range>*(<sep><range>)\\)<s>\\)<s>",
 	  valuesOf_captures
 	},
-	{ "comparison",
-	  "<comparisonOperator><s>\\(<s><predicateRole><sep><predicateRole>\\)",
-	  comparison_captures
+	{ "typeCardinality",
+	  "TypeCardinality<s>\\(<s><typename>?<sep><cardinalityRanges>\\)",
+	  typeCardinality_captures
 	},
-	{ "comparisonOperator",
-	  "|<equalTo>:op:|<notEqualTo>:op:|<lessThan>:op:|<lessOrEqual>:op:|<greaterOrEqual>:op:|<greaterThan>:op:",
-	  comparisonOperator_captures
+	{ "roleCardinality",
+	  "RoleCardinality<s>\\(<s><predicateRole>?<sep><cardinalityRanges>\\)",
+	  roleCardinality_captures
+	},
+	{ "cardinalityRanges",
+	  "\\(<s><cardinalityRange>*(<sep><cardinalityRange>)\\)<s>",
+	  cardinalityRanges_captures
+	},
+	{ "cardinalityRange",
+	  "?(|<naturalNumber>:low:|<zero>:low:)<s>?(\\.\\.<s>?(|<naturalNumber>:high:|<infinity>:high:))<s>",
+	  cardinalityRange_captures
 	},
 	{ "ringConstraint",
 	  "<ringConstraintType><s>\\(<s><predicateRole><sep><predicateRole>\\)",
@@ -283,8 +288,12 @@ template<>FigParser::Rule	FigParser::rules[] =
 	  0
 	},
 	{ "predicate",
-	  "(|<id>:t:|<question>:t:)<s>*((|<id>:t:|<question>:t:)<s>)",
+	  "(|<adjective>:t:|<id>:t:|<question>:t:)<s>*((|<adjective>:t:|<id>:t:|<question>:t:)<s>)",
 	  predicate_captures
+	},
+	{ "adjective",
+	  "|-<id>|<id>-!-|[_\\a]*[_\\w]*((|-- | --)+\\w)",
+	  0
 	},
 	{ "predicateRole",
 	  "<predicate>\\.<roleNumber><s>",
@@ -427,7 +436,7 @@ template<>FigParser::Rule	FigParser::rules[] =
 	  0
 	},
 	{ "id",
-	  "\\a*\\w",
+	  "[_\\a]*[_\\w]*(-+\\w)",
 	  0
 	},
 	{ "typename",

@@ -11,7 +11,7 @@ definition =
 	s (
 	  | factType:node
 	  | valuesOf:node
-	  | alternatePredicate:node
+	  | alternativePredicate:node
 	  | roleNaming:node
 	  | mandatory:node
 	  | unique:node
@@ -64,8 +64,8 @@ factType =
 	'FactType' s '(' s predicate s '(' s typename *(sep typename) ')' s ')'
 	-> predicate, typename
 
-alternatePredicate =
-	'AlternatePredicate' s '(' s
+alternativePredicate =
+	'AlternativePredicate' s '(' s
 		predicate s sep predicate
 		?( '(' s roleNumber +(sep roleNumber s) ')' s)
 	')'
@@ -107,11 +107,11 @@ frequency =
 
 frequencyRanges =
 	| '(' s frequencyRange *(sep frequencyRange) ')' s
-	| frequencyRange s
+	| frequencyRange
 	-> frequencyRange
 
 frequencyRange =
-	| naturalNumber:low ?('..' s ?naturalNumber:high) s
+	| naturalNumber:low s ?('..' s ?naturalNumber:high) s
 	| '..' s naturalNumber:high s
 	-> low, high
 
@@ -153,17 +153,18 @@ rolePair =
 	'(' s predicateRole sep predicateRole ')' s
 	-> predicateRole
 
-typeCardinality =
-	'TypeCardinality' s '(' s typename ?sep cardinalityRange ')'
-	-> typename, cardinalityRange
+comparison =
+	comparisonOperator s '(' s predicateRole sep predicateRole ')'
+	-> comparisonOperator, predicateRole
 
-roleCardinality =
-	'RoleCardinality' s '(' s predicateRole ?sep cardinalityRange ')'
-	-> predicateRole, cardinalityRange
-
-cardinalityRange =
-	'(' s (|naturalNumber:low |zero:low) s '..' s ?(|naturalNumber:high |infinity:high) s ')' s
-	-> low, high
+comparisonOperator =
+	| equalTo:op
+	| notEqualTo:op
+	| lessOrEqual:op
+	| lessThan:op
+	| greaterOrEqual:op
+	| greaterThan:op
+	-> op
 
 objectifies =
 	'Objectifies' s '(' s typename sep predicate s ')'
@@ -173,18 +174,21 @@ valuesOf =
 	'ValuesOf' s '(' s (|predicateRole:target |typename:target) '(' s range *(sep range) ')' s ')' s
 	-> target, range
 
-comparison =
-	comparisonOperator s '(' s predicateRole sep predicateRole ')'
-	-> comparisonOperator, predicateRole
+typeCardinality =
+	'TypeCardinality' s '(' s typename ?sep cardinalityRanges ')'
+	-> typename, cardinalityRanges
 
-comparisonOperator =
-	| equalTo:op
-	| notEqualTo:op
-	| lessThan:op
-	| lessOrEqual:op
-	| greaterOrEqual:op
-	| greaterThan:op
-	-> op
+roleCardinality =
+	'RoleCardinality' s '(' s predicateRole ?sep cardinalityRanges ')'
+	-> predicateRole, cardinalityRanges
+
+cardinalityRanges =
+	'(' s cardinalityRange *(sep cardinalityRange) ')' s
+	-> cardinalityRange
+
+cardinalityRange =
+	?(|naturalNumber:low |zero:low) s ?( '..' s ?(|naturalNumber:high |infinity:high)) s
+	-> low, high
 
 ringConstraint =
 	ringConstraintType s '(' s predicateRole sep predicateRole ')'
@@ -210,7 +214,7 @@ factTypeRule =
 	'FactType' ?'Semi':semi 'Rule' s '(' s predicate sep path *(sep path) ')'
 	-> semi, predicate, path
 
-// Declare a new predicate to join the first role of the first pair through to the second of the last:
+// Declare a new predicate to join the first role of the first pair through to the second of the last pair:
 joinPath =
 	'JoinPath' s '(' s predicate s rolePairs ')'
 	-> predicate, rolePairs
@@ -291,8 +295,14 @@ question =
 	'?' !'?'
 
 predicate =
-	(|id:t |question:t) s *((|id:t |question:t) s)
+	(|adjective:t |id:t |question:t) s *((|adjective:t |id:t |question:t) s)
 	-> t
+
+// Hyphen-binding designates adjectival words in predicate readings, to position articles and quantifiers in verbalisation
+adjective =
+	| '-' id
+	| id '-' !'-'
+        | [_\a] *[_\w] *((|'-- '|' --') +\w)		// Allow hyphenated adjectives
 
 predicateRole =
 	predicate '.' roleNumber s
@@ -437,7 +447,7 @@ greaterThan =
 	'>' ![=<]
 
 id =
-        \a *\w
+        [_\a] *[_\w] *('-' +\w)		// Allow hyphenated identifiers
 
 typename =
 	id s *(id s)			// multi-word typenames include white-space
