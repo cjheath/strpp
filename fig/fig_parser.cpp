@@ -56,7 +56,7 @@ const char*	subexpression_captures[] = { "path", 0 };
 const char*	term_captures[] = { "term", 0 };
 const char*	functionCall_captures[] = { "id", "term", 0 };
 const char*	roleName_captures[] = { "id", 0 };
-const char*	predicate_captures[] = { "t", 0 };
+const char*	predicate_captures[] = { "t", "predicate", "roleNumber", 0 };
 const char*	predicateRole_captures[] = { "predicate", "roleNumber", 0 };
 const char*	roleNumber_captures[] = { "naturalNumber", 0 };
 const char*	range_captures[] = { "range", 0 };
@@ -172,7 +172,7 @@ template<>FigParser::Rule	FigParser::rules[] =
 	  comparison_captures
 	},
 	{ "comparisonOperator",
-	  "|<equalTo>:op:|<notEqualTo>:op:|<lessOrEqual>:op:|<lessThan>:op:|<greaterOrEqual>:op:|<greaterThan>:op:",
+	  "|<equalTo>:op:|<notEqualTo>:op:|<lessOrEqual>:op:|<lessThan>:op:|<lessOrGreater>:op:|<greaterOrEqual>:op:|<greaterThan>:op:",
 	  comparisonOperator_captures
 	},
 	{ "objectifies",
@@ -288,8 +288,12 @@ template<>FigParser::Rule	FigParser::rules[] =
 	  0
 	},
 	{ "predicate",
-	  "(|<adjective>:t:|<id>:t:|<question>:t:)<s>*((|<adjective>:t:|<id>:t:|<question>:t:)<s>)",
+	  "|<typename>:t:\\.<predicate>\\.<roleNumber><s>|(|!-<adjective>:t:|<id>:t:|<question>:t:)<s>*(!<predicateEndsWithHyphen>(|<adjective>:t:|<id>:t:|<question>:t:)<s>)",
 	  predicate_captures
+	},
+	{ "predicateEndsWithHyphen",
+	  "<id>+-<s>!(|[_\\a]|<question>)",
+	  0
 	},
 	{ "adjective",
 	  "|-<id>|<id>-!-|[_\\a]*[_\\w]*((|-- | --)+\\w)",

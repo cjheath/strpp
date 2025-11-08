@@ -162,6 +162,7 @@ comparisonOperator =
 	| notEqualTo:op
 	| lessOrEqual:op
 	| lessThan:op
+	| lessOrGreater:op
 	| greaterOrEqual:op
 	| greaterThan:op
 	-> op
@@ -246,31 +247,31 @@ pathSimple =
 	| subexpression:simple
 	-> simple
 
-roleTraversal =		// role traversal (aka join step):
+roleTraversal =			// role traversal (aka join step):
 	predicateRole:startRole arrow +('[' s predicateRole join_operator path ']' s)
 	-> startRole, predicateRole, path
 
-unaryPredicate =	// unary predicate (REVISIT: unique role name would also work here)
+unaryPredicate =		// unary predicate (REVISIT: unique role name would also work here)
 	s &[a-z] predicate s	// must be a unaryPredicate
 	-> predicate
 
-typePredicate =		// Type predicate
+typePredicate =
 	typename s		// REVISIT: Indistinguishable from simple predicates, hence &[a-z] above
 	-> typename
 
-valueSetPredicate =	// Value(s) predicate: REVISIT: Add support for value ranges
+valueSetPredicate =		// Value(s) predicate: REVISIT: Add support for value ranges
 	'{' s +(literal s) '}' s
 	-> literal
 
-variableComparison =	// variable comparison
+variableComparison =
 	comparisonOperator s term s
 	-> comparisonOperator, term
 
-variableBinding =	// variable binding
+variableBinding =
 	variable s
 	-> variable
 
-subexpression =		// subexpression
+subexpression =
 	'(' s path ')' s
 	-> path
 
@@ -295,8 +296,13 @@ question =
 	'?' !'?'
 
 predicate =
-	(|adjective:t |id:t |question:t) s *((|adjective:t |id:t |question:t) s)
-	-> t
+	// A link fact type in an objectification may be referenced as a predicate
+	| typename:t '.' predicate '.' roleNumber s
+	| (|!'-' adjective:t |id:t |question:t) s *( !predicateEndsWithHyphen (|adjective:t |id:t |question:t) s)
+	-> t, predicate, roleNumber
+
+predicateEndsWithHyphen =
+        id +'-' s !(|[_\a] |question)
 
 // Hyphen-binding designates adjectival words in predicate readings, to position articles and quantifiers in verbalisation
 adjective =
