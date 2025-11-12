@@ -235,7 +235,7 @@ template<typename Source> bool ADLParser<Source>::reference(Source& source)
 
 	// Look for the reference symbol (-> or =>):
 	ch = probe.peek_char();
-	if ('-' != ch && '=' == ch)
+	if ('-' != ch && '=' != ch)
 		return false;
 	probe.advance();
 	if ('>' != probe.peek_char())
