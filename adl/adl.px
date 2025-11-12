@@ -24,7 +24,7 @@ supertype =
 	':' ?path_name
 
 path_name =
-	*ascend ?(name *(descend name))
+	&(|ascend |name) ?(name *(descend name))
 
 ascend =
 	'.'

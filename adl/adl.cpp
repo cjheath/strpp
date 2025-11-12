@@ -148,20 +148,23 @@ template<typename Source> bool ADLParser<Source>::definition(Source& source)
 	return true;
 }
 
-// *'.' ?(name *('.' name))
+// &(|'.' |name) *'.' ?(name *('.' name))
 template<typename Source> bool ADLParser<Source>::path_name(Source& source)
 {
 	Source	probe = source;
+	bool	ok = false;
 
 	// Ascend one scope level for each .
 	while ('.' == probe.peek_char())
 	{
+		ok = true;
 		probe.advance();
 		space(probe);
 	}
 
 	if (name(probe))
 	{
+		ok = true;
 		space(probe);
 		source = probe;			// Already succeeded, get more if we can
 
@@ -175,8 +178,9 @@ template<typename Source> bool ADLParser<Source>::path_name(Source& source)
 			source = probe;		// Descent succeeded, try for more
 		}
 	}
-	source = probe;
-	return true;
+	if (ok)
+		source = probe;
+	return ok;
 }
 
 // | symbol | integer
