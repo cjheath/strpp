@@ -1,0 +1,141 @@
+// Px grammar for the Aspect Definition Language.
+//
+// This does not yet include white-space handling
+// White space includes space, tab, newline and a comment as '//' followed by any characters to end-of-line
+
+TOP =
+	*definition
+
+EOF =
+	!.
+
+definition =
+	!EOF !'}' ?path_name body ?';'
+
+body =
+	| reference
+	| alias_from
+	| ?supertype ?block ?post_body
+
+alias_from =
+	'!' path_name
+
+supertype =
+	':' ?path_name
+
+path_name =
+	*ascend ?(name *(descend name))
+
+ascend =
+	'.'
+
+descend =
+	'.'
+
+name =
+	| symbol
+	| integer
+
+// Unicode categories here: \a = any letter, \w = any letter or digit, \p{Mn} = non-spacing mark (accent)
+symbol =
+	[_\a] *[_\w\p{Mn}]
+
+integer =
+	[1-9] *\d
+
+reference =
+	(| '->' | '=>') path_name ?block ?assignment
+
+block =
+	'{' *definition '}'
+
+post_body =
+	| array_indicator ?assignment
+	| assignment
+
+array_indicator =
+	'[]'
+
+assignment =
+	| final_assignment
+	| tentative_assignment
+
+final_assignment =
+	'=' value
+
+tentative_assignment =
+	'~=' value
+
+value =
+	| atomic_value
+	| array
+
+array =
+	'[' atomic_value *(',' atomic_value) ']'
+
+// If the Variable is a Regular Expression the value is a regexp.
+// If the Variable is a Reference, the value is a path_name or object literal.
+// Otherwise, the value is defined by the Syntax of the variable (regexp_match).
+// See builtin.adl for the syntax of values of builtin variables.
+atomic_value =
+	| regexp		// A regular expression
+	| path_name		// A reference to another object
+	| object_literal	// An inline object definition
+		// This rule cannot be defined in Px so is temporarily elided here during tool development:
+//	| regexp_match		// Value matches the Syntax of the variable being assigned
+
+object_literal =
+	supertype ?block ?assignment
+
+// Above here, white-space is free. Below here, no implicit white-space is allowed.
+
+// The syntax for a Regular Expression is not regular, so it must be built-in.
+regexp =
+	'/' regexp_sequence '/'
+
+regexp_sequence =
+	regexp_alternate *('|' regexp_alternate)
+
+regexp_alternate =
+	*regexp_atom
+
+regexp_atom =
+	(| regexp_char
+	 | regexp_class
+	 | regexp_group)
+	?(| '*'
+	  | '+'
+	  | '?' )
+
+regexp_char =
+	| '\\[adhsw]'		// alpha, digit, hexadecimal, whitespace, word (alpha or digit)
+	| '\\' ?[0-3] [0-7] ?[0-7]
+	| '\\x' \h ?\h
+	| '\\u' ?[0-1] \h ?\h ?\h ?\h
+	| '\\' [pP] '{' +[A-Za-z_] '}'
+	| '\\' [0befntr\\*+?()|/\[]
+	| [^*+?()|/\[ ]
+
+regexp_class =
+	'[' ?'^' ?'-' +regexp_class_part ']'
+
+regexp_class_part =
+	| !']' regexp_class_char '-' !']' regexp_class_char
+	| !']' regexp_class_char
+
+regexp_class_char =
+	| !'-' regexp_char
+	| [*+?()|/]
+
+regexp_group =
+	'(' ?regexp_group_type regexp_sequence ')'
+
+regexp_group_type =
+	| regexp_group_capture
+	| regexp_negative_lookahead
+
+regexp_negative_lookahead =
+	'?!'
+
+regexp_group_capture =
+	'?<' +[_\w] '>'

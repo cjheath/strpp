@@ -52,12 +52,13 @@ public:
 		}
 
 protected:
-	bool	definition(Source&);		// ?path_name body
+	bool	definition(Source&);		// &. !'}' ?path_name body ?';'
 	bool	path_name(Source&);		// *'.' ?(name *('.' name))
 	bool	name(Source&);			// | symbol | integer
-	bool	body(Source&);			// | reference | alias_from | ?supertype ?block post_body ';' | ?supertype block | ';'
-	bool	reference(Source&);		// (| '->' | '=>') path_name (| ';' | ?block tentative_assignment ';' | block)
-	bool	alias_from(Source&);		// '!' path_name
+	bool	body(Source&);			// | reference | alias_from | ?supertype block |?supertype ?block ?post_body EOB
+	bool	EOB(Source&);			// |&';' |&'}' |EOF
+	bool	reference(Source&);		// (| '->' | '=>') path_name ?block ?assignment EOB
+	bool	alias_from(Source&);		// '!' path_name EOB
 	bool	supertype(Source&);		// ':' ?path_name
 	bool	block(Source&);			// '{' *definition '}'
 	bool	post_body(Source&, Syntax&);	// | '[]' ?assignment | assignment
@@ -105,7 +106,7 @@ template<typename Source> bool ADLParser<Source>::parse(Source& source)
 	return true;
 }
 
-// !'}' ?path_name body
+// &. !'}' ?path_name body ?';'
 template<typename Source> bool ADLParser<Source>::definition(Source& source)
 {
 	Source	probe = source;
@@ -115,13 +116,20 @@ template<typename Source> bool ADLParser<Source>::definition(Source& source)
 		return false;			// I see no definition here
 
 	Source	name_start(probe);
-	bool	has_path = path_name(probe);		// Accept a path_name
+	bool	has_path = path_name(probe);	// Accept a path_name
 
 	// printf("DEFINING `"); probe.print_from(name_start); printf("`\n");
 
 	if (!body(probe))
 		return false;
 	// printf("DEFINITION ends `"); probe.print_from(p); printf("`\n");
+
+	ch = probe.peek_char();
+	if (';' == ch)
+	{
+		probe.advance();
+		space(probe);
+	}
 
 	// There was a body, so advance:
 	source = probe;
@@ -177,7 +185,7 @@ template<typename Source> bool ADLParser<Source>::name(Source& source)
 	}
 }
 
-// | reference | alias_from | ?supertype (| ?block post_body |block) (|';' |&'}' | EOF)
+// | reference | alias_from | ?supertype block |?supertype ?block ?post_body EOB
 template<typename Source> bool ADLParser<Source>::body(Source& source)
 {
 	if (reference(source))
@@ -191,27 +199,22 @@ template<typename Source> bool ADLParser<Source>::body(Source& source)
 	bool	has_block = block(probe);
 	bool	has_post_body = post_body(probe, syntax);
 
-	if (!has_block || has_post_body)
-	{
-		UCS4	ch = probe.peek_char();
-		if (';' == ch)
-			probe.advance();
-		else if ('}' != ch && ch != 0)	// REVISIT: EOF handling
-		{
-			if ('}' != ch)
-				error("body", "semicolon", probe);
-			return false;
-		}
-		else if (ch == 0)
-			return false;
-	}
+	if (!has_block && !EOB(probe))	// If there's no block, the body must be properly terminated
+		return false;
 
-	space(probe);
 	source = probe;
 	return true;
 }
 
-// (| '->' | '=>') path_name (| ';' | ?block tentative_assignment ';' | block)
+// |';' |'}' |EOF
+template<typename Source> bool ADLParser<Source>::EOB(Source& source)
+{
+	UCS4	ch = source.peek_char();
+
+	return ';' == ch || '}' == ch || UCS4_NONE == ch;
+}
+
+// (| '->' | '=>') path_name ?block ?assignment EOB
 template<typename Source> bool ADLParser<Source>::reference(Source& source)
 {
 	Source	probe(source);
@@ -235,36 +238,17 @@ template<typename Source> bool ADLParser<Source>::reference(Source& source)
 		return false;
 	}
 
-	// Option of semicolon, optional block with tentative_assignment and semicolon, or just a block
-	ch = probe.peek_char();
-	if (';' == ch)
-	{
-		probe.advance();
-		space(probe);
-accept:		source = probe;
-		return true;
-	}
-
 	bool	has_block = block(probe);
-	bool	has_tentative_assignment = tentative_assignment(probe, syntax);
+	bool	has_assignment = assignment(probe, syntax);
 
-	if (has_tentative_assignment)
-	{
-		if (';' != probe.peek_char())
-		{
-missing_semi:		error("reference", "semicolon", probe);
-			return false;
-		}
-		probe.advance();
-		space(probe);
-		goto accept;
-	}
-	if (!has_block)
-		goto missing_semi;
-	goto accept;
+	if (!EOB(probe))
+		return false;
+
+	source = probe;
+	return true;
 }
 
-// '!' path_name
+// '!' path_name EOB
 template<typename Source> bool ADLParser<Source>::alias_from(Source& source)
 {
 	Source	probe(source);
@@ -276,6 +260,10 @@ template<typename Source> bool ADLParser<Source>::alias_from(Source& source)
 
 	if (!path_name(probe))
 		return false;
+
+	if (!EOB(probe))
+		return false;
+
 	source = probe;
 	return true;
 }
@@ -379,6 +367,7 @@ template<typename Source> bool ADLParser<Source>::final_assignment(Source& sourc
 		return false;	// Assignment must have a value
 	}
 
+	space(probe);
 	source = probe; 
 	return true;
 }
@@ -403,6 +392,7 @@ template<typename Source> bool ADLParser<Source>::tentative_assignment(Source& s
 	if (!has_value)
 		return false;	// Assignment must have a value
 
+	space(probe);
 	source = probe; 
 	return true;
 }
