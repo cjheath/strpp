@@ -192,6 +192,7 @@ template<typename Source> bool ADLParser<Source>::name(Source& source)
 			if (!integer(probe))
 				return ok;
 		}
+		ok = true;
 		space(probe);
 		source = probe;
 	}
