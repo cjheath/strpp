@@ -10,10 +10,12 @@ class	ADLSource
 {
 	const UTF8*	data;
 	int		peeked_bytes;
+	int		_line_number;
+	int		_column;
 
 public:
-	ADLSource(const UTF8* _data) : data(_data), peeked_bytes(0) {}
-	ADLSource(const ADLSource& c) : data(c.data), peeked_bytes(0) {}
+	ADLSource(const UTF8* _data) : data(_data), peeked_bytes(0), _line_number(1), _column(1) {}
+	ADLSource(const ADLSource& c) : data(c.data), peeked_bytes(0), _line_number(c._line_number), _column(c._column) {}
 	UCS4	peek_char()
 		{
 			const UTF8*	tp = data;
@@ -23,10 +25,19 @@ public:
 		}
 	void	advance()
 		{
+			if (peeked_bytes == 0)
+				return;
+			if (*data == '\n')
+				_column = 1, _line_number++;
+			else
+				_column++;
 			data += peeked_bytes;
 			peeked_bytes = 0;
 		}
 	off_t	operator-(const ADLSource start) const { return data - start.data; }
+	int	line_number() const { return _line_number; }
+	int	column() const { return _column; }
+	const char*	peek() const { return data; }
 
 	void	print_from(const ADLSource& start) const {
 			printf("%.*s", (int)(*this - start), start.data);
@@ -48,7 +59,8 @@ public:
 
 	void	error(const char* why, const char* what, const Source& where)
 		{
-			printf("%s MISSING %s: ", why, what); where.print_ahead();
+			printf("At line %d:%d, %s MISSING %s: ", where.line_number(), where.column(), why, what);
+			where.print_ahead();
 		}
 
 protected:
