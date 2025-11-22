@@ -12,13 +12,17 @@
 
 struct	ADLPathName
 {
-	void		clear()
-			{ ascent = 0; path.clear(); }
 	ADLPathName()
 			{ clear(); }
 
 	int		ascent;
 	StringArray	path;
+	StrVal		sep;	// Next separator to use while building ("", " " or ".")
+
+	void		clear()
+			{ ascent = 0; path.clear(); sep = ""; }
+	void		consume(ADLPathName& target)
+			{ target = *this; clear(); }
 };
 
 /*
@@ -28,7 +32,6 @@ class ADLDebugSink
 {
 	// Current path name being built (with ascent - outer scope levels to rise before searching)
 	ADLPathName	current_path;
-	StrVal		current_sep;
 
 	// path name and ascent for current object:
 	ADLPathName	object_path;
@@ -54,8 +57,6 @@ public:
 	void clear()
 	{
 		current_path.clear();
-		current_sep = "";
-
 		object_path.clear();
 		supertype_path.clear();
 
@@ -90,44 +91,34 @@ public:
 	{
 		StrVal	n(start.peek(), (int)(end-start));
 
-		if (current_sep != " ")			// "" or ".", start new name in pathname
+		if (current_path.sep != " ")			// "" or ".", start new name in pathname
 			current_path.path.push(n);
-		else if (current_sep != ".")
-			current_path.path.push(current_path.path.pull() + current_sep + n);	// Append the partial name
-		current_sep = " ";
+		else if (current_path.sep != ".")
+			current_path.path.push(current_path.path.pull() + current_path.sep + n);	// Append the partial name
+		current_path.sep = " ";
 	}
 
 	void	descend()				// Go down one level from the last name
 	{
-		current_sep = ".";	// Start new multi-word name
+		current_path.sep = ".";	// Start new multi-word name
 	}
 
 	void	pathname(bool ok)			// The sequence *ascend name *(descend name) is complete
 	{
 		if (!ok)
-			clear_pathname();
-	}
-
-	void	clear_pathname()
-	{
-		// Prepare to start a new pathname
-		current_path.ascent = 0;
-		current_path.path.clear();
-		current_sep = "";
+			current_path.clear();
 	}
 
 	void	object_name()				// The last name was for a new object
 	{
 		// Save the path:
-		object_path = current_path;
-		clear_pathname();
+		current_path.consume(object_path);
 		printf("Object PathName (%d names): .%d '%s'\n", object_path.path.length(), object_path.ascent, object_path.path.join(".").asUTF8());
 	}
 
 	void	supertype()				// Last pathname was a supertype
 	{
-		supertype_path = current_path;
-		clear_pathname();
+		current_path.consume(supertype_path);
 
 		printf("Supertype pathname (%d names): .%d '%s'\n", supertype_path.path.length(), supertype_path.ascent, supertype_path.path.join(".").asUTF8());
 	}
@@ -137,7 +128,8 @@ public:
 		printf("Reference (%s) to .%d '%s'\n",
 			is_multi ? "multiple" : "single",
 			current_path.ascent, current_path.path.join(".").asUTF8());
-		clear_pathname();
+		ADLPathName	reference_path;
+		current_path.consume(reference_path);
 	}
 
 	void	reference_done(bool ok)			// Reference completed
@@ -148,7 +140,8 @@ public:
 	void	alias()					// Last pathname is an alias
 	{
 		// printf("Alias finished\n");
-		clear_pathname();
+		ADLPathName	alias_path;
+		current_path.consume(alias_path);
 	}
 
 	void	block_start()				// enter the block given by the pathname and supertype
@@ -208,7 +201,8 @@ public:
 		value = current_path.path.join(".");
 		printf("Reference value .%d '%s'\n",
 			current_path.ascent, value.asUTF8());
-		clear_pathname();
+		ADLPathName	reference_path;
+		current_path.consume(reference_path);
 	}
 
 	void	pegexp_literal(Source start, Source end)	// Contents of a pegexp between start and end
