@@ -688,15 +688,16 @@ template<typename Source> bool ADLParser<Source>::integer(Source& source)
 {
 	Source	probe(source);
 
-	if (UCS4Digit(probe.peek_char()) < 1)
+	if (ASCIIDigit(probe.peek_char()) < 1)
 		return false;
 	probe.advance();
-	while (UCS4Digit(probe.peek_char()) >= 0)
+	while (ASCIIDigit(probe.peek_char()) >= 0)
 		probe.advance();
 	source = probe;
 	return true;
 }
 
+// '/' pegexp_sequence '/'
 template<typename Source> bool ADLParser<Source>::pegexp(Source& source)
 {
 	Source	probe(source);
@@ -749,7 +750,7 @@ accept:		source = probe;
 	goto accept;
 }
 
-// [*+?] (| pegexp_char | pegexp_class | pegexp_group)
+// ?[*+?] (| pegexp_char | pegexp_class | pegexp_group)
 template<typename Source> bool ADLParser<Source>::pegexp_atom(Source& source)
 {
 	Source	probe(source);
@@ -821,8 +822,8 @@ template<typename Source> bool ADLParser<Source>::pegexp_lookahead(Source& sourc
 // | '\\u' \h ?\h ?\h ?\h		// Unicode character 1..4 digits
 // | '\\u{' +\h '}'			// Unicode character \u{...}, arbitrary precision
 // | '\\' [pP] '{' +[A-Za-z_] '}'	// Unicode named property
-// | '\\' [0befntr\\*+?()|/\[]		// Special escapes
-// | [^*+?()|/\[ :]			// Other chars except pegexp operator initiators (but allow . operator)
+// | '\\' [.0befntr\\*+?()|/\[]		// Special escapes
+// | [^*+?()|/\[\0- ]	  		// Other non-ctl chars except pegexp operator initiators (but allow . operator)
 template<typename Source> bool ADLParser<Source>::pegexp_char(Source& source)
 {
 	Source	probe(source);
@@ -897,13 +898,8 @@ template<typename Source> bool ADLParser<Source>::pegexp_char(Source& source)
 				probe.advance();
 				goto accept;
 			}
-			if (0 != strchr("0befntr\\*+?()|/[", (char)ch))
+			if (0 != strchr(".0befntr\\*+?()|/[", (char)ch))
 			{			// Special escape
-				probe.advance();
-				goto accept;
-			}
-			if (0 == strchr("*+?()|/\\[ :", ch))
-			{		// | [^*+?()|/\[ :]	// Other chars except pegexp operator initiators (but allow . operator)
 				probe.advance();
 				goto accept;
 			}
@@ -912,7 +908,8 @@ template<typename Source> bool ADLParser<Source>::pegexp_char(Source& source)
 		return false;
 	}
 
-	if (UCS4IsASCII(ch) && 0 != strchr("*+?()|/\\[ ", (char)ch))
+	// No control characters, or whitespace, or other unescaped special characters:
+	if (ch <= ' ' || (UCS4IsASCII(ch) && 0 != strchr("*+?()|/\\[", ch)))
 		return false;	// These chars are not allowed unescaped
 	probe.advance();
 	source = probe;
