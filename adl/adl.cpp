@@ -10,23 +10,31 @@
 #include	<strval.h>
 #include	<adl.h>
 
+struct	ADLPathName
+{
+	void		clear()
+			{ ascent = 0; path.clear(); }
+	ADLPathName()
+			{ clear(); }
+
+	int		ascent;
+	StringArray	path;
+};
+
 /*
  * If Syntax lookup is required, you need to save enough data to implement it.
  */
 class ADLDebugSink
 {
 	// Current path name being built (with ascent - outer scope levels to rise before searching)
-	int		current_ascent;
-	StringArray	current_path;
+	ADLPathName	current_path;
 	StrVal		current_sep;
 
 	// path name and ascent for current object:
-	int		object_ascent;
-	StringArray	object_path;
+	ADLPathName	object_path;
 
 	// path name and ascent for current object's supertype:
-	int		supertype_ascent;
-	StringArray	supertype_path;
+	ADLPathName	supertype_path;
 
 	bool		obj_array;
 	enum ValueType {
@@ -45,14 +53,10 @@ public:
 
 	void clear()
 	{
-		current_ascent = 0;
 		current_path.clear();
 		current_sep = "";
 
-		object_ascent = 0;
 		object_path.clear();
-
-		supertype_ascent = 0;
 		supertype_path.clear();
 
 		obj_array = false;
@@ -79,7 +83,7 @@ public:
 
 	void	ascend()				// Go up one scope level to look for a name
 	{
-		current_ascent++;
+		current_path.ascent++;
 	}
 
 	void	name(Source start, Source end)		// A name exists between start and end
@@ -87,9 +91,9 @@ public:
 		StrVal	n(start.peek(), (int)(end-start));
 
 		if (current_sep != " ")			// "" or ".", start new name in pathname
-			current_path.push(n);
+			current_path.path.push(n);
 		else if (current_sep != ".")
-			current_path.push(current_path.pull() + current_sep + n);	// Append the partial name
+			current_path.path.push(current_path.path.pull() + current_sep + n);	// Append the partial name
 		current_sep = " ";
 	}
 
@@ -107,34 +111,32 @@ public:
 	void	clear_pathname()
 	{
 		// Prepare to start a new pathname
-		current_ascent = 0;
-		current_path.clear();
+		current_path.ascent = 0;
+		current_path.path.clear();
 		current_sep = "";
 	}
 
 	void	object_name()				// The last name was for a new object
 	{
 		// Save the path:
-		object_ascent = current_ascent;
 		object_path = current_path;
 		clear_pathname();
-		printf("Object PathName (%d names): .%d '%s'\n", object_path.length(), object_ascent, object_path.join(".").asUTF8());
+		printf("Object PathName (%d names): .%d '%s'\n", object_path.path.length(), object_path.ascent, object_path.path.join(".").asUTF8());
 	}
 
 	void	supertype()				// Last pathname was a supertype
 	{
-		supertype_ascent = current_ascent;
 		supertype_path = current_path;
 		clear_pathname();
 
-		printf("Supertype pathname (%d names): .%d '%s'\n", supertype_path.length(), supertype_ascent, supertype_path.join(".").asUTF8());
+		printf("Supertype pathname (%d names): .%d '%s'\n", supertype_path.path.length(), supertype_path.ascent, supertype_path.path.join(".").asUTF8());
 	}
 
 	void	reference_type(bool is_multi)		// Last pathname was a reference
 	{
 		printf("Reference (%s) to .%d '%s'\n",
 			is_multi ? "multiple" : "single",
-			current_ascent, current_path.join(".").asUTF8());
+			current_path.ascent, current_path.path.join(".").asUTF8());
 		clear_pathname();
 	}
 
@@ -203,9 +205,9 @@ public:
 	void	reference_literal()			// The last pathname is a value to assign to a reference variable
 	{
 		value_type = VT_Reference;
-		value = current_path.join(".");
+		value = current_path.path.join(".");
 		printf("Reference value .%d '%s'\n",
-			current_ascent, value.asUTF8());
+			current_path.ascent, value.asUTF8());
 		clear_pathname();
 	}
 
