@@ -1123,7 +1123,14 @@ public:
 	{
 		if (length() == 0)
 			return "";
-		StrVal	joined = elem(0);
+
+		StrVal		e0 = elem(0);
+		StrValIndex	result_length = e0.length();
+		for (int i = 1; i < length(); i++)
+			result_length += joiner.length() + elem(i).length();
+
+		// Preallocate the required amount of storage:
+		StrVal	joined(e0.asUTF8(), e0.numBytes(), result_length+1);
 		for (int i = 1; i < length(); i++)
 			joined += joiner + elem(i);
 		return joined;
