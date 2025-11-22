@@ -20,6 +20,10 @@ class	StrVariantMap			// Map from StrVal to Variant
 : public CowMap<Variant, StrVal>
 {
 public:
+	StrVariantMap() {}
+	StrVariantMap(const StrVal* keys, const Variant* values, int size)
+	: CowMap<Variant, StrVal>(keys, values, size)
+	{ }
 };
 
 class	Variant
