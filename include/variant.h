@@ -15,7 +15,6 @@ class	Variant;
 
 // Complex reference-counted types we can use in a Variant:
 typedef	Array<Variant>	VariantArray;
-typedef Array<StrVal>	StrArray;	// Array of StrVal
 
 class	StrVariantMap			// Map from StrVal to Variant
 : public CowMap<Variant, StrVal>
@@ -34,7 +33,7 @@ public:
 		LongLong,
 		// , BigNum, Float, Double
 		String,
-		StringArray,
+		StrArray,
 		VarArray,
 		StrVarMap,
 		VariantTypeMax = StrVarMap
@@ -66,18 +65,18 @@ public:
 	{ _type = String; new(&u.str) StrVal(v); }
 	Variant(const char* s)						// StrVal
 	{ _type = String; new(&u.str) StrVal(s); }
-	Variant(StrArray a)						// StringArray
-	{ _type = StringArray; new(&u.str_arr) StrArray(a); }
-	Variant(StrVal* v, StrArray::Index count)
-	{ _type = StringArray; new(&u.str_arr) StrArray(v, count); }
+	Variant(StringArray a)						// StrArray
+	{ _type = StrArray; new(&u.str_arr) StringArray(a); }
+	Variant(StrVal* v, StringArray::Index count)
+	{ _type = StrArray; new(&u.str_arr) StringArray(v, count); }
 	Variant(VariantArray a)						// VarArray
 	{ _type = VarArray; new(&u.str_arr) VariantArray(a); }
 	Variant(Variant* v, VariantArray::Index count)
 	{ _type = VarArray; new(&u.var_arr) VariantArray(v, count); }
-	Variant(StrVal* keys, Variant* values, StrArray::Index count)	// StrVarMap
+	Variant(StrVal* keys, Variant* values, StringArray::Index count)	// StrVarMap
 	{ 	_type = StrVarMap;
 		new(&u.var_map) StrVariantMap();
-		for (StrArray::Index i = 0; i < count; i++)
+		for (StringArray::Index i = 0; i < count; i++)
 			u.var_map.insert(keys[i], values[i]);
 	}
 	Variant(StrVariantMap map)					// StrVarMap
@@ -97,7 +96,7 @@ public:
 			return;		// The union u has been zeroed already
 
 		case String:		new(&u.str) StrVal(); break;
-		case StringArray:	new(&u.str_arr) StrArray(); break;
+		case StrArray:		new(&u.str_arr) StringArray(); break;
 		case VarArray:		new(&u.var_arr) VariantArray(); break;
 		case StrVarMap:		new(&u.var_map) StrVariantMap(); break;
 		}
@@ -115,7 +114,7 @@ public:
 		case Long:		u.l = v.as_long(); break;
 		case LongLong:		u.ll = v.as_longlong(); break;
 		case String:		new(&u.str) StrVal(v.as_strval()); break;
-		case StringArray:	new(&u.str_arr) StrArray(v.as_string_array()); break;
+		case StrArray:		new(&u.str_arr) StringArray(v.as_string_array()); break;
 		case VarArray:		new(&u.var_arr) VariantArray(v.as_variant_array()); break;
 		case StrVarMap:		new(&u.var_map) StrVariantMap(v.as_variant_map()); break;
 		}
@@ -133,7 +132,7 @@ public:
 		case Long:		u.l = v.as_long(); break;
 		case LongLong:		u.ll = v.as_longlong(); break;
 		case String:		new(&u.str) StrVal(v.as_strval()); break;
-		case StringArray:	new(&u.str_arr) StrArray(v.as_string_array()); break;
+		case StrArray:		new(&u.str_arr) StringArray(v.as_string_array()); break;
 		case VarArray:		new(&u.var_arr) VariantArray(v.as_variant_array()); break;
 		case StrVarMap:		new(&u.var_map) StrVariantMap(v.as_variant_map()); break;
 		}
@@ -147,7 +146,7 @@ public:
 	const long&		as_long() const { must_be(Long); return u.l; }
 	const long long&	as_longlong() const { must_be(LongLong); return u.ll; }
 	const StrVal		as_strval() const { must_be(String); return u.str; }
-	const StrArray		as_string_array() const { must_be(StringArray); return u.str_arr; }
+	const StringArray		as_string_array() const { must_be(StrArray); return u.str_arr; }
 	const VariantArray	as_variant_array() const { must_be(VarArray); return u.var_arr; }
 	const StrVariantMap	as_variant_map() const { must_be(StrVarMap); return u.var_map; }
 
@@ -155,7 +154,7 @@ public:
 	long&			as_long() { coerce(Long); return u.l; }
 	long long&		as_longlong() { coerce(LongLong); return u.ll; }
 	StrVal			as_strval() { coerce(String); return u.str; }
-	StrArray		as_string_array() { coerce(StringArray); return u.str_arr; }
+	StringArray		as_string_array() { coerce(StrArray); return u.str_arr; }
 	VariantArray		as_variant_array() { coerce(VarArray); return u.var_arr; }
 	StrVariantMap		as_variant_map() { coerce(StrVarMap); return u.var_map; }
 
@@ -199,7 +198,7 @@ public:
 		case String:
 			return StrVal("\"")+u.str.asJSON()+"\"";
 
-		case StringArray:
+		case StrArray:
 			{
 			StrVal		str(StrVal("[")+sep.substr(1));
 			for (int i = 0; i < u.str_arr.length(); i++)
@@ -246,7 +245,7 @@ protected:
 			break;		// Nothing to do
 
 		case String:		u.str.~StrVal(); break;
-		case StringArray:	u.str_arr.~StrArray(); break;
+		case StrArray:		u.str_arr.~StringArray(); break;
 		case VarArray:		u.var_arr.~VariantArray(); break;
 		case StrVarMap:		u.var_map.~StrVariantMap(); break;
 		}
@@ -287,7 +286,7 @@ protected:
 					_type = new_type;
 					return;
 			case None:		// FALL THROUGH
-			case StringArray:	// FALL THROUGH
+			case StrArray:		// FALL THROUGH
 			case VarArray:		// FALL THROUGH
 			case StrVarMap:		// FALL THROUGH
 					break;	// Cannot coerce
@@ -308,7 +307,7 @@ protected:
 					_type = new_type;
 					return;
 			case None:		// FALL THROUGH
-			case StringArray:	// FALL THROUGH
+			case StrArray:		// FALL THROUGH
 			case VarArray:		// FALL THROUGH
 			case StrVarMap:		// FALL THROUGH
 					break;	// Cannot coerce
@@ -328,7 +327,7 @@ protected:
 					_type = new_type;
 					return;
 			case None:		// FALL THROUGH
-			case StringArray:	// FALL THROUGH
+			case StrArray:		// FALL THROUGH
 			case VarArray:		// FALL THROUGH
 			case StrVarMap:		// FALL THROUGH
 					break;	// Cannot coerce
@@ -350,14 +349,14 @@ protected:
 					return;
 			case String:	return; // Already handled
 			case None:		// FALL THROUGH
-			case StringArray:	// FALL THROUGH
+			case StrArray:		// FALL THROUGH
 			case VarArray:		// FALL THROUGH
 			case StrVarMap:		// FALL THROUGH
 					break;	// Cannot coerce
 			}
 			break;
 
-		case StringArray:	break;	// REVISIT: No coercion implemented
+		case StrArray:		break;	// REVISIT: No coercion implemented
 		case VarArray:		break;	// REVISIT: No coercion implemented
 		case StrVarMap:		break;	// REVISIT: No coercion implemented
 		}
@@ -380,7 +379,7 @@ protected:
 		long		l;
 		long long	ll;
 		StrVal		str;
-		StrArray	str_arr;
+		StringArray	str_arr;
 		VariantArray	var_arr;
 		StrVariantMap	var_map;
 

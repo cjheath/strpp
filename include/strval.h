@@ -1109,4 +1109,26 @@ StrBodyI<Index>::toJSON()
 	);
 }
 
+class	StringArray
+: public Array<StrVal>
+{
+public:
+	StringArray() {}
+	StringArray(const StrVal* data, Index size, Index allocate = 0)
+	: Array(data, size, allocate)
+	{
+	}
+
+	StrVal		join(StrVal joiner)
+	{
+		if (length() == 0)
+			return "";
+		StrVal	joined = elem(0);
+		for (int i = 1; i < length(); i++)
+			joined += joiner + elem(i);
+		return joined;
+	}
+};
+
+
 #endif

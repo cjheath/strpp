@@ -11,7 +11,7 @@ const char*	Variant::type_names[] = {
 	"LongLong",
 	// , "BigNum", "Float", "Double"
 	"String",
-	"StringArray",
+	"StrArray",
 	"VarArray",
 	"StrVarMap"
 };

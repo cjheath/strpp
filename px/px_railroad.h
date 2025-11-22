@@ -8,7 +8,7 @@
 #include	<strval.h>
 #include	<variant.h>
 
-extern	StrArray	omitted_rules;
+extern	StringArray	omitted_rules;
 
 void emit_railroad(const char* parser_name, VariantArray rules);
 

@@ -23,7 +23,7 @@ main(int argc, const char** argv)
 void variant_array_tests()
 {
 	VariantArray	va;
-	StrArray	sa;
+	StringArray	sa;
 
 	sa << "foo";
 	sa << "bar";

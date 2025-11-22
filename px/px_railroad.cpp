@@ -16,7 +16,7 @@
 #include	<px_pegexp.h>
 #include	<px_railroad.h>
 
-StrArray	omitted_rules;
+StringArray	omitted_rules;
 
 bool is_omitted(StrVal o)
 {
@@ -266,7 +266,7 @@ StrVal	generate_repetition(StrVariantMap repetition)
 
 StrVal	generate_sequence(VariantArray repetitions)
 {
-	StrArray	items;
+	StringArray	items;
 	for (int i = 0; i < repetitions.length(); i++)
 	{
 		StrVal	item = generate_repetition(repetitions[i].as_variant_map());
@@ -298,7 +298,7 @@ StrVal generate_alternates(StrVariantMap alternates)
 
 	if (sequence_list.type() == Variant::VarArray)
 	{
-		StrArray	choices;
+		StringArray	choices;
 		VariantArray	sequences = sequence_list.as_variant_array();
 		for (int i = 0; i < sequences.length(); i++)
 		{
