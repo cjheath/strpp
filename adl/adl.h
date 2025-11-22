@@ -6,7 +6,7 @@
 #include	<error.h>
 #include	<fcntl.h>
 
-class	ADLSource
+class	ADLSourcePtr
 {
 	const UTF8*	data;
 	int		peeked_bytes;
@@ -14,8 +14,8 @@ class	ADLSource
 	int		_column;
 
 public:
-	ADLSource(const UTF8* _data) : data(_data), peeked_bytes(0), _line_number(1), _column(1) {}
-	ADLSource(const ADLSource& c) : data(c.data), peeked_bytes(0), _line_number(c._line_number), _column(c._column) {}
+	ADLSourcePtr(const UTF8* _data) : data(_data), peeked_bytes(0), _line_number(1), _column(1) {}
+	ADLSourcePtr(const ADLSourcePtr& c) : data(c.data), peeked_bytes(0), _line_number(c._line_number), _column(c._column) {}
 	UCS4	peek_char()
 		{
 			const UTF8*	tp = data;
@@ -34,12 +34,12 @@ public:
 			data += peeked_bytes;
 			peeked_bytes = 0;
 		}
-	off_t	operator-(const ADLSource start) const { return data - start.data; }
+	off_t	operator-(const ADLSourcePtr start) const { return data - start.data; }
 	int	line_number() const { return _line_number; }
 	int	column() const { return _column; }
 	const char*	peek() const { return data; }
 
-	void	print_from(const ADLSource& start) const {
+	void	print_from(const ADLSourcePtr& start) const {
 			printf("%.*s", (int)(*this - start), start.data);
 		}
 	void	print_ahead() const {
@@ -51,7 +51,7 @@ public:
  * This is an API stub. During parsing, these methods get called.
  * If Syntax lookup is required, you need to save enough data to implement it.
  */
-template<typename _Source = ADLSource>
+template<typename _Source = ADLSourcePtr>
 class ADLSink
 {
 public:
@@ -86,7 +86,8 @@ public:
 	void	reference_literal() {}			// The last pathname is a value to assign to a reference variable
 	void	pegexp_literal(Source start, Source end) {}	// Contents of a pegexp between start and end
 
-	Source	lookup_syntax(Source type) { return Source(""); }	// Return Source of a Pegexp string to use in matching
+	Source	lookup_syntax(Source type)		// Return Source of a Pegexp string to use in matching
+		{ return Source(""); }
 };
 
 template<
@@ -128,8 +129,7 @@ protected:
 	bool	object_literal(Source&);	// supertype ?block ?assignment
 	bool	pegexp_match(Source&, Type&);
 	bool	space(Source&);			// Optional white-space
-
-	// White-space is free above here (not handled yet)
+	// White-space is free above here, explicit below
 	bool	symbol(Source&);		// [_\a] *[_\w\p{Mn}]
 	bool	integer(Source&);		// [1-9] *[0-9]
 	bool	pegexp(Source& source);		// '/' pegexp_sequence '/'
@@ -147,7 +147,7 @@ protected:
 	bool	string_literal(Source&);
 	bool	numeric_literal(Source&);
 
-	Sink		sink;
+	Sink	sink;
 };
 
 // ?BOM *definition

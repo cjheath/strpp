@@ -42,7 +42,7 @@ class ADLDebugSink
 	StrVal		value;
 
 public:
-	using	Source = ADLSource;
+	using	Source = ADLSourcePtr;
 
 	void clear()
 	{
@@ -245,7 +245,7 @@ int main(int argc, const char** argv)
 	off_t			file_size;
 	char*			text = slurp_file(filename, &file_size);
 	ADLParser<ADLDebugSink>	adl;
-	ADLSource		source(text);
+	ADLSourcePtr		source(text);
 
 	bool			ok = adl.parse(source);
 	off_t			bytes_parsed = source - text;
