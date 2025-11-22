@@ -15,17 +15,16 @@
  */
 class ADLDebugSink
 {
-	int		path_ascent;
-	StringArray	path;
-	StrVal		path_sep;
+	// Current path name being built (with ascent - outer scope levels to rise before searching)
+	int		current_ascent;
+	StringArray	current_path;
+	StrVal		current_sep;
 
-	// A completed name (with ascent)
-	int		last_ascent;
-	StringArray	last_path;
-
+	// path name and ascent for current object:
 	int		object_ascent;
 	StringArray	object_path;
 
+	// path name and ascent for current object's supertype:
 	int		supertype_ascent;
 	StringArray	supertype_path;
 
@@ -46,12 +45,9 @@ public:
 
 	void clear()
 	{
-		path_ascent = 0;
-		path.clear();
-		path_sep = "";
-
-		last_ascent = 0;
-		last_path.clear();
+		current_ascent = 0;
+		current_path.clear();
+		current_sep = "";
 
 		object_ascent = 0;
 		object_path.clear();
@@ -83,48 +79,53 @@ public:
 
 	void	ascend()				// Go up one scope level to look for a name
 	{
-		path_ascent++;
+		current_ascent++;
 	}
 
 	void	name(Source start, Source end)		// A name exists between start and end
 	{
 		StrVal	n(start.peek(), (int)(end-start));
 
-		if (path_sep != " ")			// "" or ".", start new name in pathname
-			path.push(n);
-		else if (path_sep != ".")
-			path.push(path.pull() + path_sep + n);	// Append the partial name
-		path_sep = " ";
+		if (current_sep != " ")			// "" or ".", start new name in pathname
+			current_path.push(n);
+		else if (current_sep != ".")
+			current_path.push(current_path.pull() + current_sep + n);	// Append the partial name
+		current_sep = " ";
 	}
 
 	void	descend()				// Go down one level from the last name
 	{
-		path_sep = ".";	// Start new multi-word name
+		current_sep = ".";	// Start new multi-word name
 	}
 
 	void	pathname(bool ok)			// The sequence *ascend name *(descend name) is complete
 	{
-		last_ascent = path_ascent;
-		last_path = path;
+		if (!ok)
+			clear_pathname();
+	}
 
+	void	clear_pathname()
+	{
 		// Prepare to start a new pathname
-		path_ascent = 0;
-		path.clear();
-		path_sep = "";
+		current_ascent = 0;
+		current_path.clear();
+		current_sep = "";
 	}
 
 	void	object_name()				// The last name was for a new object
 	{
 		// Save the path:
-		object_ascent = last_ascent;
-		object_path = last_path;
+		object_ascent = current_ascent;
+		object_path = current_path;
+		clear_pathname();
 		printf("Object PathName (%d names): .%d '%s'\n", object_path.length(), object_ascent, object_path.join(".").asUTF8());
 	}
 
 	void	supertype()				// Last pathname was a supertype
 	{
-		supertype_ascent = last_ascent;
-		supertype_path = last_path;
+		supertype_ascent = current_ascent;
+		supertype_path = current_path;
+		clear_pathname();
 
 		printf("Supertype pathname (%d names): .%d '%s'\n", supertype_path.length(), supertype_ascent, supertype_path.join(".").asUTF8());
 	}
@@ -133,7 +134,8 @@ public:
 	{
 		printf("Reference (%s) to .%d '%s'\n",
 			is_multi ? "multiple" : "single",
-			last_ascent, last_path.join(".").asUTF8());
+			current_ascent, current_path.join(".").asUTF8());
+		clear_pathname();
 	}
 
 	void	reference_done(bool ok)			// Reference completed
@@ -144,6 +146,7 @@ public:
 	void	alias()					// Last pathname is an alias
 	{
 		// printf("Alias finished\n");
+		clear_pathname();
 	}
 
 	void	block_start()				// enter the block given by the pathname and supertype
@@ -200,9 +203,10 @@ public:
 	void	reference_literal()			// The last pathname is a value to assign to a reference variable
 	{
 		value_type = VT_Reference;
-		value = last_path.join(".");
+		value = current_path.join(".");
 		printf("Reference value .%d '%s'\n",
-			last_ascent, value.asUTF8());
+			current_ascent, value.asUTF8());
+		clear_pathname();
 	}
 
 	void	pegexp_literal(Source start, Source end)	// Contents of a pegexp between start and end
