@@ -10,53 +10,6 @@
 #include	<strval.h>
 #include	<adl.h>
 
-#if 0
-typedef enum {
-	IT_None,
-	IT_Ascend,
-	IT_Name,
-	IT_Pathname,
-} ItemType;
-
-class Item
-: public std::pair<ItemType, StrVal>
-{
-	using Pair = std::pair<ItemType, StrVal>;
-public:
-	Item() : Pair(IT_None, "") {}
-	Item(ItemType _type, StrVal _value = "") : Pair(_type, _value) {}
-	ItemType	type() { return first; }
-	StrVal		value() { return second; }
-};
-
-class ItemStack
-: public Array<Item>
-{
-public:
-	ItemStack() {}
-	Item	top() { return this->operator[](length()-1); }
-	void	set_top(const Item& it) { set(length()-1, it); }
-	bool	is_empty() const { return length() == 0; }
-};
-#endif
-
-class	StringArray
-: public Array<StrVal>
-{
-public:
-	StringArray() {}
-	
-	StrVal		join(StrVal joiner)
-	{
-		if (length() == 0)
-			return "";
-		StrVal	joined = elem(0);
-		for (int i = 1; i < length(); i++)
-			joined += joiner + elem(i);
-		return joined;
-	}
-};
-
 /*
  * If Syntax lookup is required, you need to save enough data to implement it.
  */
@@ -114,6 +67,12 @@ public:
 	ADLDebugSink()
 	{
 		clear();
+	}
+
+	void	error(const char* why, const char* what, const Source& where)
+	{
+		printf("At line %d:%d, %s MISSING %s: ", where.line_number(), where.column(), why, what);
+		where.print_ahead();
 	}
 
 	void	definition_ends()

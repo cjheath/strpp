@@ -58,6 +58,13 @@ public:
 	using	Source = _Source;
 
 	ADLSink() {}
+
+	void	error(const char* why, const char* what, const Source& where)
+		{
+			printf("At line %d:%d, %s MISSING %s: ", where.line_number(), where.column(), why, what);
+			where.print_ahead();
+		}
+
 	void	definition_ends() {}			// This declaration just ended
 	void	ascend() {}				// Go up one scope level to look for a name
 	void	name(Source start, Source end) {}	// A name exists between start and end
@@ -98,10 +105,7 @@ public:
 	bool	parse(Source&);			// ?BOM *definition
 
 	void	error(const char* why, const char* what, const Source& where)
-		{
-			printf("At line %d:%d, %s MISSING %s: ", where.line_number(), where.column(), why, what);
-			where.print_ahead();
-		}
+		{ sink.error(why, what, where); }
 
 protected:
 	bool	definition(Source&);		// &. !'}' ?path_name body ?';'
