@@ -55,14 +55,19 @@ public:
 			{ return body && body->GetRefCount() > 1; }
 
 	// Access the elements:
-	Element		operator[](int elem_num)
-			{ assert(elem_num >= 0 && elem_num < num_elements && body);
-			  return body->data()[offset+elem_num]; }			// Returns a copy
-	const Element&	operator[](int elem_num) const
+	Element		operator[](int elem_num) const
+			{ return elem(elem_num); }
+	Element		elem(int elem_num) const					// Returns a copy
 			{ assert(elem_num >= 0 && elem_num < num_elements && body);
 			  return body->data()[offset+elem_num]; }
+	Element&	elem_mut(int elem_num)						// Return a mutable element
+			{ assert(elem_num >= 0 && elem_num < num_elements && body);
+			  Unshare();
+			  return body->data()[offset+elem_num]; }
+	const Element&	elem_ref(int elem_num) const
+			{ return elem_mut(elem_num); }
 	const Element*	asElements() const { return body ? body->data()+offset : 0; }	// The caller must ensure to enforce bounds
-	const Element&	set(int elem_num, Element& e)
+	const Element&	set(int elem_num, const Element& e)
 			{ assert(elem_num >= 0 && elem_num < num_elements);
 			  Unshare();
 			  (*body)[elem_num] = e;
@@ -162,7 +167,7 @@ public:
 				return newarray;
 			}
 
-	void		clear() { num_elements = 0; }
+	Array&		clear() { num_elements = 0; return *this; }
 	Array		drop(Index n) const
 			{
 				assert(num_elements >= n);
@@ -228,9 +233,9 @@ public:
 			{ assert(num_elements > 0); return this->operator[](num_elements-1); }
 	Element		shift()
 			{ assert(num_elements > 0); return delete_at(0); }
-	void		unshift(const Element& e)
-			{ Unshare(); body->insert(0, e); num_elements++; }
-	void		insert(Index pos, const Array& addend)
+	Array*		unshift(const Element& e)
+			{ Unshare(); body->insert(0, e); num_elements++; return *this; }
+	Array&		insert(Index pos, const Array& addend)
 			{
 				if ((Body*)body == (Body*)addend.body)	// From the same body
 				{
@@ -240,7 +245,7 @@ public:
 					 && offset+pos == addend.offset)	// addend starts where we end
 					{
 						num_elements += addend.length();
-						return;
+						return *this;
 					}
 
 					// The same thing, but at the start.
@@ -249,22 +254,23 @@ public:
 					{
 						offset -= addend.length();
 						num_elements += addend.length();
-						return;
+						return *this;
 					}
 				}
 
 				Unshare(addend.length());
 				body->insert(pos, addend.asElements(), addend.length());
 				num_elements += addend.length();
+				return *this;
 			}
-	void		append(const Array& addend)
-			{ insert(num_elements, addend.asElements(), addend.length()); }
-	void		append(const Element& addend)
-			{ (*this) += addend; }
-	void		reverse()
+	Array&		append(const Array& addend)
+			{ return insert(num_elements, addend.asElements(), addend.length()); }
+	Array&		append(const Element& addend)
+			{ (*this) += addend; return *this; }
+	Array&		reverse()
 			{
 				if (num_elements == 0)
-					return;					// body may be null
+					return *this;				// body may be null
 				Unshare();
 				const Element*	dp = body->data()+offset;	// Start of our slice
 				const Element*	ep = dp+num_elements;		// End of our slice
@@ -274,11 +280,12 @@ public:
 					*ep = *dp++;
 					dp[-1] = e;
 				}
+				return *this;
 			}
-	void		delete_if(std::function<bool(const Element& e)> condition)
+	Array&		delete_if(std::function<bool(const Element& e)> condition)
 			{
 				if (num_elements == 0)
-					return;					// body may be null
+					return *this;				// body may be null
 				const Element*	dp = body->data()+offset;	// Start of our slice
 				const Element*	bp = dp;			// Output pointer
 				const Element*	ep = dp+num_elements;		// End of our slice
@@ -297,15 +304,17 @@ public:
 					}
 				if (bp < dp)
 					num_elements -= (dp-bp);
+				return *this;
 			}
 
 	// Functional methods (these don't mutate or Unshare the subject):
-	void		each(std::function<void(const Element& e)> operation) const
+	Array&		each(std::function<void(const Element& e)> operation) const
 			{
 				const Element*	dp = body->data()+offset;	// Start of our slice
 				const Element*	ep = dp+num_elements;		// End of our slice
 				for (const Element* bp = dp; bp < ep; bp++)
 					operation(*bp);
+				return *this;
 			}
 	bool		all(std::function<bool(const Element& e)> condition) const	// Do all elements satisfy the condition?
 			{

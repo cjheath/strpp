@@ -435,7 +435,7 @@ public:
 			{ return substr(length()-chars, chars); }
 	StrValI		shorter(Index chars) const	// all chars up to tail
 			{ return substr(0, length()-chars); }
-	void		remove(Index at, int len = -1);	// Delete a substring from the middle
+//	StrValI&	remove(Index at, int len = -1);	// Delete a substring from the middle
 
 	// Search for a character:
 	int		find(UCS4 ch, int after = -1) const
@@ -630,7 +630,7 @@ public:
 				return res;
 			}
 
-	void		insert(Index pos, const StrValI& addend)
+	StrValI&	insert(Index pos, const StrValI& addend)
 			{
 				// Handle the rare but important case of extending a slice with a contiguous slice of the same body
 				if (pos == num_chars			// Appending at the end
@@ -638,7 +638,7 @@ public:
 				 && offset+pos == addend.offset)	// And addend starts where we end
 				{
 					num_chars += addend.length();
-					return;
+					return *this;
 				}
 
 				Unshare();
@@ -646,31 +646,37 @@ public:
 				const UTF8*	ap = addend.asUTF8(addend_length);
 				body->insertBytes(nthChar(pos)-nthChar(0), ap, addend_length);
 				num_chars += addend.length();
+				return *this;
 			}
-	void		append(const StrValI& addend)
-			{ insert(num_chars, addend); }
+	StrValI&	append(const StrValI& addend)
+			{ return insert(num_chars, addend); }
+	StrValI&	prepend(const StrValI& addend)
+			{ return insert(0, addend); }
 
 	StrValI		asLower() const { StrValI lower(*this); lower.toLower(); return lower; }
 	StrValI		asUpper() const { StrValI upper(*this); upper.toUpper(); return upper; }
-	void		toLower()
+	StrValI&	toLower()
 			{
 				Unshare();	// REVISIT: Unshare only when first change must be made
 				body->toLower();
 				num_chars = body->numChars();
+				return *this;
 			}
-	void		toUpper()
+	StrValI&	toUpper()
 			{
 				Unshare();	// REVISIT: Unshare only when first change must be made
 				body->toUpper();
 				num_chars = body->numChars();
+				return *this;
 			}
-	void		transform(const std::function<StrValI(const UTF8*& cp, const UTF8* ep)> xform, int after = -1);
+	StrValI&	transform(const std::function<StrValI(const UTF8*& cp, const UTF8* ep)> xform, int after = -1);
 	StrValI		asJSON() const { StrValI json(*this); json.toJSON(); return json; }
-	void		toJSON()
+	StrValI&	toJSON()
 			{
 				Unshare();	// REVISIT: Unshare only when first change must be made
 				body->toJSON();
 				num_chars = body->numChars();
+				return *this;
 			}
 
 	/*
@@ -869,12 +875,13 @@ void StrBodyI<Index>::transform(const std::function<Val(const UTF8*& cp, const U
 }
 
 template<typename Index>
-void StrValI<Index>::transform(const std::function<StrValI(const UTF8*& cp, const UTF8* ep)> xform, int after)
+StrValI<Index>& StrValI<Index>::transform(const std::function<StrValI(const UTF8*& cp, const UTF8* ep)> xform, int after)
 {
 	Unshare();
 	body->transform(xform, after);
 	num_chars = body->numChars();
 	mark = Bookmark();
+	return *this;
 }
 
 template<typename Index>
