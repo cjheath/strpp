@@ -53,8 +53,10 @@ typedef	char32_t	UCS4;		// A UCS4 character, aka UTF-32, aka Rune
 #define	UCS4_NO_GLYPH	"\xEF\xBF\xBD"	// UTF8 character used to display where the correct glyph is not available
 
 /*
- * UCS4 classification and conversion
+ * Character classification and conversion
  */
+int		ASCIIDigit(UCS4 ch)		// ASCII Digit value 0-9 or -1 if not digit
+		{ return ch < '0' || ch > '9' ? -1 : ch-'0'; }
 bool		UCS4IsAlphabetic(UCS4 ch);	// Letters used to form words
 bool		UCS4IsIdeographic(UCS4 ch);	// Asian pictograms, mostly
 bool		UCS4IsDecimal(UCS4 ch);		// Decimal digits only
