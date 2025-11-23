@@ -25,6 +25,39 @@ struct	ADLPathName
 			{ target = *this; clear(); }
 };
 
+struct	ADLFrame
+{
+	enum ADLValueType {
+		None,
+		Number,
+		String,
+		Reference,
+		Object,
+		Pegexp,
+		Match
+	};
+
+	ADLFrame()
+	: obj_array(false)
+	, value_type(None)
+	{}
+
+	// path name and ascent for current object:
+	ADLPathName	object_path;
+
+	// path name and ascent for current object's supertype:
+	ADLPathName	supertype_path;
+
+	bool		obj_array;	// This object accepts an array value
+	ADLValueType	value_type;	// Type of value assigned
+	StrVal		value;		// Value assigned
+};
+
+class	ADLStack
+: public Array<ADLFrame>
+{
+};
+
 /*
  * If Syntax lookup is required, you need to save enough data to implement it.
  */
@@ -33,41 +66,23 @@ class ADLDebugSink
 	// Current path name being built (with ascent - outer scope levels to rise before searching)
 	ADLPathName	current_path;
 
-	// path name and ascent for current object:
-	ADLPathName	object_path;
+	ADLStack	stack;
 
-	// path name and ascent for current object's supertype:
-	ADLPathName	supertype_path;
+	// Access the current ADL Frame:
+	ADLFrame&	frame() { return stack.last_mut(); }
 
-	bool		obj_array;
-	enum ValueType {
-		VT_None,
-		VT_Number,
-		VT_String,
-		VT_Reference,
-		VT_Object,
-		VT_Pegexp,
-		VT_Match
-	}		value_type;
-	StrVal		value;
+	// Read/write access to members of the current frame:
+	ADLPathName&	object_path() { return frame().object_path; }
+	ADLPathName&	supertype_path() { return frame().supertype_path; }
+	bool&		obj_array() { return frame().obj_array; }
+	ADLFrame::ADLValueType&	value_type() { return frame().value_type; }
+	StrVal&		value() { return frame().value; }
 
 public:
 	using	Source = ADLSourcePtr;
 
-	void clear()
-	{
-		current_path.clear();
-		object_path.clear();
-		supertype_path.clear();
-
-		obj_array = false;
-		value_type = VT_None;
-		value = "";
-	}
-
 	ADLDebugSink()
 	{
-		clear();
 	}
 
 	void	error(const char* why, const char* what, const Source& where)
@@ -76,10 +91,16 @@ public:
 		where.print_ahead();
 	}
 
+	void	definition_starts()			// A declaration just started
+	{
+		stack.push(ADLFrame());
+	}
+
 	void	definition_ends()
 	{
 		printf("Definition Ends\n");
-		clear();
+		(void)stack.pull();
+		current_path.clear();
 	}
 
 	void	ascend()				// Go up one scope level to look for a name
@@ -112,15 +133,15 @@ public:
 	void	object_name()				// The last name was for a new object
 	{
 		// Save the path:
-		current_path.consume(object_path);
-		printf("Object PathName (%d names): .%d '%s'\n", object_path.path.length(), object_path.ascent, object_path.path.join(".").asUTF8());
+		current_path.consume(object_path());
+		printf("Object PathName (%d names): .%d '%s'\n", object_path().path.length(), object_path().ascent, object_path().path.join(".").asUTF8());
 	}
 
 	void	supertype()				// Last pathname was a supertype
 	{
-		current_path.consume(supertype_path);
+		current_path.consume(supertype_path());
 
-		printf("Supertype pathname (%d names): .%d '%s'\n", supertype_path.path.length(), supertype_path.ascent, supertype_path.path.join(".").asUTF8());
+		printf("Supertype pathname (%d names): .%d '%s'\n", supertype_path().path.length(), supertype_path().ascent, supertype_path().path.join(".").asUTF8());
 	}
 
 	void	reference_type(bool is_multi)		// Last pathname was a reference
@@ -156,7 +177,7 @@ public:
 
 	void	is_array()				// This definition is an array
 	{
-		obj_array = true;
+		obj_array() = true;
 		printf("Object was an array\n");
 	}
 
@@ -168,39 +189,39 @@ public:
 	void	string_literal(Source start, Source end)	// Contents of a string between start and end
 	{
 		StrVal	string(start.peek(), (int)(end-start));
-		value_type = VT_String;
-		value = string;
+		value_type() = ADLFrame::String;
+		value() = string;
 		printf("String value: '%s'\n", string.asUTF8());
 	}
 
 	void	numeric_literal(Source start, Source end)	// Contents of a number between start and end
 	{
 		StrVal	number(start.peek(), (int)(end-start));
-		value_type = VT_Number;
-		value = number;
+		value_type() = ADLFrame::Number;
+		value() = number;
 		printf("Numeric value: %s\n", number.asUTF8());
 	}
 
 	void	pegexp_match(Source start, Source end)	// Contents of a matched value between start and end
 	{
 		StrVal	match(start.peek(), (int)(end-start));
-		value_type = VT_Match;
-		value = match;
+		value_type() = ADLFrame::Match;
+		value() = match;
 	}
 
 	void	object_literal()			// An object_literal (supertype, block, assignment) was pushed
 	{
-		value_type = VT_Object;
-		value = "<object>";
+		value_type() = ADLFrame::Object;
+		value() = "<object>";
 		printf("Object was an object_literal\n");
 	}
 
 	void	reference_literal()			// The last pathname is a value to assign to a reference variable
 	{
-		value_type = VT_Reference;
-		value = current_path.path.join(".");
+		value_type() = ADLFrame::Reference;
+		value() = current_path.path.join(".");
 		printf("Reference value .%d '%s'\n",
-			current_path.ascent, value.asUTF8());
+			current_path.ascent, value().asUTF8());
 		ADLPathName	reference_path;
 		current_path.consume(reference_path);
 	}
@@ -208,8 +229,8 @@ public:
 	void	pegexp_literal(Source start, Source end)	// Contents of a pegexp between start and end
 	{
 		StrVal	pegexp(start.peek(), (int)(end-start));
-		value_type = VT_Pegexp;
-		value = pegexp;
+		value_type() = ADLFrame::Pegexp;
+		value() = pegexp;
 		printf("Pegexp value: /%s/\n", pegexp.asUTF8());
 	}
 

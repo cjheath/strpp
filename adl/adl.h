@@ -65,6 +65,7 @@ public:
 			where.print_ahead();
 		}
 
+	void	definition_starts() {}			// A declaration just started
 	void	definition_ends() {}			// This declaration just ended
 	void	ascend() {}				// Go up one scope level to look for a name
 	void	name(Source start, Source end) {}	// A name exists between start and end
@@ -174,6 +175,7 @@ template<typename Source> bool ADLParser<Source>::definition(Source& source)
 	if (UCS4_NONE == ch || '}' == ch)	// EOF or closing }
 		return false;			// I see no definition here
 
+	sink.definition_starts();
 	Source	name_start(probe);
 	bool	has_path = path_name(probe);	// Accept a path_name
 	sink.object_name();
