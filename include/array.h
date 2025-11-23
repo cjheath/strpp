@@ -385,9 +385,10 @@ public:
 						selected.append(*bp);
 				return selected;
 			}
-	template<typename E2, typename I2> Array<E2, I2>	map(std::function<E2(const Element& e)> map1) const
+	template<typename Result = Array<Element>, typename E2 = Element> Result map(std::function<E2(const Element& e)> map1) const
 			{
-				Array<E2, I2>	output((E2*)0, 0, num_elements);// Preallocate correct size
+				Result		output((E2*)0, 0, num_elements);// Preallocate correct size
+
 				const Element*	dp = body->data()+offset;	// Start of our slice
 				const Element*	ep = dp+num_elements;		// End of our slice
 				for (const Element* bp = dp; bp < ep; bp++)
