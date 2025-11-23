@@ -23,6 +23,8 @@ struct	ADLPathName
 			{ ascent = 0; path.clear(); sep = ""; }
 	void		consume(ADLPathName& target)
 			{ target = *this; clear(); }
+	StrVal		display()
+			{ return (ascent > 0 ? StrVal(".")*ascent : "") + path.join("."); }
 };
 
 struct	ADLFrame
@@ -134,21 +136,21 @@ public:
 	{
 		// Save the path:
 		current_path.consume(object_path());
-		printf("Object PathName (%d names): .%d '%s'\n", object_path().path.length(), object_path().ascent, object_path().path.join(".").asUTF8());
+		printf("Object PathName '%s'\n", object_path().display().asUTF8());
 	}
 
 	void	supertype()				// Last pathname was a supertype
 	{
 		current_path.consume(supertype_path());
 
-		printf("Supertype pathname (%d names): .%d '%s'\n", supertype_path().path.length(), supertype_path().ascent, supertype_path().path.join(".").asUTF8());
+		printf("Supertype PathName '%s'\n", supertype_path().display().asUTF8());
 	}
 
 	void	reference_type(bool is_multi)		// Last pathname was a reference
 	{
-		printf("Reference (%s) to .%d '%s'\n",
+		printf("Reference (%s) to '%s'\n",
 			is_multi ? "multiple" : "single",
-			current_path.ascent, current_path.path.join(".").asUTF8());
+			current_path.display().asUTF8());
 		ADLPathName	reference_path;
 		current_path.consume(reference_path);
 	}
@@ -219,9 +221,8 @@ public:
 	void	reference_literal()			// The last pathname is a value to assign to a reference variable
 	{
 		value_type() = ADLFrame::Reference;
-		value() = current_path.path.join(".");
-		printf("Reference value .%d '%s'\n",
-			current_path.ascent, value().asUTF8());
+		value() = current_path.display();
+		printf("Reference value '%s'\n", value().asUTF8());
 		ADLPathName	reference_path;
 		current_path.consume(reference_path);
 	}
