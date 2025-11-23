@@ -197,7 +197,9 @@ public:
 	{
 		show_object();
 		obj_array() = true;
-		printf("Object was an array\n");
+		printf("%s.Is Array = true;\n",
+			object_pathname().asUTF8()
+		);
 	}
 
 	void	assignment(bool is_final)		// The value(s) are assigned to the current definition
