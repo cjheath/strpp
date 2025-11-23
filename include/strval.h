@@ -623,7 +623,9 @@ public:
 			}
 	StrValI		operator*(int repeats)
 			{
-				StrValI	res(*this);	// REVISIT: We could optimise allocation here
+				const char*	first_byte = nthChar(0);
+				const char*	end_byte = nthChar(num_chars);	// Pre-allocate enough memory
+				StrValI	res(first_byte, end_byte-first_byte, (end_byte-first_byte)*repeats+1);
 
 				for (int i = 1; i < repeats; i++)
 					res += *this;
