@@ -1121,7 +1121,7 @@ public:
 	{
 	}
 
-	StrVal		join(StrVal joiner)
+	StrVal		join(StrVal joiner) const
 	{
 		if (length() == 0)
 			return "";
