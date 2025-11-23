@@ -60,19 +60,21 @@ public:
 	Element		elem(int elem_num) const					// Returns a copy
 			{ assert(elem_num >= 0 && elem_num < num_elements && body);
 			  return body->data()[offset+elem_num]; }
-	Element&	elem_mut(int elem_num)						// Return a mutable element
+	Element		last()
+			{ assert(num_elements > 0); return this->operator[](num_elements-1); }
+	const Element&	last_ref() const
+			{ assert(num_elements > 0); return elem_ref(num_elements-1); }
+	Element		pull()
+			{ assert(num_elements > 0); Element e = last(); num_elements--; return e; }
+	// Unsafe accessors. These reference must not be live past sharing that could cause mutation
+	Element&	elem_mut(int elem_num)		// Return a mutable element
 			{ assert(elem_num >= 0 && elem_num < num_elements && body);
 			  Unshare();
 			  return body->data()[offset+elem_num]; }
 	const Element&	elem_ref(int elem_num) const
 			{ return elem_mut(elem_num); }
-	const Element*	asElements() const { return body ? body->data()+offset : 0; }	// The caller must ensure to enforce bounds
-	const Element&	set(int elem_num, const Element& e)
-			{ assert(elem_num >= 0 && elem_num < num_elements);
-			  Unshare();
-			  (*body)[elem_num] = e;
-			  return (*body)[elem_num];
-			}
+	const Element*	asElements() const
+			{ return body ? body->data()+offset : 0; }
 
 			operator const Body&() const { return static_cast<const Body&>(body); }
 	const Body*	operator->() const { return body; }
@@ -177,6 +179,11 @@ public:
 
 	// Following methods usually mutate the current slice so must Unshare (copy) it.
 
+	const Element&	set(int elem_num, const Element& e)
+			{ Element& r = elem_mut(elem_num);	// Causes Unshare
+			  r = e;
+			  return r;
+			}
 	Array&		remove(Index at, int len = -1)			// Delete a section from the middle
 			{
 				if (len == -1)
@@ -225,15 +232,13 @@ public:
 			}
 	Array&		operator<<(const Element& addend)
 			{ return *this += addend; }
-	Array&		push(const Element& addend)
+	Array&		push(const Element& addend)	// Append an element to the end
 			{ return *this += addend; }
-	Element		pull()
-			{ assert(num_elements > 0); Element e = this->operator[](num_elements-1); num_elements--; return e; }
-	Element		last()
-			{ assert(num_elements > 0); return this->operator[](num_elements-1); }
-	Element		shift()
+	Element&	last_mut()
+			{ assert(num_elements > 0); return elem_mut(num_elements-1); }
+	Element		shift()				// remove an element from the start
 			{ assert(num_elements > 0); return delete_at(0); }
-	Array*		unshift(const Element& e)
+	Array*		unshift(const Element& e)	// Insert an element at the start
 			{ Unshare(); body->insert(0, e); num_elements++; return *this; }
 	Array&		insert(Index pos, const Array& addend)
 			{
@@ -263,10 +268,10 @@ public:
 				num_elements += addend.length();
 				return *this;
 			}
-	Array&		append(const Array& addend)
+	Array&		append(const Array& addend)	// Append an Array to the end
 			{ return insert(num_elements, addend.asElements(), addend.length()); }
-	Array&		append(const Element& addend)
-			{ (*this) += addend; return *this; }
+	Array&		append(const Element& addend)	// Append an element to the end
+			{ return push(addend); }
 	Array&		reverse()
 			{
 				if (num_elements == 0)
@@ -497,7 +502,7 @@ public:
 	Element&	operator[](int elem_num) { assert(elem_num >= 0 && elem_num < num_elements); return start[elem_num]; }
 
 	inline Index	length() const { return num_elements; }
-	const Element*	data() const { return start; }			// fast access
+	Element*	data() const { return start; }			// fast access
 	const Element*	end() const { return start+num_elements; }	// ptr to the trailing NUL (if any)
 
 	// Mutating methods. Must only be called when refcount <= 1 (i.e., unshared)
