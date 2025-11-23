@@ -21,9 +21,11 @@ struct	ADLPathName
 
 	void		clear()
 			{ ascent = 0; path.clear(); sep = ""; }
+	bool		is_empty()
+			{ return ascent == 0 && path.length() == 0; }
 	void		consume(ADLPathName& target)
 			{ target = *this; clear(); }
-	StrVal		display()
+	StrVal		display() const
 			{ return (ascent > 0 ? StrVal(".")*ascent : "") + path.join("."); }
 };
 
@@ -40,7 +42,8 @@ struct	ADLFrame
 	};
 
 	ADLFrame()
-	: obj_array(false)
+	: shown_object(false)
+	, obj_array(false)
 	, value_type(None)
 	{}
 
@@ -50,6 +53,7 @@ struct	ADLFrame
 	// path name and ascent for current object's supertype:
 	ADLPathName	supertype_path;
 
+	bool		shown_object;
 	bool		obj_array;	// This object accepts an array value
 	ADLValueType	value_type;	// Type of value assigned
 	StrVal		value;		// Value assigned
@@ -76,6 +80,7 @@ class ADLDebugSink
 	// Read/write access to members of the current frame:
 	ADLPathName&	object_path() { return frame().object_path; }
 	ADLPathName&	supertype_path() { return frame().supertype_path; }
+	bool&		shown_object() { return frame().shown_object; }
 	bool&		obj_array() { return frame().obj_array; }
 	ADLFrame::ADLValueType&	value_type() { return frame().value_type; }
 	StrVal&		value() { return frame().value; }
@@ -100,7 +105,8 @@ public:
 
 	void	definition_ends()
 	{
-		printf("Definition Ends\n");
+		show_object();
+		// printf("Definition Ends\n");
 		(void)stack.pull();
 		current_path.clear();
 	}
@@ -136,23 +142,28 @@ public:
 	{
 		// Save the path:
 		current_path.consume(object_path());
-		printf("Object PathName '%s'\n", object_path().display().asUTF8());
+		// printf("Object PathName '%s'\n", object_path().display().asUTF8());
 	}
 
 	void	supertype()				// Last pathname was a supertype
 	{
 		current_path.consume(supertype_path());
 
-		printf("Supertype PathName '%s'\n", supertype_path().display().asUTF8());
+		// printf("Supertype PathName '%s'\n", supertype_path().display().asUTF8());
+		show_object();
 	}
 
 	void	reference_type(bool is_multi)		// Last pathname was a reference
 	{
-		printf("Reference (%s) to '%s'\n",
-			is_multi ? "multiple" : "single",
-			current_path.display().asUTF8());
 		ADLPathName	reference_path;
 		current_path.consume(reference_path);
+
+		printf("new Reference %s %s '%s'\n",
+			object_path().display().asUTF8(),
+			is_multi ? "=>" : "->",
+			reference_path.display().asUTF8());
+
+		shown_object() = true;
 	}
 
 	void	reference_done(bool ok)			// Reference completed
@@ -162,29 +173,36 @@ public:
 
 	void	alias()					// Last pathname is an alias
 	{
-		// printf("Alias finished\n");
 		ADLPathName	alias_path;
 		current_path.consume(alias_path);
+
+		printf("new Alias %s to '%s'\n",
+			object_path().display().asUTF8(),
+			alias_path.display().asUTF8());
+		shown_object() = true;
 	}
 
 	void	block_start()				// enter the block given by the pathname and supertype
 	{
-		printf("Enter block\n");
+		show_object();
+		// printf("Enter block\n");
 	}
 
 	void	block_end()				// exit the block given by the pathname and supertype
 	{
-		printf("Exit block\n");
+		// printf("Exit block\n");
 	}
 
 	void	is_array()				// This definition is an array
 	{
+		show_object();
 		obj_array() = true;
 		printf("Object was an array\n");
 	}
 
 	void	assignment(bool is_final)		// The value(s) are assigned to the current definition
 	{
+		show_object();
 		printf("%s Assignment\n", is_final ? "Final" : "Tentative");
 	}
 
@@ -193,7 +211,7 @@ public:
 		StrVal	string(start.peek(), (int)(end-start));
 		value_type() = ADLFrame::String;
 		value() = string;
-		printf("String value: '%s'\n", string.asUTF8());
+		printf("Assign String: %s = '%s';\n", object_pathname().asUTF8(), string.asUTF8());
 	}
 
 	void	numeric_literal(Source start, Source end)	// Contents of a number between start and end
@@ -201,7 +219,7 @@ public:
 		StrVal	number(start.peek(), (int)(end-start));
 		value_type() = ADLFrame::Number;
 		value() = number;
-		printf("Numeric value: %s\n", number.asUTF8());
+		printf("Assign Number: %s = %s;\n", object_pathname().asUTF8(), number.asUTF8());
 	}
 
 	void	pegexp_match(Source start, Source end)	// Contents of a matched value between start and end
@@ -237,6 +255,29 @@ public:
 
 	Source	lookup_syntax(Source type)		// Return Source of a Pegexp string to use in matching
 	{ return Source(""); }
+
+	// Methods below here are not a required part of the Sink:
+
+	// Join the display values of the object names in the stack frames:
+	StrVal	object_pathname()
+	{
+		return stack.map<StringArray, StrVal>(
+			[&](const ADLFrame& f) -> const StrVal
+			{ return f.object_path.display(); }
+		).join(".");
+	}
+
+	void	show_object()
+	{
+		if (shown_object())
+			return;
+
+		printf("new Object '%s'", object_pathname().asUTF8());
+		if (!supertype_path().is_empty())
+			printf(" : '%s'", supertype_path().display().asUTF8());
+		printf(";\n");
+		shown_object() = true;
+	}
 };
 
 char* slurp_file(const char* filename, off_t* size_p)
