@@ -203,7 +203,11 @@ public:
 	void	assignment(bool is_final)		// The value(s) are assigned to the current definition
 	{
 		show_object();
-		printf("%s Assignment\n", is_final ? "Final" : "Tentative");
+		printf("new Assignment '%s' %s %s;\n",
+			object_pathname().asUTF8(),
+			is_final ? "=" : "~=",
+			value().asUTF8()
+		);
 	}
 
 	void	string_literal(Source start, Source end)	// Contents of a string between start and end
@@ -211,7 +215,6 @@ public:
 		StrVal	string(start.peek(), (int)(end-start));
 		value_type() = ADLFrame::String;
 		value() = string;
-		printf("Assign String: %s = '%s';\n", object_pathname().asUTF8(), string.asUTF8());
 	}
 
 	void	numeric_literal(Source start, Source end)	// Contents of a number between start and end
@@ -219,7 +222,6 @@ public:
 		StrVal	number(start.peek(), (int)(end-start));
 		value_type() = ADLFrame::Number;
 		value() = number;
-		printf("Assign Number: %s = %s;\n", object_pathname().asUTF8(), number.asUTF8());
 	}
 
 	void	pegexp_match(Source start, Source end)	// Contents of a matched value between start and end
@@ -232,15 +234,13 @@ public:
 	void	object_literal()			// An object_literal (supertype, block, assignment) was pushed
 	{
 		value_type() = ADLFrame::Object;
-		value() = "<object>";
-		printf("Object was an object_literal\n");
+		value() = "<object literal>";		// REVISIT: include object supertype here
 	}
 
 	void	reference_literal()			// The last pathname is a value to assign to a reference variable
 	{
 		value_type() = ADLFrame::Reference;
 		value() = current_path.display();
-		printf("Reference value '%s'\n", value().asUTF8());
 		ADLPathName	reference_path;
 		current_path.consume(reference_path);
 	}
@@ -249,8 +249,7 @@ public:
 	{
 		StrVal	pegexp(start.peek(), (int)(end-start));
 		value_type() = ADLFrame::Pegexp;
-		value() = pegexp;
-		printf("Pegexp value: /%s/\n", pegexp.asUTF8());
+		value() = StrVal("/")+pegexp+"/";
 	}
 
 	Source	lookup_syntax(Source type)		// Return Source of a Pegexp string to use in matching
