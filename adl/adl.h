@@ -756,7 +756,7 @@ accept:		source = probe;
 	goto accept;
 }
 
-// ?[*+?] (| pegexp_char | pegexp_class | pegexp_group)
+// ?[*+?] (| pegexp_lookahead | pegexp_char | pegexp_class | pegexp_group)
 template<typename Source> bool ADLParser<Source>::pegexp_atom(Source& source)
 {
 	Source	probe(source);
@@ -768,8 +768,7 @@ template<typename Source> bool ADLParser<Source>::pegexp_atom(Source& source)
 
 	if (pegexp_lookahead(probe))
 	{
-label_and_accept:
-		// REVISIT: pegexp_label is not implemented here
+accept:
 		source = probe;
 		return true;
 	}

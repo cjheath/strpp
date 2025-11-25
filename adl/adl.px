@@ -78,11 +78,11 @@ array =
 // Otherwise, the value is defined by the Syntax of the variable (regexp_match).
 // See builtin.adl for the syntax of values of builtin variables.
 atomic_value =
-	| regexp		// A regular expression
+	| pegexp		// A regular expression
 	| path_name		// A reference to another object
 	| object_literal	// An inline object definition
 		// This rule cannot be defined in Px so is temporarily elided here during tool development:
-//	| regexp_match		// Value matches the Syntax of the variable being assigned
+//	| pegexp_match		// Value matches the Syntax of the variable being assigned
 
 object_literal =
 	supertype ?block ?assignment
@@ -99,7 +99,8 @@ pegexp_sequence =
 
 pegexp_atom =
 	?[*+?]
-	(| pegexp_char			// including ., for any
+	(| pegexp_lookahead
+	 | pegexp_char			// including ., for any
 	 | pegexp_class
 	 | pegexp_group)
 
@@ -117,8 +118,9 @@ pegexp_char =
 	   | 'x{' +\h '}'		// hex character \x{...}, arbitrary precision
 	   | 'u' \h ?\h ?\h ?\h		// Unicode character 1..4 digits
 	   | 'u{' +\h '}'		// Unicode character \u{...}, arbitrary precision
-	   | '' [pP] '{' +[A-Za-z_] '}'	// Unicode named property
-	   | '' [.0befntr\\*+?()|/\[] )	// Special escapes
+	   | [pP] '{' +[A-Za-z_] '}'	// Unicode named property
+	   | [.0befntr\\*+?()|/\[]	// Special escapes
+	  )
 	| [^*+?()|/\[\0- ]		// Other non-ctl chars except pegexp operator initiators (but allow . operator)
 
 pegexp_class =
