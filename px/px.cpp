@@ -229,6 +229,11 @@ parse_and_emit(const char* filename, VariantArray& rules, Emitter emit)
 	return true;
 }
 
+void emit_json(const char* base_name, VariantArray rules)
+{
+	printf("%s\n", Variant(rules).as_json(0).asUTF8());
+}
+
 int
 main(int argc, const char** argv)
 {
@@ -238,15 +243,23 @@ main(int argc, const char** argv)
 		usage();
 	argv++;
 
-	if (argc > 1 && 0 == strcmp("-r", argv[0]))
+	if (argc > 1)
 	{
-		argc--, argv++;
-		while (argc > 2 && 0 == strcmp("-x", argv[0]))
+		if (0 == strcmp("-r", argv[0]))
 		{
-			argc-=2, argv++;
-			omitted_rules.append(*argv++);
+			argc--, argv++;
+			while (argc > 2 && 0 == strcmp("-x", argv[0]))
+			{
+				argc-=2, argv++;
+				omitted_rules.append(*argv++);
+			}
+			emit = emit_railroad;
 		}
-		emit = emit_railroad;
+		else if (0 == strcmp("-j", argv[0]))
+		{
+			argc--, argv++;
+			emit = emit_json;
+		}
 	}
 
 	/*

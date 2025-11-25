@@ -774,11 +774,11 @@ accept:
 	}
 
 	if (pegexp_char(probe))
-		goto label_and_accept;
+		goto accept;
 	if (pegexp_class(probe))
-		goto label_and_accept;
+		goto accept;
 	if (pegexp_group(probe))
-		goto label_and_accept;
+		goto accept;
 
 	return false;
 }
