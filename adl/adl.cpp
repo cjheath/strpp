@@ -43,6 +43,7 @@ struct	ADLFrame
 
 	ADLFrame()
 	: shown_object(false)
+	, supertype_present(false)
 	, obj_array(false)
 	, value_type(None)
 	{}
@@ -52,7 +53,7 @@ struct	ADLFrame
 
 	// path name and ascent for current object's supertype:
 	ADLPathName	supertype_path;
-
+	bool		supertype_present;
 	bool		shown_object;
 	bool		obj_array;	// This object accepts an array value
 	ADLValueType	value_type;	// Type of value assigned
@@ -80,6 +81,7 @@ class ADLDebugSink
 	// Read/write access to members of the current frame:
 	ADLPathName&	object_path() { return frame().object_path; }
 	ADLPathName&	supertype_path() { return frame().supertype_path; }
+	bool&		supertype_present() { return frame().supertype_present; }
 	bool&		shown_object() { return frame().shown_object; }
 	bool&		obj_array() { return frame().obj_array; }
 	ADLFrame::ADLValueType&	value_type() { return frame().value_type; }
@@ -148,6 +150,8 @@ public:
 	void	supertype()				// Last pathname was a supertype
 	{
 		current_path.consume(supertype_path());
+
+		supertype_present() = true;
 
 		// printf("Supertype PathName '%s'\n", supertype_path().display().asUTF8());
 		show_object();
@@ -274,8 +278,12 @@ public:
 			return;
 
 		printf("new Object '%s'", object_pathname().asUTF8());
-		if (!supertype_path().is_empty())
-			printf(" : '%s'", supertype_path().display().asUTF8());
+		if (supertype_present())
+		{
+			printf(" : ");
+			if (!supertype_path().is_empty())
+				printf("'%s'", supertype_path().display().asUTF8());
+		}
 		printf(";\n");
 		shown_object() = true;
 	}
