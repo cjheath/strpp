@@ -1,0 +1,175 @@
+<html xmlns='http://www.w3.org/1999/xhtml'>
+<head>
+<meta charset='UTF-8'>
+<title>Adl Grammar</title>
+<link rel='stylesheet' href='../scripts/railroad-diagrams.css'>
+<link rel='stylesheet' href='local.css' media='screen' type='text/css' />
+<style>
+body svg.railroad-diagram {
+	background-color: hsl(30,20%, 95%);
+}
+h2 {
+	font-family: sans-serif;
+	font-size: 1em;
+}
+svg.railroad-diagram path,
+svg.railroad-diagram rect
+{
+	stroke-width: 2px;
+}
+.railroad-diagram .terminal text {
+	fill: #44F;
+}
+div svg.railroad-diagram {
+	width: 80%;  // Scale to the width of the parent
+	height: 100%;  // Preserve the ratio
+}
+dt {
+	font-weight: bold;
+	padding-bottom: 5px;
+}
+dd {
+	padding-bottom: 10px;
+}
+</style>
+<script src='../scripts/railroad-diagrams.js'></script>
+<script>
+var AdlRailroads = {
+  TOP:
+    ComplexDiagram(ZeroOrMore(NonTerminal('definition', {href: '#definition'}))),
+  EOF:
+    ComplexDiagram(Terminal('!any char')),
+  definition:
+    ComplexDiagram(Sequence(NonTerminal('!EOF', {href: '#EOF'}), Terminal('!}'), Optional(NonTerminal('path_name', {href: '#path_name'})), NonTerminal('body', {href: '#body'}), Optional(Terminal(';')))),
+  body:
+    ComplexDiagram(Choice(0, NonTerminal('reference', {href: '#reference'}), NonTerminal('alias_from', {href: '#alias_from'}), Sequence(Optional(NonTerminal('supertype', {href: '#supertype'})), Optional(NonTerminal('block', {href: '#block'})), Optional(NonTerminal('post_body', {href: '#post_body'}))))),
+  alias_from:
+    ComplexDiagram(Sequence(Terminal('!'), NonTerminal('path_name', {href: '#path_name'}))),
+  supertype:
+    ComplexDiagram(Sequence(Terminal(':'), Optional(NonTerminal('path_name', {href: '#path_name'})))),
+  path_name:
+    ComplexDiagram(Sequence(Choice(0, NonTerminal('&ascend', {href: '#ascend'}), NonTerminal('&name', {href: '#name'})), Optional(Sequence(NonTerminal('name', {href: '#name'}), ZeroOrMore(Sequence(NonTerminal('descend', {href: '#descend'}), NonTerminal('name', {href: '#name'}))))))),
+  ascend:
+    ComplexDiagram(Terminal('.')),
+  descend:
+    ComplexDiagram(Terminal('.')),
+  name:
+    ComplexDiagram(Choice(0, NonTerminal('symbol', {href: '#symbol'}), NonTerminal('integer', {href: '#integer'}))),
+  symbol:
+    ComplexDiagram(Sequence(Terminal('[_\\a]'), ZeroOrMore(Terminal('[_\\wp{Mn}]')))),
+  integer:
+    ComplexDiagram(Sequence(Terminal('[1-9]'), ZeroOrMore(Terminal('\\d')))),
+  reference:
+    ComplexDiagram(Sequence(Choice(0, Terminal('->'), Terminal('=>')), NonTerminal('path_name', {href: '#path_name'}), Optional(NonTerminal('block', {href: '#block'})), Optional(NonTerminal('assignment', {href: '#assignment'})))),
+  block:
+    ComplexDiagram(Sequence(Terminal('{'), ZeroOrMore(NonTerminal('definition', {href: '#definition'})), Terminal('}'))),
+  post_body:
+    ComplexDiagram(Choice(0, Sequence(NonTerminal('array_indicator', {href: '#array_indicator'}), Optional(NonTerminal('assignment', {href: '#assignment'}))), NonTerminal('assignment', {href: '#assignment'}))),
+  array_indicator:
+    ComplexDiagram(Terminal('[]')),
+  assignment:
+    ComplexDiagram(Choice(0, NonTerminal('final_assignment', {href: '#final_assignment'}), NonTerminal('tentative_assignment', {href: '#tentative_assignment'}))),
+  final_assignment:
+    ComplexDiagram(Sequence(Terminal('='), NonTerminal('value', {href: '#value'}))),
+  tentative_assignment:
+    ComplexDiagram(Sequence(Terminal('~='), NonTerminal('value', {href: '#value'}))),
+  value:
+    ComplexDiagram(Choice(0, NonTerminal('atomic_value', {href: '#atomic_value'}), NonTerminal('array', {href: '#array'}))),
+  array:
+    ComplexDiagram(Sequence(Terminal('['), NonTerminal('atomic_value', {href: '#atomic_value'}), ZeroOrMore(Sequence(Terminal(','), NonTerminal('atomic_value', {href: '#atomic_value'}))), Terminal(']'))),
+  atomic_value:
+    ComplexDiagram(Choice(0, NonTerminal('pegexp', {href: '#pegexp'}), NonTerminal('path_name', {href: '#path_name'}), NonTerminal('object_literal', {href: '#object_literal'}))),
+  object_literal:
+    ComplexDiagram(Sequence(NonTerminal('supertype', {href: '#supertype'}), Optional(NonTerminal('block', {href: '#block'})), Optional(NonTerminal('assignment', {href: '#assignment'})))),
+  pegexp:
+    ComplexDiagram(Sequence(Terminal('/'), NonTerminal('pegexp_sequence', {href: '#pegexp_sequence'}), Terminal('/'))),
+  pegexp_sequence:
+    ComplexDiagram(Choice(0, OneOrMore(Sequence(Terminal('|'), OneOrMore(NonTerminal('pegexp_atom', {href: '#pegexp_atom'})))), ZeroOrMore(NonTerminal('pegexp_atom', {href: '#pegexp_atom'})))),
+  pegexp_atom:
+    ComplexDiagram(Sequence(Optional(Terminal('[*+?]')), Choice(0, NonTerminal('pegexp_lookahead', {href: '#pegexp_lookahead'}), NonTerminal('pegexp_char', {href: '#pegexp_char'}), NonTerminal('pegexp_class', {href: '#pegexp_class'}), NonTerminal('pegexp_group', {href: '#pegexp_group'})))),
+  pegexp_group:
+    ComplexDiagram(Sequence(Terminal('('), NonTerminal('pegexp_sequence', {href: '#pegexp_sequence'}), Terminal(')'))),
+  pegexp_lookahead:
+    ComplexDiagram(Sequence(Terminal('[&!]'), NonTerminal('pegexp_atom', {href: '#pegexp_atom'}))),
+  pegexp_char:
+    ComplexDiagram(Choice(0, Sequence(Terminal('\\'), Choice(0, Terminal('[adhswLU]'), Sequence(Optional(Terminal('[0-3]')), Terminal('[0-7]'), Optional(Terminal('[0-7]'))), Sequence(Terminal('x'), Terminal('\\h'), Optional(Terminal('\\h'))), Sequence(Terminal('x{'), OneOrMore(Terminal('\\h')), Terminal('}')), Sequence(Terminal('u'), Terminal('\\h'), Optional(Terminal('\\h')), Optional(Terminal('\\h')), Optional(Terminal('\\h'))), Sequence(Terminal('u{'), OneOrMore(Terminal('\\h')), Terminal('}')), Sequence(Terminal('[pP]'), Terminal('{'), OneOrMore(Terminal('[A-Za-z_]')), Terminal('}')), Terminal('[.0befntr\\*+?()|/[]'))), Terminal('![*+?()|/[\\\0- ]'))),
+  pegexp_class:
+    ComplexDiagram(Sequence(Terminal('['), Optional(Terminal('^')), Optional(Terminal('-')), OneOrMore(NonTerminal('pegexp_class_part', {href: '#pegexp_class_part'})), Terminal(']'))),
+  pegexp_class_part:
+    ComplexDiagram(Sequence(Terminal('!]'), NonTerminal('pegexp_class_char', {href: '#pegexp_class_char'}), Optional(Sequence(Terminal('-'), Terminal('!]'), NonTerminal('pegexp_class_char', {href: '#pegexp_class_char'}))))),
+  pegexp_class_char:
+    ComplexDiagram(Choice(0, Sequence(Terminal('!-'), NonTerminal('pegexp_char', {href: '#pegexp_char'})), Terminal('[*+?()|/]')))
+};
+</script>
+</head>
+
+<body>
+<dl>
+<dt id='TOP'>TOP</dt>
+  <dd><script>AdlRailroads.TOP.addTo();</script></dd>
+<dt id='EOF'>EOF</dt>
+  <dd><script>AdlRailroads.EOF.addTo();</script></dd>
+<dt id='definition'>definition</dt>
+  <dd><script>AdlRailroads.definition.addTo();</script></dd>
+<dt id='body'>body</dt>
+  <dd><script>AdlRailroads.body.addTo();</script></dd>
+<dt id='alias_from'>alias_from</dt>
+  <dd><script>AdlRailroads.alias_from.addTo();</script></dd>
+<dt id='supertype'>supertype</dt>
+  <dd><script>AdlRailroads.supertype.addTo();</script></dd>
+<dt id='path_name'>path_name</dt>
+  <dd><script>AdlRailroads.path_name.addTo();</script></dd>
+<dt id='ascend'>ascend</dt>
+  <dd><script>AdlRailroads.ascend.addTo();</script></dd>
+<dt id='descend'>descend</dt>
+  <dd><script>AdlRailroads.descend.addTo();</script></dd>
+<dt id='name'>name</dt>
+  <dd><script>AdlRailroads.name.addTo();</script></dd>
+<dt id='symbol'>symbol</dt>
+  <dd><script>AdlRailroads.symbol.addTo();</script></dd>
+<dt id='integer'>integer</dt>
+  <dd><script>AdlRailroads.integer.addTo();</script></dd>
+<dt id='reference'>reference</dt>
+  <dd><script>AdlRailroads.reference.addTo();</script></dd>
+<dt id='block'>block</dt>
+  <dd><script>AdlRailroads.block.addTo();</script></dd>
+<dt id='post_body'>post_body</dt>
+  <dd><script>AdlRailroads.post_body.addTo();</script></dd>
+<dt id='array_indicator'>array_indicator</dt>
+  <dd><script>AdlRailroads.array_indicator.addTo();</script></dd>
+<dt id='assignment'>assignment</dt>
+  <dd><script>AdlRailroads.assignment.addTo();</script></dd>
+<dt id='final_assignment'>final_assignment</dt>
+  <dd><script>AdlRailroads.final_assignment.addTo();</script></dd>
+<dt id='tentative_assignment'>tentative_assignment</dt>
+  <dd><script>AdlRailroads.tentative_assignment.addTo();</script></dd>
+<dt id='value'>value</dt>
+  <dd><script>AdlRailroads.value.addTo();</script></dd>
+<dt id='array'>array</dt>
+  <dd><script>AdlRailroads.array.addTo();</script></dd>
+<dt id='atomic_value'>atomic_value</dt>
+  <dd><script>AdlRailroads.atomic_value.addTo();</script></dd>
+<dt id='object_literal'>object_literal</dt>
+  <dd><script>AdlRailroads.object_literal.addTo();</script></dd>
+<dt id='pegexp'>pegexp</dt>
+  <dd><script>AdlRailroads.pegexp.addTo();</script></dd>
+<dt id='pegexp_sequence'>pegexp_sequence</dt>
+  <dd><script>AdlRailroads.pegexp_sequence.addTo();</script></dd>
+<dt id='pegexp_atom'>pegexp_atom</dt>
+  <dd><script>AdlRailroads.pegexp_atom.addTo();</script></dd>
+<dt id='pegexp_group'>pegexp_group</dt>
+  <dd><script>AdlRailroads.pegexp_group.addTo();</script></dd>
+<dt id='pegexp_lookahead'>pegexp_lookahead</dt>
+  <dd><script>AdlRailroads.pegexp_lookahead.addTo();</script></dd>
+<dt id='pegexp_char'>pegexp_char</dt>
+  <dd><script>AdlRailroads.pegexp_char.addTo();</script></dd>
+<dt id='pegexp_class'>pegexp_class</dt>
+  <dd><script>AdlRailroads.pegexp_class.addTo();</script></dd>
+<dt id='pegexp_class_part'>pegexp_class_part</dt>
+  <dd><script>AdlRailroads.pegexp_class_part.addTo();</script></dd>
+<dt id='pegexp_class_char'>pegexp_class_char</dt>
+  <dd><script>AdlRailroads.pegexp_class_char.addTo();</script></dd>
+</dl>
+
+</body>
+</html>
