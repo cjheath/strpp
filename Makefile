@@ -50,8 +50,7 @@ TESTS	=	\
 		variant_test
 
 SUBDIRS	=	\
-		fig			\
-		px
+		fig			
 
 OBJS	=	$(patsubst %,build/%,$(SRCS:.cpp=.o))
 RX_OBJS	=	$(patsubst %,build/%,$(RX_SRCS:.cpp=.o))
@@ -83,7 +82,7 @@ run_peg_size_test:
 	@rm peg_size_test.o
 
 run_peg_test: peg_test
-	peg_test px/px.px
+	peg_test fig/fig.px
 
 run_pegexp_size_test:
 	@rm pegexp_size_test.o 2>/dev/null || true
@@ -99,7 +98,7 @@ run_variant_test: variant_test
 	$(CXX) $(DEBUG) $(CXXFLAGS) -Iinclude -Itest -o $@ $< test/memory_monitor.cpp $(LIB)
 
 px:
-	cd px; $(MAKE)
+	cd ../px; $(MAKE)
 
 thread_test:	thread_test.cpp $(LIB)
 	$(CXX) $(DEBUG) $(CXXFLAGS) -Iinclude -Itest -o $@ $< $(LIB)

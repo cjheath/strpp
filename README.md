@@ -24,12 +24,12 @@ These regular expressions are however deprecated in favour of greedy
 operators are in the prefix position, which does not require a compilation step
 (or memory allocation) for efficient execution. These _Pegular Expressions_
 are also composed into full (non-regular) [PEG grammars](doc/peg.md) with a
-[parser generator](px/README.md) to produce compact table-driven parsers that allocate no
+[parser generator](https://github.com/cjheath/px) to produce compact table-driven parsers that allocate no
 memory. The _Px_ compiler also generates grammar documentation using Javascript
 and SVG, and will produce Textmate syntax highlighting patterns for IDEs and
 text generators to assist implementation of pretty-printer output.
 Parser template parameters allow capturing parse results, with a generic
-[Abstract Syntax Tree builder](include/peg_ast.h) for any grammar specified in [Px](px).
+[Abstract Syntax Tree builder](include/peg_ast.h) for any grammar specified in [Px](https://github.com/cjheath/px).
 
 ### Raw Unicode character processing
 
@@ -95,7 +95,7 @@ See [Peg](doc/peg.md)
 
 ### Px, a PEG parser generator
 
-See [Px](doc/px.md)
+See [Px](https://github.com/cjheath/px)
 
 ### Cross-platform C++ Threading support
 

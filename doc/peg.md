@@ -17,7 +17,7 @@ The grammar is expressed using a compact in-memory table. No executable code nee
 No heap memory allocation is required during execution (and minimal stack),
 unless you use a Context that saves text captures, builds Abstract Syntax Trees, or records failure tokens and locations.
 
-The preferred way to use this is to compile a grammar expressed in the BNF-like language [Px](../px/px.px),
+The preferred way to use this is to compile a grammar expressed in the BNF-like language [Px](https://github.com/cjheath/px),
 which (will) emit C++ data definitions for the parser engine to interpret.
 
 Like the Pegexp template, Peg\<\> processes data from a Source, which may be a stream.
@@ -25,4 +25,4 @@ Like the Pegexp template, Peg\<\> processes data from a Source, which may be a s
 You should define a Context which implements whatever result capture you require.
 Context should have a nested Context::Rule type, which can be refined where necessary.
 
-The [Peg parser](../test/peg_test.cpp) for [Px](../px/) shows how to generate an AST from captures.
+The [Peg parser](../test/peg_test.cpp) for [Px](https://github.com/cjheath/px) shows how to generate an AST from captures.
