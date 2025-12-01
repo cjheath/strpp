@@ -50,7 +50,6 @@ TESTS	=	\
 		variant_test
 
 SUBDIRS	=	\
-		fig			
 
 OBJS	=	$(patsubst %,build/%,$(SRCS:.cpp=.o))
 RX_OBJS	=	$(patsubst %,build/%,$(RX_SRCS:.cpp=.o))
@@ -82,7 +81,7 @@ run_peg_size_test:
 	@rm peg_size_test.o
 
 run_peg_test: peg_test
-	peg_test fig/fig.px
+	peg_test ../fig/fig.px
 
 run_pegexp_size_test:
 	@rm pegexp_size_test.o 2>/dev/null || true
