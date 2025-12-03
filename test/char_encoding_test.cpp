@@ -143,62 +143,62 @@ utf8_get_backup()
 
 	const UTF8*	min_two = "\xC0\x80";		// Minimum 1st-of-2, Minimum 2nd-of-2
 	cp = min_two;
-	expect("min two char get", UTF8Get(cp), 0);
-	expect("min two char advance", cp == min_two+2);
-	expect("min two char backup", UTF8Backup(cp) == min_two);
+	expect("min two byte get", UTF8Get(cp), 0);
+	expect("min two byte advance", cp == min_two+2);
+	expect("min two byte backup", UTF8Backup(cp) == min_two);
 
 	const UTF8*	max_two = "\xDF\xBF";		// Maximum 1st-of-2, maximum 2nd-of-2
 	cp = max_two;
-	expect("max two char get", UTF8Get(cp), max_2byte);
-	expect("max two char advance", cp == max_two+2);
+	expect("max two byte get", UTF8Get(cp), max_2byte);
+	expect("max two byte advance", cp == max_two+2);
 
 	const UTF8*	min_three = "\xE0\x80\x80";
 	cp = min_three;
-	expect("min three char get", UTF8Get(cp), 0);
-	expect("min three char advance", cp == min_three+3);
-	expect("min three char backup", UTF8Backup(cp) == min_three);
+	expect("min three byte get", UTF8Get(cp), 0);
+	expect("min three byte advance", cp == min_three+3);
+	expect("min three byte backup", UTF8Backup(cp) == min_three);
 
 	const UTF8*	max_three = "\xEF\xBF\xBF";
 	cp = max_three;
-	expect("max three char get", UTF8Get(cp), max_3byte);
-	expect("max three char advance", cp == max_three+3);
-	expect("max three char backup", UTF8Backup(cp) == max_three);
+	expect("max three byte get", UTF8Get(cp), max_3byte);
+	expect("max three byte advance", cp == max_three+3);
+	expect("max three byte backup", UTF8Backup(cp) == max_three);
 
 	const UTF8*	min_four = "\xF0\x80\x80\x80";
 	cp = min_four;
-	expect("min four char get", UTF8Get(cp), 0);
-	expect("min four char advance", cp == min_four+4);
-	expect("min four char backup", UTF8Backup(cp) == min_four);
+	expect("min four byte get", UTF8Get(cp), 0);
+	expect("min four byte advance", cp == min_four+4);
+	expect("min four byte backup", UTF8Backup(cp) == min_four);
 
 	const UTF8*	max_four = "\xF7\xBF\xBF\xBF";
 	cp = max_four;
-	expect("max four char get", UTF8Get(cp), max_4byte);
-	expect("max four char advance", cp == max_four+4);
-	expect("max four char backup", UTF8Backup(cp) == max_four);
+	expect("max four byte get", UTF8Get(cp), max_4byte);
+	expect("max four byte advance", cp == max_four+4);
+	expect("max four byte backup", UTF8Backup(cp) == max_four);
 
 	const UTF8*	min_five = "\xF8\x80\x80\x80\x80";
 	cp = min_five;
-	expect("min five char get", UTF8Get(cp), 0);
-	expect("min five char advance", cp == min_five+5);
-	expect("min five char backup", UTF8Backup(cp) == min_five);
+	expect("min five byte get", UTF8Get(cp), 0);
+	expect("min five byte advance", cp == min_five+5);
+	expect("min five byte backup", UTF8Backup(cp) == min_five);
 
 	const UTF8*	max_five = "\xFB\xBF\xBF\xBF\xBF";
 	cp = max_five;
-	expect("max five char get", UTF8Get(cp), max_5byte);
-	expect("max five char advance", cp == max_five+5);
-	expect("max five char backup", UTF8Backup(cp) == max_five);
+	expect("max five byte get", UTF8Get(cp), max_5byte);
+	expect("max five byte advance", cp == max_five+5);
+	expect("max five byte backup", UTF8Backup(cp) == max_five);
 
 	const UTF8*	min_six = "\xFC\x80\x80\x80\x80\x80";
 	cp = min_six;
-	expect("min six char get", UTF8Get(cp), 0);
-	expect("min six char advance", cp == min_six+6);
-	expect("min six char backup", UTF8Backup(cp) == min_six);
+	expect("min six byte get", UTF8Get(cp), 0);
+	expect("min six byte advance", cp == min_six+6);
+	expect("min six byte backup", UTF8Backup(cp) == min_six);
 
 	const UTF8*	max_six = "\xFF\xBF\xBF\xBF\xBF\xBE";
 	cp = max_six;
-	expect("max six char get", UTF8Get(cp), max_6byte);
-	expect("max six char advance", cp == max_six+6);
-	expect("max six char backup", UTF8Backup(cp) == max_six);
+	expect("max six byte get", UTF8Get(cp), max_6byte);
+	expect("max six byte advance", cp == max_six+6);
+	expect("max six byte backup", UTF8Backup(cp) == max_six);
 }
 
 void
@@ -241,7 +241,7 @@ utf8_invalid()
 	expect("stray 1st of 6 backup", UTF8Backup(cp) == illegal_six);
 
 	// We expect to advance and backup past an stray trailing byte UTF8 code:
-	// BEWARE: We inserted an initial character here that isn't a valid 1st byte, otherwise Backup might fail
+	// BEWARE: We inserted an initial byte here that isn't a valid 1st byte, otherwise Backup might fail
 	const UTF8*	min_illegal_trailing = "A\x80";		// Minimum trailing byte
 	cp = min_illegal_trailing+1;
 	expect("stray min trailing byte", UTF8Get(cp), UTF8EncodeIllegal(0x80));
@@ -253,6 +253,13 @@ utf8_invalid()
 	expect("stray max trailing byte", UTF8Get(cp), UTF8EncodeIllegal(0xBF));
 	expect("stray max trailing byte advance", cp == max_illegal_trailing+2);
 	expect("stray max trailing byte backup", UTF8Backup(cp) == max_illegal_trailing+1);
+
+	// With the limit argument to UTF8Backup, don't backup even though there's a legal 1st byte:
+	const UTF8*	backup_second_only = "\xC0\xBF";	// Legal 2-byte UTF-8
+	cp = backup_second_only+1;
+	expect("get trailing 2nd byte", UTF8Get(cp), UTF8EncodeIllegal(0xBF));
+	expect("advance over trailing 2nd byte", cp == backup_second_only+2);
+	expect("backup limited to trailing byte", UTF8Backup(cp, backup_second_only+1) == backup_second_only+1);
 }
 
 void
@@ -264,12 +271,12 @@ utf8_eof()
 	const UTF8*	cp = one;
 
 	// We expect to advance past a single char:
-	expect("one char get", UTF8Get(cp) == '1');
-	expect("one char advance", cp == one+1);
+	expect("one byte get", UTF8Get(cp) == '1');
+	expect("one byte advance", cp == one+1);
 
 	// and to advance past a single \0
-	expect("NUL char get", UTF8Get(cp) == 0);
-	expect("NUL char advance", cp == one+2);
+	expect("NUL byte get", UTF8Get(cp) == 0);
+	expect("NUL byte advance", cp == one+2);
 }
 
 void
