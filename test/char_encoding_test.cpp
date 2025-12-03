@@ -14,10 +14,19 @@ int		failure_count;
 const char*	new_group;
 
 void		utf8_char_sizes();
+void		utf8_get_backup();
 void		utf8_invalid();
 void		utf8_eof();
 void		utf8_alphabetic();
 void		utf8_numeric();
+void		utf8_case_conversions();
+
+UCS4		max_1byte = (0x1<<7)-1;				// 0x7F
+UCS4		max_2byte = (0x1<<11)-1;			// 0x7FF
+UCS4		max_3byte = (0x1<<16)-1;			// 0xFFFF
+UCS4		max_4byte = (0x1<<21)-1;			// 0x1FFFFF
+UCS4		max_5byte = (0x1<<26)-1;			// 0x3FFFFFF
+UCS4		max_6byte = ((unsigned long)0x1<<32)-2;		// 0xFFFFFFFE
 
 int
 main(int argc, const char** argv)
@@ -26,10 +35,13 @@ main(int argc, const char** argv)
 		show_passes = true;
 
 	utf8_char_sizes();	// Test the different encoded character lengths
+	utf8_get_backup();	// Test get and backup
 	utf8_invalid();		// Test isolated leading and trailing encoded bytes
 	utf8_eof();		// Test \0
 	utf8_alphabetic();
 	utf8_numeric();
+// 	utf8_case_conversions();	// None yet
+//	utf16_encoding();	//
 
 	printf("Completed %d tests with %d failures\n", test_count, failure_count);
 	return failure_count == 0 ? 0 : 1;
@@ -71,26 +83,20 @@ utf8_char_sizes()
 {
 	test_group("encoded size for UCS4 chars");
 
-	UCS4	max_1byte = (0x1<<7)-1;			// 0x7F
 	expect("max length 1", UTF8Len(max_1byte), 1);
 
-	UCS4	max_2byte = (0x1<<11)-1;		// 0x7FF
 	expect("min length 2", UTF8Len(max_1byte+1), 2);
 	expect("max length 2", UTF8Len(max_2byte), 2);
 
-	UCS4	max_3byte = (0x1<<16)-1;		// 0xFFFF
 	expect("min length 3", UTF8Len(max_2byte+1), 3);
 	expect("max length 3", UTF8Len(max_3byte), 3);
 
-	UCS4	max_4byte = (0x1<<21)-1;		// 0x1FFFFF
 	expect("min length 4", UTF8Len(max_3byte+1), 4);
 	expect("max length 4", UTF8Len(max_4byte), 4);
 
-	UCS4	max_5byte = (0x1<<26)-1;		// 0x3FFFFFF
 	expect("min length 5", UTF8Len(max_4byte+1), 5);
 	expect("max length 5", UTF8Len(max_5byte), 5);
 
-	UCS4	max_6byte = ((unsigned long)0x1<<32)-2;	// 0xFFFFFFFE
 	expect("min length 6", UTF8Len(max_5byte+1), 6);
 	expect("max length 6", UTF8Len(max_6byte), 6);
 
@@ -107,7 +113,12 @@ utf8_char_sizes()
 	expect("maximum 1st-of-two", UTF8Len('\x7F'), 1);
 	expect("maximum 1st-of-two", UTF8Is1st('\xDF'), 1);
 	expect("maximum 2nd-of-two", UTF8Is2nd('\xBF'), 1);	// \xBF = '\x80'+'\x3F'
+}
 
+void
+utf8_get_backup()
+{
+	// test_group("encoded size for UCS4 chars");
 	test_group("decoding UTF8 to UCS4, advancing and backing up");
 
 	const UTF8*	cp;
@@ -334,6 +345,8 @@ void
 utf8_numeric()
 {
 	test_group("UCS4 numerics");
+
+	UCS4	ch;
 
 	// ASCII digits. Outside 0..9, the expected value is -1, so we also test '0'-2:
 	expect("ASCIIDigit('0'-2) == -1", ASCIIDigit('0'-2), -1);

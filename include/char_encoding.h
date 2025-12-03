@@ -59,7 +59,7 @@ inline int	ASCIIDigit(UCS4 ch)		// ASCII Digit value 0-9 or -1 if not digit
 		{ return ch < '0' || ch > '9' ? -1 : ch-'0'; }
 bool		UCS4IsAlphabetic(UCS4 ch);	// Letters used to form words
 int		UCS4Digit(UCS4 ch);		// Digit value 0-9 or -1 if not digit
-bool		UCS4IsDecimal(UCS4 ch)		// Decimal digits only
+inline bool	UCS4IsDecimal(UCS4 ch)		// Decimal digits only
 		{ return UCS4Digit(ch) != -1; }
 int		UCS4HexDigit(UCS4 ch);		// Digit value 0-9, a-f/A-F or -1 if not digit
 UCS4		UCS4ToUpper(UCS4 ch);		// To upper case
