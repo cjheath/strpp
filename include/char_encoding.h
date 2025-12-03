@@ -49,7 +49,7 @@ typedef	char32_t	UCS4;		// A UCS4 character, aka UTF-32, aka Rune
  * Many more are possible, see ftp://ftp.unicode.org/Public/UNIDATA/PropList.txt
  */
 #define	UCS4_NONE	0xFFFFFFFF	// Marker indicating no UCS4 character
-#define	UCS4_REPLACEMENT ((UCS4)0x0000FFFD)	// substitute for an unknown char
+#define	UCS4_REPLACEMENT ((UCS4)0x0000FFFD)	// substitute for an unknown UTF16 char
 #define	UCS4_NO_GLYPH	"\xEF\xBF\xBD"	// UTF8 character used to display where the correct glyph is not available
 
 /*
@@ -58,9 +58,9 @@ typedef	char32_t	UCS4;		// A UCS4 character, aka UTF-32, aka Rune
 inline int	ASCIIDigit(UCS4 ch)		// ASCII Digit value 0-9 or -1 if not digit
 		{ return ch < '0' || ch > '9' ? -1 : ch-'0'; }
 bool		UCS4IsAlphabetic(UCS4 ch);	// Letters used to form words
-bool		UCS4IsIdeographic(UCS4 ch);	// Asian pictograms, mostly
-bool		UCS4IsDecimal(UCS4 ch);		// Decimal digits only
 int		UCS4Digit(UCS4 ch);		// Digit value 0-9 or -1 if not digit
+bool		UCS4IsDecimal(UCS4 ch)		// Decimal digits only
+		{ return UCS4Digit(ch) != -1; }
 int		UCS4HexDigit(UCS4 ch);		// Digit value 0-9, a-f/A-F or -1 if not digit
 UCS4		UCS4ToUpper(UCS4 ch);		// To upper case
 UCS4		UCS4ToLower(UCS4 ch);		// To lower case
@@ -77,8 +77,8 @@ inline bool	UCS4IsWhite(UCS4 ch)
 inline bool	UCS4IsASCII(UCS4 ch) { return ch >= 0 && ch < 0x00000080; }
 inline bool	UCS4IsASCIIPrintable(UCS4 ch) { return ch < 0x0000007F && ch >= ' '; }
 inline bool	UCS4IsLatin1(UCS4 ch) { return ch < 0x00000100; }
-inline bool	UCS4IsUnicode(UCS4 ch) { return ch < 0x00110000; }
-inline bool	UCS4IsUTF16(UCS4 ch) { return ch < 0x00010000; }
+inline bool	UCS4IsUnicode(UCS4 ch) { return ch < 0x00110000; }	// Should we exclude Surrogates?
+inline bool	UCS4IsUTF16(UCS4 ch) { return ch < 0x00010000; }	// Should we exclude Surrogates?
 
 // Overloads of ctype functions. Those better not be macros!
 inline bool	isalpha(UCS4 c) { return UCS4IsAlphabetic(c); }
@@ -116,7 +116,7 @@ UTF8Is2nd(UTF8 ch)
 inline int
 UTF8Len(UCS4 ch)
 {
-	if (ch < 0)
+	if (ch < 0 || (ch & 0x80000000))
 	{
 		if (UCS4IsIllegal(ch))	// MSB is sign bit
 			return 1;

@@ -17,7 +17,7 @@ an exception to be thrown on an illegal sequence.
 A number of functions deal with classifying UCS4 values. A short list
 is here, but read the header file for details:
 
-UCS4IsAlphabetic, UCS4IsIdeographic, UCS4IsDecimal, UCS4Digit, UCS4ToUpper,
+UCS4IsAlphabetic, UCS4IsDecimal, UCS4Digit, UCS4ToUpper,
 UCS4ToLower, UCS4ToTitle, UCS4IsWhite, UCS4IsASCII, UCS4IsLatin1,
 UCS4IsUTF16, UCS4IsUnicode, and others.
 

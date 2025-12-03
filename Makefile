@@ -54,6 +54,7 @@ SUBDIRS	=	\
 OBJS	=	$(patsubst %,build/%,$(SRCS:.cpp=.o))
 RX_OBJS	=	$(patsubst %,build/%,$(RX_SRCS:.cpp=.o))
 
+vpath	%.c	src:test
 vpath	%.cpp	src:test
 vpath	%.h	include
 
@@ -104,6 +105,8 @@ thread_test:	thread_test.cpp $(LIB)
 
 build/%.o:	%.cpp $(HDRS) Makefile
 	$(CXX) $(DEBUG) $(CXXFLAGS) -Iinclude -Isrc -o $@ -c $<
+
+build/char_encoding.o: case_conversions.c
 
 $(TESTS):	$(HDRS) Makefile
 

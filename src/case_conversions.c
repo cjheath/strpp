@@ -7,8 +7,8 @@
 
 static struct
 {
-	unsigned short	firstchar;
-	unsigned short	lastchar;
+	unsigned short	firstchar;	// First character in a range
+	unsigned short	lastchar;	// Inclusive, so we can encode single-char conversions
 	short		delta;
 } UnicodeToUpper[] =
 {
@@ -423,8 +423,8 @@ static struct
 
 static struct
 {
-	unsigned short	firstchar;
-	unsigned short	lastchar;
+	unsigned short	firstchar;	// First character in a range
+	unsigned short	lastchar;	// Inclusive, so we can encode single-char conversions
 	short		delta;
 } UnicodeToLower[] =
 {

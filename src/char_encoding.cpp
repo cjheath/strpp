@@ -36,12 +36,20 @@ UCS4IsAlphabetic(UCS4 ch)
 		else if (ch > UnicodeNoCaseConvLetters[mid])
 			lo = mid+1;
 		else
+		{
+			// printf("Alphabetic no-conversion: 0x%X\n", ch);
 			return true;
+		}
 	}
 
 	return false;
 }
 
+#if 0
+/*
+ * symbols and punctuation marks used by ideographic scripts such as Tangut and Nüshu,
+ * in addition those in the CJK Symbols and Punctuation
+ */
 bool
 UCS4IsIdeographic(UCS4 ch)
 {
@@ -52,6 +60,7 @@ UCS4IsIdeographic(UCS4 ch)
 	    || (ch >= 0x4E00 && ch <= 0x9FA5)	/* CJK Ideographs */
 	    || (ch >= 0xF900 && ch <= 0xFA2D);
 }
+#endif
 
 /*
  * Unicode has multiple ranges of digits from 0 to 9 (or in one case, 1 to 9).
@@ -63,34 +72,28 @@ static const struct digit_range
 	unsigned short	high;
 } UCS4_DigitRanges[] =
 {				// must keep sorted:
-	{ 0x0030, 0x0039 }, 
-	{ 0x0660, 0x0669 }, 
-	{ 0x06F0, 0x06F9 }, 
-	{ 0x0966, 0x096F }, 
-	{ 0x09E6, 0x09EF }, 
-	{ 0x0A66, 0x0A6F }, 
-	{ 0x0AE6, 0x0AEF }, 
-	{ 0x0B66, 0x0B6F }, 
-	{ 0x0BE7, 0x0BEF }, 
-	{ 0x0C66, 0x0C6F }, 
-	{ 0x0CE6, 0x0CEF }, 
-	{ 0x0D66, 0x0D6F }, 
-	{ 0x0E50, 0x0E59 }, 
-	{ 0x0ED0, 0x0ED9 }, 
-	{ 0x0F20, 0x0F29 }, 
-	{ 0x1040, 0x1049 }, 
-	{ 0x1369, 0x1371 }, 
-	{ 0x17E0, 0x17E9 }, 
-	{ 0x1810, 0x1819 }, 
-	{ 0xFF10, 0xFF19 }
+	{ 0x0030, 0x0039 }, 	// Arabic
+	{ 0x0660, 0x0669 }, 	// Arabic-Indic
+	{ 0x06F0, 0x06F9 }, 	// extended Arabic-Indic
+	{ 0x0966, 0x096F }, 	// Devanagari
+	{ 0x09E6, 0x09EF }, 	// Bengali
+	{ 0x0A66, 0x0A6F }, 	// Gurmukhi
+	{ 0x0AE7, 0x0AEF }, 	// Gujarati: only 1..9
+	{ 0x0B66, 0x0B6F }, 	// Oriya
+	{ 0x0BE6, 0x0BEF }, 	// Tamil
+	{ 0x0C66, 0x0C6F }, 	// Telugu
+	{ 0x0CE6, 0x0CEF }, 	// Kannada
+	{ 0x0D66, 0x0D6F }, 	// Malayalam
+	{ 0x0E50, 0x0E59 }, 	// Thai
+	{ 0x0ED0, 0x0ED9 }, 	// Lao
+	{ 0x0F20, 0x0F29 }, 	// Tibetan
+	{ 0x1040, 0x1049 }, 	// Myanmar
+	{ 0x1369, 0x1371 }, 	// Ethiopic: only 1..9
+	{ 0x17E0, 0x17E9 }, 	// Khmer
+	{ 0x1810, 0x1819 }, 	// Mongolian
+	{ 0xFF10, 0xFF19 }	// Fullwidth (used in some Asian encodings, with or without variation marks)
 };
 #define	UCS4NumDigitRanges	(sizeof(UCS4_DigitRanges)/sizeof(struct digit_range))
-
-bool
-UCS4IsDecimal(UCS4 ch)
-{
-	return UCS4Digit(ch) != -1;
-}
 
 // Digit value 0-9, -1 if not digit
 int
@@ -177,8 +180,12 @@ UCS4ToUpper(UCS4 ch)
 	 && ch <= UnicodeToUpper[hi].lastchar)
 	{
 		last_memo = hi;
-	 	return ch + UnicodeToUpper[hi].delta;
+		UCS4	upper = ch + UnicodeToUpper[hi].delta;
+		// printf("UCS4ToUpper converted 0x%X to 0x%X\n", ch, upper);
+	 	return upper;
 	}
+
+	// printf("UCS4ToUpper left 0x%X unchanged\n", ch);
 
 	return ch;
 }
@@ -220,8 +227,11 @@ UCS4ToLower(UCS4 ch)
 	 && ch <= UnicodeToLower[hi].lastchar)
 	{
 		last_memo = hi;
-	 	return ch + UnicodeToLower[hi].delta;
+	 	UCS4	lower = ch + UnicodeToLower[hi].delta;
+		// printf("UCS4ToLower converted 0x%X to 0x%X\n", ch, lower);
+		return lower;
 	}
+	// printf("UCS4ToLower left 0x%X unchanged\n", ch);
 
 	return ch;
 }
