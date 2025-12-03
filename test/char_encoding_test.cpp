@@ -241,17 +241,18 @@ utf8_invalid()
 	expect("stray 1st of 6 backup", UTF8Backup(cp) == illegal_six);
 
 	// We expect to advance and backup past an stray trailing byte UTF8 code:
-	const UTF8*	min_illegal_trailing = "\x80";		// Minimum trailing byte
-	cp = min_illegal_trailing;
+	// BEWARE: We inserted an initial character here that isn't a valid 1st byte, otherwise Backup might fail
+	const UTF8*	min_illegal_trailing = "A\x80";		// Minimum trailing byte
+	cp = min_illegal_trailing+1;
 	expect("stray min trailing byte", UTF8Get(cp), UTF8EncodeIllegal(0x80));
-	expect("stray min trailing byte advance", cp == min_illegal_trailing+1);
-	expect("stray min trailing byte backup", UTF8Backup(cp) == min_illegal_trailing);
+	expect("stray min trailing byte advance", cp == min_illegal_trailing+2);
+	expect("stray min trailing byte backup", UTF8Backup(cp) == min_illegal_trailing+1);
 
-	const UTF8*	max_illegal_trailing = "\xBF";		// Maximu trailing byte
-	cp = max_illegal_trailing;
+	const UTF8*	max_illegal_trailing = "A\xBF";		// Maximum trailing byte
+	cp = max_illegal_trailing+1;
 	expect("stray max trailing byte", UTF8Get(cp), UTF8EncodeIllegal(0xBF));
-	expect("stray max trailing byte advance", cp == max_illegal_trailing+1);
-	expect("stray max trailing byte backup", UTF8Backup(cp) == max_illegal_trailing);
+	expect("stray max trailing byte advance", cp == max_illegal_trailing+2);
+	expect("stray max trailing byte backup", UTF8Backup(cp) == max_illegal_trailing+1);
 }
 
 void
