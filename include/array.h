@@ -238,7 +238,7 @@ public:
 			{ assert(num_elements > 0); return elem_mut(num_elements-1); }
 	Element		shift()				// remove an element from the start
 			{ assert(num_elements > 0); return delete_at(0); }
-	Array*		unshift(const Element& e)	// Insert an element at the start
+	Array&		unshift(const Element& e)	// Insert an element at the start
 			{ Unshare(); body->insert(0, e); num_elements++; return *this; }
 	Array&		insert(Index pos, const Array& addend)
 			{
@@ -313,7 +313,7 @@ public:
 			}
 
 	// Functional methods (these don't mutate or Unshare the subject):
-	Array&		each(std::function<void(const Element& e)> operation) const
+	const Array&	each(std::function<void(const Element& e)> operation) const
 			{
 				const Element*	dp = body->data()+offset;	// Start of our slice
 				const Element*	ep = dp+num_elements;		// End of our slice
