@@ -78,7 +78,7 @@ inline bool	UCS4IsASCII(UCS4 ch) { return ch >= 0 && ch < 0x00000080; }
 inline bool	UCS4IsASCIIPrintable(UCS4 ch) { return ch < 0x0000007F && ch >= ' '; }
 inline bool	UCS4IsLatin1(UCS4 ch) { return ch < 0x00000100; }
 inline bool	UCS4IsUnicode(UCS4 ch) { return ch < 0x00110000; }	// Should we exclude Surrogates?
-inline bool	UCS4IsUTF16(UCS4 ch) { return ch < 0x00010000; }	// Should we exclude Surrogates?
+inline bool	UCS4IsUTF16(UCS4 ch) { return ch < 0x00010000; }
 
 // Overloads of ctype functions. Those better not be macros!
 inline bool	isalpha(UCS4 c) { return UCS4IsAlphabetic(c); }
