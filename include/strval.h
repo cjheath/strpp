@@ -273,15 +273,7 @@ public:
 				if (s1.body->isUnallocated())	// Must not copy a reference to a non-allocated body
 					Unshare();
 			}
-	StrValI& operator=(const StrValI& s1) // Assignment operator
-			{
-				body = s1.body;
-				offset = s1.offset;
-				num_chars = s1.num_chars;
-				if (s1.body->isUnallocated())	// Must not copy a reference to a non-allocated body
-					Unshare();
-				return *this;
-			}
+
 	StrValI(const char* data)	// construct by copying NUL-terminated data
 			: body(data == 0 || data[0] == '\0' ? &Body::nullBody : new Body(data, true))
 			, offset(0)
@@ -342,6 +334,15 @@ public:
 				}
 			}
 
+	StrValI& operator=(const StrValI& s1) // Assignment operator
+			{
+				body = s1.body;
+				offset = s1.offset;
+				num_chars = s1.num_chars;
+				if (s1.body->isUnallocated())	// Must not copy a reference to a non-allocated body
+					Unshare();
+				return *this;
+			}
 	operator CharBufI<Index>()
 			{
 				const char*	first_byte = nthChar(0);
@@ -1114,8 +1115,10 @@ StrBodyI<Index>::toJSON()
 class	StringArray
 : public Array<StrVal>
 {
+	using	Base = Array<StrVal>;
 public:
 	StringArray() {}
+	StringArray(const Base& a1) : Base(a1) {}
 	StringArray(const StrVal* data, Index size, Index allocate = 0)
 	: Array(data, size, allocate)
 	{
@@ -1137,7 +1140,10 @@ public:
 			joined += joiner + elem(i);
 		return joined;
 	}
-};
 
+protected:
+	StringArray(Body* body, Index offs, Index len)	// offs/len not bounds-checked!
+			: Base(body, offs, len) {}
+};
 
 #endif

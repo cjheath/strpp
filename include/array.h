@@ -21,22 +21,22 @@
 typedef typename std::conditional<(ArrayIndexBits <= 16), uint16_t, uint32_t>::type  ArrayIndex;
 
 template<typename E, typename I = ArrayIndex>	class	ArrayBody;
-template<typename E, typename I = ArrayIndex, typename Body = ArrayBody<E, I>>	class	Array;
+template<typename E, typename I, typename Self, typename Body>	class	ArrayR;
 
-template<typename E, typename I, typename Body> class	Array
+template<typename E, typename I, typename Self, typename B>
+class	ArrayR
 {
 public:
 	using	Element = E;
 	using	Index = I;
+	using	Body = B;
 
-	~Array() {}			// Destructor
-	Array()				// Empty array
+	~ArrayR() {}			// Destructor
+	ArrayR()				// Empty array
 			: body(0), offset(0), num_elements(0) {}
-	Array(const Array& s1)		// Normal copy constructor
+	ArrayR(const ArrayR& s1)		// Normal copy constructor
 			: body(s1.body), offset(s1.offset), num_elements(s1.num_elements) {}
-	Array& operator=(const Array& s1) // Assignment operator
-			{ body = s1.body; offset = s1.offset; num_elements = s1.num_elements; return *this; }
-	Array(const Element* data, Index size, Index allocate = 0)	// construct by copying data
+	ArrayR(const Element* data, Index size, Index allocate = 0)	// construct by copying data
 			: body(0), offset(0), num_elements(size)
 			{
 				if (allocate < size)
@@ -44,8 +44,10 @@ public:
 				body = new Body(data, true, size, allocate);
 				num_elements = size;
 			}
-	Array(Body* _body)		// New reference to same Body; used for static strings
+	ArrayR(Body* _body)		// New reference to same Body; used for static strings
 			: body(_body), offset(0), num_elements(_body->length()) {}
+	ArrayR& operator=(const ArrayR& s1) // Assignment operator
+			{ body = s1.body; offset = s1.offset; num_elements = s1.num_elements; return *this; }
 
 	Index		length() const
 			{ return num_elements; }
@@ -81,7 +83,7 @@ public:
 	const Body&	operator*() const { return *body; }
 
 	// Comparisons:
-	int		compare(const Array& comparand) const
+	int		compare(const ArrayR& comparand) const
 			{
 				Index	i;
 				for (i = 0; i < num_elements && i < comparand.length(); i++)
@@ -96,7 +98,7 @@ public:
 					return -1;
 				return 0;
 			}
-	inline bool	operator==(const Array& comparand) const {
+	inline bool	operator==(const ArrayR& comparand) const {
 				if (length() != comparand.length())
 					return false;
 
@@ -105,16 +107,16 @@ public:
 						return false;
 				return true;
 			}
-	inline bool	operator!=(const Array& comparand) const { return !(*this == comparand); }
+	inline bool	operator!=(const ArrayR& comparand) const { return !(*this == comparand); }
 
 	// Extract sub-slices:
-	Array		slice(Index at, int len = -1) const
+	Self		slice(Index at, int len = -1) const
 			{
 				assert(len >= -1);
 
 				// Quick check for a null slice:
 				if (at < 0 || at >= num_elements || len == 0)
-					return Array();
+					return Self();
 
 				// Clamp slice length:
 				if (len == -1)
@@ -122,13 +124,13 @@ public:
 				else if (len > num_elements-at)
 					len = num_elements-at;
 
-				return Array(body, offset+at, len);
+				return Self(body, offset+at, len);
 			}
-	Array		head(Index num_elem) const
+	Self		head(Index num_elem) const
 			{ return slice(0, num_elem); }
-	Array		tail(Index num_elem) const
+	Self		tail(Index num_elem) const
 			{ return slice(length()-num_elem, num_elem); }
-	Array		shorter(Index num_elem) const	// all elements up to tail
+	Self		shorter(Index num_elem) const	// all elements up to tail
 			{ return slice(0, length()-num_elem); }
 
 	// Linear search for an element
@@ -151,29 +153,29 @@ public:
 				return -1;				// Not found
 			}
 
-	Array		operator+(const Array& addend) const		// Add, producing a Slice on a new Array
+	Self		operator+(const ArrayR& addend) const		// Add, producing a Slice on a new Self
 			{
 				// Handle the rare but important case of extending a slice with a contiguous slice of the same body
 				if ((Body*)body == (Body*)addend.body	// From the same body
 				 && offset+num_elements == addend.offset)	// And this ends where the addend starts
-					return Array(body, offset, num_elements+addend.num_elements);
+					return Self(body, offset, num_elements+addend.num_elements);
 
-				Array		newarray(asElements(), num_elements, num_elements+addend.length());
+				Self		newarray(asElements(), num_elements, num_elements+addend.length());
 				newarray += addend;
 				return newarray;
 			}
-	Array		operator+(const Element& addend) const
+	Self		operator+(const Element& addend) const
 			{
-				Array	newarray(asElements(), num_elements, num_elements+1);
+				Self	newarray(asElements(), num_elements, num_elements+1);
 				newarray += addend;
 				return newarray;
 			}
 
-	Array&		clear() { num_elements = 0; return *this; }
-	Array		drop(Index n) const
+	ArrayR&		clear() { num_elements = 0; return *this; }
+	Self		drop(Index n) const
 			{
 				assert(num_elements >= n);
-				Array	dropped = *this;
+				Self	dropped = *this;
 				return dropped.remove(0, n);
 			}
 
@@ -184,7 +186,7 @@ public:
 			  r = e;
 			  return r;
 			}
-	Array&		remove(Index at, int len = -1)			// Delete a section from the middle
+	ArrayR&		remove(Index at, int len = -1)			// Delete a section from the middle
 			{
 				if (len == -1)
 					len = num_elements-at;
@@ -215,7 +217,7 @@ public:
 				remove(at, 1);
 				return e;
 			}
-	Array&		operator+=(const Array& addend)			// Add, Array is modified:
+	ArrayR&		operator+=(const ArrayR& addend)			// Add, ArrayR is modified:
 			{
 				if (num_elements == 0 && !addend.noCopy())
 					return *this = addend;		// Just assign, we were empty anyhow
@@ -223,24 +225,24 @@ public:
 				append(addend);
 				return *this;
 			}
-	Array&		operator+=(const Element& addend)
+	ArrayR&		operator+=(const Element& addend)
 			{
 				Unshare(1);
 				body->insert(num_elements, &addend, 1);
 				num_elements++;
 				return *this;
 			}
-	Array&		operator<<(const Element& addend)
-			{ return *this += addend; }
-	Array&		push(const Element& addend)	// Append an element to the end
-			{ return *this += addend; }
+	ArrayR&		operator<<(const Element& addend)
+			{ *this += addend; return *this; }
+	ArrayR&		push(const Element& addend)	// Append an element to the end
+			{ *this += addend; return *this; }
 	Element&	last_mut()
 			{ assert(num_elements > 0); return elem_mut(num_elements-1); }
 	Element		shift()				// remove an element from the start
 			{ assert(num_elements > 0); return delete_at(0); }
-	Array&		unshift(const Element& e)	// Insert an element at the start
+	ArrayR&		unshift(const Element& e)	// Insert an element at the start
 			{ Unshare(); body->insert(0, e); num_elements++; return *this; }
-	Array&		insert(Index pos, const Array& addend)
+	ArrayR&		insert(Index pos, const ArrayR& addend)
 			{
 				if ((Body*)body == (Body*)addend.body)	// From the same body
 				{
@@ -268,11 +270,11 @@ public:
 				num_elements += addend.length();
 				return *this;
 			}
-	Array&		append(const Array& addend)	// Append an Array to the end
+	ArrayR&		append(const ArrayR& addend)	// Append an ArrayR to the end
 			{ return insert(num_elements, addend.asElements(), addend.length()); }
-	Array&		append(const Element& addend)	// Append an element to the end
+	ArrayR&		append(const Element& addend)	// Append an element to the end
 			{ return push(addend); }
-	Array&		reverse()
+	ArrayR&		reverse()
 			{
 				if (num_elements == 0)
 					return *this;				// body may be null
@@ -287,7 +289,7 @@ public:
 				}
 				return *this;
 			}
-	Array&		delete_if(std::function<bool(const Element& e)> condition)
+	ArrayR&		delete_if(std::function<bool(const Element& e)> condition)
 			{
 				if (num_elements == 0)
 					return *this;				// body may be null
@@ -313,7 +315,7 @@ public:
 			}
 
 	// Functional methods (these don't mutate or Unshare the subject):
-	const Array&	each(std::function<void(const Element& e)> operation) const
+	const Self&	each(std::function<void(const Element& e)> operation) const
 			{
 				const Element*	dp = body->data()+offset;	// Start of our slice
 				const Element*	ep = dp+num_elements;		// End of our slice
@@ -375,9 +377,9 @@ public:
 			}
 	int		detect(std::function<bool(const Element& e)> condition) const	// Return index of first element for which condition is true, or -1 if none
 			{ return find(condition, -1); }
-	Array		select(std::function<bool(const Element& e)> condition) const
+	Self		select(std::function<bool(const Element& e)> condition) const
 			{
-				Array	selected;
+				Self	selected;
 				const Element*	dp = body->data()+offset;	// Start of our slice
 				const Element*	ep = dp+num_elements;		// End of our slice
 				for (const Element* bp = dp; bp < ep; bp++)
@@ -385,7 +387,7 @@ public:
 						selected.append(*bp);
 				return selected;
 			}
-	template<typename Result = Array<Element>, typename E2 = Element> Result map(std::function<E2(const Element& e)> map1) const
+	template<typename Result = Self, typename E2 = Element> Result map(std::function<E2(const Element& e)> map1) const
 			{
 				Result		output((E2*)0, 0, num_elements);// Preallocate correct size
 
@@ -423,11 +425,11 @@ public:
 				return -1;
 			}
 	// REVISIT: Not yet implemented (would be O(n^2) without hashing)
-	// Array	uniq(std::function<int(const Element& e1, const Element& e2)> comparator) const;
+	// Self	uniq(std::function<int(const Element& e1, const Element& e2)> comparator) const;
 	// void		sort(std::function<int(const Element& e1, const Element& e2)> comparator);
 
 #if 0	// Not yet implemented
-	void		transform(const std::function<Array(const Element*& cp, const Element* ep)> xform, int after = -1)
+	void		transform(const std::function<ArrayR(const Element*& cp, const Element* ep)> xform, int after = -1)
 			{
 				Unshare();
 				body->transform(xform, after);
@@ -435,12 +437,14 @@ public:
 			}
 #endif
 
+	ArrayR(Body* body, Index offs, Index len)
+			: body(body), offset(offs), num_elements(len)
+			{
+				assert(offs < body->length());
+				assert(offs+len < body->length());
+			}
 protected:
-	Array(Body* body, Index offs, Index len)	// offs/len not bounds-checked!
-			: body(body), offset(offs), num_elements(len) {}
 	bool		noCopy() const;
-
-public:
 
 private:
 	Ref<Body>	body;		// The storage structure for the elements
@@ -458,13 +462,33 @@ private:
 			}
 };
 
+template<typename Element, typename Index = ArrayIndex, typename Body = ArrayBody<Element, Index>>
+class Array
+: public ArrayR<Element, Index, Array<Element, Index, Body>, Body>
+{
+	using Base = ArrayR<Element, Index, Array<Element, Index, Body>, Body>;
+public:
+	Array()				// Empty array
+	: Base() {}
+	Array(const Array& s1)		// Normal copy constructor
+	: Base(s1) {}
+	Array(const Element* data, Index size, Index allocate = 0)	// construct by copying data
+	: Base(data, size, allocate) {}
+	Array(const Base& s1)
+	: Base(s1) {}
+	Array(Body* _body)		// New reference to same Body; used for static strings
+	: Base(_body) {}
+	// New slice:
+	Array(typename Base::Body* body, Index offs, Index len)	// offs/len not bounds-checked!
+	: Base(body, offs, len) {}
+};
+
 template<typename E, typename I> class	ArrayBody
 : public RefCounted			// This object will be deleted when the ref_count decrements to zero
 {
 public:
 	using		Element = E;
 	using		Index = I;
-	using		A = Array<E, I>;
 
 	~ArrayBody()
 			{
@@ -548,7 +572,7 @@ public:
 #if 0	// Not yet implemented
 	/*
 	 * At every Element after the given point, the passed transform function can
-	 * extract any number of elements (up to ep) and return a replacement Array for those elements
+	 * extract any number of elements (up to ep) and return a replacement ArrayR for those elements
 	 * To quit, leaving the remainder untransformed, return without advancing cp
 	 * (but a returned Array will still be inserted).
 	 * None of the returned Arrays will be retained, so they can use static Bodys (or the same Body)
