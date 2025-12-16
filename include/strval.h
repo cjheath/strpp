@@ -1146,4 +1146,6 @@ protected:
 			: Base(body, offs, len) {}
 };
 
+inline void p(StrVal s) { printf("\"%s\"\n", s.asUTF8()); }
+
 #endif
