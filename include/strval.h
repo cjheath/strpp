@@ -813,6 +813,12 @@ int StrValI<Index>::compare(const StrValI& comparand, CompareStyle style) const
 	}
 }
 
+// Allow ("str" + StrVal):
+template<typename Index = StrValIndex> StrValI<Index> operator+(const char* cp, const StrVal s)
+{
+	return StrValI<Index>(cp) + s;
+}
+
 template<typename Index>
 void StrBodyI<Index>::transform(const std::function<Val(const UTF8*& cp, const UTF8* ep)> xform, int after)
 {
