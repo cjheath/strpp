@@ -626,9 +626,9 @@ public:
 			{
 				const char*	first_byte = nthChar(0);
 				const char*	end_byte = nthChar(num_chars);	// Pre-allocate enough memory
-				StrValI	res(first_byte, end_byte-first_byte, (end_byte-first_byte)*repeats+1);
+				StrValI	res("", 0, (end_byte-first_byte)*repeats+1);
 
-				for (int i = 1; i < repeats; i++)
+				for (int i = 0; i < repeats; i++)
 					res += *this;
 				return res;
 			}
