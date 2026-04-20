@@ -10,6 +10,10 @@ main(int argc, const char** argv)
 	start_recording_allocations();
 
 	printf("sizeof(Variant) == %ld\n", sizeof(Variant));
+	printf("sizeof(StrVal) == %ld\n", sizeof(StrVal));
+	printf("sizeof(StringArray) == %ld\n", sizeof(StringArray));
+	printf("sizeof(VariantArray) == %ld\n", sizeof(VariantArray));
+	printf("sizeof(StrVariantMap) == %ld\n", sizeof(StrVariantMap));
 
 	variant_array_tests();
 	variant_tests();

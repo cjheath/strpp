@@ -22,7 +22,14 @@
 
 #include	"memory_monitor.h"
 
-typedef	Peg<PegMemorySource, PegMatch, PegContext>	PxParser;
+class PxParser
+: public Peg<PegMemorySource, PegMatch, PegContext>
+{
+	static	Rule	rules[];
+	static	int	num_rule;
+public:
+	PxParser() : Peg(rules, num_rule) {}
+};
 
 void usage()
 {
@@ -67,7 +74,7 @@ const char*	label_captures[] = { "name", 0 };
 const char*	atom_captures[] = { "atom", 0 };
 const char*	group_captures[] = { "alternates", 0 };
 
-template<>PxParser::Rule	PxParser::rules[] =
+PxParser::Rule	PxParser::rules[] =
 {
 	{ "blankline",				// A line containing no printing characters
 	  "\\n*[ \\t\\r](|\\n|!.)",
@@ -181,7 +188,7 @@ template<>PxParser::Rule	PxParser::rules[] =
 	  0
 	},
 };
-template<>int	PxParser::num_rule = sizeof(PxParser::rules)/sizeof(PxParser::rules[0]);
+int	PxParser::num_rule = sizeof(PxParser::rules)/sizeof(PxParser::rules[0]);
 
 PxParser::Match
 parse_file(char* text)

@@ -54,7 +54,7 @@ public:
 	{
 		if (!Base::is_failure())
 		{
-			var = StrVal(from.source.peek(), (int)(to.source - from.source));
+			var = from.source.string_to(to.source);
 			furthermost_success = to.source;
 		}
 		else
@@ -145,34 +145,7 @@ public:
 		if (value.type() == Variant::String && value.as_strval().length() == 0)
 			return num_captures;
 
-		// If this rule captures one item only, collapse the AST:
-		if (rule->captures && rule->captures[0] && rule->captures[1] == 0)
-		{	// Only one thing is being captured here. Don't nest it, return it.
-#if 0
-			if (value.type() == Variant::StrVarMap
-			 && value.as_variant_map().size() == 1)
-			{	// This map has only one entry. Return that
-				auto	entry = value.as_variant_map().begin();
-				printf(
-					"eliding %s in favour of %s\n",
-					key.asUTF8(),
-					StrVal(entry->first).asUTF8()
-				);
-				value = entry->second;
-				key = entry->first;
-
-#ifdef FLATTEN_ARRAYS
-				if (value.type() == Variant::VarArray
-				 && value.as_variant_array().length() == 1)
-				{
-					printf("flattening array\n");
-					value = value.as_variant_array()[0];
-				}
-#endif
-
-			}
-#endif
-		}
+		// REVISIT: If this rule captures one item only, can we collapse the AST?
 
 		if (ast.contains(key))
 		{		// There are previous captures under this name
@@ -196,7 +169,7 @@ public:
 		return num_captures;
 	}
 
-	// This grammar should not capture anything that rolls back except to zero, unless on failure:
+	// The grammar should not capture anything that rolls back except to zero, unless on failure:
 	void		rollback_capture(int count)
 	{
 		if (count >= num_captures)

@@ -6,19 +6,33 @@
  */
 #include	<char_encoding.h>
 #include	<peg.h>
+#include	<variant.h>
+#include	<peg_ast.h>
 
 #if	defined(PEG_UNICODE)
-typedef	Peg<GuardedUTF8Ptr>	TestPeg;
+// This is probably wrong (emplate params have changed), but isn't being used
+typedef Peg<GuardedUTF8Ptr, PegMatch, PegContext>	TestPegParent;
 #else
-typedef	Peg<>			TestPeg;
+typedef Peg<PegMemorySource, PegMatch, PegContext>	TestPegParent;
 #endif
+
+class TestPeg
+: public TestPegParent
+{
+	static	Rule	rules[];
+	static	int	num_rule;
+public:
+	TestPeg()
+	: TestPegParent(rules, num_rule) {}
+};
+
+TestPeg::Rule	TestPeg::rules[] = { { "TOP", "", 0 } };	// Null rule set
+int		TestPeg::num_rule = 1;
 
 int
 main(int argc, const char** argv)
 {
-	TestPeg::Rule	rules[] = { { "TOP", "" } };	// Null rule set
-
-	TestPeg		peg(rules, 1);
+	TestPeg		peg;
 	TestPeg::Match	match;
 	TestPeg::Source	source(argv[1]);
 

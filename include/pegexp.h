@@ -65,6 +65,8 @@
 #include	<cctype>
 #include	<char_encoding.h>
 
+#include	<strval.h>		// Only used if you use string_to
+
 typedef	const char*	PatternP;	// The Pegexp is always 8-bit, not UTF-8
 
 /*
@@ -77,7 +79,7 @@ typedef	const char*	PatternP;	// The Pegexp is always 8-bit, not UTF-8
  * - is_null()		Returns false if there is no DataPtr (not just no more data)
  * - get_byte()		Returns the next byte and moves the location forwards
  * - get_char()		Returns the next UCS4 char and moves the location forwards
- * - at_eof()		Returns true of there is no more data available
+ * - at_eof()		Returns true if there is no more data available
  * - at_bol()		Returns true at beginning of line, used for the ^ predicate
  * - same()		Returns true if the other Source is at the same location
  *
@@ -158,6 +160,9 @@ public:
 	off_t		current_line() const { return line_count; }
 	off_t		current_column() const { return column_char; }	// In Chars
 
+	StrVal		string_to(const PegexpPointerSource& other) const
+			{ return StrVal(data, (int)(other.data-data)); }
+
 protected:
 	const UTF8*	data;		// Pointer to the next byte of data. \0 indicates EOF
 	off_t		byte_count;	// Total bytes traversed
@@ -219,7 +224,8 @@ template <typename _State = PegexpState<>>
 class	PegexpDefaultMatch
 {
 public:
-	typedef	_State	State;
+	using State = _State;
+	using Source = typename State::Source;
 
 	PegexpDefaultMatch() {}	// Default constructor
 

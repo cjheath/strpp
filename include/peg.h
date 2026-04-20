@@ -243,10 +243,9 @@ public:
 	using	PegexpT = PegPegexp<Context>;
 	using	State = typename PegexpT::State;
 
-	static	Rule	rules[];
-	static	int	num_rule;
-
-	Peg()
+	Peg(Rule* _rules, int _num_rule)
+	: rules(_rules)
+	, num_rule(_num_rule)
 	{
 		// We must sort the rules by name, such that a binary search works:
 		qsort(rules, num_rule, sizeof(rules[0]), [](const void* r1, const void* r2) {
@@ -314,6 +313,9 @@ public:
 	}
 
 protected:
+	Rule* const	rules;
+	int const	num_rule;
+
 	void	left_recursion(State state)
 	{
 #if defined(PEG_TRACE)

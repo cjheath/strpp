@@ -18,7 +18,7 @@ using	TestSource = PegexpPointerSource<NulGuardedUTF8Ptr>;
 using	TestSource = PegexpPointerSource<NulGuardedCharPtr>;
 #endif
 
-using	TestMatch = PegexpDefaultMatch<TestSource>;
+using	TestMatch = PegexpDefaultMatch<PegexpState<TestSource>>;
 using	TestContext = PegexpDefaultContext<TestMatch>;
 
 typedef	Pegexp<TestContext>		TestPegexp;
@@ -28,6 +28,7 @@ main(int argc, const char** argv)
 {
 	TestPegexp		pegexp(argv[1]);
 	TestSource		p(argv[2]);
-	TestMatch		match = pegexp.match_here(p);
+	TestContext		context;
+	TestMatch		match = pegexp.match_here(p, &context);
 	return match.is_failure() ? 1 : 0;
 }
