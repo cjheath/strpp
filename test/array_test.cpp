@@ -45,7 +45,7 @@ main(int argc, const char** argv)
 	StrArray sb = sa+"b";
 	printf("sa @%p = %d[%s]\n", sa.asElements(), sa.length(), sa[0].asUTF8());
 	printf("sb @%p = %d[%s, %s]\n", sb.asElements(), sb.length(), sb[0].asUTF8(), sb[1].asUTF8());
-	printf("sb.join(+) %s\n", sb.join("+").asUTF8());
+	printf("sb.join(+) = %s\n", sb.join("+").asUTF8());
 	StrArray sbc = sb+"c";
 	printf("sbc @%p = %d[%s, %s, %s]\n", sbc.asElements(), sbc.length(), sbc[0].asUTF8(), sbc[1].asUTF8(), sbc[2].asUTF8());
 	StrArray sc = sbc;
