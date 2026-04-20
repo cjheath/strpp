@@ -30,6 +30,12 @@
 
 #define	StrValIndexBits	32
 typedef typename std::conditional<(StrValIndexBits <= 16), uint16_t, uint32_t>::type StrValIndex;
+const	StrValIndex	StrValIndexNonUTF8Marker = ((StrValIndex)-1);	// Marker num_chars for non-UTF8 data
+typedef enum {
+	StrStatic,		// UTF-8 data that's not owned by the Body, may not be NUL-terminated and will not alter
+	StrUTF8,		// UTF-8 data that is allocated internally
+	Str8BitLocale		// Normal character-per-byte data in the locale's 8-bit encoding
+} StrDataType;
 
 #define	STRERR_SET		1	// Message set number for StrVal
 #define	STRERR_TRAIL_TEXT	ErrNum(STRERR_SET, 1)	// There are non-blank characters after the number
@@ -67,16 +73,21 @@ public:
 
 	~StrBodyI()	{}
 	StrBodyI()	: num_chars(0) {}
-	StrBodyI(const char* data, bool copy, Index length = 0, Index allocate = 0)
-			: Body(data, copy, (length == 0 ? strlen(data) : length)+1, allocate)
+	StrBodyI(const char* data, StrDataType dt, Index length = 0, Index allocate = 0)
+			: Body(data, dt != StrStatic, (length == 0 ? strlen(data) : length)+1, allocate)
 			, num_chars(0)
 			{
-				if (copy && length != 0)
+				// assert(num_elements < StrValIndexNonUTF8Marker); // REVISIT: Also assert on resize
+				if (dt != StrStatic && length != 0)
 					start[num_elements-1] = '\0';	// Perhaps we didn't copy a NUL, so add one
+				if (dt == Str8BitLocale)
+					num_chars = StrValIndexNonUTF8Marker;	// one byte = one char, don't count them
 			}
 
 	Index		numChars()
 			{
+				if (num_chars == StrValIndexNonUTF8Marker)
+					return num_elements-1;		// The Array always assumes a NUL is present
 				if (num_chars == 0 && num_elements > 0)
 					countChars();
 				return num_chars;
@@ -85,21 +96,22 @@ public:
 			// Return a pointer to the start of the nth character
 	char*		nthChar(Index char_num, Bookmark& mark)
 			{
-				UTF8*		up;		// starting pointer for forward search
-				int		start_char;	// starting char number for forward search
-				UTF8*		ep;		// starting pointer for backward search
 				int		end_char;	// starting char number for backward search
 
 				if (char_num < 0 || char_num > (end_char = numChars())) // numChars() counts the string if necessary
 				{
 					assert(char_num >= 0 && char_num <= end_char);
-					return (UTF8*)0;
+					return (char*)0;
 				}
 
-				if (num_chars == num_elements-1) // ASCII data only, use direct index!
+				if (num_chars == StrValIndexNonUTF8Marker	// Locale 8-bit data
+				 || num_chars == num_elements-1) // ASCII data only, use direct index!
 					return start+char_num;
 
-				up = start;		// Set initial starting point for forward search
+				char*		up;		// starting pointer for forward search
+				int		start_char;	// starting char number for forward search
+				char*		ep;		// starting pointer for backward search
+				up = start;			// Set initial starting point for forward search
 				start_char = 0;
 				ep = start+num_elements-1;	// and for backward search (end_char is set above)
 
@@ -134,7 +146,7 @@ public:
 				{		// Search back from end_char to char_num
 					while (end_char > char_num && ep && ep > up)
 					{
-						ep = (UTF8*)UTF8Backup(ep, start);
+						ep = (char*)UTF8Backup(ep, start);
 						end_char--;
 					}
 					up = ep;
@@ -149,7 +161,7 @@ public:
 				return up;
 			}
 	UTF8*		startChar() const { return static_cast<UTF8*>(start); }
-	UTF8*		endChar() const { return startChar()+num_elements-1; }
+	UTF8*		endChar() const { return start+num_elements-1; }
 	bool		isNulTerminated() const				// If we allocated memory, it's always terminated
 			{ return num_alloc > 0 || start[num_elements] == '\0'; }
 private:		// Prevent accidental use of Array insert by outsiders
@@ -157,7 +169,8 @@ private:		// Prevent accidental use of Array insert by outsiders
 public:	void		insertBytes(Index pos, const char* addend, Index len)
 			{
 				Body::insert(pos, addend, len);
-				num_chars = 0;
+				if (num_chars != StrValIndexNonUTF8Marker)	// Locale 8-bit data only
+					num_chars = 0;	// Force a re-count
 			}
 	void		transform(const std::function<Val(const UTF8*& cp, const UTF8* ep)> xform, int after = -1);
 	void		toLower()
@@ -173,7 +186,7 @@ public:	void		insertBytes(Index pos, const char* addend, Index len)
 						UTF8Put(op, ch);
 						*op = '\0';
 						// Assign this to the body in our closure
-						temp_body = StrBodyI(one_char, false, op-one_char);
+						temp_body = StrBodyI(one_char, StrStatic, op-one_char);
 						return Val(&temp_body);
 					}
 				);
@@ -192,7 +205,7 @@ public:	void		insertBytes(Index pos, const char* addend, Index len)
 						*op = '\0';
 
 						// Assign this to the body in our closure
-						temp_body = StrBodyI(one_char, false, op-one_char);
+						temp_body = StrBodyI(one_char, StrStatic, op-one_char);
 						return Val(&temp_body);
 					}
 				);
@@ -212,9 +225,12 @@ public:	void		insertBytes(Index pos, const char* addend, Index len)
 	bool		isUnallocated() { return num_alloc == 0; }
 
 protected:
-	Index		num_chars;	// zero if not yet counted
+	Index		num_chars;	// zero if not yet counted, StrValIndexNonUTF8Marker if locale-8bit
 	void		countChars()
 			{
+				if (num_chars == StrValIndexNonUTF8Marker)	// Locale 8-bit data only, don't count
+					return;
+
 				const UTF8*	cp = start;		// Progress pointer when reading data
 				UTF8*		ep = start+num_elements-1;	// Marker for end of data
 				while (cp < ep)
@@ -229,7 +245,7 @@ protected:
 			}
 };
 
-template<typename Index> class StrBodyI<Index> StrBodyI<Index>::nullBody("", false, 0, 0);
+template<typename Index> class StrBodyI<Index> StrBodyI<Index>::nullBody("", StrStatic, 0, 0);
 
 // Expose a slice onto the underlying StrBodyI UTF8 storage as an array of bytes
 template<typename Index>
@@ -274,8 +290,8 @@ public:
 					Unshare();
 			}
 
-	StrValI(const char* data)	// construct by copying NUL-terminated data
-			: body(data == 0 || data[0] == '\0' ? &Body::nullBody : new Body(data, true))
+	StrValI(const char* data, StrDataType dt = StrUTF8)	// construct by copying NUL-terminated data
+			: body(data == 0 || data[0] == '\0' ? &Body::nullBody : new Body(data, dt))
 			, offset(0)
 			, num_chars(body->numChars())
 			{
@@ -291,7 +307,7 @@ public:
 				if (length == 0)
 					body = &Body::nullBody;	// Don't use strlen!
 				else
-					body = new Body(data, true, length, allocate);
+					body = new Body(data, StrUTF8, length, allocate);
 				num_chars = body->numChars();
 			}
 	StrValI(UCS4 character)		// construct from single-character string
@@ -301,7 +317,7 @@ public:
 				UTF8*	op = one_char;		// Pack it into our local buffer
 				UTF8Put(op, character);
 				*op = '\0';
-				body = new Body(one_char, true, op-one_char);
+				body = new Body(one_char, StrUTF8, op-one_char);
 				num_chars = 1;
 			}
 	StrValI(Body* s1)		// New reference to same string body; used for static strings
@@ -309,8 +325,8 @@ public:
 	StrValI(CharBufI<Index> cb)
 			: body(cb.body), offset(cb.offset), num_chars(0)
 			{
-				// If the Slice doesn't start with legal UTF8, we can't represent the result correctly without Unsharing
-				// because we cannot rely on counting characters
+				// If the Slice doesn't start with legal UTF8, we can't represent the result correctly
+				// without Unsharing because we cannot rely on counting characters
 				const UTF8*	cp = body->start+cb.offset;
 				UCS4		ch;
 				if (UCS4IsIllegal(ch = UTF8Get(cp)))
@@ -596,7 +612,7 @@ public:
 				UTF8*	cp = buf;
 				UTF8Put(cp, addend);
 				*cp = '\0';
-				Body	body(buf, false, cp-buf, 1);
+				Body	body(buf, StrStatic, cp-buf, 1);
 
 				return operator+(StrValI(&body));
 			}
@@ -617,7 +633,7 @@ public:
 				UTF8*	cp = buf;
 				UTF8Put(cp, addend);
 				*cp = '\0';
-				Body	body(buf, false, cp-buf, 1);
+				Body	body(buf, StrStatic, cp-buf, 1);
 
 				operator+=(StrValI(&body));
 				return *this;
@@ -743,7 +759,7 @@ private:
 				const UTF8*	ep = nthChar(num_chars);	// end of this substring
 				Index		prefix_bytes = cp - body->startChar(); // How many leading bytes of the body we are eliding
 
-				body = new Body(cp, true, ep-cp);
+				body = new Body(cp, StrUTF8, ep-cp);
 				mark.char_num = savemark.char_num - offset;	// Restore the bookmark
 				mark.byte_num = savemark.byte_num - prefix_bytes;
 				offset = 0;
@@ -1112,7 +1128,7 @@ StrBodyI<Index>::toJSON()
 			*op = '\0';
 
 			// Assign this to the body in our closure
-			temp_body = StrBodyI(one_char, false, op-one_char);
+			temp_body = StrBodyI(one_char, StrStatic, op-one_char);
 			return Val(&temp_body);
 		}
 	);

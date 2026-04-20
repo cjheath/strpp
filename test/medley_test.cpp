@@ -46,7 +46,7 @@ void tests()
 		printf("\t%d: 0x%02X '%c'\n", i, bar[i], bar[i]);
 
 	// Static string test. The literal string must outlive the body, which must outlive the StrVal
-	StrBody	const_body("Borrow this data but don't fudge it\n", false, 0, 1);
+	StrBody	const_body("Borrow this data but don't fudge it\n", StrStatic, 0, 1);
 	StrVal	cstr(&const_body);
 	fputs(cstr.substr(3).asUTF8(), stdout);
 
