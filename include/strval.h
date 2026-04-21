@@ -768,7 +768,7 @@ private:
 				// Copy only this slice of the body's data, and reset our offset to zero
 				Bookmark	savemark(mark);			// copy the bookmark
 				const UTF8*	cp = nthChar(0);		// start of this substring
-				const UTF8*	ep = nthChar(length());	// end of this substring
+				const UTF8*	ep = nthChar(length());		// end of this substring
 				Index		prefix_bytes = cp - body->nthChar(0, mark); // How many leading bytes of the body we are eliding
 
 				body = new Body(cp, body->isRawBinary() ? StrRawBinary : StrUTF8, ep-cp);
@@ -926,7 +926,7 @@ StrValI<Index>& StrValI<Index>::transform(const std::function<StrValI(const UTF8
 {
 	Unshare();
 	body->transform(xform, after);
-	num_chars = length();
+	num_chars = body->numChars();
 	mark = Bookmark();
 	return *this;
 }
