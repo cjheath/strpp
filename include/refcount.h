@@ -25,7 +25,8 @@ protected:
 template <class T>
 class Ref
 {
-	std::atomic<T*>	ptr;
+	T*	ptr;	// This does not need to be atomic, only the ref_count
+	// std::atomic<T*>	ptr;
 
 public:
 			~Ref() { if (*this) (*this)->Release(); }
@@ -37,19 +38,20 @@ public:
 				T*      o = other;
 				if (o)
 					o->AddRef();
-				o = (T*)ptr.exchange(o);
-				if (o)
-					o->Release();
+				T*      old = ptr;
+				ptr = other;
+				if (old)
+					old->Release();
 				return *this;
 			}
 	Ref&		operator=(T* other)
 			{
 				if (other)
 					other->AddRef();
-
-				T*      o = (T*)ptr.exchange(other);
-				if (o)
-					o->Release();
+				T*      old = ptr;
+				ptr = other;
+				if (old)
+					old->Release();
 				return *this;
 			}
 
