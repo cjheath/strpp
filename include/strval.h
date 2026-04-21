@@ -77,7 +77,8 @@ public:
 			: Body(data, dt != StrStatic, (length == 0 ? strlen(data) : length)+1, allocate)
 			, num_chars(0)
 			{
-				// assert(num_elements < StrValIndexRawBinaryMarker); // REVISIT: Also assert on resize
+				// REVISIT: Need a Panic() function when a string passes the allowed maximum size
+				// assert(num_elements < StrValIndexRawBinaryMarker);
 				if (dt != StrStatic && length != 0)
 					start[num_elements-1] = '\0';	// Perhaps we didn't copy a NUL, so add one
 				if (dt == StrRawBinary)
@@ -334,7 +335,7 @@ public:
 
 	Index		numBytes() const
 			{
-				const char*	ep = nthChar(num_chars);
+				const char*	ep = nthChar(length());
 				assert(ep);
 				return ep-nthChar(0);
 			}
@@ -345,7 +346,7 @@ public:
 	// Access the characters and UTF8 value:
 	UCS4		operator[](int charNum) const
 			{
-				if (charNum == num_chars)
+				if (charNum == length())
 					return '\0';
 				const UTF8*	cp = nthChar(charNum);
 				if (!cp)
@@ -354,7 +355,7 @@ public:
 			}
 	const UTF8*	asUTF8()	// Null terminated. Must unshare data if it's a substring with elided suffix
 			{
-				if (offset+num_chars < body->numChars()	// Substring ends before body does
+				if (offset+length() < body->numChars() // Substring ends before body does
 				 || !body->isNulTerminated())		// Body wasn't terminated anyhow
 				 	copyBody();
 				return nthChar(0);
@@ -362,7 +363,7 @@ public:
 	const UTF8*	asUTF8(Index& bytes) const	// Returns the bytes, but doesn't guarantee NUL termination
 			{
 				const	UTF8*	cp = nthChar(0);
-				const	UTF8*	ep = nthChar(num_chars);
+				const	UTF8*	ep = nthChar(length());
 				bytes = ep-cp;
 				return cp;
 			}
@@ -388,7 +389,7 @@ public:
 	StrValI		substr(Index at, int len = -1) const
 			{
 				// Quick check for a null substring:
-				if (len < -1 || len == 0 || at >= num_chars)
+				if (len < -1 || len == 0 || at >= length())
 					return null;
 
 				// Clamp substring length:
@@ -398,11 +399,11 @@ public:
 						len -= at, at = 0;
 					if (len < 0)
 						return null;
-					if (len > num_chars-at)
-						len = num_chars-at;
+					if (len > length()-at)
+						len = length()-at;
 				}
 				else
-					len = num_chars-at;
+					len = length()-at;
 
 				return StrValI(body, offset+at, len);
 			}
@@ -430,7 +431,7 @@ public:
 			}
 	int		rfind(UCS4 ch, int before = -1) const
 			{
-				Index		n = (before == -1 ? num_chars : before)-1;		// First Index we'll look at
+				Index		n = (before == -1 ? length() : before)-1;		// First Index we'll look at
 				const UTF8*	bp;
 				while ((bp = nthChar(n)) != 0)
 				{
@@ -446,7 +447,7 @@ public:
 	int		find(const StrValI& s1, int after = -1) const
 			{
 				Index		n = after+1;		// First Index we'll look at
-				Index		last_start = num_chars-s1.length();	// Last possible start position
+				Index		last_start = length()-s1.length();	// Last possible start position
 				const UTF8*	s1start = s1.nthChar(0);
 				const UTF8*	up;
 				while (n <= last_start && (up = nthChar(n)) != 0)
@@ -459,9 +460,9 @@ public:
 			}
 	int		rfind(const StrValI& s1, int before = -1) const
 			{
-				Index		n = before == -1 ? num_chars-s1.length() : before-1;	// First Index we'll look at
-				if (n > num_chars-s1.length())
-					n = num_chars-s1.length();
+				Index		n = before == -1 ? length()-s1.length() : before-1;	// First Index we'll look at
+				if (n > length()-s1.length())
+					n = length()-s1.length();
 
 				const UTF8*	s1start = s1.nthChar(0);
 				const UTF8*	bp;
@@ -494,7 +495,7 @@ public:
 			}
 	int		rfindAny(const StrValI& s1, int before = -1) const
 			{
-				Index		n = before == -1 ? num_chars-1 : before-1;	// First Index we'll look at
+				Index		n = before == -1 ? length()-1 : before-1;	// First Index we'll look at
 				const UTF8*	s1start = s1.nthChar(0);
 				const UTF8*	ep = s1.nthChar(s1.length());	// Byte after the last char in s1
 				const UTF8*	bp;
@@ -531,7 +532,7 @@ public:
 			}
 	int		rfindNot(const StrValI& s1, int before = -1) const
 			{
-				Index		n = (before == -1 ? num_chars : before)-1;	// First Index we'll look at
+				Index		n = (before == -1 ? length() : before)-1;	// First Index we'll look at
 				const UTF8*	s1start = s1.nthChar(0);
 				const UTF8*	ep = s1.nthChar(s1.length());	// Byte after the last char in s1
 				const UTF8*	bp;
@@ -555,8 +556,8 @@ public:
 			{
 				// Handle the rare but important case of extending a slice with a contiguous slice of the same body
 				if (static_cast<Body*>(body) == static_cast<Body*>(addend.body)	// From the same body
-				 && offset+num_chars == addend.offset)	// And this ends where the addend starts
-					return StrValI(body, offset, num_chars+addend.num_chars);
+				 && offset+length() == addend.offset)	// And this ends where the addend starts
+					return StrValI(body, offset, length()+addend.num_chars);
 
 				const UTF8*	cp = nthChar(0);
 				Index		len = numBytes();
@@ -580,7 +581,7 @@ public:
 	// Add, StrValI is modified:
 	StrValI&	operator+=(const StrValI& addend)
 			{
-				if (num_chars == 0 && !addend.isStatic())
+				if (length() == 0 && !addend.isStatic())
 					return *this = addend;		// Just assign, we were empty anyhow
 
 				append(addend);
@@ -601,7 +602,7 @@ public:
 	StrValI		operator*(int repeats)
 			{
 				const char*	first_byte = nthChar(0);
-				const char*	end_byte = nthChar(num_chars);	// Pre-allocate enough memory
+				const char*	end_byte = nthChar(length());	// Pre-allocate enough memory
 				StrValI	res("", 0, (end_byte-first_byte)*repeats+1);
 
 				for (int i = 0; i < repeats; i++)
@@ -612,7 +613,7 @@ public:
 	StrValI&	insert(Index pos, const StrValI& addend)
 			{
 				// Handle the rare but important case of extending a slice with a contiguous slice of the same body
-				if (pos == num_chars			// Appending at the end
+				if (pos == length()			// Appending at the end
 				 && static_cast<Body*>(body) == static_cast<Body*>(addend.body)	// From the same body
 				 && offset+pos == addend.offset)	// And addend starts where we end
 				{
@@ -629,7 +630,7 @@ public:
 				return *this;
 			}
 	StrValI&	append(const StrValI& addend)
-			{ return insert(num_chars, addend); }
+			{ return insert(length(), addend); }
 	StrValI&	prepend(const StrValI& addend)
 			{ return insert(0, addend); }
 
@@ -689,14 +690,14 @@ protected:
 			: body(s1), offset(offs), num_chars(len) { }
 	const char*	nthChar(Index char_num) const	// Return a pointer to the start of the nth character
 			{
-				if (char_num < 0 || char_num > num_chars)
+				if (char_num < 0 || char_num > length())
 					return 0;
 				Bookmark	unsaved = mark;
 				return body->nthChar(offset+char_num, unsaved);
 			}
 	const char*	nthChar(Index char_num)	// Return a pointer to the start of the nth character
 			{
-				if (char_num < 0 || char_num > num_chars)
+				if (char_num < 0 || char_num > length())
 					return 0;
 				return body->nthChar(offset+char_num, mark);
 			}
@@ -714,7 +715,7 @@ private:
 				// Copy only this slice of the body's data, and reset our offset to zero
 				Bookmark	savemark(mark);			// copy the bookmark
 				const UTF8*	cp = nthChar(0);		// start of this substring
-				const UTF8*	ep = nthChar(num_chars);	// end of this substring
+				const UTF8*	ep = nthChar(length());	// end of this substring
 				Index		prefix_bytes = cp - body->nthChar(0, mark); // How many leading bytes of the body we are eliding
 
 				body = new Body(cp, body->isRawBinary() ? StrRawBinary : StrUTF8, ep-cp);
@@ -727,7 +728,7 @@ private:
 			{
 				// A substring on Unallocated memory which is the last remaining ref
 				// cannot be terminated correctly, so must be copied even if unshared
-				bool	must_copy_static = body->isStatic() && offset+num_chars < body->numChars();
+				bool	must_copy_static = body->isStatic() && offset+length() < body->numChars();
 				if (must_copy_static || body->isShared())
 					copyBody();
 			}
@@ -871,7 +872,7 @@ StrValI<Index>& StrValI<Index>::transform(const std::function<StrValI(const UTF8
 {
 	Unshare();
 	body->transform(xform, after);
-	num_chars = body->numChars();
+	num_chars = length();
 	mark = Bookmark();
 	return *this;
 }
