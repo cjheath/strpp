@@ -188,6 +188,7 @@ public:	void		insertBytes(Index pos, const char* addend, Index len)
 				transform(
 					[&](const UTF8*& cp, const UTF8* ep) -> Val
 					{
+						// REVISIT: Handle StrRawBinary data
 						UCS4	ch = UTF8Get(cp);	// Get UCS4 character
 						ch = UCS4ToLower(ch);		// Transform it
 						UTF8*	op = one_char;		// Pack it into our local buffer
@@ -206,6 +207,7 @@ public:	void		insertBytes(Index pos, const char* addend, Index len)
 				transform(
 					[&](const UTF8*& cp, const UTF8* ep) -> Val
 					{
+						// REVISIT: Handle StrRawBinary data
 						UCS4	ch = UTF8Get(cp);	// Get UCS4 character
 						ch = UCS4ToUpper(ch);		// Transform it
 						UTF8*	op = one_char;		// Pack it into our local buffer
@@ -261,12 +263,92 @@ class StrValB
 {
 };
 
+/*
+ * A StrRefI encapsulated a counted reference to a StrBody but contains no data access nor mutation.
+ * It is used merely to pass around strings (e.g. in a Variant) without also carrying an unnecessary Bookmark
+ */
 template<typename Index>
-class StrValI
+class StrRefI
 {
-	using Bookmark = StrBookmark<Index>;
 	using Body = StrBodyI<Index>;
 public:
+	~StrRefI() {}			// Destructor
+	StrRefI()			// Empty string
+			: body(&Body::nullBody)
+			, offset(0)
+			, num_chars(0)
+			{}
+	StrRefI(const StrRefI& s1)	// Normal copy constructor
+			: body(s1.body), offset(s1.offset), num_chars(s1.num_chars)
+			{
+			}
+
+	StrRefI(const char* data, StrDataType dt = StrUTF8)	// construct by copying NUL-terminated data
+			: body(data == 0 || data[0] == '\0' ? &Body::nullBody : new Body(data, dt))
+			, offset(0)
+			, num_chars(body->numChars())
+			{
+			}
+	StrRefI(const char* data, Index length, size_t allocate = 0) // construct from length-terminated char data
+			: body(0)
+			, offset(0)
+			, num_chars(0)
+			{
+				if (allocate <= length)
+					allocate = 0;
+				if (length == 0)
+					body = &Body::nullBody;	// Don't use strlen!
+				else
+					body = new Body(data, StrUTF8, length, allocate);
+				num_chars = body->numChars();
+			}
+	StrRefI(UCS4 character)		// construct from single-character string
+			: body(0), offset(0), num_chars(0)
+			{
+				// REVISIT: Handle StrRawBinary data
+				UTF8	one_char[7];
+				UTF8*	op = one_char;		// Pack it into our local buffer
+				UTF8Put(op, character);
+				*op = '\0';
+				body = new Body(one_char, StrUTF8, op-one_char);
+				num_chars = 1;
+			}
+	StrRefI(Body* s1)		// New reference to same string body; used for static strings
+			: body(s1), offset(0), num_chars(s1->numChars()) { }
+
+	StrRefI& operator=(const StrRefI& s1) // Assignment operator
+			{
+				body = s1.body;
+				offset = s1.offset;
+				num_chars = s1.num_chars;
+				return *this;
+			}
+
+	Index		length() const { return num_chars; }	// Number of chars
+	bool		isEmpty() const { return length() == 0; } // equals empty string?
+	operator bool() const { return !isEmpty(); }
+
+protected:
+	StrRefI(Body* s1, Index offs, Index len)	// offs/len not bounds-checked!
+			: body(s1), offset(offs), num_chars(len) {}
+
+	Ref<Body>	body;		// The storage structure for the character data
+	Index		offset;		// What char number we start at
+	Index		num_chars;	// How many chars we include in this slice
+};
+
+template<typename Index>
+class StrValI
+: public StrRefI<Index>
+{
+	using Bookmark = StrBookmark<Index>;
+	using Base = StrRefI<Index>;
+	using Body = StrBodyI<Index>;
+	using Base::body;
+	using Base::num_chars;
+	using Base::offset;
+public:
+	using Base::length;
 	typedef enum {
 		CompareRaw,		// No processing, just the characters
 		CompareCI,		// Case independent
@@ -278,60 +360,27 @@ public:
 	static const StrValI	null;
 
 	~StrValI() {}			// Destructor
-	StrValI()			// Empty string
-			: body(&Body::nullBody)
-			, offset(0)
-			, num_chars(0)
-			{}
+	StrValI() : Base() {}		// Empty string
 	StrValI(const StrValI& s1)	// Normal copy constructor
-			: body(s1.body), offset(s1.offset), num_chars(s1.num_chars)
+			: Base(s1)
 			{
 				if (s1.body->isStatic())	// Must not copy a reference to a non-allocated body
 					Unshare();
 			}
 
 	StrValI(const char* data, StrDataType dt = StrUTF8)	// construct by copying NUL-terminated data
-			: body(data == 0 || data[0] == '\0' ? &Body::nullBody : new Body(data, dt))
-			, offset(0)
-			, num_chars(body->numChars())
+			: Base(data, dt)
 			{
 			}
 	StrValI(const char* data, Index length, size_t allocate = 0) // construct from length-terminated char data
-			: body(0)
-			, offset(0)
-			, num_chars(0)
+			: Base(data, length, allocate)
 			, mark()
 			{
-				if (allocate <= length)
-					allocate = 0;
-				if (length == 0)
-					body = &Body::nullBody;	// Don't use strlen!
-				else
-					body = new Body(data, StrUTF8, length, allocate);
-				num_chars = body->numChars();
 			}
 	StrValI(UCS4 character)		// construct from single-character string
-			: body(0), offset(0), num_chars(0)
-			{
-				UTF8	one_char[7];
-				UTF8*	op = one_char;		// Pack it into our local buffer
-				UTF8Put(op, character);
-				*op = '\0';
-				body = new Body(one_char, StrUTF8, op-one_char);
-				num_chars = 1;
-			}
-	StrValI(Body* s1)		// New reference to same string body; used for static strings
-			: body(s1), offset(0), num_chars(s1->numChars()) { }
-
-	StrValI& operator=(const StrValI& s1) // Assignment operator
-			{
-				body = s1.body;
-				offset = s1.offset;
-				num_chars = s1.num_chars;
-				if (s1.body->isStatic())	// Must not copy a reference to a non-allocated body
-					Unshare();
-				return *this;
-			}
+			: Base(character)
+			{}
+	StrValI(Body* s1) : Base(s1) {}	// New reference to same string body; used for static strings
 
 	Index		numBytes() const
 			{
@@ -339,9 +388,6 @@ public:
 				assert(ep);
 				return ep-nthChar(0);
 			}
-	Index		length() const { return num_chars; }	// Number of chars
-	bool		isEmpty() const { return length() == 0; } // equals empty string?
-	operator bool() const { return !isEmpty(); }
 
 	// Access the characters and UTF8 value:
 	UCS4		operator[](int charNum) const
@@ -351,6 +397,7 @@ public:
 				const UTF8*	cp = nthChar(charNum);
 				if (!cp)
 					return UCS4_NONE;
+				// REVISIT: Handle StrRawBinary data
 				return UTF8Get(cp);
 			}
 	const UTF8*	asUTF8()	// Null terminated. Must unshare data if it's a substring with elided suffix
@@ -422,6 +469,7 @@ public:
 				const UTF8*	up;
 				while ((up = nthChar(n)) != 0)
 				{
+					// REVISIT: Handle StrRawBinary data
 					if (ch == UTF8Get(up))
 						return n;		// Found at n
 					n++;
@@ -435,6 +483,7 @@ public:
 				const UTF8*	bp;
 				while ((bp = nthChar(n)) != 0)
 				{
+					// REVISIT: Handle StrRawBinary data
 					if (ch == UTF8Get(bp))
 						return n;		// Found at n
 					n--;
@@ -484,6 +533,7 @@ public:
 				const UTF8*	up;
 				while ((up = nthChar(n)) != 0)
 				{
+					// REVISIT: Handle StrRawBinary data
 					UCS4	ch = UTF8Get(up);
 					for (const UTF8* op = s1start; op < ep; n++)
 						if (ch == UTF8Get(op))
@@ -501,6 +551,7 @@ public:
 				const UTF8*	bp;
 				while ((bp = nthChar(n)) != 0)
 				{
+					// REVISIT: Handle StrRawBinary data
 					UCS4	ch = UTF8Get(bp);
 					for (const UTF8* op = s1start; op < ep; n++)
 						if (ch == UTF8Get(op))
@@ -519,6 +570,7 @@ public:
 				const UTF8*	up;
 				while ((up = nthChar(n)) != 0)
 				{
+					// REVISIT: Handle StrRawBinary data
 					UCS4	ch = UTF8Get(up);
 					for (const UTF8* op = s1start; op < ep; n++)
 						if (ch == UTF8Get(op))
@@ -538,6 +590,7 @@ public:
 				const UTF8*	bp;
 				while ((bp = nthChar(n)) != 0)
 				{
+					// REVISIT: Handle StrRawBinary data
 					UCS4	ch = UTF8Get(bp);
 					for (const UTF8* op = s1start; op < ep; n++)
 						if (ch == UTF8Get(op))
@@ -559,6 +612,7 @@ public:
 				 && offset+length() == addend.offset)	// And this ends where the addend starts
 					return StrValI(body, offset, length()+addend.num_chars);
 
+				// REVISIT: Handle StrRawBinary data in one string but not the other
 				const UTF8*	cp = nthChar(0);
 				Index		len = numBytes();
 				StrValI		str(cp, len, len+addend.numBytes());
@@ -568,6 +622,7 @@ public:
 			}
 	StrValI		operator+(UCS4 addend) const
 			{
+				// REVISIT: Handle StrRawBinary data
 				// Convert addend using a stack-local buffer to save allocation here.
 				UTF8	buf[7];				// Enough for 6-byte content plus a NUL
 				UTF8*	cp = buf;
@@ -589,6 +644,7 @@ public:
 			}
 	StrValI&	operator+=(UCS4 addend)
 			{
+				// REVISIT: Handle StrRawBinary data
 				// Convert addend using a stack-local buffer to save allocation here.
 				UTF8	buf[7];				// Enough for 6-byte content plus a NUL
 				UTF8*	cp = buf;
@@ -654,7 +710,7 @@ public:
 	StrValI		asJSON() const { StrValI json(*this); json.toJSON(); return json; }
 	StrValI&	toJSON()
 			{
-				Unshare();	// REVISIT: Unshare only when first change must be made
+				Unshare();
 				body->toJSON();
 				num_chars = body->numChars();
 				return *this;
@@ -687,7 +743,7 @@ public:
 
 protected:
 	StrValI(Body* s1, Index offs, Index len)	// offs/len not bounds-checked!
-			: body(s1), offset(offs), num_chars(len) { }
+			: Base(s1, offs, len) { }
 	const char*	nthChar(Index char_num) const	// Return a pointer to the start of the nth character
 			{
 				if (char_num < 0 || char_num > length())
@@ -705,9 +761,6 @@ protected:
 			{ return body->isStatic(); }
 
 private:
-	Ref<Body>	body;		// The storage structure for the character data
-	Index		offset;		// What char number we start at
-	Index		num_chars;	// How many chars we include in this slice
 	Bookmark	mark;
 
 	void		copyBody()
@@ -850,6 +903,7 @@ void StrBodyI<Index>::transform(const std::function<Val(const UTF8*& cp, const U
 		}
 		else
 		{		// Just copy one character and move on
+			// REVISIT: Handle StrRawBinary data
 			UCS4	ch = UTF8Get(up);	// Get UCS4 character
 			processed_chars++;
 			if (num_alloc < (op-start+6+1))
@@ -1035,6 +1089,7 @@ StrBodyI<Index>::toJSON()
 	transform(
 		[&](const UTF8*& cp, const UTF8* ep) -> Val
 		{
+			// REVISIT: Handle StrRawBinary data
 			UCS4	ch = UTF8Get(cp);	// Get UCS4 character
 			UTF8*	op = one_char;		// Pack it into our local buffer
 			switch (ch)
@@ -1063,6 +1118,7 @@ StrBodyI<Index>::toJSON()
 				// a control-char, \, ' or a surrogate, but we don't have to do that.
 				// Here we leave valid UTF-16 characters inline, represented as UTF-8
 
+				// REVISIT: Handle StrRawBinary data
 				// if (ch >= ' ' && ch < 128)					// ASCII but not ctl
 				// if (ch >= ' ' && ch < 256)					// ISO8859-1 but not ctl
 				if (ch >= ' ' && ch <= 0xFFFF && (ch & ~0x7FF) != 0xD800)	// Not ctl, emoji or surrogate 
