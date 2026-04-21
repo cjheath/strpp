@@ -10,6 +10,7 @@ main(int argc, const char** argv)
 	start_recording_allocations();
 
 	printf("sizeof(Variant) == %ld\n", sizeof(Variant));
+	printf("sizeof(StrRef) == %ld\n", sizeof(StrRef));
 	printf("sizeof(StrVal) == %ld\n", sizeof(StrVal));
 	printf("sizeof(StringArray) == %ld\n", sizeof(StringArray));
 	printf("sizeof(VariantArray) == %ld\n", sizeof(VariantArray));

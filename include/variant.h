@@ -65,10 +65,10 @@ public:
 	{ _type = Long; u.l = _l; }
 	Variant(long long _ll)						// LongLong
 	{ _type = LongLong; u.ll = _ll; }
-	Variant(StrVal v)						// StrVal
-	{ _type = String; new(&u.str) StrVal(v); }
-	Variant(const char* s)						// StrVal
-	{ _type = String; new(&u.str) StrVal(s); }
+	Variant(StrVal v)						// StrRef
+	{ _type = String; new(&u.str) StrRef(v); }
+	Variant(const char* s)						// StrRef
+	{ _type = String; new(&u.str) StrRef(s); }
 	Variant(StringArray a)						// StrArray
 	{ _type = StrArray; new(&u.str_arr) StringArray(a); }
 	Variant(StrVal* v, StringArray::Index count)
@@ -99,7 +99,7 @@ public:
 		case LongLong:
 			return;		// The union u has been zeroed already
 
-		case String:		new(&u.str) StrVal(); break;
+		case String:		new(&u.str) StrRef(); break;
 		case StrArray:		new(&u.str_arr) StringArray(); break;
 		case VarArray:		new(&u.var_arr) VariantArray(); break;
 		case StrVarMap:		new(&u.var_map) StrVariantMap(); break;
@@ -117,7 +117,7 @@ public:
 		case Integer:		u.i = v.as_int(); break;
 		case Long:		u.l = v.as_long(); break;
 		case LongLong:		u.ll = v.as_longlong(); break;
-		case String:		new(&u.str) StrVal(v.as_strval()); break;
+		case String:		new(&u.str) StrRef(v.as_strval()); break;
 		case StrArray:		new(&u.str_arr) StringArray(v.as_string_array()); break;
 		case VarArray:		new(&u.var_arr) VariantArray(v.as_variant_array()); break;
 		case StrVarMap:		new(&u.var_map) StrVariantMap(v.as_variant_map()); break;
@@ -135,7 +135,7 @@ public:
 		case Integer:		u.i = v.as_int(); break;
 		case Long:		u.l = v.as_long(); break;
 		case LongLong:		u.ll = v.as_longlong(); break;
-		case String:		new(&u.str) StrVal(v.as_strval()); break;
+		case String:		new(&u.str) StrRef(v.as_strval()); break;
 		case StrArray:		new(&u.str_arr) StringArray(v.as_string_array()); break;
 		case VarArray:		new(&u.var_arr) VariantArray(v.as_variant_array()); break;
 		case StrVarMap:		new(&u.var_map) StrVariantMap(v.as_variant_map()); break;
@@ -200,7 +200,7 @@ public:
 			return buf;
 
 		case String:
-			return StrVal("\"")+u.str.asJSON()+"\"";
+			return StrVal("\"")+StrVal(u.str).asJSON()+"\"";
 
 		case StrArray:
 			{
@@ -248,7 +248,7 @@ protected:
 		case LongLong:		
 			break;		// Nothing to do
 
-		case String:		u.str.~StrVal(); break;
+		case String:		u.str.~StrRef(); break;
 		case StrArray:		u.str_arr.~StringArray(); break;
 		case VarArray:		u.var_arr.~VariantArray(); break;
 		case StrVarMap:		u.var_map.~StrVariantMap(); break;
@@ -283,7 +283,7 @@ protected:
 					u.i = (int)u.l; return;
 			case LongLong:	if (u.ll != (int)u.ll) break;	// Fail if it would truncate
 					u.i = (int)u.ll; return;
-			case String:	i32 = u.str.asInt32(&e, 0);
+			case String:	i32 = StrVal(u.str).asInt32(&e, 0);
 					if (!e)				// Some error in conversion
 						break;
 					u.i = i32;
@@ -304,7 +304,7 @@ protected:
 			case Long:	return; // Already handled
 			case LongLong:	if (u.ll != (long)u.ll) break;	// Fail if it would truncate
 					u.l = (long)u.ll; return;
-			case String:	i32 = u.str.asInt32(&e, 0);	// REVISIT: int32 only, or it fails
+			case String:	i32 = StrVal(u.str).asInt32(&e, 0);	// REVISIT: int32 only, or it fails
 					if (!e)				// Some error in conversion
 						break;
 					u.l = i32;
@@ -324,7 +324,7 @@ protected:
 			case Integer:	u.l = u.i; return;
 			case Long:	u.ll = u.l; return;
 			case LongLong:	return; // Already handled
-			case String:	i32 = u.str.asInt32(&e, 0);	// REVISIT: int32 only, or it fails
+			case String:	i32 = StrVal(u.str).asInt32(&e, 0);	// REVISIT: int32 only, or it fails
 					if (e)				// Some error in conversion
 						break;
 					u.ll = i32;
@@ -382,7 +382,7 @@ protected:
 		int		i;
 		long		l;
 		long long	ll;
-		StrVal		str;
+		StrRef		str;
 		StringArray	str_arr;
 		VariantArray	var_arr;
 		StrVariantMap	var_map;
