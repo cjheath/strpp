@@ -86,7 +86,7 @@ public:
 
 	inline bool	isShared() const			// It's not just this StrVal using this Body
 			{ return ref_count > 1; }
-	bool		isUnallocated() const			// True if we're allowed to pek at memory we don't own
+	bool		isUnallocated() const			// True if we're allowed to peek at memory we don't own
 			{ return num_alloc == 0; }
 	bool		isNulTerminated() const			// If we allocated memory, it's always terminated
 			{ return num_alloc > 0 || start[num_elements] == '\0'; }
@@ -105,17 +105,20 @@ public:
 			// Return a pointer to the start of the nth character
 	char*		nthChar(Index char_num, Bookmark& mark)
 			{
-				int		end_char;	// starting char number for backward search
-
-				if (char_num < 0 || char_num > (end_char = numChars())) // numChars() counts the string if necessary
+				if (char_num < 0)	// Check char_num is in range.
 				{
-					assert(char_num >= 0 && char_num <= end_char);
+			bad_offset:	assert(char_num >= 0 && char_num <= end_char);
 					return (char*)0;
 				}
 
 				if (isRawBinary()
+				 || char_num == 0		// Fast path for first char
 				 || num_chars == num_elements-1) // ASCII data only, use direct index!
 					return start+char_num;
+
+				int		end_char = numChars();	// count the string if necessary
+				if (char_num > end_char)	// Check char_num is in range.
+					goto bad_offset;
 
 				char*		up;		// starting pointer for forward search
 				int		start_char;	// starting char number for forward search
@@ -169,7 +172,6 @@ public:
 				}
 				return up;
 			}
-	UTF8*		startChar() const { return static_cast<UTF8*>(start); }
 	UTF8*		endChar() const { return start+num_elements-1; }
 private:		// Prevent accidental use of Array insert by outsiders
 	void		insert(Index pos, const char* addend, Index len) { Body::insert(pos, addend, len); }
@@ -715,7 +717,7 @@ private:
 				Bookmark	savemark(mark);			// copy the bookmark
 				const UTF8*	cp = nthChar(0);		// start of this substring
 				const UTF8*	ep = nthChar(num_chars);	// end of this substring
-				Index		prefix_bytes = cp - body->startChar(); // How many leading bytes of the body we are eliding
+				Index		prefix_bytes = cp - body->nthChar(0); // How many leading bytes of the body we are eliding
 
 				body = new Body(cp, body->isRawBinary() ? StrRawBinary : StrUTF8, ep-cp);
 				mark.char_num = savemark.char_num - offset;	// Restore the bookmark
