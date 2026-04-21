@@ -219,7 +219,7 @@ public:
 			}
 	ArrayR&		operator+=(const ArrayR& addend)			// Add, ArrayR is modified:
 			{
-				if (num_elements == 0 && !addend.noCopy())
+				if (num_elements == 0 && !addend.isStatic())
 					return *this = addend;		// Just assign, we were empty anyhow
 
 				append(addend);
@@ -444,7 +444,7 @@ public:
 				assert(offs+len < body->length());
 			}
 protected:
-	bool		noCopy() const;
+	bool		isStatic() const;
 
 private:
 	Ref<Body>	body;		// The storage structure for the elements
@@ -521,7 +521,8 @@ public:
 				}
 			}
 
-	bool		noCopy() const { return num_alloc == 0; }	// This body or its data are transient (borrowed)
+	bool		isStatic() const	// This body or its data are transient (borrowed) not allocated
+			{ return num_alloc == 0 && num_elements > 0; }
 
 	const Element&	operator[](int elem_num) const { assert(elem_num >= 0 && elem_num < num_elements); return start[elem_num]; }
 	Element&	operator[](int elem_num) { assert(elem_num >= 0 && elem_num < num_elements); return start[elem_num]; }
@@ -588,7 +589,7 @@ protected:
 	void		resize(size_t minimum)	// Change the memory allocation
 			{
 				if (minimum <= num_alloc)
-					return;
+					return;		// Never release memory on a downsize
 
 				minimum = ((minimum-1)|0x7)+1;	// round up to multiple of 8
 				if (num_alloc)	// Minimum growth 50% rounded up to nearest 16

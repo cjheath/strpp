@@ -86,10 +86,8 @@ public:
 
 	inline bool	isShared() const			// It's not just this StrVal using this Body
 			{ return ref_count > 1; }
-	bool		isUnallocated() const			// True if we're allowed to peek at memory we don't own
-			{ return num_alloc == 0; }
 	bool		isNulTerminated() const			// If we allocated memory, it's always terminated
-			{ return num_alloc > 0 || start[num_elements] == '\0'; }
+			{ return num_alloc > 0 || start[num_elements-1] == '\0'; }
 	bool		isRawBinary() const
 			{ return num_chars == StrValIndexRawBinaryMarker; }
 
@@ -107,7 +105,7 @@ public:
 			{
 				if (char_num < 0)	// Check char_num is in range.
 				{
-			bad_offset:	assert(char_num >= 0 && char_num <= end_char);
+			bad_offset:	assert(char_num >= 0 && char_num <= numChars());
 					return (char*)0;
 				}
 
@@ -287,7 +285,7 @@ public:
 	StrValI(const StrValI& s1)	// Normal copy constructor
 			: body(s1.body), offset(s1.offset), num_chars(s1.num_chars)
 			{
-				if (s1.body->isUnallocated())	// Must not copy a reference to a non-allocated body
+				if (s1.body->isStatic())	// Must not copy a reference to a non-allocated body
 					Unshare();
 			}
 
@@ -329,7 +327,7 @@ public:
 				body = s1.body;
 				offset = s1.offset;
 				num_chars = s1.num_chars;
-				if (s1.body->isUnallocated())	// Must not copy a reference to a non-allocated body
+				if (s1.body->isStatic())	// Must not copy a reference to a non-allocated body
 					Unshare();
 				return *this;
 			}
@@ -582,7 +580,7 @@ public:
 	// Add, StrValI is modified:
 	StrValI&	operator+=(const StrValI& addend)
 			{
-				if (num_chars == 0 && !addend.noCopy())
+				if (num_chars == 0 && !addend.isStatic())
 					return *this = addend;		// Just assign, we were empty anyhow
 
 				append(addend);
@@ -702,8 +700,8 @@ protected:
 					return 0;
 				return body->nthChar(offset+char_num, mark);
 			}
-	bool		noCopy() const
-			{ return body->noCopy(); }
+	bool		isStatic() const
+			{ return body->isStatic(); }
 
 private:
 	Ref<Body>	body;		// The storage structure for the character data
@@ -717,7 +715,7 @@ private:
 				Bookmark	savemark(mark);			// copy the bookmark
 				const UTF8*	cp = nthChar(0);		// start of this substring
 				const UTF8*	ep = nthChar(num_chars);	// end of this substring
-				Index		prefix_bytes = cp - body->nthChar(0); // How many leading bytes of the body we are eliding
+				Index		prefix_bytes = cp - body->nthChar(0, mark); // How many leading bytes of the body we are eliding
 
 				body = new Body(cp, body->isRawBinary() ? StrRawBinary : StrUTF8, ep-cp);
 				mark.char_num = savemark.char_num - offset;	// Restore the bookmark
@@ -729,8 +727,8 @@ private:
 			{
 				// A substring on Unallocated memory which is the last remaining ref
 				// cannot be terminated correctly, so must be copied even if unshared
-				bool	must_copy_unallocated = body->isUnallocated() && offset+num_chars < body->numChars();
-				if (must_copy_unallocated || body->isShared())
+				bool	must_copy_static = body->isStatic() && offset+num_chars < body->numChars();
+				if (must_copy_static || body->isShared())
 					copyBody();
 			}
 
