@@ -44,6 +44,7 @@ typedef enum {
 #define	STRERR_NOT_NUMBER	ErrNum(STRERR_SET, 4)	// The first non-blank character was non-numeric
 #define	STRERR_ILLEGAL_RADIX	ErrNum(STRERR_SET, 5)	// Use of an unsupported radix
 
+template<typename Index = StrValIndex> class StrRefI;
 template<typename Index = StrValIndex> class StrValI;
 template<typename Index = StrValIndex> struct StrBookmark
 {
@@ -55,6 +56,7 @@ template<typename Index = StrValIndex> struct StrBookmark
 template<typename Index = StrValIndex> class StrBodyI;
 
 typedef	StrValI<>	StrVal;
+typedef	StrRefI<>	StrRef;
 typedef	StrBodyI<>	StrBody;
 
 template<typename Index> class StrBodyI
@@ -366,6 +368,10 @@ public:
 			{
 				if (s1.body->isStatic())	// Must not copy a reference to a non-allocated body
 					Unshare();
+			}
+	StrValI(const StrRefI<Index>& s1)	// Copy from StrRef
+			: Base(s1)
+			{
 			}
 
 	StrValI(const char* data, StrDataType dt = StrUTF8)	// construct by copying NUL-terminated data
