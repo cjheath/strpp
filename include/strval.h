@@ -247,13 +247,6 @@ protected:
 
 template<typename Index> class StrBodyI<Index> StrBodyI<Index>::nullBody("", StrStatic, 0, 0);
 
-// Expose a slice onto the underlying StrBodyI UTF8 storage as an array of bytes
-template<typename Index>
-class CharBufI
-: public Array<char, Index, StrBodyI<Index>>
-{
-};
-
 // A StrVal defined by number of bits in the index:
 template<unsigned int IndexBits = StrValIndexBits>
 class StrValB
@@ -322,33 +315,6 @@ public:
 			}
 	StrValI(Body* s1)		// New reference to same string body; used for static strings
 			: body(s1), offset(0), num_chars(s1->numChars()) { }
-	StrValI(CharBufI<Index> cb)
-			: body(cb.body), offset(cb.offset), num_chars(0)
-			{
-				// If the Slice doesn't start with legal UTF8, we can't represent the result correctly
-				// without Unsharing because we cannot rely on counting characters
-				const UTF8*	cp = body->start+cb.offset;
-				UCS4		ch;
-				if (UCS4IsIllegal(ch = UTF8Get(cp)))
-					Unshare();
-
-				// Find the character offset and number of characters in this CharBuf slice
-				cp = body->start;				// Progress pointer when reading data
-				const UTF8*	dp = cp+offset;			// Start of this CharBuf's data
-				UTF8*		ep = cp+cb.num_elements;	// Marker for end of data
-				while (cp < dp)
-				{		// Skip the offset, counting characters
-					if ((cp = body->nthChar(offset, mark)) && cp >= dp)
-						break;	// This might have skipped into a multi-byte char it we hadn't Unshared
-					offset++;
-				}
-				while (cp < ep)
-				{
-					// Is there another whole UTF8 character before ep?
-					if ((cp = (body->nthChar(offset+num_chars, mark))) < ep)
-						num_chars++;
-				}
-			}
 
 	StrValI& operator=(const StrValI& s1) // Assignment operator
 			{
@@ -358,11 +324,6 @@ public:
 				if (s1.body->isUnallocated())	// Must not copy a reference to a non-allocated body
 					Unshare();
 				return *this;
-			}
-	operator CharBufI<Index>()
-			{
-				const char*	first_byte = nthChar(0);
-				return CharBufI<Index>(body, first_byte, nthChar(num_chars)-first_byte);
 			}
 
 	Index		numBytes() const
