@@ -30,11 +30,11 @@
 
 #define	StrValIndexBits	32
 typedef typename std::conditional<(StrValIndexBits <= 16), uint16_t, uint32_t>::type StrValIndex;
-const	StrValIndex	StrValIndexNonUTF8Marker = ((StrValIndex)-1);	// Marker num_chars for non-UTF8 data
+const	StrValIndex	StrValIndexRawBinaryMarker = ((StrValIndex)-1);	// Marker num_chars for non-UTF8 data
 typedef enum {
 	StrStatic,		// UTF-8 data that's not owned by the Body, may not be NUL-terminated and will not alter
 	StrUTF8,		// UTF-8 data that is allocated internally
-	Str8BitLocale		// Normal character-per-byte data in the locale's 8-bit encoding
+	StrRawBinary		// Normal character-per-byte data in the locale's 8-bit encoding
 } StrDataType;
 
 #define	STRERR_SET		1	// Message set number for StrVal
@@ -77,16 +77,25 @@ public:
 			: Body(data, dt != StrStatic, (length == 0 ? strlen(data) : length)+1, allocate)
 			, num_chars(0)
 			{
-				// assert(num_elements < StrValIndexNonUTF8Marker); // REVISIT: Also assert on resize
+				// assert(num_elements < StrValIndexRawBinaryMarker); // REVISIT: Also assert on resize
 				if (dt != StrStatic && length != 0)
 					start[num_elements-1] = '\0';	// Perhaps we didn't copy a NUL, so add one
-				if (dt == Str8BitLocale)
-					num_chars = StrValIndexNonUTF8Marker;	// one byte = one char, don't count them
+				if (dt == StrRawBinary)
+					num_chars = StrValIndexRawBinaryMarker;	// one byte = one char, don't count them
 			}
+
+	inline bool	isShared() const			// It's not just this StrVal using this Body
+			{ return ref_count > 1; }
+	bool		isUnallocated() const			// True if we're allowed to pek at memory we don't own
+			{ return num_alloc == 0; }
+	bool		isNulTerminated() const			// If we allocated memory, it's always terminated
+			{ return num_alloc > 0 || start[num_elements] == '\0'; }
+	bool		isRawBinary() const
+			{ return num_chars == StrValIndexRawBinaryMarker; }
 
 	Index		numChars()
 			{
-				if (num_chars == StrValIndexNonUTF8Marker)
+				if (isRawBinary())
 					return num_elements-1;		// The Array always assumes a NUL is present
 				if (num_chars == 0 && num_elements > 0)
 					countChars();
@@ -104,7 +113,7 @@ public:
 					return (char*)0;
 				}
 
-				if (num_chars == StrValIndexNonUTF8Marker	// Locale 8-bit data
+				if (isRawBinary()
 				 || num_chars == num_elements-1) // ASCII data only, use direct index!
 					return start+char_num;
 
@@ -162,14 +171,12 @@ public:
 			}
 	UTF8*		startChar() const { return static_cast<UTF8*>(start); }
 	UTF8*		endChar() const { return start+num_elements-1; }
-	bool		isNulTerminated() const				// If we allocated memory, it's always terminated
-			{ return num_alloc > 0 || start[num_elements] == '\0'; }
 private:		// Prevent accidental use of Array insert by outsiders
 	void		insert(Index pos, const char* addend, Index len) { Body::insert(pos, addend, len); }
 public:	void		insertBytes(Index pos, const char* addend, Index len)
 			{
 				Body::insert(pos, addend, len);
-				if (num_chars != StrValIndexNonUTF8Marker)	// Locale 8-bit data only
+				if (!isRawBinary())
 					num_chars = 0;	// Force a re-count
 			}
 	void		transform(const std::function<Val(const UTF8*& cp, const UTF8* ep)> xform, int after = -1);
@@ -222,13 +229,12 @@ public:	void		insertBytes(Index pos, const char* addend, Index len)
 				num_alloc = 0;
 				return *this;
 			}
-	bool		isUnallocated() { return num_alloc == 0; }
 
 protected:
-	Index		num_chars;	// zero if not yet counted, StrValIndexNonUTF8Marker if locale-8bit
+	Index		num_chars;	// zero if not yet counted, StrValIndexRawBinaryMarker if locale-8bit
 	void		countChars()
 			{
-				if (num_chars == StrValIndexNonUTF8Marker)	// Locale 8-bit data only, don't count
+				if (isRawBinary())
 					return;
 
 				const UTF8*	cp = start;		// Progress pointer when reading data
@@ -335,8 +341,6 @@ public:
 	Index		length() const { return num_chars; }	// Number of chars
 	bool		isEmpty() const { return length() == 0; } // equals empty string?
 	operator bool() const { return !isEmpty(); }
-	inline bool	isShared() const
-			{ return body->GetRefCount() > 1; }
 
 	// Access the characters and UTF8 value:
 	UCS4		operator[](int charNum) const
@@ -350,14 +354,9 @@ public:
 			}
 	const UTF8*	asUTF8()	// Null terminated. Must unshare data if it's a substring with elided suffix
 			{
-				const	UTF8*	ep = nthChar(num_chars);	// Pointer to end of this slice's data
-				if (ep < body->endChar()			// The body has more data following that
-				 || !body->isNulTerminated())			// It's a static body with no existing terminator
-				{
-					Unshare();
-					// If we are the last reference and a substring, we might not be terminated
-					*body->nthChar(num_chars, mark) = '\0';	// This uses the bookmark just set
-				}
+				if (offset+num_chars < body->numChars()	// Substring ends before body does
+				 || !body->isNulTerminated())		// Body wasn't terminated anyhow
+				 	copyBody();
 				return nthChar(0);
 			}
 	const UTF8*	asUTF8(Index& bytes) const	// Returns the bytes, but doesn't guarantee NUL termination
@@ -622,9 +621,10 @@ public:
 				}
 
 				Unshare();
-				Index		addend_length;
+				Index		addend_length;		// Get length in bytes
 				const UTF8*	ap = addend.asUTF8(addend_length);
 				body->insertBytes(nthChar(pos)-nthChar(0), ap, addend_length);
+				// REVISIT: update or nullify the bookmark if after insertion point
 				num_chars += addend.length();
 				return *this;
 			}
@@ -709,21 +709,27 @@ private:
 	Index		num_chars;	// How many chars we include in this slice
 	Bookmark	mark;
 
-	void		Unshare()
+	void		copyBody()
 			{
-				if (body->GetRefCount() <= 1)
-					return;
-
 				// Copy only this slice of the body's data, and reset our offset to zero
 				Bookmark	savemark(mark);			// copy the bookmark
 				const UTF8*	cp = nthChar(0);		// start of this substring
 				const UTF8*	ep = nthChar(num_chars);	// end of this substring
 				Index		prefix_bytes = cp - body->startChar(); // How many leading bytes of the body we are eliding
 
-				body = new Body(cp, StrUTF8, ep-cp);
+				body = new Body(cp, body->isRawBinary() ? StrRawBinary : StrUTF8, ep-cp);
 				mark.char_num = savemark.char_num - offset;	// Restore the bookmark
 				mark.byte_num = savemark.byte_num - prefix_bytes;
 				offset = 0;
+			}
+
+	void		Unshare()
+			{
+				// A substring on Unallocated memory which is the last remaining ref
+				// cannot be terminated correctly, so must be copied even if unshared
+				bool	must_copy_unallocated = body->isUnallocated() && offset+num_chars < body->numChars();
+				if (must_copy_unallocated || body->isShared())
+					copyBody();
 			}
 
 	static int HexAlpha(UCS4 ch)
