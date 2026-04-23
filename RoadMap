@@ -1,0 +1,104 @@
+Quality
+        ASAN (Address Sanitiser)
+
+StrVal
+	Option to use 8-bit char instead of UTF8
+		Modify UTF8* as used in transform etc
+		Provide alternate get-char, put-char, etc, API
+	StrVal::format() (requires ArgList)
+	IndexSize parameter (16/32) with compile-time overridable default
+
+Variant
+	Boolean, Float & Double
+	Bignum?
+
+ArgList
+	Re-initialises per-thread singleton VariantArray for construction
+
+COWMap
+	returns using Tuple?
+	Implement using pure functional RBTree to minimise copying (each node RefCounted)
+
+Threads
+	Thread-local error buffers
+	Thread-local ArgList stack
+	TLS Zone allocator?
+
+RefCount
+	High-concurrency version (non-atomic until referenced by 2nd thread)
+		Add OnlyVisibleToThreadId, single-thread-counter, threaded-counter, per Python impl
+	Reference passing using move constructor
+		Ref<T>(Ref<T>&& other) <- invalidates "other" (becomes a NULL reference)
+		Val v = something; func(v); return <- doesn't need refcount == 2 (forcing func to copy on mutate)
+		Val v = something; func(v.pass()); return
+			After pass(), v may not be used -> exception
+			Can this even work?
+
+Error
+	TLS tombstone
+	ArgList Parameter list for Error
+	Compiler/generator (from ADL? Using Px?)
+
+Pegex
+	Bugs
+		?'Lit':tag doesn't parse correctly, requires ?('Lit':tag)
+	Captures
+		Use captured variables for repetition
+	Substream (parallel) parsing
+	Implement \z to match NUL
+
+Peg
+	Px
+		Use table offsets not name-lookup
+		Generate
+			TextMate syntax recognisers
+			Generator
+		Implement \z to match NUL
+	Implement {multiplicity}
+	Saved Variables
+		Values accessable from:
+			parent rule
+			inside a child
+			local value
+			{multiplicity}
+		Convert captures decimal->numeric?
+	Action functions - find an example or delete
+	Whitespace(comment) capture and regenerate for pretty-printing
+	Rules in C++ (for ADL assignments)
+
+Streams
+	StreamFork (Stream can be copied, copies can always read forward even if in buffer)
+
+Date&Time
+
+Net
+	UDP
+	TCP
+	HTTP
+	FCGI
+
+Constellation
+	Needs Singleton/fixed-Cardinality objects
+
+Program Configuration
+	Configuration description Language (in ADL)
+		should include what types of config file to process:
+			~/.PROG_rc
+			~/.PROG/configuration.rc
+			/usr/local/etc/PROG.rc
+		Commandline options and Usage text
+	Configuration sources
+		Build variables
+		System RC files
+		User RC files
+		Environment variables
+		CommandLine options
+	Generate
+		To a Constellation-type object
+			Must be able to save preference changes
+		To Makefile includes
+
+
+WebAssembly
+        https://pengowray.github.io/wasm-ops/
+
