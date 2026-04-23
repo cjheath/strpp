@@ -235,6 +235,14 @@ public:
 		}
 	}
 
+	VariantArray operator <<(const Variant& n) const
+	{
+		VariantArray	a;
+		a.append(*this);
+		a.append(n);
+		return a;
+	}
+
 protected:
 	// Discard any value and nullify the type
 	void	coerce_none()

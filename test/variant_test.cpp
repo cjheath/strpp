@@ -25,6 +25,11 @@ main(int argc, const char** argv)
 	return 0;
 }
 
+void variant_array_from_param(VariantArray a)
+{
+	printf("VariantArray from param = %s\n", Variant(a).as_json().asUTF8());
+}
+
 void variant_array_tests()
 {
 	VariantArray	va;
@@ -50,6 +55,21 @@ void variant_array_tests()
 	va << va2;
 	va << map;
 	printf("VariantArray = %s\n", Variant(va).as_json().asUTF8());
+
+	va.clear();
+
+	va = Variant(23) << "appendage";	// Get an array by appending to a Variant
+	va << 1234567890123456789LL;		// And again
+	printf("VariantArray from append = %s\n", Variant(va).as_json().asUTF8());
+
+	VariantArray	na("boo");		// Construct from value coerced to Variant
+	na << va[2];				// Append a 2nd value
+	printf("VariantArray from element = %s\n", Variant(na).as_json().asUTF8());
+
+	// variant_array_from_param("bah");	// Unfortunately this doesn't work
+	variant_array_from_param(VariantArray("baz") << 31);	// This does.
+	variant_array_from_param(VariantArray() << "bah" << 47);	// This does.
+	variant_array_from_param(Variant(29));
 }
 
 void variant_tests()

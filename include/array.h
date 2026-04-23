@@ -48,6 +48,9 @@ public:
 			: body(_body), offset(0), num_elements(_body->length()) {}
 	ArrayR& operator=(const ArrayR& s1) // Assignment operator
 			{ body = s1.body; offset = s1.offset; num_elements = s1.num_elements; return *this; }
+	ArrayR(const Element data)	// construct array of one element only
+			: body(new Body(&data, true, 1)), offset(0), num_elements(1)
+			{}
 
 	Index		length() const
 			{ return num_elements; }
@@ -481,6 +484,10 @@ public:
 	// New slice:
 	Array(typename Base::Body* body, Index offs, Index len)	// offs/len not bounds-checked!
 	: Base(body, offs, len) {}
+	Array(const Element data)	// construct array of one element only
+			: Base(data)
+			{}
+
 };
 
 template<typename E, typename I> class	ArrayBody
