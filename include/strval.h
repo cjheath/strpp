@@ -175,7 +175,7 @@ public:
 				}
 				return up;
 			}
-	UTF8*		endChar() const { return start+num_elements-1; }
+	char*		endChar() const { return start+num_elements-1; }
 private:		// Prevent accidental use of Array insert by outsiders
 	void		insert(Index pos, const char* addend, Index len) { Body::insert(pos, addend, len); }
 public:	void		insertBytes(Index pos, const char* addend, Index len)
@@ -184,20 +184,20 @@ public:	void		insertBytes(Index pos, const char* addend, Index len)
 				if (!isRawBinary())
 					num_chars = 0;	// Force a re-count
 			}
-	void		transform(const std::function<Val(const UTF8*& cp, const UTF8* ep)> xform, int after = -1);
+	void		transform(const std::function<Val(const char*& cp, const char* ep)> xform, int after = -1);
 	void		toLower()
 			{
-				UTF8		one_char[7];
+				char		one_char[7];
 				bool		nonASCII = false;
 				StrBodyI	temp_body;	// No StrVal reference may have a longer lifetime
 				transform(
-					[&](const UTF8*& cp, const UTF8* ep) -> Val
+					[&](const char*& cp, const char* ep) -> Val
 					{
 						// REVISIT: Handle StrRawBinary data
 						UCS4	ch = getChar(cp);
 						ch = UCS4ToLower(ch);		// Transform it
 						nonASCII |= !UCS4IsASCII(ch);
-						UTF8*	op = one_char;		// Pack it into our local buffer
+						char*	op = one_char;		// Pack it into our local buffer
 						UTF8Put(op, ch);
 						*op = '\0';
 						// Assign this to the body in our closure
@@ -205,21 +205,21 @@ public:	void		insertBytes(Index pos, const char* addend, Index len)
 						return Val(&temp_body);
 					}
 				);
-				if (!isRawBinary() && nonASCII)	// Need to convert to UTF8
+				if (!isRawBinary() && nonASCII)	// Need to convert to UTF8 mode
 					num_chars = 0;	// Count the UTF8 bytes we wrote
 			}
 	void		toUpper()
 			{
 				bool		nonASCII = false;
-				UTF8		one_char[7];
+				char		one_char[7];
 				StrBodyI	temp_body;	// No StrVal reference may have a longer lifetime
 				transform(
-					[&](const UTF8*& cp, const UTF8* ep) -> Val
+					[&](const char*& cp, const char* ep) -> Val
 					{
 						UCS4	ch = getChar(cp);
 						ch = UCS4ToUpper(ch);		// Transform it
 						nonASCII |= !UCS4IsASCII(ch);
-						UTF8*	op = one_char;		// Pack it into our local buffer
+						char*	op = one_char;		// Pack it into our local buffer
 						UTF8Put(op, ch);
 						*op = '\0';
 
@@ -228,7 +228,7 @@ public:	void		insertBytes(Index pos, const char* addend, Index len)
 						return Val(&temp_body);
 					}
 				);
-				if (!isRawBinary() && nonASCII)	// Need to convert to UTF8
+				if (!isRawBinary() && nonASCII)	// Need to convert to UTF8 mode
 					num_chars = 0;	// Count the UTF8 bytes we wrote
 			}
 	void		toJSON();
@@ -251,8 +251,8 @@ protected:
 				if (isRawBinary())
 					return;
 
-				const UTF8*	cp = start;		// Progress pointer when reading data
-				UTF8*		ep = start+num_elements-1;	// Marker for end of data
+				const char*	cp = start;		// Progress pointer when reading data
+				char*		ep = start+num_elements-1;	// Marker for end of data
 				while (cp < ep)
 				{
 					UCS4		ch = UTF8Get(cp);
@@ -263,14 +263,14 @@ protected:
 					num_chars++;
 				}
 			}
-	UCS4		getChar(const UTF8*& cp)
+	UCS4		getChar(const char*& cp)
 			{
 				if (isRawBinary())
 					return *cp++;
 				return UTF8Get(cp);
 			}
 
-	void		putChar(UTF8*& cp, UCS4 ch)
+	void		putChar(char*& cp, UCS4 ch)
 			{
 				if (isRawBinary())
 					*cp++ = ch;	// REVISIT: Panic on oversized char
@@ -330,8 +330,8 @@ public:
 			: body(0), offset(0), num_chars(0)
 			{
 				// REVISIT: Handle StrRawBinary data
-				UTF8	one_char[7];
-				UTF8*	op = one_char;		// Pack it into our local buffer
+				char	one_char[7];
+				char*	op = one_char;		// Pack it into our local buffer
 				UTF8Put(op, character);
 				*op = '\0';
 				body = new Body(one_char, StrUTF8, op-one_char);
@@ -423,22 +423,22 @@ public:
 			{
 				if (charNum == length())
 					return '\0';
-				const UTF8*	cp = nthChar(charNum);
+				const char*	cp = nthChar(charNum);
 				if (!cp)
 					return UCS4_NONE;
 				return body->isRawBinary() ? *cp : UTF8Get(cp);
 			}
-	const UTF8*	asUTF8()	// Null terminated. Must unshare data if it's a substring with elided suffix
+	const char*	asUTF8()	// Null terminated. Must unshare data if it's a substring with elided suffix
 			{
 				if (offset+length() < body->numChars() // Substring ends before body does
 				 || !body->isNulTerminated())		// Body wasn't terminated anyhow
 				 	copyBody();
 				return nthChar(0);
 			}
-	const UTF8*	asUTF8(Index& bytes) const	// Returns the bytes, but doesn't guarantee NUL termination
+	const char*	asUTF8(Index& bytes) const	// Returns the bytes, but doesn't guarantee NUL termination
 			{
-				const	UTF8*	cp = nthChar(0);
-				const	UTF8*	ep = nthChar(length());
+				const	char*	cp = nthChar(0);
+				const	char*	ep = nthChar(length());
 				bytes = ep-cp;
 				return cp;
 			}
@@ -494,7 +494,7 @@ public:
 	int		find(UCS4 ch, int after = -1) const
 			{
 				Index		n = after+1;		// First Index we'll look at
-				const UTF8*	up;
+				const char*	up;
 				while ((up = nthChar(n)) != 0)
 				{
 					if (ch == getChar(up))
@@ -507,7 +507,7 @@ public:
 	int		rfind(UCS4 ch, int before = -1) const
 			{
 				Index		n = (before == -1 ? length() : before)-1; // First Index we'll look at
-				const UTF8*	bp;
+				const char*	bp;
 				while ((bp = nthChar(n)) != 0)
 				{
 					if (ch == getChar(bp))
@@ -523,10 +523,11 @@ public:
 			{
 				Index		n = after+1;		// First Index we'll look at
 				Index		last_start = length()-s1.length();	// Last possible start position
-				const UTF8*	s1start = s1.nthChar(0);
-				const UTF8*	up;
+				const char*	s1start = s1.nthChar(0);
+				const char*	up;
 				while (n <= last_start && (up = nthChar(n)) != 0)
 				{
+					// REVISIT: Only works if the StrDataType matches
 					if (memcmp(up, s1start, s1.numBytes()) == 0)
 						return n;
 					n++;
@@ -539,10 +540,11 @@ public:
 				if (n > length()-s1.length())
 					n = length()-s1.length();
 
-				const UTF8*	s1start = s1.nthChar(0);
-				const UTF8*	bp;
+				const char*	s1start = s1.nthChar(0);
+				const char*	bp;
 				while ((bp = nthChar(n)) != 0)
 				{
+					// REVISIT: Only works if the StrDataType matches
 					if (memcmp(bp, s1start, s1.numBytes()) == 0)
 						return n;
 					n--;
@@ -554,7 +556,7 @@ public:
 	int		findAny(const StrValI& s1, int after = -1) const
 			{
 				Index		n = after+1;		// First Index we'll look at
-				const UTF8*	up;
+				const char*	up;
 				while ((up = nthChar(n)) != 0)
 				{
 					UCS4	ch = getChar(up);
@@ -569,7 +571,7 @@ public:
 	int		rfindAny(const StrValI& s1, int before = -1) const
 			{
 				Index		n = before == -1 ? length()-1 : before-1;	// First Index we'll look at
-				const UTF8*	bp;
+				const char*	bp;
 				while ((bp = nthChar(n)) != 0)
 				{
 					UCS4	ch = getChar(bp);
@@ -585,7 +587,7 @@ public:
 	int		findNot(const StrValI& s1, int after = -1) const
 			{
 				Index		n = after+1;		// First Index we'll look at
-				const UTF8*	up;
+				const char*	up;
 				while ((up = nthChar(n)) != 0)
 				{
 					UCS4	ch = getChar(up);
@@ -602,7 +604,7 @@ public:
 	int		rfindNot(const StrValI& s1, int before = -1) const
 			{
 				Index		n = (before == -1 ? length() : before)-1;	// First Index we'll look at
-				const UTF8*	bp;
+				const char*	bp;
 				while ((bp = nthChar(n)) != 0)
 				{
 					UCS4	ch = getChar(bp);
@@ -627,7 +629,7 @@ public:
 					return StrValI(body, offset, length()+addend.num_chars);
 
 				// REVISIT: Handle StrRawBinary data in one string but not the other
-				const UTF8*	cp = nthChar(0);
+				const char*	cp = nthChar(0);
 				Index		len = numBytes();
 				StrValI		str(cp, len, len+addend.numBytes());
 
@@ -638,8 +640,8 @@ public:
 			{
 				// REVISIT: Handle StrRawBinary data
 				// Convert addend using a stack-local buffer to save allocation here.
-				UTF8	buf[7];				// Enough for 6-byte content plus a NUL
-				UTF8*	cp = buf;
+				char	buf[7];				// Enough for 6-byte content plus a NUL
+				char*	cp = buf;
 				UTF8Put(cp, addend);
 				*cp = '\0';
 				Body	body(buf, StrStatic, cp-buf, 1);
@@ -660,8 +662,8 @@ public:
 			{
 				// REVISIT: Handle StrRawBinary data
 				// Convert addend using a stack-local buffer to save allocation here.
-				UTF8	buf[7];				// Enough for 6-byte content plus a NUL
-				UTF8*	cp = buf;
+				char	buf[7];				// Enough for 6-byte content plus a NUL
+				char*	cp = buf;
 				UTF8Put(cp, addend);
 				*cp = '\0';
 				Body	body(buf, StrStatic, cp-buf, 1);
@@ -695,7 +697,7 @@ public:
 
 				// REVISIT: Handle StrRawBinary data
 				Index		addend_length;		// Get length in bytes
-				const UTF8*	ap = addend.asUTF8(addend_length);
+				const char*	ap = addend.asUTF8(addend_length);
 				body->insertBytes(nthChar(pos)-nthChar(0), ap, addend_length);
 				// REVISIT: update or nullify the bookmark if after insertion point
 				num_chars += addend.length();
@@ -722,7 +724,7 @@ public:
 				num_chars = body->numChars();
 				return *this;
 			}
-	StrValI&	transform(const std::function<StrValI(const UTF8*& cp, const UTF8* ep)> xform, int after = -1);
+	StrValI&	transform(const std::function<StrValI(const char*& cp, const char* ep)> xform, int after = -1);
 	StrValI		asJSON() const { StrValI json(*this); json.toJSON(); return json; }
 	StrValI&	toJSON()
 			{
@@ -781,7 +783,7 @@ protected:
 private:
 	Bookmark	mark;
 
-	UCS4		getChar(const UTF8*& cp)
+	UCS4		getChar(const char*& cp)
 			{
 				if (body->isRawBinary())
 					return *cp++;
@@ -791,8 +793,8 @@ private:
 			{
 				// Copy only this slice of the body's data, and reset our offset to zero
 				Bookmark	savemark(mark);			// copy the bookmark
-				const UTF8*	cp = nthChar(0);		// start of this substring
-				const UTF8*	ep = nthChar(length());		// end of this substring
+				const char*	cp = nthChar(0);		// start of this substring
+				const char*	ep = nthChar(length());		// end of this substring
 				Index		prefix_bytes = cp - body->nthChar(0, mark); // How many leading bytes of the body we are eliding
 
 				body = new Body(cp, body->isRawBinary() ? StrRawBinary : StrUTF8, ep-cp);
@@ -881,10 +883,10 @@ template<typename Index = StrValIndex> StrValI<Index> operator+(const char* cp, 
 }
 
 template<typename Index>
-void StrBodyI<Index>::transform(const std::function<Val(const UTF8*& cp, const UTF8* ep)> xform, int after)
+void StrBodyI<Index>::transform(const std::function<Val(const char*& cp, const char* ep)> xform, int after)
 {
 	assert(ref_count <= 1);
-	UTF8*		old_start = start;
+	char*		old_start = start;
 	size_t		old_num_elements = num_elements;
 
 	// Allocate new data, preserving the old
@@ -894,14 +896,14 @@ void StrBodyI<Index>::transform(const std::function<Val(const UTF8*& cp, const U
 	num_alloc = 0;
 	ArrayBody<char, Index>::resize(old_num_elements+6);		// Start with same allocation plus one character space
 
-	const UTF8*	up = old_start;		// Input pointer
-	const UTF8*	ep = old_start+old_num_elements-1;	// Termination guard, points to the NUL
+	const char*	up = old_start;		// Input pointer
+	const char*	ep = old_start+old_num_elements-1;	// Termination guard, points to the NUL
 	Index		processed_chars = 0;	// Total input chars transformed
 	bool		stopped = false;	// Are we done yet?
-	UTF8*		op = start;		// Output pointer
+	char*		op = start;		// Output pointer
 	while (up < ep)
 	{
-		const UTF8*	next = up;
+		const char*	next = up;
 		if (processed_chars+1 > after+1	// Not yet reached the point to start transforming
 		 && !stopped)			// We have stopped transforming
 		{
@@ -920,7 +922,7 @@ void StrBodyI<Index>::transform(const std::function<Val(const UTF8*& cp, const U
 			stopped |= (replaced_bytes == 0);
 
 			Index		replacement_bytes;
-			const UTF8*	rp = replacement.asUTF8(replacement_bytes);
+			const char*	rp = replacement.asUTF8(replacement_bytes);
 			ArrayBody<char, Index>::insert(num_elements, rp, replacement_bytes);
 			num_chars += replacement.length();
 			op = start+num_elements;
@@ -946,7 +948,7 @@ void StrBodyI<Index>::transform(const std::function<Val(const UTF8*& cp, const U
 }
 
 template<typename Index>
-StrValI<Index>& StrValI<Index>::transform(const std::function<StrValI(const UTF8*& cp, const UTF8* ep)> xform, int after)
+StrValI<Index>& StrValI<Index>::transform(const std::function<StrValI(const char*& cp, const char* ep)> xform, int after)
 {
 	Unshare();
 	body->transform(xform, after);
@@ -1106,15 +1108,15 @@ template<typename Index>
 void
 StrBodyI<Index>::toJSON()
 {
-	UTF8		one_char[14];			// \u{12345678} or \u1234\u4321
+	char		one_char[14];			// \u{12345678} or \u1234\u4321
 	StrBodyI	temp_body;
 	static const char hex[] = "0123456789ABCDEF";
 
 	transform(
-		[&](const UTF8*& cp, const UTF8* ep) -> Val
+		[&](const char*& cp, const char* ep) -> Val
 		{
 			UCS4	ch = getChar(cp);
-			UTF8*	op = one_char;		// Pack it into our local buffer
+			char*	op = one_char;		// Pack it into our local buffer
 			switch (ch)
 			{
 			case '\0':	// Null Byte
@@ -1153,7 +1155,7 @@ StrBodyI<Index>::toJSON()
 				}
 
 				// Use \u1234 format, as a surrogate pair if needed, per JSON spec
-				auto	u4 = [](unsigned short u, UTF8*& op){
+				auto	u4 = [](unsigned short u, char*& op){
 						*op++ = '\\';
 						*op++ = 'u';
 						*op++ = hex[(u>>12)&0xF];
