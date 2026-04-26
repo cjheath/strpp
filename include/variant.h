@@ -401,4 +401,6 @@ protected:
 	} u;
 };
 
+#include	<strformat.h>
+
 #endif // VARIANT_H

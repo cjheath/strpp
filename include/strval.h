@@ -58,6 +58,8 @@ template<typename Index = StrValIndex> class StrBodyI;
 typedef	StrValI<>	StrVal;
 typedef	StrRefI<>	StrRef;
 typedef	StrBodyI<>	StrBody;
+class	Variant;
+typedef	Array<Variant>	VariantArray;
 
 template<typename Index> class StrBodyI
 : public ArrayBody<char, Index>
@@ -746,6 +748,8 @@ public:
 				int	radix = 0,	// base for conversion
 				Index*	scanned = 0	// characters scanned
 			) const;
+
+	static StrVal	format(StrVal f, VariantArray args);
 
 protected:
 	StrValI(Body* s1, Index offs, Index len)	// offs/len not bounds-checked!

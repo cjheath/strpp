@@ -5,6 +5,7 @@
  * (c) Copyright Clifford Heath 2022. See LICENSE file for usage rights.
  */
 #include	<strval.h>
+#include	<variant.h>
 
 #include	<cstring>
 #include	<cstdio>
@@ -80,4 +81,7 @@ void tests()
 	printf("square_is_rectangle = %s\n", square_is_rectangle.asUTF8());
 	for (int i = 0; i <= square_is_rectangle.length(); i++)
 		printf("\t%d: U-%04X (%d bytes)\n", i, square_is_rectangle[i], UTF8Len(square_is_rectangle[i]));
+
+	StrVal	formatted = StrVal::format("Value: '%s', length %d", Variant("param1") << 6);
+	printf("formatted = %s\n", formatted.asUTF8());
 }
