@@ -84,4 +84,7 @@ void tests()
 
 	StrVal	formatted = StrVal::format("Value: '%s', length %d", Variant("param1") << 6);
 	printf("formatted = %s\n", formatted.asUTF8());
+
+	StrVal	lower = StrVal("LOWER").asLower();
+	printf("lower = %s\n", lower.asUTF8());
 }

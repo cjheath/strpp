@@ -188,13 +188,15 @@ public:	void		insertBytes(Index pos, const char* addend, Index len)
 	void		toLower()
 			{
 				UTF8		one_char[7];
+				bool		nonASCII = false;
 				StrBodyI	temp_body;	// No StrVal reference may have a longer lifetime
 				transform(
 					[&](const UTF8*& cp, const UTF8* ep) -> Val
 					{
 						// REVISIT: Handle StrRawBinary data
-						UCS4	ch = UTF8Get(cp);	// Get UCS4 character
+						UCS4	ch = getChar(cp);
 						ch = UCS4ToLower(ch);		// Transform it
+						nonASCII |= !UCS4IsASCII(ch);
 						UTF8*	op = one_char;		// Pack it into our local buffer
 						UTF8Put(op, ch);
 						*op = '\0';
@@ -203,17 +205,20 @@ public:	void		insertBytes(Index pos, const char* addend, Index len)
 						return Val(&temp_body);
 					}
 				);
+				if (!isRawBinary() && nonASCII)	// Need to convert to UTF8
+					num_chars = 0;	// Count the UTF8 bytes we wrote
 			}
 	void		toUpper()
 			{
+				bool		nonASCII = false;
 				UTF8		one_char[7];
 				StrBodyI	temp_body;	// No StrVal reference may have a longer lifetime
 				transform(
 					[&](const UTF8*& cp, const UTF8* ep) -> Val
 					{
-						// REVISIT: Handle StrRawBinary data
-						UCS4	ch = UTF8Get(cp);	// Get UCS4 character
+						UCS4	ch = getChar(cp);
 						ch = UCS4ToUpper(ch);		// Transform it
+						nonASCII |= !UCS4IsASCII(ch);
 						UTF8*	op = one_char;		// Pack it into our local buffer
 						UTF8Put(op, ch);
 						*op = '\0';
@@ -223,6 +228,8 @@ public:	void		insertBytes(Index pos, const char* addend, Index len)
 						return Val(&temp_body);
 					}
 				);
+				if (!isRawBinary() && nonASCII)	// Need to convert to UTF8
+					num_chars = 0;	// Count the UTF8 bytes we wrote
 			}
 	void		toJSON();
 
@@ -255,6 +262,19 @@ protected:
 					// Count illegal UTF-8 characters here
 					num_chars++;
 				}
+			}
+	UCS4		getChar(const UTF8*& cp)
+			{
+				if (isRawBinary())
+					return *cp++;
+				return UTF8Get(cp);
+			}
+
+	void		putChar(UTF8*& cp, UCS4 ch)
+			{
+				if (isRawBinary())
+					*cp++ = ch;	// REVISIT: Panic on oversized char
+				UTF8Put(cp, ch);
 			}
 };
 
@@ -398,7 +418,7 @@ public:
 				return ep-nthChar(0);
 			}
 
-	// Access the characters and UTF8 value:
+	// Access the characters and character value:
 	UCS4		operator[](int charNum) const
 			{
 				if (charNum == length())
@@ -486,7 +506,7 @@ public:
 			}
 	int		rfind(UCS4 ch, int before = -1) const
 			{
-				Index		n = (before == -1 ? length() : before)-1;		// First Index we'll look at
+				Index		n = (before == -1 ? length() : before)-1; // First Index we'll look at
 				const UTF8*	bp;
 				while ((bp = nthChar(n)) != 0)
 				{
@@ -1093,8 +1113,7 @@ StrBodyI<Index>::toJSON()
 	transform(
 		[&](const UTF8*& cp, const UTF8* ep) -> Val
 		{
-			// REVISIT: Handle StrRawBinary data
-			UCS4	ch = UTF8Get(cp);	// Get UCS4 character
+			UCS4	ch = getChar(cp);
 			UTF8*	op = one_char;		// Pack it into our local buffer
 			switch (ch)
 			{
@@ -1123,11 +1142,13 @@ StrBodyI<Index>::toJSON()
 				// Here we leave valid UTF-16 characters inline, represented as UTF-8
 
 				// REVISIT: Handle StrRawBinary data
-				// if (ch >= ' ' && ch < 128)					// ASCII but not ctl
-				// if (ch >= ' ' && ch < 256)					// ISO8859-1 but not ctl
-				if (ch >= ' ' && ch <= 0xFFFF && (ch & ~0x7FF) != 0xD800)	// Not ctl, emoji or surrogate 
+				// if (ch >= ' ' && ch < 128)			// ASCII but not ctl
+				// if (ch >= ' ' && ch < 256)			// ISO8859-1 but not ctl
+				if (ch >= ' '
+				 && (ch <= 0xFFFF && !UTF16IsSurrogate(ch))	// Not ctl, emoji or surrogate 
+				  || (ch <= 0xFF && isRawBinary()))		// Just 8-bit
 				{
-					UTF8Put(op, ch);
+					putChar(op, ch);
 					break;
 				}
 
