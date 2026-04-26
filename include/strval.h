@@ -406,8 +406,7 @@ public:
 				const UTF8*	cp = nthChar(charNum);
 				if (!cp)
 					return UCS4_NONE;
-				// REVISIT: Handle StrRawBinary data
-				return UTF8Get(cp);
+				return body->isRawBinary() ? *cp : UTF8Get(cp);
 			}
 	const UTF8*	asUTF8()	// Null terminated. Must unshare data if it's a substring with elided suffix
 			{
@@ -478,8 +477,7 @@ public:
 				const UTF8*	up;
 				while ((up = nthChar(n)) != 0)
 				{
-					// REVISIT: Handle StrRawBinary data
-					if (ch == UTF8Get(up))
+					if (ch == getChar(up))
 						return n;		// Found at n
 					n++;
 				}
@@ -492,8 +490,7 @@ public:
 				const UTF8*	bp;
 				while ((bp = nthChar(n)) != 0)
 				{
-					// REVISIT: Handle StrRawBinary data
-					if (ch == UTF8Get(bp))
+					if (ch == getChar(bp))
 						return n;		// Found at n
 					n--;
 				}
@@ -537,15 +534,12 @@ public:
 	int		findAny(const StrValI& s1, int after = -1) const
 			{
 				Index		n = after+1;		// First Index we'll look at
-				const UTF8*	s1start = s1.nthChar(0);
-				const UTF8*	ep = s1.nthChar(s1.length());	// Byte after the last char in s1
 				const UTF8*	up;
 				while ((up = nthChar(n)) != 0)
 				{
-					// REVISIT: Handle StrRawBinary data
-					UCS4	ch = UTF8Get(up);
-					for (const UTF8* op = s1start; op < ep; n++)
-						if (ch == UTF8Get(op))
+					UCS4	ch = getChar(up);
+					for (Index i = 0; i < s1.length(); i++)
+						if (ch == s1[i])
 							return n;	// Found at n
 					n++;
 				}
@@ -555,15 +549,12 @@ public:
 	int		rfindAny(const StrValI& s1, int before = -1) const
 			{
 				Index		n = before == -1 ? length()-1 : before-1;	// First Index we'll look at
-				const UTF8*	s1start = s1.nthChar(0);
-				const UTF8*	ep = s1.nthChar(s1.length());	// Byte after the last char in s1
 				const UTF8*	bp;
 				while ((bp = nthChar(n)) != 0)
 				{
-					// REVISIT: Handle StrRawBinary data
-					UCS4	ch = UTF8Get(bp);
-					for (const UTF8* op = s1start; op < ep; n++)
-						if (ch == UTF8Get(op))
+					UCS4	ch = getChar(bp);
+					for (Index i = 0; i < s1.length(); i++)
+						if (ch == s1[i])
 							return n;
 					n--;
 				}
@@ -574,15 +565,12 @@ public:
 	int		findNot(const StrValI& s1, int after = -1) const
 			{
 				Index		n = after+1;		// First Index we'll look at
-				const UTF8*	s1start = s1.nthChar(0);
-				const UTF8*	ep = s1.nthChar(s1.length());	// Byte after the last char in s1
 				const UTF8*	up;
 				while ((up = nthChar(n)) != 0)
 				{
-					// REVISIT: Handle StrRawBinary data
-					UCS4	ch = UTF8Get(up);
-					for (const UTF8* op = s1start; op < ep; n++)
-						if (ch == UTF8Get(op))
+					UCS4	ch = getChar(up);
+					for (Index i = 0; i < s1.length(); i++)
+						if (ch == s1[i])
 							goto next;	// Found at n
 					return n;
 				next:
@@ -594,15 +582,12 @@ public:
 	int		rfindNot(const StrValI& s1, int before = -1) const
 			{
 				Index		n = (before == -1 ? length() : before)-1;	// First Index we'll look at
-				const UTF8*	s1start = s1.nthChar(0);
-				const UTF8*	ep = s1.nthChar(s1.length());	// Byte after the last char in s1
 				const UTF8*	bp;
 				while ((bp = nthChar(n)) != 0)
 				{
-					// REVISIT: Handle StrRawBinary data
-					UCS4	ch = UTF8Get(bp);
-					for (const UTF8* op = s1start; op < ep; n++)
-						if (ch == UTF8Get(op))
+					UCS4	ch = getChar(bp);
+					for (Index i = 0; i < s1.length(); i++)
+						if (ch == s1[i])
 							goto next;	// Found at n
 					return n;
 				next:
@@ -687,6 +672,8 @@ public:
 				}
 
 				Unshare();
+
+				// REVISIT: Handle StrRawBinary data
 				Index		addend_length;		// Get length in bytes
 				const UTF8*	ap = addend.asUTF8(addend_length);
 				body->insertBytes(nthChar(pos)-nthChar(0), ap, addend_length);
@@ -774,6 +761,12 @@ protected:
 private:
 	Bookmark	mark;
 
+	UCS4		getChar(const UTF8*& cp)
+			{
+				if (body->isRawBinary())
+					return *cp++;
+				return UTF8Get(cp);
+			}
 	void		copyBody()
 			{
 				// Copy only this slice of the body's data, and reset our offset to zero
