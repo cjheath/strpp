@@ -348,6 +348,7 @@ class StrValI
 	using Bookmark = StrBookmark<Index>;
 	using Base = StrRefI<Index>;
 	using Body = StrBodyI<Index>;
+protected:
 	using Base::body;
 	using Base::num_chars;
 	using Base::offset;
@@ -1169,9 +1170,9 @@ StrBodyI<Index>::toJSON()
 }
 
 class	StringArray
-: public Array<StrVal>
+: public Array<StrRef>
 {
-	using	Base = Array<StrVal>;
+	using	Base = Array<StrRef>;
 public:
 	StringArray() {}
 	StringArray(const Base& a1) : Base(a1) {}
@@ -1193,9 +1194,27 @@ public:
 		// Preallocate the required amount of storage:
 		StrVal	joined(e0.asUTF8(), e0.numBytes(), result_length+1);
 		for (int i = 1; i < length(); i++)
-			joined += joiner + elem(i);
+			joined += joiner + StrVal(elem(i));
 		return joined;
 	}
+
+	StrVal		operator[](int elem_num) const
+			{ return Base::operator[](elem_num); }
+	StrVal		elem(int elem_num) const					// Returns a copy
+			{ return Base::operator[](elem_num); }
+	StrVal		last()
+			{ return Base::last(); }
+	Element		pull()
+			{ return Base::pull(); }
+	StrVal		delete_at(Index at)
+			{ return Base::delete_at(at); }
+protected:	// These cannot be implemented using a StrVal return type. You can still use them if you handle StrRef
+	// Element&	elem_mut(int elem_num)		// Return a mutable element
+	// const Element&	elem_ref(int elem_num) const
+	// const Element*	asElements() const
+	// const Element&	set(int elem_num, const Element& e)
+	// Element&	last_mut()
+	// Element		shift()				// remove an element from the start
 
 protected:
 	StringArray(Body* body, Index offs, Index len)	// offs/len not bounds-checked!

@@ -24,6 +24,13 @@ Threads
 	Thread-local ArgList stack
 	TLS Zone allocator?
 
+Error
+	TLS tombstone
+	ArgList Parameter list for Error
+	Compiler/generator (from ADL? Using Px?)
+
+Date&Time
+
 RefCount
 	High-concurrency version (non-atomic until referenced by 2nd thread)
 		Add OnlyVisibleToThreadId, single-thread-counter, threaded-counter, per Python impl
@@ -34,10 +41,23 @@ RefCount
 			After pass(), v may not be used -> exception
 			Can this even work?
 
-Error
-	TLS tombstone
-	ArgList Parameter list for Error
-	Compiler/generator (from ADL? Using Px?)
+Program Configuration
+	Configuration description Language (in ADL)
+		should include what types of config file to process:
+			~/.PROG_rc
+			~/.PROG/configuration.rc
+			/usr/local/etc/PROG.rc
+		Commandline options and Usage text
+	Configuration sources
+		Build variables
+		System RC files
+		User RC files
+		Environment variables
+		CommandLine options
+	Generate
+		To a Constellation-type object
+			Must be able to save preference changes
+		To Makefile includes
 
 Pegex
 	Bugs
@@ -69,8 +89,6 @@ Peg
 Streams
 	StreamFork (Stream can be copied, copies can always read forward even if in buffer)
 
-Date&Time
-
 Net
 	UDP
 	TCP
@@ -79,24 +97,6 @@ Net
 
 Constellation
 	Needs Singleton/fixed-Cardinality objects
-
-Program Configuration
-	Configuration description Language (in ADL)
-		should include what types of config file to process:
-			~/.PROG_rc
-			~/.PROG/configuration.rc
-			/usr/local/etc/PROG.rc
-		Commandline options and Usage text
-	Configuration sources
-		Build variables
-		System RC files
-		User RC files
-		Environment variables
-		CommandLine options
-	Generate
-		To a Constellation-type object
-			Must be able to save preference changes
-		To Makefile includes
 
 
 WebAssembly
