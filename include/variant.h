@@ -397,7 +397,7 @@ protected:
 
 		u()		{ zero(); }
 		~u()		{}	// Destruction happens outside here
-		void zero()	{ memset(this, 0, sizeof(*this)); }
+		void zero()	{ memset((void*)this, 0, sizeof(*this)); }
 	} u;
 };
 
