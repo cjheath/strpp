@@ -783,7 +783,7 @@ protected:
 private:
 	Bookmark	mark;
 
-	UCS4		getChar(const char*& cp)
+	UCS4		getChar(const char*& cp) const
 			{
 				if (body->isRawBinary())
 					return *cp++;
