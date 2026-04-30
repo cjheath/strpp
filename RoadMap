@@ -4,9 +4,11 @@ Quality
 StrVal
 	Option to use 8-bit char instead of UTF8
 		Modify UTF8* as used in transform etc
-		Provide alternate get-char, put-char, etc, API
+		Provide alternate get-char, put-char, asbytes(), etc, API
+		Rename asUTF8 to asBytes
 	StrVal::format() (requires ArgList)
 	IndexSize parameter (16/32) with compile-time overridable default
+	Collating
 
 Variant
 	Boolean, Float & Double

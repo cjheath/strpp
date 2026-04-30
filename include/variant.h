@@ -401,6 +401,16 @@ protected:
 	} u;
 };
 
+inline VariantArray operator<<(const char* cp, const Variant& v)
+{
+	return Variant(StrVal(cp)) << v;
+}
+
+inline VariantArray operator<<(StrVal s, const Variant& v)
+{
+	return Variant(s) << v;
+}
+
 #include	<strformat.h>
 
 #endif // VARIANT_H

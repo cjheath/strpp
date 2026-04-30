@@ -34,7 +34,7 @@ const	StrValIndex	StrValIndexRawBinaryMarker = ((StrValIndex)-1);	// Marker num_
 typedef enum {
 	StrStatic,		// UTF-8 data that's not owned by the Body, may not be NUL-terminated and will not alter
 	StrUTF8,		// UTF-8 data that is allocated internally
-	StrRawBinary		// Normal character-per-byte data in the locale's 8-bit encoding
+	StrRawBinary,		// Normal character-per-byte data in the locale's 8-bit encoding
 } StrDataType;
 
 #define	STRERR_SET		1	// Message set number for StrVal
@@ -263,14 +263,14 @@ protected:
 					num_chars++;
 				}
 			}
-	UCS4		getChar(const char*& cp)
+	UCS4		getChar(const char*& cp) const
 			{
 				if (isRawBinary())
 					return *cp++;
 				return UTF8Get(cp);
 			}
 
-	void		putChar(char*& cp, UCS4 ch)
+	void		putChar(char*& cp, UCS4 ch) const
 			{
 				if (isRawBinary())
 					*cp++ = ch;	// REVISIT: Panic on oversized char
@@ -628,9 +628,9 @@ public:
 				 && offset+length() == addend.offset)	// And this ends where the addend starts
 					return StrValI(body, offset, length()+addend.num_chars);
 
-				// REVISIT: Handle StrRawBinary data in one string but not the other
 				const char*	cp = nthChar(0);
 				Index		len = numBytes();
+				// REVISIT: Handle StrRawBinary data in one string but not the other
 				StrValI		str(cp, len, len+addend.numBytes());
 
 				str += addend;
@@ -638,7 +638,7 @@ public:
 			}
 	StrValI		operator+(UCS4 addend) const
 			{
-				// REVISIT: Handle StrRawBinary data
+				// REVISIT: Handle StrRawBinary data more efficiently (no double-conversion)
 				// Convert addend using a stack-local buffer to save allocation here.
 				char	buf[7];				// Enough for 6-byte content plus a NUL
 				char*	cp = buf;
@@ -660,7 +660,7 @@ public:
 			}
 	StrValI&	operator+=(UCS4 addend)
 			{
-				// REVISIT: Handle StrRawBinary data
+				// REVISIT: Handle StrRawBinary data more efficiently (no double-conversion)
 				// Convert addend using a stack-local buffer to save allocation here.
 				char	buf[7];				// Enough for 6-byte content plus a NUL
 				char*	cp = buf;
@@ -784,11 +784,7 @@ private:
 	Bookmark	mark;
 
 	UCS4		getChar(const char*& cp) const
-			{
-				if (body->isRawBinary())
-					return *cp++;
-				return UTF8Get(cp);
-			}
+			{ return body->getChar(cp); }
 	void		copyBody()
 			{
 				// Copy only this slice of the body's data, and reset our offset to zero
@@ -929,15 +925,14 @@ void StrBodyI<Index>::transform(const std::function<Val(const char*& cp, const c
 		}
 		else
 		{		// Just copy one character and move on
-			// REVISIT: Handle StrRawBinary data
-			UCS4	ch = UTF8Get(up);	// Get UCS4 character
+			UCS4	ch = getChar(up);	// Get UCS4 character
 			processed_chars++;
 			if (num_alloc < (op-start+6+1))
 			{
 				ArrayBody<char, Index>::resize((op-start)+6+1);	// Room for any char and NUL
 				op = start+num_elements;	// Reset our output pointer in case start has changed
 			}
-			UTF8Put(op, ch);
+			putChar(op, ch);
 			num_elements = op-start;
 			num_chars++;
 		}

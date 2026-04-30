@@ -66,9 +66,11 @@ void variant_array_tests()
 	na << va[2];				// Append a 2nd value
 	printf("VariantArray from element = %s\n", Variant(na).as_json().asUTF8());
 
-	// variant_array_from_param("bah");	// Unfortunately this doesn't work
-	variant_array_from_param(VariantArray("baz") << 31);	// This does.
-	variant_array_from_param(VariantArray() << "bah" << 47);	// This does.
+	// variant_array_from_param("bah");	// Unfortunately this can't be made to work
+	variant_array_from_param(VariantArray("bah"));			// This works
+	variant_array_from_param(VariantArray("baz") << 31);		// and this
+	variant_array_from_param(VariantArray() << "bah" << 47);	// this too
+	variant_array_from_param("bah" << Variant(53));			// So does this
 	variant_array_from_param(Variant(29));
 }
 
