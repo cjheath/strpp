@@ -263,14 +263,15 @@ protected:
 					num_chars++;
 				}
 			}
-	UCS4		getChar(const char*& cp) const
+
+	UCS4		getChar(const char*& cp) const	// Return next character, next advancing cp
 			{
 				if (isRawBinary())
 					return *cp++;
 				return UTF8Get(cp);
 			}
 
-	void		putChar(char*& cp, UCS4 ch) const
+	void		putChar(char*& cp, UCS4 ch) const // Store a character, advancing cp
 			{
 				if (isRawBinary())
 					*cp++ = ch;	// REVISIT: Panic on oversized char
@@ -784,7 +785,11 @@ private:
 	Bookmark	mark;
 
 	UCS4		getChar(const char*& cp) const
-			{ return body->getChar(cp); }
+			{
+				if (body->isRawBinary())
+					return *cp++;
+				return UTF8Get(cp);
+			}
 	void		copyBody()
 			{
 				// Copy only this slice of the body's data, and reset our offset to zero
