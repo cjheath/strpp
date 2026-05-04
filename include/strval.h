@@ -1197,6 +1197,13 @@ public:
 	{
 	}
 
+	// Construct from an Array of const char*
+	StringArray(const Array<const char*> strings)
+	: Array((const StrVal*)0, 0, strings.length())
+	{
+		strings.each([&](const char* s) { append(s); });
+	}
+
 	StrVal		join(StrVal joiner) const
 	{
 		if (length() == 0)

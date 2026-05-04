@@ -324,7 +324,8 @@ public:
 				const Element*	ep = dp+num_elements;		// End of our slice
 				for (const Element* bp = dp; bp < ep; bp++)
 					operation(*bp);
-				return *this;
+
+				return *(const Self*)this;	// Cast is needed to avoid constructing a local temporary
 			}
 	bool		all(std::function<bool(const Element& e)> condition) const	// Do all elements satisfy the condition?
 			{
