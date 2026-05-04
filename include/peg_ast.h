@@ -33,6 +33,7 @@ class PegFailure {
 public:
 	PatternP	atom;		// Start of the Pegexp literal we failed to match
 	int		atom_len;	// Length of the literal (for reporting)
+	Array<const char*>	path;	// Nested rule names
 };
 // A Failure for each atom tried at furthermost_success location
 typedef Array<PegFailure>	PegFailures;
@@ -130,11 +131,18 @@ public:
 	, capture_disabled(_parent ? _parent->capture_disabled : 0)
 	, repetition_nesting(0)
 	, parent(_parent)
+	, root(_parent ? _parent->root : this)
 	, rule(_rule)
 	, origin(_origin)
 	, num_captures(0)
 	, furthermost_success(_origin)	// Farthest Source location we reached
-	{}
+	{
+		root->path.push(rule->name);
+	}
+	~PegContext()
+	{
+		root->path.pull();
+	}
 
 	int		capture(PatternP name, int name_len, Match r, bool in_repetition)
 	{
@@ -198,7 +206,7 @@ public:
 
 		// Record furthermost failure only on the TOP context:
 		if (parent)
-			return parent->record_failure(op, op_end, location);
+			return root->record_failure(op, op_end, location);
 
 		if (furthermost_success < location)
 			failures.clear();	// We got further this time, previous failures don't matter
@@ -209,7 +217,7 @@ public:
 				return;		// Nothing new here, move along.
 
 		furthermost_success = location;	// We couldn't get past here
-		failures.append({op, (int)(op_end-op)});
+		failures.append({op, (int)(op_end-op), root->path});
 	}
 
 	Match		match_result(State from, State to)
@@ -245,6 +253,7 @@ public:
 	Rule*		rule;		// The Rule this context applies to
 	PegT*		peg;		// Place to look up subrules
 	PegContext* 	parent;		// Context of the parent (calling) rule
+	PegContext* 	root;		// root Context of the parser
 	Source		origin;		// Location where this rule started, for detection of left-recursion
 
 	int		repetition_nesting;	// Number of nested repetition groups, so we know if a capture might be repeated
@@ -257,5 +266,6 @@ protected:
 	// The next two are populated only on the outermost Context, to be returned from the parse
 	Source		furthermost_success;	// Source location of the farthest location the parser reached
 	PegFailures	failures;	// A Failure for each atom tried at furthermost_success location
+	Array<const char*>	path;
 };
 #endif // PEG_AST_H

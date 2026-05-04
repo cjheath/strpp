@@ -225,6 +225,7 @@ parse_and_report(const char* filename)
 		{
 			PegFailure	f = match.failures[i];
 			printf("\t%.*s\n", f.atom_len, f.atom);
+			printf("\t... from %s\n", StringArray(f.path).join("->").asUTF8());
 		}
 	}
 	else
