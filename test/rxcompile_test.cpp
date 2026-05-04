@@ -41,10 +41,14 @@ main(int argc, char** argv)
 
 		printf("Compiling '%s'\n", *argv);
 
+#if defined(MEMCHECK)
 		start_recording_allocations();
+#endif
 		scanned_ok = rx.compile(nfa);
+#if defined(MEMCHECK)
 		if (scanned_ok && allocation_growth_count() > 1)
 			report_allocation_growth();
+#endif
 
 		if (!scanned_ok)
 		{
@@ -287,7 +291,9 @@ int automated_tests()
 		char*		nfa = 0;
 		bool		scanned_ok;
 
+#if defined(MEMCHECK)
 		start_recording_allocations();
+#endif
 		scanned_ok = rx.compile(nfa);
 
 		// Check expectations
@@ -326,11 +332,13 @@ int automated_tests()
 		// Clean up and check for leaks:
 		if (nfa)
 			delete[] nfa;
+#if defined(MEMCHECK)
 		if (scanned_ok && allocation_growth_count() > expected_leak_count)
 		{
 			printf("Unfreed allocations after compiling \"%s\":\n", ct->regex);
 			report_allocation_growth();
 		}
+#endif
 
 		return test_pass;
 	};

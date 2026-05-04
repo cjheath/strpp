@@ -7,6 +7,9 @@ CXXFLAGS =	-std=c++11
 
 COPT	=	-DHAVE_PTHREADS # -DPEG_TRACE
 
+MEMCHECK =
+#MEMCHECK =	-DMEMCHECK test/memory_monitor.cpp
+
 DEBUG	=	-O2 $(COPT)
 # DEBUG	=	-g $(COPT) # -DUTF8_ASSERT
 # DEBUG	=	-O2 $(COPT) -lprofiler
@@ -23,6 +26,7 @@ HDRS	=	\
 		utf8_ptr.h		\
 		peg.h			\
 		pegexp.h		\
+		peg_ast.h		\
 		refcount.h		\
 		strval.h		\
 		thread.h		\
@@ -82,6 +86,8 @@ run_peg_size_test:
 	@size peg_size_test.o
 	@rm peg_size_test.o
 
+$(TESTS): $(HDRS)
+
 run_peg_test: peg_test
 	peg_test ../fig/fig.px
 
@@ -95,8 +101,8 @@ run_pegexp_size_test:
 run_variant_test: variant_test
 	variant_test
 
-%:	%.cpp $(LIB) test/memory_monitor.cpp
-	$(CXX) $(DEBUG) $(CXXFLAGS) -Iinclude -Itest -o $@ $< test/memory_monitor.cpp $(LIB)
+%:	%.cpp $(LIB) $(MEMCHECK)
+	$(CXX) $(DEBUG) $(CXXFLAGS) -Iinclude -Itest -o $@ $< $(MEMCHECK) $(LIB)
 
 px:
 	cd ../px; $(MAKE)

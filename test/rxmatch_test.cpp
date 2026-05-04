@@ -319,7 +319,9 @@ int automated_tests()
 			return test_case->target == 0;	// Bad news if we expected it to succeed
 		}
 
+#if defined(MEMCHECK)
 		start_recording_allocations();
+#endif
 		{
 			RxProgram	program(nfa);
 			StrVal		target(test_case->target);
@@ -349,11 +351,13 @@ int automated_tests()
 				delete[] nfa;
 		}
 
+#if defined(MEMCHECK)
 		if (scanned_ok && allocation_growth_count() > expected_leak_count)
 		{
 			printf("Unfreed allocations after matching \"%s\":\n", test_case->regex);
 			report_allocation_growth();
 		}
+#endif
 
 		return test_passed;
 	};

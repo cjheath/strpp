@@ -7,7 +7,9 @@ void variant_tests();
 int
 main(int argc, const char** argv)
 {
+#if defined(MEMCHECK)
 	start_recording_allocations();
+#endif
 
 	printf("sizeof(Variant) == %ld\n", sizeof(Variant));
 	printf("sizeof(StrRef) == %ld\n", sizeof(StrRef));
@@ -19,8 +21,10 @@ main(int argc, const char** argv)
 	variant_array_tests();
 	variant_tests();
 
+#if defined(MEMCHECK)
 	if (allocation_growth_count() > 0)	// No allocation should remain unfreed
 		report_allocation_growth();
+#endif
 
 	return 0;
 }

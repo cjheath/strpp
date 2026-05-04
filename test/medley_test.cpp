@@ -15,10 +15,14 @@ void tests();
 
 int main(int argc, const char** argv)
 {
+#if defined(MEMCHECK)
 	start_recording_allocations();
+#endif
 	tests();
+#if defined(MEMCHECK)
 	if (allocation_growth_count() > 0)	// No allocation should remain unfreed
 		report_allocation_growth();
+#endif
 	return 0;
 }
 

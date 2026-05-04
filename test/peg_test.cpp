@@ -244,12 +244,16 @@ main(int argc, const char** argv)
 	if (argc < 2)
 		usage();
 
+#if defined(MEMCHECK)
 	start_recording_allocations();
+#endif
 
 	int code = parse_and_report(argv[1]);
 
+#if defined(MEMCHECK)
 	if (allocation_growth_count() > 0)	// No allocation should remain unfreed
 		report_allocation_growth();
+#endif
 
 	return code;
 }
