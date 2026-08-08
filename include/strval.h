@@ -1244,6 +1244,7 @@ protected:
 			: Base(body, offs, len) {}
 };
 
-inline void p(StrVal s) { printf("\"%s\"\n", s.asUTF8()); }
+#include <unistd.h>
+inline void p(StrVal s) { char const*cp = s.asUTF8(); write(1, "\"", 1); write(1, cp, strlen(cp)); write(1, "\"\n", 2); }
 
 #endif
