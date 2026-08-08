@@ -12,6 +12,7 @@
 #define	THREAD_ID
 #if	defined(HAVE_PTHREADS)
 #include	<unistd.h>
+#include	<cerrno>
 #include	<pthread.h>
 
 typedef pthread_t	ThreadId;
