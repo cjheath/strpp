@@ -5,6 +5,7 @@
  *
  * (c) Copyright Clifford Heath 2022. See LICENSE file for usage rights.
  */
+#include <cstddef>
 
 void	start_recording_allocations();
 void	report_allocation_growth();
