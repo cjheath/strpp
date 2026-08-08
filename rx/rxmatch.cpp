@@ -539,7 +539,7 @@ RxMatch::matchAt(RxStationID start, StrValIndex& offset)
 				}
 
 				// Check that the next characters match these ones
-				StrBody		body(instr.text.utf8, false, instr.text.bytes);
+				StrBody		body(instr.text.utf8, StrStatic, instr.text.bytes);
 				StrVal		expected(&body);
 				StrValIndex 	length = expected.length();	// Count the chars in the literal
 				assert(length > 0);
@@ -565,7 +565,7 @@ RxMatch::matchAt(RxStationID start, StrValIndex& offset)
 				}
 
 				// Check that the next characters match these ones
-				StrBody		body(instr.text.utf8, false, instr.text.bytes);
+				StrBody		body(instr.text.utf8, StrStatic, instr.text.bytes);
 				StrVal		expected(&body);
 				StrValIndex 	length = expected.length();	// Count the chars in the literal
 				assert(length > 0);
