@@ -10,10 +10,22 @@
 #include	<thread.h>
 #include	<condition.h>
 
+#if	defined(HAVE_FREERTOS)
+/*
+ * The bit used within the FreeRTOS event group to signal waiters. Only one
+ * bit is needed - which waiter(s) actually wake and continue is governed by
+ * the generation-count algorithm below, not by which bit was set.
+ */
+#define	CONDITION_EVENT_BIT	((EventBits_t)0x01)
+#endif
+
 Condition::~Condition()
 {
 #if	defined(HAVE_PTHREADS)
 	pthread_cond_destroy(&cond);
+#elif	defined(HAVE_FREERTOS)
+	assert(waiters_count == 0);
+	vEventGroupDelete(eventGroup);
 #elif	defined(MSW)
 	assert(waiters_count == 0);
 	CloseHandle(hEvent);
@@ -25,6 +37,11 @@ Condition::~Condition()
 Condition::Condition()
 #if	defined(HAVE_PTHREADS)
 	// Nothing to do here
+#elif	defined(HAVE_FREERTOS)
+: waiters_count(0)
+, release_count(0)
+, generation_count(0)
+, eventGroup(0)
 #elif	defined(MSW)
 : waiters_count(0)
 , release_count(0)
@@ -34,6 +51,9 @@ Condition::Condition()
 {
 #if	defined(HAVE_PTHREADS)
 	pthread_cond_init(&cond, (pthread_condattr_t*)0);
+#elif	defined(HAVE_FREERTOS)
+	eventGroup = xEventGroupCreate();
+	assert(eventGroup);
 #elif	defined(MSW)
 	hEvent = CreateEventW(NULL, TRUE, FALSE, 0);
 	assert(hEvent);
@@ -47,6 +67,8 @@ Condition::ok() const
 {
 #if	defined(HAVE_PTHREADS)
 	return true;
+#elif	defined(HAVE_FREERTOS)
+	return eventGroup != 0;
 #elif	defined(MSW)
 	return hEvent != 0;
 #else
@@ -62,6 +84,33 @@ Condition::wait(
 {
 #if	defined(HAVE_PTHREADS)
 	pthread_cond_wait(&cond, &user_latch->mutex);
+#elif	defined(HAVE_FREERTOS)
+	// Increment the count of waiters and grab the generation count:
+	latch.enter();
+	++waiters_count;
+	int		my_generation = generation_count;
+	latch.leave();
+
+	if (user_latch)
+		user_latch->leave();
+	bool	done = false;
+	do
+	{
+		(void) xEventGroupWaitBits(eventGroup, CONDITION_EVENT_BIT, pdFALSE, pdFALSE, portMAX_DELAY);
+		latch.enter();
+		done = release_count > 0
+			&& my_generation != generation_count;
+		latch.leave();
+	} while (!done);
+	if (user_latch)
+		user_latch->enter();
+
+	latch.enter();
+	--waiters_count;
+	done = --release_count == 0;
+	latch.leave();
+	if (done)
+		xEventGroupClearBits(eventGroup, CONDITION_EVENT_BIT);
 #elif	defined(MSW)
 	// Increment the count of waiters and grab the generation count:
 	ThreadId	tid = Thread::currentId();
@@ -100,6 +149,15 @@ Condition::signal()
 {
 #if	defined(HAVE_PTHREADS)
 	pthread_cond_signal(&cond);
+#elif	defined(HAVE_FREERTOS)
+	latch.enter();
+	if (waiters_count > release_count)
+	{
+		xEventGroupSetBits(eventGroup, CONDITION_EVENT_BIT);
+		++release_count;	// Wake one thread only
+		++generation_count;
+	}
+	latch.leave();
 #elif	defined(MSW)
 	// Increment the count of waiters and grab the generation count:
 	ThreadId	tid = Thread::currentId();
@@ -121,6 +179,15 @@ Condition::broadcast()
 {
 #if	defined(HAVE_PTHREADS)
 	pthread_cond_broadcast(&cond);
+#elif	defined(HAVE_FREERTOS)
+	latch.enter();
+	if (waiters_count > 0)
+	{
+		xEventGroupSetBits(eventGroup, CONDITION_EVENT_BIT);
+		release_count = waiters_count;	// Release all waiters
+		++generation_count;
+	}
+	latch.leave();
 #elif	defined(MSW)
 	// Increment the count of waiters and grab the generation count:
 	ThreadId	tid = Thread::currentId();
@@ -157,6 +224,43 @@ Condition::wait(		// Wait for a ticket
 	{
 		// REVISIT: Subtract elapsed time from timeout
 	}
+#elif	defined(HAVE_FREERTOS)
+	TickType_t	start = xTaskGetTickCount();
+
+	// Increment the count of waiters and grab the generation count:
+	latch.enter();
+	++waiters_count;
+	int		my_generation = generation_count;
+	latch.leave();
+
+	if (user_latch)
+		user_latch->leave();
+	bool	done = false;
+	while (!done && (unsigned long)timeout > 0)
+	{
+		(void) xEventGroupWaitBits(eventGroup, CONDITION_EVENT_BIT, pdFALSE, pdFALSE, pdMS_TO_TICKS(timeout));
+
+		// Update the remaining time-to-wait:
+		TickType_t	now = xTaskGetTickCount();
+		unsigned long	elapsed = (unsigned long)(now-start) * portTICK_PERIOD_MS;
+		start = now;
+		timeout = elapsed >= (unsigned long)timeout ? 0 : timeout-elapsed; // Calculate remaining time
+
+		// Time to awake yet?
+		latch.enter();
+		done = release_count > 0
+			&& my_generation != generation_count;
+		latch.leave();
+	}
+	if (user_latch)
+		user_latch->enter();
+
+	latch.enter();
+	--waiters_count;
+	done = --release_count == 0;
+	latch.leave();
+	if (done)
+		xEventGroupClearBits(eventGroup, CONDITION_EVENT_BIT);
 #elif	defined(MSW)
 	YMDTimeC	start = YMDTimeC::now();
 

@@ -9,6 +9,8 @@
 #if	defined(HAVE_PTHREADS)
 pthread_mutexattr_t	Latch::attr;
 std::atomic<bool>	Latch::initialised;
+#elif	defined(HAVE_FREERTOS)
+// No static state needed: Latch's mutex is a per-instance SemaphoreHandle_t.
 #else
 
 int			Latch::num_cores;

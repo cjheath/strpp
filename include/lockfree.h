@@ -8,20 +8,10 @@
 #include	<atomic>
 #include	<assert.h>
 
-#if	!defined(THREAD_ID)
-#define	THREAD_ID
-#if	defined(HAVE_PTHREADS)
-#include        <unistd.h>
-#include	<cerrno>
-#include        <pthread.h>
+#include	<threadid.h>
 
-typedef pthread_t       ThreadId;
-typedef	pid_t		ProcessId;
-#elif	defined(MSW)
-typedef DWORD		ThreadId;
-typedef	ThreadId	ProcessId;
-//#else Add more threading systems here
-#endif
+#if	defined(HAVE_FREERTOS)
+#include	<semphr.h>
 #endif
 
 class Latch
@@ -41,6 +31,19 @@ public:
 
 	static	std::atomic<bool>	initialised;
 	static	pthread_mutexattr_t	attr;
+
+#elif	defined(HAVE_FREERTOS)
+	/*
+	 * Use a real (recursive) mutex, not the CAS-spin-loop fallback below: FreeRTOS is
+	 * a priority-preemptive RTOS, and a spinlock risks genuine priority inversion (a
+	 * low-priority holder starved forever by a higher-priority busy-spinner) that a
+	 * real mutex with priority inheritance avoids. Recursive (rather than pthreads'
+	 * error-checking, which fails a second same-thread lock with EDEADLK) because
+	 * FreeRTOS's plain mutex has no self-deadlock detection at all - a second
+	 * xSemaphoreTake() from the same task would simply hang forever, which recursive
+	 * locking avoids. See the note in the implementation plan for this trade-off.
+	 */
+	SemaphoreHandle_t	mutex;
 
 #else
 	// On Windows, condition variables are based on system events so we can do this using atomic
@@ -106,7 +109,45 @@ Latch::leave()		// Release the latch
 	pthread_mutex_unlock(&mutex);
 }
 
-#else	/* Not HAVE_PTHREADS */
+#elif	defined(HAVE_FREERTOS)
+Latch::Latch()
+{
+	mutex = xSemaphoreCreateRecursiveMutex();
+	assert(mutex);
+}
+
+Latch::~Latch()
+{
+	vSemaphoreDelete(mutex);
+}
+
+bool
+Latch::probe()		// Gain the latch if possible immediately
+{
+	return xSemaphoreTakeRecursive(mutex, 0) == pdTRUE;
+}
+
+void
+Latch::enter()		// Wait for the latch
+{
+	BaseType_t	ok = xSemaphoreTakeRecursive(mutex, portMAX_DELAY);
+	assert(ok == pdTRUE);
+}
+
+bool
+Latch::holding()	// Latch is held by calling thread?
+{
+	return xSemaphoreGetMutexHolder(mutex) == xTaskGetCurrentTaskHandle();
+}
+
+void
+Latch::leave()		// Release the latch
+{
+	BaseType_t	ok = xSemaphoreGiveRecursive(mutex);
+	assert(ok == pdTRUE);
+}
+
+#else	/* Not HAVE_PTHREADS or HAVE_FREERTOS */
 
 #define	LATCH_SPIN_COUNT	1000	// 1000 volatile decrements delay
 #define	LATCH_YIELD_SLEEP	1	// 1 millisecond
