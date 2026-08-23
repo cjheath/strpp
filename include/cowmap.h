@@ -4,17 +4,22 @@
  * A copy-on-write Map template.
  * You can cheaply pass a CowMap (passing it doesn't copy the contents).
  * When you try to change a CowMap that has any other reference,
- * the entire map is copied before your change is attempted.
+ * only the root is (cheaply) copied before your change is attempted.
  *
- * Internally, it's just a std::map, which is a red-black tree.
+ * Internally, it's a persistent (path-copying) red-black tree - see
+ * redblack.h - so that cheap copy is O(1) (it shares the same root with
+ * the original), and only the O(log n) nodes actually touched by a
+ * subsequent mutation get copied; everything else remains shared with
+ * whichever other CowMap(s) still reference the old version.
  */
 #include	<cstdlib>
 #include	<cstdint>
 #include	<functional>
-#include	<map>
+#include	<utility>
 
 #include	<refcount.h>
 #include	<strval.h>
+#include	<redblack.h>
 
 template<typename V, typename K> class CowMapBody;
 template<typename V, typename K = StrVal, typename Body = CowMapBody<V, K>> class CowMap;
@@ -163,12 +168,7 @@ private:
 			{
 				if (body && body->GetRefCount() <= 1)
 					return;
-
-				// Copy the old body's data
-				Body* newbody = new Body();
-				for (Iter it = begin(); it != end(); it++)
-					newbody->insert(BaseVP(it->first, it->second));
-				body = newbody;
+				body = new Body(*body);	// O(1): shares the same root, refcounted
 			}
 };
 
@@ -176,15 +176,51 @@ template<
 	typename V,
 	typename K
 > class	CowMapBody
-	: public std::map<K, V>
-	, public RefCounted
+	: public RefCounted
 {
-	using	Base = std::map<K, V>;
+	using	Tree = RbTree<K, V>;
+	// TaggedRef<RbNode<K,V>> directly, not "typename Tree::Link": see the
+	// note next to RbTree::Link in redblack.h - a dependent nested-type
+	// lookup would require RbTree<K,V> (and by cascading, RbNode<K,V>,
+	// which embeds V) to be complete merely to name this member's type,
+	// which is exactly the problem in variant.h: StrVariantMap derives
+	// from CowMap<Variant,StrVal> before Variant is complete.
+	using	Link = TaggedRef<RbNode<K, V>>;
+
+	Link	root;
+	size_t	count;
 public:
-	using	Iter = typename Base::const_iterator;
+	using	Iter = typename Tree::Iter;
 	using	Value = V;
 	using	Key = K;
+	using	value_type = std::pair<const K, V>;	// BaseVP in CowMap resolves to this, as it did via std::map
 
-	CowMapBody() { }
+	CowMapBody() : root(), count(0) { }
+	// Deliberately a real copy constructor, not deleted like ArrayBody's:
+	// copying just copies root (an O(1) TaggedRef copy - an AddRef, not a
+	// data copy) and count. That's safe and correct specifically because
+	// the tree is persistent/shareable, unlike ArrayBody's flat mutable
+	// buffer, where a shallow copy would be actively wrong. This is what
+	// lets CowMap::Unshare() (above) be O(1) instead of rebuilding the
+	// whole map element by element.
+	CowMapBody(const CowMapBody& o) : root(o.root), count(o.count) { }
+
+	Iter		find(const Key& k) const { return Tree::find(root, k); }
+	Iter		begin() const { return Tree::begin(root); }
+	Iter		end() const { return Tree::end(); }
+	size_t		size() const { return count; }
+
+	void		insert(value_type kv)
+			{
+				if (find(kv.first) == end())
+					count++;
+				Tree::insert(root, kv.first, kv.second);
+			}
+	void		erase(const Key& k)
+			{
+				if (find(k) != end())
+					count--;
+				Tree::erase(root, k);
+			}
 };
 #endif // COWMAP_H

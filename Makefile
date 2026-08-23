@@ -45,6 +45,7 @@ LIB	=	libstrpp.a
 TESTS	=	\
 		array_test		\
 		char_encoding_test	\
+		cowmap_test		\
 		err_test		\
 		greeting_test		\
 		medley_test		\

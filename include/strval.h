@@ -861,10 +861,18 @@ int StrValI<Index>::compare(const StrValI& comparand, CompareStyle style) const
 	switch (style)
 	{
 	case CompareRaw:
-		cmp = memcmp(nthChar(0), comparand.nthChar(0), numBytes());
-		if (cmp == 0)
-			cmp = numBytes() - comparand.numBytes();
-		return cmp;
+		{
+			// Only compare the overlapping prefix - comparing numBytes() of
+			// *this* against a shorter comparand read past the end of its
+			// buffer (a real heap-buffer-overflow, caught by ASan while
+			// testing StrVal-keyed CowMap/RbTree usage: "nonexistent" (11
+			// bytes) compared against a 1-byte key read 10 bytes past it).
+			Index	shorter = numBytes() < comparand.numBytes() ? numBytes() : comparand.numBytes();
+			cmp = memcmp(nthChar(0), comparand.nthChar(0), shorter);
+			if (cmp == 0)
+				cmp = numBytes() - comparand.numBytes();
+			return cmp;
+		}
 
 	case CompareCI:
 		assert(!"REVISIT: Case-independent comparison is not implemented");
