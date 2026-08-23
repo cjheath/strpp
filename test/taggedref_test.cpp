@@ -153,7 +153,7 @@ tag_bit_tests()
 	test_group("Tag bits: construct with an explicit tag, pointer stays correct");
 	// TestNode derives from RefCounted, whose atomic<int> member gives at least
 	// 4-byte alignment, so at least 2 tag bits (mask 0x3) are always available.
-	expect("at least 2 tag bits available on TestNode", TaggedRef<TestNode>::TagMask >= 3);
+	expect("at least 2 tag bits available on TestNode", TaggedRef<TestNode>::TagMask() >= 3);
 
 	TestNode*	raw = new TestNode(7);
 	{
@@ -167,15 +167,15 @@ tag_bit_tests()
 		expect_eq_int("Tag() is now 0", (long)r.Tag(), 0);
 		expect("get() unchanged after SetTag", r.get() == raw);
 		expect_eq_int("GetRefCount() unaffected by SetTag", r.GetRefCount(), 1);
-		r.SetTag(TaggedRef<TestNode>::TagMask);
-		expect_eq_int("Tag() round-trips the maximum mask value", (long)r.Tag(), (long)TaggedRef<TestNode>::TagMask);
+		r.SetTag(TaggedRef<TestNode>::TagMask());
+		expect_eq_int("Tag() round-trips the maximum mask value", (long)r.Tag(), (long)TaggedRef<TestNode>::TagMask());
 		expect("get() still unchanged", r.get() == raw);
 
 		test_group("Tag bits: WithTag() shares the pointee at a different tag");
 		TaggedRef<TestNode>	r2 = r.WithTag(0);
 		expect("WithTag result points at the same node", r2.get() == raw);
 		expect_eq_int("WithTag result has the requested tag", (long)r2.Tag(), 0);
-		expect_eq_int("original's tag is untouched by WithTag", (long)r.Tag(), (long)TaggedRef<TestNode>::TagMask);
+		expect_eq_int("original's tag is untouched by WithTag", (long)r.Tag(), (long)TaggedRef<TestNode>::TagMask());
 		expect_eq_int("GetRefCount() is now 2 (r and r2 both own it)", r.GetRefCount(), 2);
 		expect_eq_int("live_count is still just 1 node", TestNode::live_count, 1);
 	}
@@ -270,8 +270,8 @@ void
 alignment_scaling_tests()
 {
 	test_group("Tag width scales with alignof(T)");
-	expect_eq_int("TestNode TagMask matches alignof-1", (long)TaggedRef<TestNode>::TagMask, (long)(alignof(TestNode) - 1));
-	expect_eq_int("BigAlignNode TagMask is 15 (align 16)", (long)TaggedRef<BigAlignNode>::TagMask, 15);
+	expect_eq_int("TestNode TagMask matches alignof-1", (long)TaggedRef<TestNode>::TagMask(), (long)(alignof(TestNode) - 1));
+	expect_eq_int("BigAlignNode TagMask is 15 (align 16)", (long)TaggedRef<BigAlignNode>::TagMask(), 15);
 
 	BigAlignNode*	raw = new BigAlignNode(3);
 	{
@@ -292,7 +292,7 @@ stress_tests()
 		for (int round = 0; round < 200; round++)
 		{
 			int	slot = round % 8;
-			int	tagBits = (int)TaggedRef<TestNode>::TagMask;
+			int	tagBits = (int)TaggedRef<TestNode>::TagMask();
 			slots[slot] = TaggedRef<TestNode>(new TestNode(round), round & tagBits);
 			if (slot > 0)
 				slots[slot - 1] = slots[slot];		// share a node between two slots

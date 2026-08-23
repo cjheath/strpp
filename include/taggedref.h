@@ -30,9 +30,23 @@ template<class T>
 class	TaggedRef
 {
 public:
-	// Every low-order bit guaranteed zero by T's alignment is available as a tag bit.
-	static const uintptr_t	TagMask = alignof(T) - 1;
-	static const uintptr_t	PtrMask = ~TagMask;
+	/*
+	 * Every low-order bit guaranteed zero by T's alignment is available as a
+	 * tag bit. Deliberately using static member *functions*, not static const
+	 * data members with an in-class initializer.
+	 * The latter would force alignof(T) to be evaluated (and so T to be a
+	 * complete type) as soon as TaggedRef<T> is merely named as a type,
+	 * - e.g. as another class's data member - whereas a function body,
+	 * like any other member function, is only instantiated when actually
+	 * called, deferring the completeness requirement to first real use.
+	 * This matters in practice: a template using this may use
+	 * TaggedRef<RbNode<K,V>> before V (e.g. Variant, in variant.h) is
+	 * complete.
+	 */
+	static uintptr_t
+			TagMask() { return alignof(T) - 1; }
+	static uintptr_t
+			PtrMask() { return ~TagMask(); }
 
 	~TaggedRef()
 			{ T* o = get(); if (o) o->Release(); }
@@ -67,17 +81,17 @@ public:
 				return *this;
 			}
 
-	T*		get() const { return reinterpret_cast<T*>(bits & PtrMask); }
+	T*		get() const { return reinterpret_cast<T*>(bits & PtrMask()); }
 			operator T*() const { return get(); }
 	T*		operator->() const { assert(get()); return get(); }
 	T&		operator*() const { assert(get()); return *get(); }
 			operator bool() const { return get() != 0; }
 
-	uintptr_t	Tag() const { return bits & TagMask; }
+	uintptr_t	Tag() const { return bits & TagMask(); }
 	void		SetTag(uintptr_t tag)		// Change only the tag; the pointee (and its refcount) is untouched
 			{
-				assert((tag & ~TagMask) == 0);
-				bits = (bits & PtrMask) | tag;
+				assert((tag & ~TagMask()) == 0);
+				bits = (bits & PtrMask()) | tag;
 			}
 	TaggedRef	WithTag(uintptr_t tag) const	// A new reference to the same pointee, with a different tag
 			{ return TaggedRef(get(), tag); }
@@ -100,8 +114,8 @@ private:
 	static uintptr_t
 			pack(T* o, uintptr_t tag)
 			{
-				assert((reinterpret_cast<uintptr_t>(o) & TagMask) == 0);	// o must be properly aligned
-				assert((tag & ~TagMask) == 0);					// tag must fit in the spare bits
+				assert((reinterpret_cast<uintptr_t>(o) & TagMask()) == 0);	// o must be properly aligned
+				assert((tag & ~TagMask()) == 0);					// tag must fit in the spare bits
 				return reinterpret_cast<uintptr_t>(o) | tag;
 			}
 };
