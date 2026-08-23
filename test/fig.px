@@ -1,0 +1,460 @@
+// Fact Interchange Grammar. An ORM dialect
+TOP	=
+	?(BOM:bom)
+	*definition
+	-> bom, definition
+
+BOM	=
+	  '\uFEFF'
+
+definition =
+	s (
+	  | factType:node
+	  | valuesOf:node
+	  | alternativePredicate:node
+	  | roleNaming:node
+	  | mandatory:node
+	  | unique:node
+	  | simpleIdentification:node
+	  | externalUnique:node
+	  | externalIdentification:node
+	  | frequency:node
+	  | subtype:node
+	  | subtypeConstraint:node
+	  | subset:node
+	  | exclusive:node
+	  | equality:node
+	  | typeCardinality:node
+	  | roleCardinality:node
+	  | objectifies:node
+	  | comparison:node
+	  | ringConstraint:node
+	  | subTypeRule:node
+	  | factTypeRule:node
+	  | joinPath:node
+	  | unrecognised:node
+	) s
+	-> node
+
+// First handle the catch-all for unrecognised declarations of otherwise valid syntax
+unrecognised =
+	id s list
+	-> id, list
+
+list	=
+	?( '(' s +atom ')') s
+	?( '{' s +atom '}') s
+	-> atom
+
+atom	=
+	(| keyed_literal:a
+	 | range:a
+	 | term:a
+	 | id:a s
+	 | list:a
+	) ?sep
+	-> a
+
+keyed_literal =
+	id s ':' s term s
+	-> id, term
+
+// Ok, now the actual supported declaration types:
+factType =
+	'FactType' s '(' s predicate s '(' s typename *(sep typename) ')' s ')'
+	-> predicate, typename
+
+alternativePredicate =
+	'AlternativePredicate' s '(' s
+		predicate s sep predicate
+		?( '(' s roleNumber +(sep roleNumber s) ')' s)
+	')'
+	-> predicate, roleNumber
+
+roleNaming =
+	'RoleNaming' s '(' s predicateRole sep roleName ')'
+	-> predicateRole, roleName
+
+mandatory =
+	'Mandatory' s '(' s typename sep predicateRole *(sep predicateRole) ')'
+	-> typename, predicateRole
+
+unique =
+	'Unique' s '(' s predicateRole *(sep predicateRole) ')'
+	-> predicateRole
+
+simpleIdentification =
+	'SimpleIdentification' s '(' s
+	  typename sep
+	  predicateRole sep
+	  predicateRole s
+	')'
+	-> typename, predicateRole
+
+externalUnique =
+	'ExternalUnique' s '(' s predicateRole *(sep predicateRole) ')'
+	-> predicateRole
+
+externalIdentification =
+	'ExternalIdentification' s '(' s typename '(' s predicateRole *(sep predicateRole) ')' s ')'
+	-> typename, predicateRole
+
+// For Frequency, the predicates must be all the same
+// For ExternalFrequency, the predicates may be all different
+frequency =
+	?'External':e 'Frequency' s '(' s frequencyRanges sep predicateRole *(sep predicateRole) ')'
+	-> e, predicateRole, frequencyRanges
+
+frequencyRanges =
+	| '(' s frequencyRange *(sep frequencyRange) ')' s
+	| frequencyRange
+	-> frequencyRange
+
+frequencyRange =
+	| naturalNumber:low s ?('..' s ?naturalNumber:high) s
+	| '..' s naturalNumber:high s
+	-> low, high
+
+// Define subtype(s) of a single supertype
+subtype =
+	'Subtype' s '(' s
+	  (| typename:subtype
+	   | '(' typename:subtype *(sep typename:subtype) ')'
+	  )
+	  typename:supertype sep
+	')'
+	-> subtype, supertype
+
+subtypeConstraint =
+	(|'Exclusive' |'Exhaustive'):e
+	'Subtype' ?'s' s '(' s
+	  '(' s typename:subtype *(sep typename:subtype) ')' s
+	  typename:supertype
+	')'
+	-> e, supertype, subtype
+
+subset =
+	'Subset' s '(' s rolePairs ')'
+	-> rolePairs
+
+exclusive =
+	'Exclusive' s '(' s rolePairs ')'
+	-> rolePairs
+
+equality =
+	'Equal' s '(' s rolePairs ')'
+	-> rolePairs
+
+rolePairs =
+	+rolePair
+	-> rolePair
+
+rolePair =
+	'(' s predicateRole sep predicateRole ')' s
+	-> predicateRole
+
+comparison =
+	comparisonOperator s '(' s predicateRole sep predicateRole ')'
+	-> comparisonOperator, predicateRole
+
+comparisonOperator =
+	| equalTo:op
+	| notEqualTo:op
+	| lessOrEqual:op
+	| lessThan:op
+	| lessOrGreater:op
+	| greaterOrEqual:op
+	| greaterThan:op
+	-> op
+
+objectifies =
+	'Objectifies' s '(' s typename sep predicate s ')'
+	-> typename, predicate
+
+valuesOf =
+	'ValuesOf' s '(' s (|predicateRole:target |typename:target) '(' s range *(sep range) ')' s ')' s
+	-> target, range
+
+typeCardinality =
+	'TypeCardinality' s '(' s typename ?sep cardinalityRanges ')'
+	-> typename, cardinalityRanges
+
+roleCardinality =
+	'RoleCardinality' s '(' s predicateRole ?sep cardinalityRanges ')'
+	-> predicateRole, cardinalityRanges
+
+cardinalityRanges =
+	'(' s cardinalityRange *(sep cardinalityRange) ')' s
+	-> cardinalityRange
+
+cardinalityRange =
+	?(|naturalNumber:low |zero:low) s ?( '..' s ?(|naturalNumber:high |infinity:high)) s
+	-> low, high
+
+ringConstraint =
+	ringConstraintType s '(' s predicateRole sep predicateRole ')'
+	-> ringConstraintType, predicateRole
+
+ringConstraintType =
+	| 'LocallyReflexive'
+	| 'PurelyReflexive'
+	| 'Irreflexive'
+	| 'Symmetric'
+	| 'Asymmetric'
+	| 'Antisymmetric'
+	| 'Transitive'
+	| 'Intransitive'
+	| 'StronglyIntransitive'
+	| 'Acyclic'
+
+subTypeRule =
+	'SubType' ?'Semi':semi 'Rule' s '(' s typename sep path ')'
+	-> semi, typename, path
+
+factTypeRule =
+	'FactType' ?'Semi':semi 'Rule' s '(' s predicate sep path *(sep path) ')'
+	-> semi, predicate, path
+
+// Declare a new predicate to join the first role of the first pair through to the second of the last pair:
+joinPath =
+	'JoinPath' s '(' s predicate s rolePairs ')'
+	-> predicate, rolePairs
+
+// Precedence in expressions: ~ & v >
+path =
+	pathDisjunction
+	-> pathDisjunction
+
+pathDisjunction =
+	pathConjunction *(or pathConjunction)
+	-> pathConjunction
+
+pathConjunction =
+	pathException *(and pathException)
+	-> pathException
+
+pathException =
+	pathSimple *(except pathSimple)
+	-> pathSimple
+
+pathSimple =
+	| roleTraversal:simple
+	| unaryPredicate:simple
+	| typePredicate:simple
+	| valueSetPredicate:simple
+	| variableComparison:simple
+	| variableBinding:simple
+	| subexpression:simple
+	-> simple
+
+roleTraversal =			// role traversal (aka join step):
+	predicateRole:startRole arrow +('[' s predicateRole join_operator path ']' s)
+	-> startRole, predicateRole, path
+
+unaryPredicate =		// unary predicate (REVISIT: unique role name would also work here)
+	s &[a-z] predicate s	// must be a unaryPredicate
+	-> predicate
+
+typePredicate =
+	typename s		// REVISIT: Indistinguishable from simple predicates, hence &[a-z] above
+	-> typename
+
+valueSetPredicate =		// Value(s) predicate: REVISIT: Add support for value ranges
+	'{' s +(literal s) '}' s
+	-> literal
+
+variableComparison =
+	comparisonOperator s term s
+	-> comparisonOperator, term
+
+variableBinding =
+	variable s
+	-> variable
+
+subexpression =
+	'(' s path ')' s
+	-> path
+
+term =
+	| literal:term
+	| variable:term
+	| functionCall:term
+	-> term
+
+functionCall =
+	id '(' s ?(term *(s sep s term) ) ')' s
+	-> id, term
+
+variable =
+	'?' id s
+
+roleName =
+	id s
+	-> id
+
+question =
+	'?' !'?'
+
+predicate =
+	// A link fact type in an objectification may be referenced as a predicate
+	| typename:t '.' predicate '.' roleNumber s
+	| (|!'-' adjective:t |id:t |question:t) s *( !predicateEndsWithHyphen (|adjective:t |id:t |question:t) s)
+	-> t, predicate, roleNumber
+
+predicateEndsWithHyphen =
+        id +'-' s !(|[_\a] |question)
+
+// Hyphen-binding designates adjectival words in predicate readings, to position articles and quantifiers in verbalisation
+adjective =
+	| '-' id
+	| id '-' !'-'
+        | [_\a] *[_\w] *((|'-- '|' --') +\w)		// Allow hyphenated adjectives
+
+predicateRole =
+	predicate '.' roleNumber s
+	-> predicate, roleNumber
+
+roleNumber =
+	naturalNumber
+	-> naturalNumber
+
+s =	*(			// Optional space
+	  | +[ \t\n\r]		// one or more spaces
+	  | comment_to_eol
+	  | comment_c_style
+	)
+
+comment_to_eol =
+        '//' *(!'\n' .)
+
+comment_c_style =
+        '/*' *(!'*/' . ) '*/'
+
+sep =	',' s
+
+or =	(| '∨'			// downward wedge
+	 | 'v' !\w		// ASCII substitute
+	) s
+
+and =	(| '∧'			// wedge
+	 | '/\\'		// ASCII substitute
+	) s
+
+except =
+	(| '∖'			// relative complement, Unicode left slash
+	 | '\\'			// ASCII substitute
+	) s
+
+join_operator =
+	(| '⨝'			// join
+	 | '><'			// ASCII substitute
+	) s
+
+literal =
+        (| boolean_literal
+         | string
+         | number
+        ) s
+
+boolean_literal =
+        | 'true' !\w s
+        | 'false' !\w s
+
+string =
+        '\'' *(string_char) '\''
+
+string_char =
+        | '\\' [befntr\\']
+        | '\\' [0-7] [0-7] [0-7]
+        | '\\' *[\r] [\n] *[\r]
+        | '\\0'
+        | '\\x' [0-9A-Fa-f] [0-9A-Fa-f]
+        | '\\u' [0-9A-Fa-f] [0-9A-Fa-f] [0-9A-Fa-f] [0-9A-Fa-f]
+        | !['\x01-\x07\x0A-\x1F] .	// Exclude control characters except tab. Cannot exclude NUL here
+
+range =
+        | numeric_range:range
+	| string_range:range
+	-> range
+
+numeric_range =
+        | number:low s ?('..' s ?number:high s)
+        | '..' s number:high s
+	-> low, high
+
+string_range =
+        | string:low s ?('..' s ?string:high s)
+        | '..' s string:high s
+	-> low, high
+
+number =
+        (| real:number
+         | fractional_real:number
+         | hexnumber:number
+         | octalnumber:number
+        ) !\w
+	-> number
+
+real =
+        ?[-+] [1-9] *[0-9] ?fraction ?exponent
+
+fractional_real =
+        ?[-+] '0' fraction ?exponent
+
+fraction =
+        '.' +[0-9]
+
+exponent =
+        [Ee] ?[-+] +[0-9]
+
+naturalNumber =
+	[1-9] *[0-9]
+
+hexnumber =
+        '0x' +[0-9A-Fa-f]
+
+octalnumber =
+        '0' *[0-7]
+
+zero =			// Allow zero at start of a range, but not a decimal or hex number
+	'0' &(| '..' | ![0-9x.])
+
+infinity =
+	'∞' s
+
+arrow =			// right-pointing arrowhead
+	(| '=>'
+	 | '➤'
+	 | '▶') s
+
+equalTo =
+	'=' ![>]
+
+notEqualTo =
+	| '<>'
+	| '!='
+	| '≠'
+
+lessOrGreater =
+	'≶'
+
+lessThan =
+	'<' !'='
+
+lessOrEqual =
+	| '<='
+	| '≤'
+
+greaterOrEqual =
+	| '>='
+	| '≥'
+
+greaterThan =
+	'>' ![=<]
+
+id =
+        [_\a] *[_\w] *('-' +\w)		// Allow hyphenated identifiers
+
+typename =
+	id s *(id s)			// multi-word typenames include white-space
+	-> id

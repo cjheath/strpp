@@ -97,7 +97,7 @@ run_peg_size_test:
 $(TESTS): $(HDRS)
 
 run_peg_test: peg_test
-	peg_test ../fig/fig.px
+	peg_test test/fig.px
 
 run_pegexp_size_test:
 	@rm pegexp_size_test.o 2>/dev/null || true
