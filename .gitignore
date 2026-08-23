@@ -1,4 +1,5 @@
 *.swp
+*.diff
 *.o
 *_test
 *_test.dSYM

@@ -27,6 +27,7 @@ HDRS	=	\
 		peg.h			\
 		pegexp.h		\
 		peg_ast.h		\
+		redblack.h		\
 		refcount.h		\
 		strval.h		\
 		taggedref.h		\
@@ -50,6 +51,7 @@ TESTS	=	\
 		peg_test		\
 		pegexp_test		\
 		reassembly_test		\
+		redblack_test		\
 		strval_test		\
 		taggedref_test		\
 		thread_test		\
