@@ -11,7 +11,7 @@
 #include	<threadid.h>
 
 #if	defined(HAVE_FREERTOS)
-#include	<semphr.h>
+#include	<freertos/semphr.h>
 #endif
 
 class Latch

@@ -17,7 +17,7 @@
 #include <lockfree.h>
 
 #if	defined(HAVE_FREERTOS)
-#include <event_groups.h>
+#include <freertos/event_groups.h>
 #endif
 
 class Condition

@@ -1,0 +1,11 @@
+version: "0.1.0"
+description: >
+  strpp (StringPlusPlus) - a value-oriented C++ library implementing
+  copy-on-write Unicode strings, arrays and maps, a type-safe Variant type,
+  and PEG/Pegexp pattern-matching and parsing, designed to minimise dynamic
+  memory allocation on memory-constrained systems including embedded
+  targets.
+url: https://github.com/cjheath/strpp
+license: MIT
+dependencies:
+  idf: ">=5.0"

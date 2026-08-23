@@ -1,0 +1,33 @@
+menu "strpp Configuration"
+
+	config STRPP_THREAD_DEFAULT_STACK_BYTES
+		int "Default stack size for strpp::Thread (bytes)"
+		default 4096
+		help
+			Used by strpp's Thread class (include/thread.h) whenever a
+			Thread is constructed without an explicit
+			ThreadParams::stackBytes override. Converted to StackType_t
+			words and passed to xTaskCreate() as the usStackDepth
+			argument.
+
+	config STRPP_THREAD_DEFAULT_PRIORITY
+		int "Default FreeRTOS task priority for strpp::Thread"
+		default 1
+		range 0 24
+		help
+			Passed to xTaskCreate() as the uxPriority argument for every
+			strpp::Thread (there is currently no per-Thread override for
+			this - see include/thread.h).
+
+	config STRPP_MAX_THREAD
+		int "Maximum concurrent strpp::Thread instances (0 = unbounded)"
+		default 0
+		help
+			If non-zero, this preallocates the Thread registry (the
+			Array<Thread*> in src/thread.cpp) to this capacity once at
+			startup, avoiding reallocation and reducing the out-of-memory
+			hazard on constrained targets. It is not currently enforced
+			as a hard limit. Leave at 0 to let the registry grow
+			dynamically instead.
+
+endmenu

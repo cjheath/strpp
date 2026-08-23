@@ -108,6 +108,25 @@ _suspend_, _resume_, _join_, _joinAny_, _yield_(ms), etc.
 _lockfree.h_ implements atomic an Latch class allowing construction of lock-free code,
 and _condition,h_ provides an cross-platform implementation of condition variables.
 
+Threading is backed by pthreads, Windows threads, or FreeRTOS (`-DHAVE_PTHREADS`,
+`-DMSW`, or `-DHAVE_FREERTOS`).
+
+### Using strpp as an ESP-IDF component
+
+This directory is itself a valid ESP-IDF component (`CMakeLists.txt`,
+`idf_component.yml`, `Kconfig`) for use with FreeRTOS on ESP32 targets. Add
+it to an ESP-IDF project either as a git submodule under `components/strpp`,
+or by pointing `EXTRA_COMPONENT_DIRS` at a checkout of this repository. It
+always builds with `HAVE_FREERTOS` defined; `idf.py menuconfig` exposes
+`STRPP_THREAD_DEFAULT_STACK_BYTES`, `STRPP_THREAD_DEFAULT_PRIORITY` and
+`STRPP_MAX_THREAD` under "strpp Configuration".
+
+`make freertos_check` compiles (and links) the library and `thread_test`
+against `test/freertos_stub/`, a minimal stand-in for the real FreeRTOS
+headers, as a transcription-error check - it has no scheduler behind it, so
+don't run the resulting binary, and it's not a substitute for building the
+component in a real ESP-IDF project.
+
 ### Regular Expressions
 
 A ReDOS-resistant Thompson-style regexp compiler/interpreter using StrVal.

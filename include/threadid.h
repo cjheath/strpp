@@ -16,8 +16,8 @@ typedef pid_t		ProcessId;
 
 #elif	defined(HAVE_FREERTOS)
 
-#include	<FreeRTOS.h>
-#include	<task.h>
+#include	<freertos/FreeRTOS.h>
+#include	<freertos/task.h>
 
 typedef TaskHandle_t	ThreadId;
 typedef int		ProcessId;	// No real concept of a "process" under FreeRTOS; see currentProcessId()
