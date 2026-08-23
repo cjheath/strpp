@@ -115,6 +115,8 @@ public:
 };
 
 Thread::Thread()
+: thread_id(0)
+, state(New)
 {
 #if	defined(HAVE_PTHREADS)
 	// pthread_create starts the thread immediately, before subclass construction has finished,
