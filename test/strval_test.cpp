@@ -16,6 +16,20 @@
  * StrDataType matches" comments in strval.h). Those tests are left in
  * place, deliberately failing, to document and guard against the defects.
  *
+ * malformed_utf8_tests()/illegal_byte_propagation_tests() require that
+ * every byte of invalid UTF-8 - wherever it came from, and after passing
+ * through any operation - is exposed losslessly as its own UCS4 "illegal"
+ * codepoint (see UCS4IsIllegal()/UTF8EncodeIllegal() in char_encoding.h):
+ * one invalid byte in, one illegal-marked character out, never merged with
+ * a neighbour and never silently dropped.
+ *
+ * NOTE: toJSON()/asJSON() on a string containing an illegal-encoded byte
+ * currently hits `assert(ch <= 0xFFFFF)` in strval.h and aborts the process
+ * (the illegal-marker range 0x80000000-0x800000FF isn't recognised there).
+ * That case is deliberately left untested here rather than exercised - a
+ * proper non-aborting panic/error handler is planned separately; add the
+ * JSON-losslessness test once that lands instead of crashing this binary.
+ *
  * (c) Copyright Clifford Heath 2026. See LICENSE file for usage rights.
  */
 #include	<strval.h>
@@ -46,6 +60,7 @@ void		comparison_tests();
 void		copy_on_write_tests();
 void		raw_binary_tests();
 void		malformed_utf8_tests();
+void		illegal_byte_propagation_tests();
 void		long_string_bookmark_tests();
 void		mixed_encoding_tests();
 
@@ -72,6 +87,7 @@ main(int argc, const char** argv)
 	copy_on_write_tests();
 	raw_binary_tests();
 	malformed_utf8_tests();
+	illegal_byte_propagation_tests();
 	long_string_bookmark_tests();
 	mixed_encoding_tests();
 
@@ -783,15 +799,19 @@ raw_binary_tests()
 }
 
 /*
- * Malformed/illegal UTF-8 input is handled without crashing
+ * Malformed/illegal UTF-8 input must be handled losslessly: every invalid
+ * byte becomes its own UCS4 "illegal" codepoint (UTF8EncodeIllegal(byte),
+ * satisfying UCS4IsIllegal()), never merged with a neighbour, never
+ * silently dropped, and well-formed characters around it must decode
+ * normally. Every expectation below was confirmed against the actual
+ * library behaviour with a standalone diagnostic before being written
+ * here as a permanent regression test - this whole group currently passes.
  */
 void
 malformed_utf8_tests()
 {
 	test_group("Malformed UTF-8: lone continuation byte");
-	// 0x80 is a continuation byte with no valid leader; must decode as an
-	// "illegal" replacement UCS4 character (0x80000000 | byte) rather than crash,
-	// per UCS4IsIllegal / UTF8EncodeIllegal.
+	// 0x80 is a continuation byte with no valid leader.
 	StrVal	bad("a\x80" "b");
 	expect_eq_int("length still counts 3 chars", (long)bad.length(), 3);
 	expect_eq_ch("bad[0] is 'a'", bad[0], (UCS4)'a');
@@ -799,11 +819,155 @@ malformed_utf8_tests()
 	expect("bad[1] satisfies UCS4IsIllegal", UCS4IsIllegal(bad[1]));
 	expect_eq_ch("bad[2] is 'b'", bad[2], (UCS4)'b');
 
+	test_group("Malformed UTF-8: three consecutive lone continuation bytes stay separate");
+	StrVal	threeBad("\x80\x81\x82");
+	expect_eq_int("three lone continuations -> three chars, not merged", (long)threeBad.length(), 3);
+	expect_eq_ch("threeBad[0]", threeBad[0], UTF8EncodeIllegal((UTF8)0x80));
+	expect_eq_ch("threeBad[1]", threeBad[1], UTF8EncodeIllegal((UTF8)0x81));
+	expect_eq_ch("threeBad[2]", threeBad[2], UTF8EncodeIllegal((UTF8)0x82));
+
 	test_group("Malformed UTF-8: truncated multi-byte sequence at end of string");
 	// 0xE4 introduces a 3-byte sequence but the string ends after 1 byte.
 	StrVal	truncated("x\xE4");
-	expect("truncated string doesn't crash on length()", truncated.length() >= 1);
+	expect_eq_int("truncated string still counts both bytes", (long)truncated.length(), 2);
 	expect_eq_ch("truncated[0] is 'x'", truncated[0], (UCS4)'x');
+	expect_eq_ch("truncated[1] is illegal-marker for 0xE4", truncated[1], UTF8EncodeIllegal((UTF8)0xE4));
+
+	test_group("Malformed UTF-8: 3-byte leader + 1 valid continuation, then end of string");
+	// The leader promises 2 continuation bytes but only 1 follows before the string ends;
+	// both the leader byte and the stranded continuation byte surface as their own
+	// illegal character - none of the input bytes are lost.
+	StrVal	leaderPlusOne("\xE4\x80");
+	expect_eq_int("leader+1-continuation -> 2 illegal chars", (long)leaderPlusOne.length(), 2);
+	expect_eq_ch("leaderPlusOne[0]", leaderPlusOne[0], UTF8EncodeIllegal((UTF8)0xE4));
+	expect_eq_ch("leaderPlusOne[1]", leaderPlusOne[1], UTF8EncodeIllegal((UTF8)0x80));
+
+	test_group("Malformed UTF-8: same, followed by a valid ASCII character");
+	StrVal	leaderPlusOneThenAscii("\xE4\x80" "z");
+	expect_eq_int("length is 3 (2 illegal + 1 ASCII)", (long)leaderPlusOneThenAscii.length(), 3);
+	expect_eq_ch("[0] illegal 0xE4", leaderPlusOneThenAscii[0], UTF8EncodeIllegal((UTF8)0xE4));
+	expect_eq_ch("[1] illegal 0x80", leaderPlusOneThenAscii[1], UTF8EncodeIllegal((UTF8)0x80));
+	expect_eq_ch("[2] 'z' decodes normally", leaderPlusOneThenAscii[2], (UCS4)'z');
+
+	test_group("Malformed UTF-8: positive control - a complete valid 3-byte sequence is NOT illegal");
+	StrVal	validCJK("\xE4\xB8\xAD");	// 中, U+4E2D
+	expect_eq_int("valid 3-byte sequence is 1 char", (long)validCJK.length(), 1);
+	expect_eq_ch("decodes to U+4E2D", validCJK[0], (UCS4)0x4E2D);
+	expect("a well-formed character does not satisfy UCS4IsIllegal", !UCS4IsIllegal(validCJK[0]));
+
+	test_group("Malformed UTF-8: truncated 4-byte sequence at end of string");
+	StrVal	truncated4("\xF0\x9F");
+	expect_eq_int("leader+1-continuation (4-byte lead) -> 2 illegal chars", (long)truncated4.length(), 2);
+	expect_eq_ch("truncated4[0]", truncated4[0], UTF8EncodeIllegal((UTF8)0xF0));
+	expect_eq_ch("truncated4[1]", truncated4[1], UTF8EncodeIllegal((UTF8)0x9F));
+
+	test_group("Malformed UTF-8: truncated 4-byte sequence (2 of 3 continuations) then ASCII");
+	StrVal	truncated4b("\xF0\x9F\x98" "z");
+	expect_eq_int("length is 4 (3 illegal + 1 ASCII)", (long)truncated4b.length(), 4);
+	expect_eq_ch("[0] illegal 0xF0", truncated4b[0], UTF8EncodeIllegal((UTF8)0xF0));
+	expect_eq_ch("[1] illegal 0x9F", truncated4b[1], UTF8EncodeIllegal((UTF8)0x9F));
+	expect_eq_ch("[2] illegal 0x98", truncated4b[2], UTF8EncodeIllegal((UTF8)0x98));
+	expect_eq_ch("[3] 'z' decodes normally", truncated4b[3], (UCS4)'z');
+
+	test_group("Malformed UTF-8: two invalid leader bytes back-to-back stay separate");
+	StrVal	twoLeaders("\xE4\xE4");
+	expect_eq_int("two bad leaders -> 2 chars, not merged", (long)twoLeaders.length(), 2);
+	expect_eq_ch("twoLeaders[0]", twoLeaders[0], UTF8EncodeIllegal((UTF8)0xE4));
+	expect_eq_ch("twoLeaders[1]", twoLeaders[1], UTF8EncodeIllegal((UTF8)0xE4));
+
+	test_group("Malformed UTF-8: bytes that can never start a valid UTF-8 sequence");
+	StrVal	byteFF("\xFF");
+	expect_eq_int("0xFF is 1 illegal char", (long)byteFF.length(), 1);
+	expect_eq_ch("byteFF[0]", byteFF[0], UTF8EncodeIllegal((UTF8)0xFF));
+	StrVal	byteFE("\xFE");
+	expect_eq_int("0xFE is 1 illegal char", (long)byteFE.length(), 1);
+	expect_eq_ch("byteFE[0]", byteFE[0], UTF8EncodeIllegal((UTF8)0xFE));
+
+	test_group("Malformed UTF-8: realistic mix of valid and invalid bytes, nothing lost");
+	StrVal	mix("a\x80" "b\x80\x81" "c");
+	expect_eq_int("mix length is 6 (a, illegal, b, illegal, illegal, c)", (long)mix.length(), 6);
+	expect_eq_ch("mix[0] 'a'", mix[0], (UCS4)'a');
+	expect_eq_ch("mix[1] illegal 0x80", mix[1], UTF8EncodeIllegal((UTF8)0x80));
+	expect_eq_ch("mix[2] 'b'", mix[2], (UCS4)'b');
+	expect_eq_ch("mix[3] illegal 0x80", mix[3], UTF8EncodeIllegal((UTF8)0x80));
+	expect_eq_ch("mix[4] illegal 0x81", mix[4], UTF8EncodeIllegal((UTF8)0x81));
+	expect_eq_ch("mix[5] 'c'", mix[5], (UCS4)'c');
+}
+
+/*
+ * --------------------------------------------------------------------
+ * Operations that copy or derive content from a StrVal already containing
+ * illegal-encoded bytes must propagate them losslessly too, not just plain
+ * construction. Confirmed against the actual library behaviour before
+ * being written here; this whole group currently passes.
+ * --------------------------------------------------------------------
+ */
+void
+illegal_byte_propagation_tests()
+{
+	// a, illegal(0x80), b, illegal(0xE4) [truncated leader], c
+	StrVal	bad("a\x80" "b\xE4" "c");
+
+	test_group("Propagation: substr()/tail() preserve illegal markers at the right positions");
+	expect_eq_int("bad has 5 chars", (long)bad.length(), 5);
+	StrVal	first3 = bad.substr(0, 3);
+	expect_eq_int("first3 length", (long)first3.length(), 3);
+	expect_eq_ch("first3[1] illegal 0x80", first3[1], UTF8EncodeIllegal((UTF8)0x80));
+	StrVal	last3 = bad.substr(2, 3);
+	expect_eq_int("last3 length", (long)last3.length(), 3);
+	expect_eq_ch("last3[1] illegal 0xE4", last3[1], UTF8EncodeIllegal((UTF8)0xE4));
+	StrVal	tailed = bad.tail(2);
+	expect_eq_ch("tail(2)[0] illegal 0xE4", tailed[0], UTF8EncodeIllegal((UTF8)0xE4));
+	expect_eq_ch("tail(2)[1] 'c'", tailed[1], (UCS4)'c');
+
+	test_group("Propagation: operator+ concatenation");
+	StrVal	concatenated = bad + StrVal("XYZ");
+	expect_eq_int("concatenated length is 8", (long)concatenated.length(), 8);
+	expect_eq_ch("concatenated[1] illegal 0x80", concatenated[1], UTF8EncodeIllegal((UTF8)0x80));
+	expect_eq_ch("concatenated[3] illegal 0xE4", concatenated[3], UTF8EncodeIllegal((UTF8)0xE4));
+	expect_eq_ch("concatenated[5] 'X'", concatenated[5], (UCS4)'X');
+
+	test_group("Propagation: prepend()");
+	StrVal	prep("XYZ");
+	prep.prepend(bad);
+	expect_eq_int("prepend result length is 8", (long)prep.length(), 8);
+	expect_eq_ch("prep[1] illegal 0x80", prep[1], UTF8EncodeIllegal((UTF8)0x80));
+	expect_eq_ch("prep[3] illegal 0xE4", prep[3], UTF8EncodeIllegal((UTF8)0xE4));
+
+	test_group("Propagation: insert() into the middle of another string");
+	StrVal	ins("12345");
+	ins.insert(2, bad);
+	expect_eq_int("insert result length is 10", (long)ins.length(), 10);
+	expect_eq_ch("ins[3] illegal 0x80", ins[3], UTF8EncodeIllegal((UTF8)0x80));
+	expect_eq_ch("ins[5] illegal 0xE4", ins[5], UTF8EncodeIllegal((UTF8)0xE4));
+
+	test_group("Propagation: operator* (repeat)");
+	StrVal	repeated = bad * 2;
+	expect_eq_int("repeated length is 10", (long)repeated.length(), 10);
+	expect_eq_ch("repeated[1] illegal 0x80 (1st copy)", repeated[1], UTF8EncodeIllegal((UTF8)0x80));
+	expect_eq_ch("repeated[6] illegal 0x80 (2nd copy)", repeated[6], UTF8EncodeIllegal((UTF8)0x80));
+	expect_eq_ch("repeated[8] illegal 0xE4 (2nd copy)", repeated[8], UTF8EncodeIllegal((UTF8)0xE4));
+
+	test_group("Propagation: toLower()/toUpper() pass illegal bytes through unchanged");
+	StrVal	lowerSrc("A\x80" "B\xE4" "C");
+	StrVal	lowered = lowerSrc;
+	lowered.toLower();
+	expect_eq_int("lowered length unchanged", (long)lowered.length(), 5);
+	expect_eq_ch("lowered[0] 'a'", lowered[0], (UCS4)'a');
+	expect_eq_ch("lowered[1] illegal 0x80 untouched", lowered[1], UTF8EncodeIllegal((UTF8)0x80));
+	expect_eq_ch("lowered[2] 'b'", lowered[2], (UCS4)'b');
+	expect_eq_ch("lowered[3] illegal 0xE4 untouched", lowered[3], UTF8EncodeIllegal((UTF8)0xE4));
+	expect_eq_ch("lowered[4] 'c'", lowered[4], (UCS4)'c');
+
+	StrVal	upperSrc("a\x80" "b\xE4" "c");
+	StrVal	uppered = upperSrc;
+	uppered.toUpper();
+	expect_eq_int("uppered length unchanged", (long)uppered.length(), 5);
+	expect_eq_ch("uppered[0] 'A'", uppered[0], (UCS4)'A');
+	expect_eq_ch("uppered[1] illegal 0x80 untouched", uppered[1], UTF8EncodeIllegal((UTF8)0x80));
+	expect_eq_ch("uppered[2] 'B'", uppered[2], (UCS4)'B');
+	expect_eq_ch("uppered[3] illegal 0xE4 untouched", uppered[3], UTF8EncodeIllegal((UTF8)0xE4));
+	expect_eq_ch("uppered[4] 'C'", uppered[4], (UCS4)'C');
 }
 
 /*
