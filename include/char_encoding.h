@@ -87,6 +87,8 @@ inline bool	isalnum(UCS4 c) { return UCS4IsAlphabetic(c) || UCS4IsDecimal(c); }
 inline UCS4	toupper(UCS4 c) { return UCS4ToUpper(c); }
 inline UCS4	tolower(UCS4 c) { return UCS4ToLower(c); }
 inline bool	isspace(UCS4 c) { return UCS4IsWhite(c); }
+inline bool	isupper(UCS4 c) { return UCS4ToLower(c) != c; }
+inline bool	islower(UCS4 c) { return UCS4ToUpper(c) != c; }
 
 inline bool
 UCS4IsIllegal(UCS4 ucs4)	// Does this UCS4 character encode an illegal utf-8 byte?
