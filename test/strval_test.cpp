@@ -37,6 +37,8 @@
 #include	<cstdio>
 #include	<cstring>
 #include	<climits>
+#include	<type_traits>
+#include	<utility>
 
 bool		show_passes = false;
 int		test_count;
@@ -63,6 +65,7 @@ void		malformed_utf8_tests();
 void		illegal_byte_propagation_tests();
 void		long_string_bookmark_tests();
 void		mixed_encoding_tests();
+void		bool_cast_tests();
 
 int
 main(int argc, const char** argv)
@@ -90,6 +93,7 @@ main(int argc, const char** argv)
 	illegal_byte_propagation_tests();
 	long_string_bookmark_tests();
 	mixed_encoding_tests();
+	bool_cast_tests();
 
 	printf("Completed %d tests with %d failures\n", test_count, failure_count);
 	return failure_count == 0 ? 0 : 1;
@@ -738,6 +742,70 @@ comparison_tests()
 	StrVal	beta("\xCE\xB2");	// U+03B2
 	expect("alpha < beta (byte-order matches codepoint order)", alpha < beta);
 	expect("alpha == alpha", alpha == StrVal("\xCE\xB1"));
+}
+
+namespace {
+	// Expression-SFINAE trait: true iff `T() + U()` is a well-formed expression.
+	// A *negative* result can't be a runtime assertion, so it's checked with
+	// static_assert below instead - if it ever starts compiling again, the
+	// build breaks loudly rather than the test silently passing.
+	template<typename T, typename U, typename = void>
+	struct can_add : std::false_type {};
+	template<typename T, typename U>
+	struct can_add<T, U, decltype((void)(std::declval<const T&>() + std::declval<const U&>()), void())>
+	: std::true_type {};
+}
+
+/*
+ * Regression test for a real, previously-shipped bug: StrRefI::operator
+ * bool() was not `explicit`, so an expression like `pulled + sep` (both
+ * operands StrRefI, which has no operator+ of its own - only StrValI
+ * does, and a derived class's members are never found via the base
+ * class's own type) silently fell back to built-in `bool + bool`
+ * arithmetic instead of failing to compile: bool+bool promotes to int,
+ * and that int was then reconstructed as a single-character StrValI,
+ * producing "empty-looking" data corruption instead of a compile error.
+ *
+ * Fixed by making StrRefI::operator bool() explicit. That exposed a
+ * second, related latent bug of the same shape: Array<StrRef>::operator==
+ * relies on StrRefI::operator==, which didn't exist, so it was ALSO
+ * silently falling back to comparing bool conversions - any two non-empty
+ * StrRefs compared as "equal" regardless of content. Fixed by giving
+ * StrRefI its own content-based compare()/operator==/etc.
+ */
+void
+bool_cast_tests()
+{
+	test_group("Accidental bool-cast regression: StrRef has no operator+, must not silently compile as bool arithmetic");
+	static_assert(!can_add<StrRef, StrRef>::value,
+		"StrRef + StrRef must NOT compile - StrRefI has no operator+, so this must not fall back to bool+bool arithmetic");
+	static_assert(can_add<StrVal, StrVal>::value, "StrVal + StrVal must compile");
+	static_assert(can_add<StrVal, StrRef>::value, "StrVal + StrRef must compile (StrRefI converts to StrVal)");
+	expect("compile-time operator+ checks passed (see static_asserts above)", true);
+
+	test_group("Accidental bool-cast regression: StrRef must compare by content, not by non-empty-truthiness");
+	StringArray	words;
+	words.push(StrVal("hello"));
+	words.push(StrVal("world"));
+	StrRef		first = words[0];		// StrRefI, non-empty
+	StrRef		second = words[1];		// StrRefI, non-empty, different content
+	StrRef		first_again = words[0];		// StrRefI, same content as `first`
+
+	// Before the fix, this fell back to comparing (non-explicit) bool
+	// conversions: both non-empty, so it incorrectly evaluated true
+	// regardless of actual content - exactly what test/array_test.cpp's
+	// Array<StrRef>::operator== was silently relying on.
+	expect("StrRef == StrRef with different content is false", !(first == second));
+	expect("StrRef == StrRef with same content is true", first == first_again);
+	expect("StrRef != StrRef with different content is true", first != second);
+	expect("StrRef < / > order by content, not truthiness", (first < second) != (second < first));
+
+	test_group("Accidental bool-cast regression: explicit operator bool() still permits contextual conversion");
+	bool	saw_true = false;
+	if (first)	// contextual conversion to bool must still compile and work
+		saw_true = true;
+	expect("if(StrRef) contextual bool conversion is true for non-empty string", saw_true);
+	expect("if(StrRef) contextual bool conversion is false for empty string", !StrRef(""));
 }
 
 /*

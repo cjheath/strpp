@@ -296,6 +296,7 @@ template<typename Index>
 class StrRefI
 {
 	using Body = StrBodyI<Index>;
+	using Bookmark = StrBookmark<Index>;
 public:
 	~StrRefI() {}			// Destructor
 	StrRefI()			// Empty string
@@ -351,11 +352,47 @@ public:
 
 	Index		length() const { return num_chars; }	// Number of chars
 	bool		isEmpty() const { return length() == 0; } // equals empty string?
-	operator bool() const { return !isEmpty(); }
+	explicit operator bool() const { return !isEmpty(); }
+	bool		isStatic() const { return body->isStatic(); }	// Not owned by this StrRefI's body
+
+	Index		numBytes() const	// Number of bytes of (UTF-8 or raw binary) data
+			{
+				const char*	ep = nthChar(length());
+				assert(ep);
+				return ep-nthChar(0);
+			}
+
+	// Comparisons: raw byte-wise only. StrValI adds CompareStyle-parameterised compare().
+	int		compare(const StrRefI& comparand) const
+			{
+				// Only compare the overlapping prefix - comparing numBytes() of
+				// *this* against a shorter comparand would read past the end of
+				// its buffer.
+				Index	shorter = numBytes() < comparand.numBytes() ? numBytes() : comparand.numBytes();
+				int	cmp = memcmp(nthChar(0), comparand.nthChar(0), shorter);
+				if (cmp == 0)
+					cmp = numBytes() - comparand.numBytes();
+				return cmp;
+			}
+	inline bool	operator==(const StrRefI& comparand) const
+			{ return length() == comparand.length() && compare(comparand) == 0; }
+	inline bool	operator!=(const StrRefI& comparand) const { return !(*this == comparand); }
+	inline bool	operator<(const StrRefI& comparand) const { return compare(comparand) < 0; }
+	inline bool	operator<=(const StrRefI& comparand) const { return compare(comparand) <= 0; }
+	inline bool	operator>=(const StrRefI& comparand) const { return compare(comparand) >= 0; }
+	inline bool	operator>(const StrRefI& comparand) const { return compare(comparand) > 0; }
 
 protected:
 	StrRefI(Body* s1, Index offs, Index len)	// offs/len not bounds-checked!
 			: body(s1), offset(offs), num_chars(len) {}
+
+	const char*	nthChar(Index char_num) const	// Return a pointer to the start of the nth character
+			{
+				if (char_num < 0 || char_num > length())
+					return 0;
+				Bookmark	unsaved;	// No cache: a StrRefI carries no Bookmark, by design (see class comment)
+				return body->nthChar(offset+char_num, unsaved);
+			}
 
 	Ref<Body>	body;		// The storage structure for the character data
 	Index		offset;		// What char number we start at
@@ -375,6 +412,7 @@ protected:
 	using Base::offset;
 public:
 	using Base::length;
+	using Base::numBytes;
 	typedef enum {
 		CompareRaw,		// No processing, just the characters
 		CompareCI,		// Case independent
@@ -396,6 +434,8 @@ public:
 	StrValI(const StrRefI<Index>& s1)	// Copy from StrRef
 			: Base(s1)
 			{
+				if (s1.isStatic())	// Must not copy a reference to a non-allocated body
+					Unshare();
 			}
 
 	StrValI(const char* data, StrDataType dt = StrUTF8)	// construct by copying NUL-terminated data
@@ -412,12 +452,7 @@ public:
 			{}
 	StrValI(Body* s1) : Base(s1) {}	// New reference to same string body; used for static strings
 
-	Index		numBytes() const
-			{
-				const char*	ep = nthChar(length());
-				assert(ep);
-				return ep-nthChar(0);
-			}
+	// numBytes() is inherited from StrRefI
 
 	// Access the characters and character value:
 	UCS4		operator[](int charNum) const
@@ -778,8 +813,7 @@ protected:
 					return 0;
 				return body->nthChar(offset+char_num, mark);
 			}
-	bool		isStatic() const
-			{ return body->isStatic(); }
+	// isStatic() is inherited from StrRefI
 
 private:
 	Bookmark	mark;
