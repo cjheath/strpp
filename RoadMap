@@ -19,7 +19,6 @@ ArgList
 
 COWMap
 	returns using Tuple?
-	Implement using pure functional RBTree to minimise copying (each node RefCounted)
 
 Threads
 	Thread-local error buffers

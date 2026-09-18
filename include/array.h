@@ -14,6 +14,8 @@
 #include	<cstdlib>
 #include	<cstdint>
 #include	<functional>
+#include	<new>
+#include	<type_traits>
 
 #include	<refcount.h>
 
@@ -78,7 +80,15 @@ public:
 				}
 			}
 	Element		pull()
-			{ assert(num_elements > 0); Element e = last(); num_elements--; free_if_emptied(); return e; }
+			{
+				assert(num_elements > 0);
+				Element	e = last();		// Take the value before the body moves under it
+				Unshare();			// The element being dropped is ours to release
+				body->evacuate(offset+num_elements-1, 1); // Replace this element with a default one
+				num_elements--;
+				free_if_emptied();
+				return e;
+			}
 	// Unsafe accessors. These reference must not be live past sharing that could cause mutation
 	Element&	elem_mut(int elem_num)		// Return a mutable element
 			{ assert(elem_num >= 0 && elem_num < num_elements && body);
@@ -183,6 +193,18 @@ public:
 			}
 
 	ArrayR&		clear() { num_elements = 0; free_if_emptied(); return *this; }
+
+	// Empty this slice. If we are sole owner, release the elements but keep the
+	// body array so appending again doesn't allocate.
+	// clear() is the same except that it gives up the storage too.
+	ArrayR&		evacuate()
+			{
+				if (num_elements > 0 && body && body->GetRefCount() <= 1)
+					body->evacuate(offset, num_elements);
+				num_elements = 0;
+				offset = 0;
+				return *this;
+			}
 	Self		drop(Index n) const
 			{
 				assert(num_elements >= n);
@@ -205,19 +227,13 @@ public:
 				if (at == num_elements || len == 0)
 					return *this;
 
-				if (at+len == num_elements)		// Shorten this slice at the end
-					num_elements -= len;
-				else if (at == 0)			// Shorten this slice at the start
-				{
-					offset += len;
-					num_elements -= len;
-				}
-				else
-				{
-					Unshare();
-					body->remove(offset+at, len);
-					num_elements -= len;
-				}
+				/*
+				 * Ensure sole ownership before releasing any elements.
+				 * It used to be that these elements would not be destroyed until later.
+				 */
+				Unshare();
+				body->remove(offset+at, len);
+				num_elements -= len;
 				free_if_emptied();
 				return *this;
 			}
@@ -581,10 +597,40 @@ public:
 
 				if (len == -1)
 					len = num_elements-at;
-				for (Index i = at; i < num_elements-len; i++)
+				assert((Index)len <= num_elements);
+				Index	keep = num_elements-len;	// How many elements survive
+				for (Index i = at; i < keep; i++)
 					start[i] = start[i+len];	// Use assignment operators
-				// Note that the len elements after num_elements will not be destroyed until the array is deleted
-				num_elements -= len;		// len says how many we deleted.
+
+				/*
+				 * The new vacancies at the end contain elements not yet destroyed.
+				 * Destroy and reconstruct them as default, or they live til the block dies.
+				 * Assignment is not obliged to release what it overwrites.
+				 */
+				if (!std::is_trivially_destructible<Element>::value)
+					for (Index i = keep; i < num_elements; i++)
+					{
+						start[i].~Element();
+						new(&start[i]) Element();
+					}
+				num_elements = keep;
+			}
+
+		// Release len elements at `at`, retaining the storage that held them.
+		void		evacuate(Index at, Index len)
+			{
+				assert(ref_count <= 1);
+				assert(at+len <= num_elements);
+
+				if (!std::is_trivially_destructible<Element>::value)
+					for (Index i = at; i < at+len; i++)
+					{
+						start[i].~Element();
+						new(&start[i]) Element();
+					}
+
+				if (at == 0 && at+len == num_elements)
+					num_elements = 0;	// Nothing is left for the body to hold
 			}
 
 #if 0	// Not yet implemented
