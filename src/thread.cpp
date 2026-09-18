@@ -110,13 +110,14 @@ Thread::joinAny()
 {
 	thread_latch.enter();
 #if	defined(USE_THREAD_ARRAY)
-	if (threads.length() <= 1)
+	if (threads.length() == 0)
 #else
-	if (threads.size() <= 1)
+	if (threads.size() == 0)
 #endif
 	{
 		thread_latch.leave();
-		return 0;	// No threads except main
+		// The main thread is not registered so not counted here.
+		return 0;
 	}
 
 	// Search for a thread whose state is Ended
