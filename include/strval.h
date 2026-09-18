@@ -355,6 +355,10 @@ public:
 	explicit operator bool() const { return !isEmpty(); }
 	bool		isStatic() const { return body->isStatic(); }	// Not owned by this StrRefI's body
 
+	// Must a copy Unshare? a StrRefI::null is static but may be shared. This happens often!
+	bool		copyNeedsUnshare() const
+			{ return body->isStatic() && static_cast<const Body*>(body) != &Body::nullBody; }
+
 	Index		numBytes() const	// Number of bytes of (UTF-8 or raw binary) data
 			{
 				const char*	ep = nthChar(length());
@@ -428,13 +432,13 @@ public:
 	StrValI(const StrValI& s1)	// Normal copy constructor
 			: Base(s1)
 			{
-				if (s1.body->isStatic())	// Must not copy a reference to a non-allocated body
+				if (s1.copyNeedsUnshare())	// Must not copy a reference to a non-allocated body
 					Unshare();
 			}
 	StrValI(const StrRefI<Index>& s1)	// Copy from StrRef
 			: Base(s1)
 			{
-				if (s1.isStatic())	// Must not copy a reference to a non-allocated body
+				if (s1.copyNeedsUnshare())	// Must not copy a reference to a non-allocated body
 					Unshare();
 			}
 
