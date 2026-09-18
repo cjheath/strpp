@@ -69,8 +69,16 @@ public:
 			{ assert(num_elements > 0); return this->operator[](num_elements-1); }
 	const Element&	last_ref() const
 			{ assert(num_elements > 0); return elem_ref(num_elements-1); }
+	void		free_if_emptied()
+			{		// an empty slice on an unshared body can free any data it owns
+				if (num_elements == 0 && body && body->ownsData() && body->GetRefCount() <= 1)
+				{
+					body = 0;	// Sole owner: last reference, so Body and storage go
+					offset = 0;
+				}
+			}
 	Element		pull()
-			{ assert(num_elements > 0); Element e = last(); num_elements--; return e; }
+			{ assert(num_elements > 0); Element e = last(); num_elements--; free_if_emptied(); return e; }
 	// Unsafe accessors. These reference must not be live past sharing that could cause mutation
 	Element&	elem_mut(int elem_num)		// Return a mutable element
 			{ assert(elem_num >= 0 && elem_num < num_elements && body);
@@ -174,7 +182,7 @@ public:
 				return newarray;
 			}
 
-	ArrayR&		clear() { num_elements = 0; return *this; }
+	ArrayR&		clear() { num_elements = 0; free_if_emptied(); return *this; }
 	Self		drop(Index n) const
 			{
 				assert(num_elements >= n);
@@ -197,21 +205,20 @@ public:
 				if (at == num_elements || len == 0)
 					return *this;
 
-				if (at+len == num_elements)
-				{		// Shorten this slice at the end
+				if (at+len == num_elements)		// Shorten this slice at the end
 					num_elements -= len;
-					return *this;
-				}
-				if (at == 0)
-				{		// Shorten this slice at the start
+				else if (at == 0)			// Shorten this slice at the start
+				{
 					offset += len;
 					num_elements -= len;
-					return *this;
 				}
-
-				Unshare();
-				body->remove(at, len);
-				num_elements -= len;
+				else
+				{
+					Unshare();
+					body->remove(offset+at, len);
+					num_elements -= len;
+				}
+				free_if_emptied();
 				return *this;
 			}
 	Element		delete_at(Index at)
@@ -231,7 +238,7 @@ public:
 	ArrayR&		operator+=(const Element& addend)
 			{
 				Unshare(1);
-				body->insert(num_elements, &addend, 1);
+				body->insert(offset+num_elements, &addend, 1);
 				num_elements++;
 				return *this;
 			}
@@ -244,7 +251,7 @@ public:
 	Element		shift()				// remove an element from the start
 			{ assert(num_elements > 0); return delete_at(0); }
 	ArrayR&		unshift(const Element& e)	// Insert an element at the start
-			{ Unshare(); body->insert(0, e); num_elements++; return *this; }
+			{ Unshare(1); body->insert(offset, &e, 1); num_elements++; return *this; }
 	ArrayR&		insert(Index pos, const ArrayR& addend)
 			{
 				if ((Body*)body == (Body*)addend.body)	// From the same body
@@ -269,12 +276,12 @@ public:
 				}
 
 				Unshare(addend.length());
-				body->insert(pos, addend.asElements(), addend.length());
+				body->insert(offset+pos, addend.asElements(), addend.length());
 				num_elements += addend.length();
 				return *this;
 			}
 	ArrayR&		append(const ArrayR& addend)	// Append an ArrayR to the end
-			{ return insert(num_elements, addend.asElements(), addend.length()); }
+			{ return insert(num_elements, addend); }
 	ArrayR&		append(const Element& addend)	// Append an element to the end
 			{ return push(addend); }
 	ArrayR&		reverse()
@@ -531,6 +538,8 @@ public:
 
 	bool		isStatic() const	// This body or its data are transient (borrowed) not allocated
 			{ return num_alloc == 0 && num_elements > 0; }
+	// True if we own the data (and could release it)
+	bool		ownsData() const	{ return num_alloc > 0; }
 
 	const Element&	operator[](int elem_num) const { assert(elem_num >= 0 && elem_num < num_elements); return start[elem_num]; }
 	Element&	operator[](int elem_num) { assert(elem_num >= 0 && elem_num < num_elements); return start[elem_num]; }
@@ -540,7 +549,7 @@ public:
 	const Element*	end() const { return start+num_elements; }	// ptr to the trailing NUL (if any)
 
 	// Mutating methods. Must only be called when refcount <= 1 (i.e., unshared)
-	void		insert(Index pos, const Element* elements, Index num)	// Insert a subarray
+	void		insert(Index pos, const Element* elements, Index num)	// Insert a subarray; `pos` is absolute in this body
 			{
 				assert(ref_count <= 1);
 				if (num <= 0)
@@ -561,7 +570,7 @@ public:
 						start[pos+i] = elements[i];
 				num_elements += num;
 			}
-	void		remove(Index at, int len = -1)		// Delete a subslice from the middle
+	void		remove(Index at, int len = -1)		// Delete a subslice from the middle; `at` is absolute in this body
 			{
 				assert(ref_count <= 1);
 				if (len == 0)
