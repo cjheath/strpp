@@ -7,6 +7,17 @@
  */
 #include	<assert.h>
 
+/*
+ * Exactly one threading model must be selected. Each model selects different
+ * types and different implementations while satisfying the same declarations,
+ * so two translation units built with different selections agree on the
+ * declarations but not on the objects - and the mismatch then shows up as
+ * unexplained behaviour at run time rather than as an error here.
+ */
+#if	(defined(HAVE_PTHREADS) + defined(HAVE_FREERTOS) + defined(MSW) + defined(NO_THREAD)) != 1
+#error	Select exactly one threading model: HAVE_PTHREADS, HAVE_FREERTOS, MSW or NO_THREAD
+#endif
+
 #include	<threadid.h>
 #include	<lockfree.h>
 #include	<thread_local.h>
@@ -181,6 +192,8 @@ Thread::Thread(const ThreadParams* params)
 	thread_latch.leave();
 	if (thread_handle)
 		ResumeThread(thread_handle);
+#else
+	// NO_THREAD: there is one thread, and it is already running
 #endif
 }
 
@@ -206,6 +219,8 @@ Thread::~Thread()
 	if (thread_handle)
 		CloseHandle(thread_handle);
 	thread_handle = 0;
+#else
+	// NO_THREAD: nothing was started, so there is nothing to stop
 #endif
 	remove_ended();
 }
@@ -220,6 +235,8 @@ Thread::suspend()
 #elif	defined(MSW)
 	if (thread_handle)
 		SuspendThread(thread_handle);	// suspend the thread
+#else
+	// NO_THREAD: there is no other thread to suspend
 #endif
 }
 
@@ -258,6 +275,8 @@ Thread::resume()
 #elif	defined(MSW)
 	if (thread_handle)
 		ResumeThread(thread_handle);	// (re)start the thread
+#else
+	assert(!"No threads can be started when there is no threading model");
 #endif
 }
 
@@ -324,6 +343,8 @@ ThreadId Thread::currentId()
 	return xTaskGetCurrentTaskHandle();
 #elif	defined(MSW)
 	return GetCurrentThreadId();
+#else
+	return 0;	// There is only one thread, and this is it
 #endif
 }
 
@@ -335,6 +356,8 @@ ProcessId Thread::currentProcessId()
 	return 0;	// No concept of a "process" under FreeRTOS
 #elif	defined(MSW)
 	return GetCurrentProcessId();
+#else
+	return 0;	// NO_THREAD has no notion of a process either
 #endif
 }
 
@@ -355,6 +378,8 @@ void Thread::yield(unsigned long milliseconds)
 	if (milliseconds == 0)
 		milliseconds = 1;
 	Sleep(milliseconds);
+#else
+	(void)milliseconds;	// NO_THREAD: there is no other thread to yield to
 #endif
 }
 

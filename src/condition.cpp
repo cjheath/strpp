@@ -10,6 +10,14 @@
 #include	<thread.h>
 #include	<condition.h>
 
+/*
+ * With one thread - NO_THREAD, or no model selected at all, which thread.h
+ * reports - every method is a no-op defined in the header, and there is nothing
+ * to define here.
+ */
+#if	defined(HAVE_PTHREADS) || defined(HAVE_FREERTOS) || defined(MSW)
+
+
 #if	defined(HAVE_FREERTOS)
 /*
  * The bit used within the FreeRTOS event group to signal waiters. Only one
@@ -303,3 +311,5 @@ Condition::wait(		// Wait for a ticket
 #error	"Not implemented"
 #endif
 }
+
+#endif

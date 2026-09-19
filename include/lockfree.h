@@ -45,7 +45,7 @@ public:
 	 */
 	SemaphoreHandle_t	mutex;
 
-#else
+#elif	defined(MSW)
 	// On Windows, condition variables are based on system events so we can do this using atomic
 	std::atomic<ThreadId>	mutex;
 
@@ -57,6 +57,11 @@ public:
 	// Number of cores is used when deciding whether to spin before yielding
 	static	int	get_num_cores();
 	static	int	num_cores;
+#else
+	/*
+	 * NO_THREAD, or no model selected at all - in which case thread.h reports
+	 * it. With one thread there is nothing to lock, so this is the whole of it.
+	 */
 #endif
 };
 
@@ -147,7 +152,7 @@ Latch::leave()		// Release the latch
 	assert(ok == pdTRUE);
 }
 
-#else	/* Not HAVE_PTHREADS or HAVE_FREERTOS */
+#elif	defined(MSW)
 
 #define	LATCH_SPIN_COUNT	1000	// 1000 volatile decrements delay
 #define	LATCH_YIELD_SLEEP	1	// 1 millisecond
@@ -236,6 +241,15 @@ Latch::get_num_cores()
 #endif
 }
 
-#endif	/* Not HAVE_PTHREAD */
+#else	/* NO_THREAD, or no model selected */
+
+inline Latch::Latch()			{ }
+inline Latch::~Latch()			{ }
+inline bool	Latch::probe()		{ return true; }	// Always free: there is one thread
+inline void	Latch::enter()		{ }
+inline bool	Latch::holding()	{ return true; }	// It is always this thread
+inline void	Latch::leave()		{ }
+
+#endif
 
 #endif	/* LOCKFREE_H */

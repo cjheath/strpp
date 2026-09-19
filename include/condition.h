@@ -37,7 +37,7 @@ public:
 
 	void			signal();	// Signal one thread to wake
 	void			broadcast();	// Signal all threads to wake
-#if	!defined(HAVE_PTHREADS)
+#if	defined(HAVE_FREERTOS) || defined(MSW)
 	int			waiters() { return waiters_count; }
 #endif
 
@@ -64,8 +64,26 @@ private:
 	int			generation_count; // Fairness control
 	HANDLE			hEvent;
 #else
-#error	"Condition variables are not implemented"
+	/*
+	 * NO_THREAD, or no model selected at all - in which case thread.h reports
+	 * it. One thread never waits for another, so there is nothing to hold here
+	 * and condition.cpp compiles to nothing.
+	 */
 #endif
 };
+
+#if	!defined(HAVE_PTHREADS) && !defined(HAVE_FREERTOS) && !defined(MSW)
+/*
+ * One thread never waits for another, so every method is a no-op and
+ * condition.cpp has nothing to define. See the note in this class.
+ */
+inline	Condition::Condition()			{ }
+inline	Condition::~Condition()			{ }
+inline	bool	Condition::ok() const		{ return true; }
+inline	void	Condition::wait(Latch*)		{ }
+inline	void	Condition::wait(long&, Latch*)	{ }
+inline	void	Condition::signal()		{ }
+inline	void	Condition::broadcast()		{ }
+#endif
 
 #endif /* CONDITION_HXX */

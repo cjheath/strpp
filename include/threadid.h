@@ -27,7 +27,21 @@ typedef int		ProcessId;	// No real concept of a "process" under FreeRTOS; see cu
 typedef DWORD		ThreadId;
 typedef ThreadId	ProcessId;
 
-//#else Add more threading systems here
+#elif	defined(NO_THREAD)
+/*
+ * No threading at all. The library still builds and runs, with one thread and
+ * locks that never block; anything that would create a thread cannot be used.
+ */
+typedef int		ThreadId;
+typedef int		ProcessId;
+
+#else
+/*
+ * No model selected. These stand in only so that the headers below compile far
+ * enough for thread.h to say so, which is where the error belongs.
+ */
+typedef int		ThreadId;
+typedef int		ProcessId;
 #endif
 
 #endif	// THREAD_ID
