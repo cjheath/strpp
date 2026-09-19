@@ -24,6 +24,7 @@ HDRS	=	\
 		char_encoding.h		\
 		charpointer.h		\
 		condition.h		\
+		errbuf.h		\
 		cowmap.h		\
 		error.h			\
 		char_ptr.h		\
@@ -42,6 +43,7 @@ HDRS	=	\
 SRCS	=	\
 		char_encoding.cpp	\
 		condition.cpp		\
+		errbuf.cpp		\
 		lockfree.cpp		\
 		thread.cpp		\
 		variant.cpp
@@ -52,6 +54,7 @@ TESTS	=	\
 		char_encoding_test	\
 		cowmap_test		\
 		err_test		\
+		errbuf_test		\
 		greeting_test		\
 		medley_test		\
 		peg_test		\
