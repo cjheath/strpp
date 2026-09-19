@@ -30,6 +30,12 @@ typedef uint32_t	EventBits_t;
 #define	pdPASS		pdTRUE
 #define	pdFAIL		pdFALSE
 
+/*
+ * FreeRTOS's own default is 0, and a build that uses ThreadSlot has to raise
+ * it; see include/thread_local.h.
+ */
+#define	configNUM_THREAD_LOCAL_STORAGE_POINTERS	8
+
 #define	portMAX_DELAY		((TickType_t)0xFFFFFFFFUL)
 #define	portTICK_PERIOD_MS	1
 #define	pdMS_TO_TICKS(ms)	((TickType_t)(ms))

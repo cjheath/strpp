@@ -9,6 +9,7 @@
 
 #include	<threadid.h>
 #include	<lockfree.h>
+#include	<thread_local.h>
 
 #if	defined(HAVE_FREERTOS)
 #include	<array.h>

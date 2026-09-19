@@ -35,4 +35,11 @@ inline void		taskYIELD_stub() {}
 inline TaskHandle_t	xTaskGetCurrentTaskHandle() { return (TaskHandle_t)1; }
 inline TickType_t	xTaskGetTickCount() { return 0; }
 
+/*
+ * Task-local storage. The stub keeps one array, not one per task, which is
+ * enough to check that the calls typecheck - see include/thread_local.h.
+ */
+inline void		vTaskSetThreadLocalStoragePointer(TaskHandle_t, BaseType_t, void*) {}
+inline void*		pvTaskGetThreadLocalStoragePointer(TaskHandle_t, BaseType_t) { return 0; }
+
 #endif

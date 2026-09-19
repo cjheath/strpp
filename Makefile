@@ -36,6 +36,7 @@ HDRS	=	\
 		strval.h		\
 		taggedref.h		\
 		thread.h		\
+		thread_local.h		\
 		variant.h
 
 SRCS	=	\
@@ -60,6 +61,7 @@ TESTS	=	\
 		strval_test		\
 		taggedref_test		\
 		thread_test		\
+		thread_local_test	\
 		utf8pointer_test	\
 		variant_test
 
@@ -146,6 +148,12 @@ FREERTOS_OBJS	=	$(patsubst %,build/freertos/%,$(SRCS:.cpp=.o))
 
 freertos_check:	thread_test_freertos
 	@echo "FreeRTOS stub build OK (compile/link check only - do not run thread_test_freertos)"
+	@$(CXX) $(CXXFLAGS) $(FREERTOS_COPT) -Iinclude -Itest $(FREERTOS_INC) \
+		-fsyntax-only test/thread_local_branch_check.cpp
+	@echo "FreeRTOS thread-local branch compiles"
+	@$(CXX) $(CXXFLAGS) -Iinclude -Itest \
+		-fsyntax-only test/thread_local_branch_check.cpp
+	@echo "No-threading thread-local branch compiles"
 
 thread_test_freertos:	thread_test.cpp libstrpp_freertos.a
 	$(CXX) $(CXXFLAGS) $(FREERTOS_COPT) -Iinclude -Itest $(FREERTOS_INC) -o $@ $< libstrpp_freertos.a
