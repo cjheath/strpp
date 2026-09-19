@@ -11,7 +11,16 @@ StrVal
 	Collating
 
 Variant
-	Boolean, Float & Double
+	Support a more complete set of data types:
+		Bool, Int16, Int32, Int64
+		Unsigned16, Unsigned32, Unsigned64
+		Real (64-bit IEEE double), UCS4, String
+		DateTime (64-bit in 10^-8 seconds since 0000-00-00)
+		ObjRef (void*), Decimal (digits with precision and scale)
+		Blob, Guid (localhost byte ordering)
+		ArgList (the older library also has sequence)
+		CharStar (char*), TimeVal (struct timeval)
+		User (user-defined type), NullArg
 	Bignum?
 
 ArgList
