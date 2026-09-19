@@ -467,8 +467,8 @@ public:
 	ArrayR(Body* body, Index offs, Index len)
 			: body(body), offset(offs), num_elements(len)
 			{
-				assert(offs < body->length());
-				assert(offs+len < body->length());
+				assert(offs <= body->length());
+				assert(offs+len <= body->length());
 			}
 protected:
 	bool		isStatic() const;

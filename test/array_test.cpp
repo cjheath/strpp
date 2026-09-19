@@ -13,6 +13,18 @@ using	CharArray = Array<char>;
 using	PtrArray = Array<const char*>;
 using	StrArray = StringArray;
 
+static int	fails = 0;
+
+static void
+check(const char* what, StrArray& got, unsigned expect_len, const char* expect_text)
+{
+	StrVal	joined = got.join("");
+	bool	ok = got.length() == expect_len && joined == expect_text;
+	if (!ok)
+		fails++;
+	printf("  %-14s %u[%s]  %s\n", what, got.length(), joined.asUTF8(), ok ? "ok" : "FAIL");
+}
+
 int
 main(int argc, const char** argv)
 {
@@ -71,4 +83,34 @@ main(int argc, const char** argv)
 	// Check that shorter() (which uses slice()) worked correctly:
 	printf("sbc3 @%p = %d[%s, %s, %s]\n", sbc3.asElements(), sbc3.length(), sbc3[0].asUTF8(), sbc3[1].asUTF8(), sbc3[2].asUTF8());
 	printf("sbc == sbc3 -> %s\n", (sbc == sbc3) ? "true" : "false");	// Should be false
+
+	/*
+	 * Slicing to the end of a body. A slice's bounds are inclusive of the end,
+	 * so all of these are legal - the whole array, a slice whose length runs to
+	 * the end, and tail(). Offsets and lengths that sum to exactly the body's
+	 * length used to trip an over-strict assertion in the slice constructor,
+	 * which tail() produces as a matter of course.
+	 */
+	printf("\nSlice bounds\n");
+	{
+		StrArray	abc;
+		abc += "a";
+		abc += "b";
+		abc += "c";
+
+		StrArray	all = abc.slice(0, abc.length());	// The whole array
+		StrArray	rest = abc.slice(0);			// Length defaults to the rest
+		StrArray	whole = abc.slice(0, 3);		// Explicitly to the end
+		StrArray	last = abc.tail(1);			// Starts one before the end
+		StrArray	from1 = abc.slice(1, 2);		// Ending at the end
+
+		check("slice(0,length)", all, 3, "abc");
+		check("slice(0)", rest, 3, "abc");
+		check("slice(0,3)", whole, 3, "abc");
+		check("tail(1)", last, 1, "c");
+		check("slice(1,2)", from1, 2, "bc");
+	}
+
+	printf("\n%s\n", fails ? "FAILED" : "all slice checks passed");
+	return fails != 0;
 }
