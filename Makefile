@@ -34,6 +34,10 @@ HDRS	=	\
 		peg_ast.h		\
 		redblack.h		\
 		refcount.h		\
+		lockfree.h		\
+		strassert.h		\
+		strformat.h		\
+		threadid.h		\
 		strval.h		\
 		taggedref.h		\
 		thread.h		\
@@ -45,12 +49,14 @@ SRCS	=	\
 		condition.cpp		\
 		errbuf.cpp		\
 		lockfree.cpp		\
+		strassert.cpp		\
 		thread.cpp		\
 		variant.cpp
 
 LIB	=	libstrpp.a
 TESTS	=	\
 		array_test		\
+		assert_test		\
 		char_encoding_test	\
 		cowmap_test		\
 		err_test		\
@@ -61,6 +67,7 @@ TESTS	=	\
 		pegexp_test		\
 		reassembly_test		\
 		redblack_test		\
+		strformat_test		\
 		strval_test		\
 		taggedref_test		\
 		thread_test		\

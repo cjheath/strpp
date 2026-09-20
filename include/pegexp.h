@@ -1,5 +1,3 @@
-#include	<stdio.h>
-
 #if !defined(PEGEXP_H)
 #define PEGEXP_H
 /*

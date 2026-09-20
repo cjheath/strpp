@@ -45,7 +45,9 @@ public:
 			{
 				claim();
 				// No destructor function: see the note at the top of this file
-				assert(pthread_key_create(&key, 0) == 0);
+				int	err = pthread_key_create(&key, 0);
+				(void)err;	// The call must happen whether or not assertions are on
+				assert(err == 0);
 			}
 	~ThreadSlot()
 			{ pthread_key_delete(key); }

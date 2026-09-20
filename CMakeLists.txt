@@ -5,9 +5,18 @@
 # under include/, which any component depending on this one reaches simply
 # by #include - no separate compilation needed for those.
 #
-# Only thread.cpp/condition.cpp/lockfree.cpp (Thread/Latch/Condition, see
-# include/thread.h, include/lockfree.h, include/condition.h) and the
-# stand-alone char_encoding.cpp/variant.cpp need compiling here.
+# What does need compiling: thread.cpp/condition.cpp/lockfree.cpp
+# (Thread/Latch/Condition, see include/thread.h, include/lockfree.h,
+# include/condition.h), the stand-alone char_encoding.cpp and variant.cpp,
+# errbuf.cpp - the error buffer (ErrBuf/Error, see include/errbuf.h) that every
+# reported message goes through, Variant's type assertion among them - and
+# strassert.cpp, the assertion that dumps that buffer before it dies.
+#
+# The error buffer holds a thread-local slot, as does anything else wanting one
+# per thread, so FreeRTOS's configNUM_THREAD_LOCAL_STORAGE_POINTERS
+# (CONFIG_FREERTOS_THREAD_LOCAL_STORAGE_POINTERS) has to be raised from its
+# default of 0 to at least THREAD_LOCAL_MAX_SLOTS, which is 16. See
+# include/thread_local.h.
 #
 # HAVE_FREERTOS is always defined for this component, since ESP-IDF always
 # runs on FreeRTOS - see the HAVE_FREERTOS branches in thread.h/lockfree.h/
@@ -17,7 +26,9 @@ idf_component_register(
 	SRCS
 		"src/char_encoding.cpp"
 		"src/condition.cpp"
+		"src/errbuf.cpp"
 		"src/lockfree.cpp"
+		"src/strassert.cpp"
 		"src/thread.cpp"
 		"src/variant.cpp"
 	INCLUDE_DIRS

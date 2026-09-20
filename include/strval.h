@@ -78,13 +78,29 @@ public:
 	~StrBodyI()	{}
 	StrBodyI()	: num_chars(0) {}
 	StrBodyI(const char* data, StrDataType dt, Index length = 0, Index allocate = 0)
-			: Body(data, dt != StrStatic, (length == 0 ? strlen(data) : length)+1, allocate)
-			, num_chars(0)
+			: num_chars(0)
 			{
 				// REVISIT: Need a Panic() function when a string passes the allowed maximum size
 				// assert(num_elements < StrValIndexRawBinaryMarker);
-				if (dt != StrStatic && length != 0)
-					start[num_elements-1] = '\0';	// Perhaps we didn't copy a NUL, so add one
+				if (length == 0)
+					length = strlen(data);		// The caller offered no length, so the NUL is the length
+
+				if (dt == StrStatic)
+				{					// Borrowed data, which the caller keeps
+					start = (char*)data;		// Cast const away; we will not alter it
+					num_elements = length+1;	// Counting the NUL the caller wrote
+					Body::AddRef();			// Cannot be deleted or resized
+				}
+				else
+				{
+					if (allocate < length+1)
+						allocate = length+1;
+					Body::resize(allocate);
+					memcpy(start, data, length);	// Only what was offered is ever read
+					start[length] = '\0';		// The NUL is ours to add
+					num_elements = length+1;
+				}
+
 				if (dt == StrRawBinary)
 					num_chars = StrValIndexRawBinaryMarker;	// one byte = one char, don't count them
 			}
@@ -315,6 +331,8 @@ public:
 			, num_chars(body->numChars())
 			{
 			}
+	// `allocate` is how many elements the body is to hold, the terminating NUL
+	// included, so a caller building a string of n characters passes n+1
 	StrRefI(const char* data, Index length, size_t allocate = 0) // construct from length-terminated char data
 			: body(0)
 			, offset(0)
@@ -322,10 +340,10 @@ public:
 			{
 				if (allocate <= length)
 					allocate = 0;
-				if (length == 0)
+				if (length == 0 && (allocate == 0 || data == 0))
 					body = &Body::nullBody;	// Don't use strlen!
 				else
-					body = new Body(data, StrUTF8, length, allocate);
+					body = new Body(data, StrUTF8, length, allocate);	// Room to grow is a body of its own
 				num_chars = body->numChars();
 			}
 	StrRefI(UCS4 character)		// construct from single-character string
@@ -660,7 +678,11 @@ public:
 
 	// Add, producing a new StrValI:
 	StrValI		operator+(const char* addend) const
-			{ return *this + StrValI(addend); }
+			{	// Borrowed while the result is built rather than copied first:
+				// what is added is read once, into the new string
+				StrBody	body(addend, StrStatic);
+				return *this + StrValI(&body);
+			}
 	StrValI		operator+(const StrValI& addend) const
 			{
 				// Handle the rare but important case of extending a slice with a contiguous slice of the same body
@@ -671,7 +693,7 @@ public:
 				const char*	cp = nthChar(0);
 				Index		len = numBytes();
 				// REVISIT: Handle StrRawBinary data in one string but not the other
-				StrValI		str(cp, len, len+addend.numBytes());
+				StrValI		str(cp, len, len+addend.numBytes()+1);	// +1 counts the terminator
 
 				str += addend;
 				return str;
@@ -692,8 +714,8 @@ public:
 	// Add, StrValI is modified:
 	StrValI&	operator+=(const StrValI& addend)
 			{
-				if (length() == 0 && !addend.isStatic())
-					return *this = addend;		// Just assign, we were empty anyhow
+				if (length() == 0 && !addend.isStatic() && !body->ownsData())
+					return *this = addend;		// Just assign, we were empty with no room anyhow
 
 				append(addend);
 				return *this;
@@ -799,7 +821,12 @@ public:
 				Index*	scanned = 0	// characters scanned
 			) const;
 
-	static StrVal	format(StrVal f, VariantArray args);
+	// Expand a text by interpolating the positional parameters of `args`:
+	// {1} is the first, {2} the second. `depth` is how far a parameter that is
+	// itself an array or a map is expanded within the text. See
+	// include/strformat.h, and doc/strval.md, "Substituting parameters into a
+	// text".
+	static StrVal	format(StrVal f, VariantArray args, int depth = 2);
 
 protected:
 	StrValI(Body* s1, Index offs, Index len)	// offs/len not bounds-checked!
@@ -1229,6 +1256,61 @@ StrBodyI<Index>::toJSON()
 			return Val(&temp_body);
 		}
 	);
+}
+
+/*
+ * An integer as text in the named representation: decimal unless it is b, o, x
+ * or X, in which case it is that base. No base carries a prefix: a text that
+ * wants 0x writes it itself, which leaves it where a translator can put it.
+ *
+ * Decimal renders the sign, since a number written for a person is signed; the
+ * digits of the most negative value, which has no positive counterpart, are
+ * built from its unsigned form. The other bases render the bit pattern of the
+ * value at the width of its own type, which is what a non-decimal base is for:
+ * an int of -1 is eight f's, not a minus sign and one f. `bits` is that width,
+ * 32 or 64.
+ *
+ * The digits are placed here rather than by printf, since a library that
+ * formats its own text must not need it.
+ */
+inline StrVal
+strval_repr_int(long long n, char repr, int bits = 64)
+{
+	int		base = 10;
+	const char*	digits = "0123456789abcdef";
+
+	switch (repr)
+	{
+	case 'b':	base = 2; break;
+	case 'o':	base = 8; break;
+	case 'x':	base = 16; break;
+	case 'X':	base = 16; digits = "0123456789ABCDEF"; break;
+	}
+
+	char	buf[72];			// Sixty-four bits of binary, a sign, and room to spare
+	char*	end = buf + sizeof(buf);
+	char*	cp = end;
+	bool	negative = n < 0 && base == 10;
+	unsigned long long	u;
+
+	if (base == 10)
+		u = n < 0 ? 0-(unsigned long long)n : (unsigned long long)n;
+	else if (bits > 0 && bits < 64)
+		u = (unsigned long long)n & ((1ULL<<bits)-1);	// The width is the type's, not the value's
+	else
+		u = (unsigned long long)n;
+
+	do
+	{
+		*--cp = digits[u % base];
+		u /= base;
+	}
+	while (u != 0);
+
+	if (negative)
+		*--cp = '-';
+
+	return StrVal(cp, (StrValIndex)(end-cp));
 }
 
 class	StringArray

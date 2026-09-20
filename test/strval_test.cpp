@@ -46,6 +46,7 @@ int		failure_count;
 const char*	new_group;
 
 void		construction_tests();
+void		length_copy_tests();
 void		indexing_tests();
 void		unicode_range_tests();
 void		substring_tests();
@@ -74,6 +75,7 @@ main(int argc, const char** argv)
 		show_passes = true;
 
 	construction_tests();
+	length_copy_tests();
 	indexing_tests();
 	unicode_range_tests();
 	substring_tests();
@@ -181,6 +183,47 @@ expect_eq_err(const char* when, ErrNum got, ErrNum want)
 /*
  * Construction, basic properties
  */
+/*
+ * A body built from a run of bytes of known length must read no more than that
+ * run: what the caller offers need not be NUL terminated, and their buffer may
+ * end exactly where the length says. The body adds its own NUL. (Read one byte
+ * over and a sanitiser calls it a stack-buffer-overflow, which is how this
+ * came to be tested.)
+ */
+void
+length_copy_tests()
+{
+	test_group("StrVal: a run of bytes of known length");
+
+	char	buf[4] = { 'a', 'b', 'c', 'd' };	// Nothing follows it in the offer
+	StrVal	s(buf, 4);
+	expect_eq_int("the copy is as long as the offer", (long)s.length(), 4);
+	expect_eq_int("...in bytes too", (long)s.numBytes(), 4);
+	expect_eq_str("...holding exactly what was offered", s, "abcd");
+	expect_eq_str("...terminated by the body, not by the offer", s.asUTF8(), "abcd");
+
+	StrVal	longer("abcdefgh");
+	StrVal	middle(longer.asUTF8()+2, 4);		// A run out of the middle
+	expect_eq_str("a run from the middle of a longer string", middle, "cdef");
+	expect_eq_int("...is four characters", (long)middle.length(), 4);
+
+	StrVal	grow("abcd", 4, 64);			// Asked for room to grow
+	grow += "efgh";
+	expect_eq_str("a copy with room to grow keeps all of it", grow, "abcdefgh");
+
+	// An empty string asked for room cannot be the shared empty body: there is
+	// no room in it, and appending would have to make a body and grow it
+	expect("an empty string with room to grow is a body of its own",
+		!StrVal("", 0, 64).isStatic());
+	expect("an empty string with no room is the shared empty body",
+		StrVal("").isStatic());
+	StrVal	built("", 0, 64);
+	for (int i = 0; i < 64; i++)
+		built += (UCS4)'x';
+	expect_eq_int("...which holds what is appended to it", (long)built.length(), 64);
+	expect("...without making another body", !built.isStatic());
+}
+
 void
 construction_tests()
 {

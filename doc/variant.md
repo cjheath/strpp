@@ -41,7 +41,11 @@ therefore compact and fairly efficient to manipulate.
 
 `VariantArray` is `Array<Variant>`: a type-safe array of values of mixed
 type, each carrying its own type.  Ask for the type before reading the
-value, to avoid type coercions or assertion failures.
+value, to avoid type coercions or assertion failures. A value read as the
+wrong type is reported before it is asserted: the report names the type that
+was wanted and the type that is held, and goes to the thread's error buffer
+like any other message, so a program built with assertions left out still has
+a record of what went wrong - and one a translation can carry.
 
 Error message parameters are carried this way, for example.  That is what
 makes a parameter list typesafe where printf-style arguments are not:
@@ -72,8 +76,8 @@ Reading:
 - `is_null()` - true when it holds nothing.
 - `type_name()` - the name of the held type, for messages about it.
 - `as_int()`, `as_long()`, `as_longlong()` - the number held. The mutable
-  forms coerce to that type first, and assert when the coercion would lose
-  data.
+  forms coerce to that type first, and report and then assert when the value
+  cannot be read as it.
 - `as_strval()`, `as_string_array()`, `as_variant_array()`, `as_variant_map()`
   - the string or container held.
 - `as_json(int indent = -1)` - the value as JSON. `-1` adds single spaces,

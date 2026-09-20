@@ -30,7 +30,7 @@ LIB	=	librx.a
 
 LIBS	=	-L.. -lstrpp
 
-vpath	%.cpp	.:../test
+vpath	%.cpp	.:test
 vpath	%.h	../include
 vpath	%.a	..
 
@@ -58,8 +58,8 @@ rxcompile_test: rxcompile_test.cpp strpp $(LIB) $(OBJS)
 rxmatch_test: rxmatch_test.cpp strpp $(LIB) $(OBJS)
 	$(CXX) $(DEBUG) $(CXXFLAGS) -I. -I../include -I../test -o $@ $< $(OBJS) ../test/memory_monitor.cpp $(LIB) $(LIBS)
 
-%:	%.cpp $(LIB) test/memory_monitor.cpp
-	$(CXX) $(DEBUG) $(CXXFLAGS) -I. -I../include -Itest -o $@ $< test/memory_monitor.cpp $(LIB)
+%:	%.cpp $(LIB) ../test/memory_monitor.cpp
+	$(CXX) $(DEBUG) $(CXXFLAGS) -I. -I../include -I../test -o $@ $< ../test/memory_monitor.cpp $(LIB)
 
 build/%.o:	%.cpp $(HDRS) Makefile
 	$(CXX) $(DEBUG) $(CXXFLAGS) -I. -I../include -Isrc -o $@ -c $<

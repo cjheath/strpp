@@ -4,12 +4,14 @@
  * Variant data type.
  */
 #include	<assert.h>
-#include	<cstdio>
 #include	<functional>
 
 #include	<strval.h>
 #include	<array.h>
 #include	<cowmap.h>
+
+#define	VARERR_SET		2	// Message set number for Variant
+#define	VARERR_WRONG_TYPE	ErrNum(VARERR_SET, 1)	// The Variant is not of the type that was expected
 
 class	Variant;
 
@@ -178,7 +180,6 @@ public:
 				break;
 		}
 
-		char	buf[2+sizeof(long long)*5/2];	// long enough for decimal long long, sign and nul
 		switch (_type)
 		{
 		default:                
@@ -188,16 +189,13 @@ public:
 			return "null";
 
 		case Integer:		// FALL THROUGH
-			snprintf(buf, sizeof(buf), "%d", u.i);
-			return buf;	// StrVal copies the data
+			return strval_repr_int(u.i, 0);
 
 		case Long:		
-			snprintf(buf, sizeof(buf), "%ld", u.l);
-			return buf;
+			return strval_repr_int(u.l, 0);
 
 		case LongLong:		
-			snprintf(buf, sizeof(buf), "%lld", u.ll);
-			return buf;
+			return strval_repr_int(u.ll, 0);
 
 		case String:
 			return StrVal("\"")+StrVal(u.str).asJSON()+"\"";
@@ -349,15 +347,11 @@ protected:
 		case String:
 			switch (old_type)
 			{
-			char buf[24];	// Big enough for 64-bit integer
-			case Integer:	snprintf(buf, sizeof(buf), "%d", u.i);
-					*this = StrVal(buf);
+			case Integer:	*this = strval_repr_int(u.i, 0);
 					return;
-			case Long:	snprintf(buf, sizeof(buf), "%ld", u.l);
-					*this = StrVal(buf);
+			case Long:	*this = strval_repr_int(u.l, 0);
 					return;
-			case LongLong:	snprintf(buf, sizeof(buf), "%lld", u.ll);
-					*this = StrVal(buf);
+			case LongLong:	*this = strval_repr_int(u.ll, 0);
 					return;
 			case String:	return; // Already handled
 			case None:		// FALL THROUGH
@@ -375,14 +369,11 @@ protected:
 		must_be(new_type);		// Report impossible coercion
 	}
 
-	// Type assertion:
-	void	must_be(VariantType t) const
-	{
-		if (_type == t)
-			return;
-		printf("Expected %s, got type %s\n", type_names[t], type_names[_type]);
-		assert(!"Mismatched type");
-	}
+	// Type assertion. Reported as a message rather than printed, since the
+	// default text is in the message set, so a translation can carry it and an
+	// enclosing error handler can deal with it. Defined in src/variant.cpp,
+	// where Error() is at hand.
+	void	must_be(VariantType t) const;
 
 	VariantType		_type;
 	union u
