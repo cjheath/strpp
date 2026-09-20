@@ -21,16 +21,16 @@
  * stands, so a text that does not match its parameters shows the reader the
  * marker it could not fill.
  *
- * NOTE: this program deliberately makes no printf-family call, since the
- * library is not allowed one either. Its report is built by appending to
- * StrVal and written with fputs.
+ * NOTE: this program deliberately makes no stdio call at all, since the
+ * library is not allowed one either. Its report is built by appending to StrVal
+ * and written with write(2).
  *
  * (c) Copyright Clifford Heath 2026. See LICENSE file for usage rights.
  */
 #include	<strval.h>
 #include	<variant.h>			// format() renders Variant parameters
 
-#include	<cstdio>			// fputs, for the report only
+#include	<unistd.h>			// write, for the report only
 
 // The specification is packed, and meant to stay that way: a representation, a
 // flag, a tail and two lengths. See StrFormatSpec.
@@ -50,7 +50,9 @@ test_group(const char* group)
 static void
 write_report(StrVal line)
 {
-	fputs(line.asUTF8(), stdout);
+	StrValIndex	bytes = 0;
+	const char*	text = line.asUTF8(bytes);
+	(void)!write(1, text, bytes);
 }
 
 static void
@@ -442,20 +444,45 @@ depth_tests()
 	xy << "x" << "y";
 	Variant	inner(xy);
 	Variant	outer(VariantArray() << 1 << inner);
-	Variant	outermost(VariantArray() << 0 << outer);
+	Variant	deeper(VariantArray() << 0 << outer);
 
-	expect_eq_str("two levels, which is the default, shows an array within an array",
+	expect_eq_str("an array within an array is expanded",
 		StrVal::format("{1}", VariantArray() << outer), "[1, [x, y]]");
-	expect_eq_str("...the default stopping there, one level within",
-		StrVal::format("{1}", VariantArray() << outermost), "[0, [1, <StrArray>]]");
-	expect_eq_str("three levels shows the strings within that",
-		StrVal::format("{1}", VariantArray() << outermost, 3), "[0, [1, [x, y]]]");
-	expect_eq_str("one level names the array within",
-		StrVal::format("{1}", VariantArray() << outer, 1), "[1, <StrArray>]");
-	expect_eq_str("no levels names the array itself",
-		StrVal::format("{1}", VariantArray() << outer, 0), "<VarArray>");
-	expect_eq_str("a string parameter is not affected by the depth",
-		StrVal::format("{1}", VariantArray() << "plain", 0), "plain");
+	expect_eq_str("...and three levels too, well within the limit",
+		StrVal::format("{1}", VariantArray() << deeper), "[0, [1, [x, y]]]");
+	expect_eq_str("a string parameter is not affected by any of it",
+		StrVal::format("{1}", VariantArray() << "plain"), "plain");
+
+	// A structure nested past the limit answers its type name where the limit
+	// falls, rather than descending until the stack runs out
+	Variant	deep = VariantArray();
+	for (int i = 0; i < RENDER_MAX_DEPTH + 4; i++)
+	{
+		VariantArray	level;
+		level << i << deep;		// One more level of nesting each time
+		deep = Variant(level);
+	}
+
+	StrVal		rendered = StrVal::format("{1}", VariantArray() << deep);
+	int		brackets = 0;
+	for (StrValIndex at = 0; at < rendered.length(); at++)
+		if (rendered[at] == '[')
+			brackets++;
+	expect_eq_int("a structure past the limit descends exactly as far as it may",
+		brackets, RENDER_MAX_DEPTH);
+	expect("...naming what it did not expand",
+		rendered.find("<VarArray>") < rendered.length());
+
+	// The JSON emitter is bounded by the same constant, maps included
+	StrVariantMap	map;
+	map.put("k", deep);
+	expect("...and the JSON emitter is bounded too",
+		Variant(map).as_json().find("\"<VarArray>\"") < Variant(map).as_json().length());
+
+	// A caller who wants more of a structure than the limit allows says so
+	expect("a chosen depth may exceed the limit",
+		Variant(deep).as_json_at(-1, RENDER_MAX_DEPTH + 8).length()
+			> Variant(deep).as_json_at(-1, 1).length());
 }
 
 void

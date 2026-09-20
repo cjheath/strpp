@@ -89,31 +89,38 @@ Building one:
 - `asInt32(ErrNum* err, int radix = 0, Index* scanned = 0)` - the number this
   string reads as, in any radix from 2 to 36 and auto-detected when 0,
   reporting what it could not use.
-- `static format(StrVal f, VariantArray args, int depth = 2)` - the text `f`
-  with each `{1}`, `{2}` and so on replaced by that parameter, which the marker
-  may say how to render, and how far an array or a map among them is expanded.
-  See "Substituting parameters into a text" below.
+- `static format(StrVal f, VariantArray args)` - the text `f` with each `{1}`,
+  `{2}` and so on replaced by that parameter, which the marker may say how to
+  render. See "Substituting parameters into a text" below.
 - `StringArray::join(StrVal joiner)` - the elements of a `StringArray`,
   concatenated with `joiner` between them.
 
-`Index` is `StrValIndex`, which is 32 bits unless the build says otherwise, so
-a string is limited to 2^32 characters.
+`Index` is `StrValIndex`, 32 bits unless the build says otherwise. The
+`INDEXBITS` option in the Makefile sets it to any width from 8 bits up to the
+width of a pointer, and the number of characters a string may hold follows from
+it, one short of the index's range - the largest value is spoken for as the
+marker that says a body holds raw binary data. That limit is enforced: asking a
+string to hold more characters than its index can count stops the program with
+the panic in `strassert.h`, rather than wrapping round and truncating it.
 
 Example:
 
 	// This example creates precisely three strings, but with four references
-	#include        <stdio.h>
-	#include        <strval.h>
+	#include	<strval.h>
+	#include	<unistd.h>		// write, since a Strpp library uses no stdio
 
 	void greet(StrVal greeting)
 	{
-		StrVal  decorated = greeting + "! 🎉🍾\n";
-		fputs(decorated.asUTF8(), stdout);
+		StrVal		decorated = greeting + "! 🎉🍾\n";
+		StrValIndex	bytes = 0;
+		const char*	utf8 = decorated.asUTF8(bytes);
+
+		(void)!write(1, utf8, bytes);
 	}
 
 	int main()
 	{
-		StrVal  hello("Hello, world");
+		StrVal	hello("Hello, world");
 
 		greet(hello);
 	}
@@ -172,15 +179,16 @@ one is cut. A minimum is applied after the cut rather than before it, so
 
 A parameter that is an array or a map is expanded rather than named: an array
 in brackets, its elements rendered the same way, and a map as JSON, which is
-what a map is for. `format()`'s third argument is how deep that goes, and it
-defaults to two levels; an array at that limit answers its type name in angle
-brackets instead, as does a type with no rendering at all here. A map goes by
-way of `as_json()`, which has no depth of its own and descends as far as the
-map does. The limit belongs to the call and not to the text, since it is the
-programmer who knows what is being passed and a translator who does not; a
-parameter that needs another depth, or another rendering entirely, can be
-rendered by the caller and passed as a string. A specification the type has no
-use for is ignored, so `{1:x}` of an array is just the array:
+what a map is for. An array at the limit of `RENDER_MAX_DEPTH` levels answers
+its type name in angle brackets instead, as does a type with no rendering at
+all here, so a structure deeper than any text needs cannot run away with the
+stack. The limit is a build option - `make DEPTH=8` - rather than an argument
+of `format()`, because every marker in a text would share one argument, and
+rather than part of the text, because a translator cannot know what will be
+passed. `as_json()` is bounded by the same constant, and `as_json_at(indent,
+depth)` is there for a caller who wants more or less of a structure. A
+specification the type has no use for is ignored, so `{1:x}` of an array is
+just the array:
 
 	StrVal::format("{1}", VariantArray() << Variant(array))
 	// [1, [x, y]]

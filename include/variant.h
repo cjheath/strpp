@@ -10,6 +10,16 @@
 #include	<array.h>
 #include	<cowmap.h>
 
+/*
+ * The most levels of array or map that rendering descends to, whether by
+ * format() or by as_json(). A structure deeper than any text needs cannot then
+ * run away with the stack, whatever a program passes in. A build may set it:
+ * see the DEPTH option in the Makefile.
+ */
+#if	!defined(RENDER_MAX_DEPTH)
+#define	RENDER_MAX_DEPTH	16
+#endif
+
 #define	VARERR_SET		2	// Message set number for Variant
 #define	VARERR_WRONG_TYPE	ErrNum(VARERR_SET, 1)	// The Variant is not of the type that was expected
 
@@ -167,8 +177,22 @@ public:
 	// as_json(-1) emits single-line JSON with single spaces added for readability.
 	// as_json(-2) emits maximally compact JSON.
 	// as_json(n) emits formatted/indented json (two spaces per level) starting with indent n.
+	// A structure nested deeper than RENDER_MAX_DEPTH answers its type name, as a
+	// JSON string, rather than being descended into.
 	StrVal			as_json(int indent = -1) const
 	{
+		return as_json_at(indent, RENDER_MAX_DEPTH);
+	}
+
+	// The same, descending at most `depth` levels. Public so that a caller who
+	// wants more or less of a structure than RENDER_MAX_DEPTH can say so. See
+	// as_json() above
+	StrVal			as_json_at(int indent, int depth) const
+	{
+		// A composite we were told not to descend into says what it is
+		if (depth <= 0 && (_type == StrArray || _type == VarArray || _type == StrVarMap))
+			return StrVal("\"<")+type_name()+">\"";	// A JSON string, so the answer stays JSON
+
 		int		next_indent = indent;
 		StrVal		sep;			// Separator string between array or map items
 		switch (indent)
@@ -205,7 +229,7 @@ public:
 			StrVal		str(StrVal("[")+sep.substr(1));
 			for (int i = 0; i < u.str_arr.length(); i++)
 				str += (i > 0 ? sep : StrVal())
-				    + Variant(u.str_arr[i]).as_json(next_indent);
+				    + Variant(u.str_arr[i]).as_json_at(next_indent, depth-1);
 			return str+sep.substr(1).shorter(2)+"]";
 			}
 
@@ -214,7 +238,7 @@ public:
 			StrVal		str(StrVal("[")+sep.substr(1));
 			for (int i = 0; i < u.var_arr.length(); i++)
 				str += (i > 0 ? sep : StrVal())
-				    + u.var_arr[i].as_json(next_indent);
+				    + u.var_arr[i].as_json_at(next_indent, depth-1);
 			return str+sep.substr(1).shorter(2)+"]";
 			}
 
@@ -224,9 +248,9 @@ public:
 			for (auto iter = u.var_map.begin(); iter != u.var_map.end(); iter++)
 			{
 				str += (iter != u.var_map.begin() ? sep : StrVal())
-				    + Variant((*iter).first).as_json()
+				    + Variant((*iter).first).as_json_at(-1, depth-1)
 				    + (indent==-2 ? ":" : ": ")
-				    + (*iter).second.as_json(next_indent);
+				    + (*iter).second.as_json_at(next_indent, depth-1);
 			}
 			return str+sep.substr(1).shorter(2)+"}";
 			}

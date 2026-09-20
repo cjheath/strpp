@@ -28,9 +28,23 @@
 #include	<refcount.h>
 #include	<char_encoding.h>
 
+/*
+ * The index type for string sizes, settable by the build as ArrayIndexBits is
+ * (see the INDEXBITS option in the Makefile). The string limit follows from it:
+ * a string cannot hold as many characters as its index can count, because one
+ * count is spoken for as the marker for a body of raw binary data.
+ */
+#if	!defined(StrValIndexBits)
 #define	StrValIndexBits	32
-typedef typename std::conditional<(StrValIndexBits <= 16), uint16_t, uint32_t>::type StrValIndex;
+#endif
+typedef typename std::conditional<(StrValIndexBits <= 8), uint8_t,
+	typename std::conditional<(StrValIndexBits <= 16), uint16_t,
+	typename std::conditional<(StrValIndexBits <= 32), uint32_t, uint64_t>::type>::type>::type StrValIndex;
+static_assert(StrValIndexBits >= 8 && StrValIndexBits <= sizeof(void*)*8,
+	"StrValIndexBits must be from 8 to the width of a pointer");
+
 const	StrValIndex	StrValIndexRawBinaryMarker = ((StrValIndex)-1);	// Marker num_chars for non-UTF8 data
+const	StrValIndex	StrValIndexMaxChars = ((StrValIndex)-2);	// Most characters a string may hold
 typedef enum {
 	StrStatic,		// UTF-8 data that's not owned by the Body, may not be NUL-terminated and will not alter
 	StrUTF8,		// UTF-8 data that is allocated internally
@@ -261,6 +275,11 @@ public:	void		insertBytes(Index pos, const char* addend, Index len)
 			}
 
 protected:
+	// The most characters a body can hold: one count is spoken for as the
+	// marker that says the data is raw binary. This is the body's own index,
+	// which for a string body is the string index - not ArrayIndex.
+	static const Index	maxChars = (Index)-2;
+
 	Index		num_chars;	// zero if not yet counted, StrValIndexRawBinaryMarker if locale-8bit
 	void		countChars()
 			{
@@ -269,6 +288,8 @@ protected:
 
 				const char*	cp = start;		// Progress pointer when reading data
 				char*		ep = start+num_elements-1;	// Marker for end of data
+				size_t		count = 0;		// Counted wide, so a count that cannot
+									// be held is seen rather than wrapped
 				while (cp < ep)
 				{
 					UCS4		ch = UTF8Get(cp);
@@ -276,8 +297,10 @@ protected:
 					 || cp > ep)			// Overlaps the end of data
 						break;			// An error occurred before the end of the data; truncate it.
 					// Count illegal UTF-8 characters here
-					num_chars++;
+					count++;
 				}
+				StrppAssert(count <= (size_t)maxChars);
+				num_chars = (Index)count;
 			}
 
 	UCS4		getChar(const char*& cp) const	// Return next character, next advancing cp
@@ -751,6 +774,7 @@ public:
 				 && static_cast<Body*>(body) == static_cast<Body*>(addend.body)	// From the same body
 				 && offset+pos == addend.offset)	// And addend starts where we end
 				{
+					StrppAssert((size_t)num_chars + addend.length() <= StrValIndexMaxChars);
 					num_chars += addend.length();
 					return *this;
 				}
@@ -822,11 +846,10 @@ public:
 			) const;
 
 	// Expand a text by interpolating the positional parameters of `args`:
-	// {1} is the first, {2} the second. `depth` is how far a parameter that is
-	// itself an array or a map is expanded within the text. See
-	// include/strformat.h, and doc/strval.md, "Substituting parameters into a
-	// text".
-	static StrVal	format(StrVal f, VariantArray args, int depth = 2);
+	// {1} is the first, {2} the second. An array or a map among them is
+	// expanded, to at most RENDER_MAX_DEPTH levels. See include/strformat.h,
+	// and doc/strval.md, "Substituting parameters into a text".
+	static StrVal	format(StrVal f, VariantArray args);
 
 protected:
 	StrValI(Body* s1, Index offs, Index len)	// offs/len not bounds-checked!

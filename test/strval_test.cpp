@@ -67,6 +67,8 @@ void		illegal_byte_propagation_tests();
 void		long_string_bookmark_tests();
 void		mixed_encoding_tests();
 void		bool_cast_tests();
+void		index_limit_tests();
+void		index_limit_tests();
 
 int
 main(int argc, const char** argv)
@@ -96,6 +98,7 @@ main(int argc, const char** argv)
 	long_string_bookmark_tests();
 	mixed_encoding_tests();
 	bool_cast_tests();
+	index_limit_tests();
 
 	printf("Completed %d tests with %d failures\n", test_count, failure_count);
 	return failure_count == 0 ? 0 : 1;
@@ -816,6 +819,26 @@ namespace {
  * StrRefs compared as "equal" regardless of content. Fixed by giving
  * StrRefI its own content-based compare()/operator==/etc.
  */
+/*
+ * The string limit follows from the width of the index. What is checked here
+ * is the arithmetic around it; the panic itself is checked in assert_test.cpp,
+ * which can only reach a limit when the index is narrow enough for a string
+ * past it to be built and held at all.
+ */
+void
+index_limit_tests()
+{
+	test_group("StrVal: the limit on a string's length");
+
+	expect_eq_int("the marker is the top of the index's range",
+		(long)StrValIndexMaxChars + 1, (long)StrValIndexRawBinaryMarker);
+	expect_eq_int("the index holds the number of bits the build asked for",
+		(int)sizeof(StrValIndex)*8, StrValIndexBits);
+
+	StrVal	s("a string well within the limit");
+	expect_eq_int("...which is counted as itself", (long)s.length(), 30);
+}
+
 void
 bool_cast_tests()
 {

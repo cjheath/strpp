@@ -13,9 +13,14 @@
  * A failure while the dump is running aborts at once, without reporting or
  * dumping again: a fault in the reporting path must not become a loop.
  *
+ * This header has no dependencies of its own beyond the compiler: what it
+ * declares is implemented in src/strassert.cpp, which is where the error
+ * buffer it dumps is known. Any header may therefore include this one - see
+ * ArrayBody::resize, which refuses a size its index could not count.
+ *
  * (c) Copyright Clifford Heath 2026. See LICENSE file for usage rights.
  */
-#include	<errbuf.h>
+#include	<error.h>			// For ErrNum, which error.h alone provides
 
 #define	STRPPERR_SET		3	// Message set number for the library itself
 #define	STRPPERR_ASSERT		ErrNum(STRPPERR_SET, 1)	// The file, line and condition are the parameters

@@ -17,6 +17,9 @@
 #include	<unistd.h>
 #include	<sys/wait.h>
 
+#define	STRINGIFY_VALUE_HELPER(x)	#x
+#define	STRINGIFY_VALUE(x)		STRINGIFY_VALUE_HELPER(x)
+
 bool		show_passes = false;
 int		test_count;
 int		failure_count;
@@ -109,6 +112,23 @@ assert_false()
 	StrppAssert(1 == 2);
 }
 
+#if StrValIndexBits <= 16
+// One character past what an index can count: the library must stop rather
+// than wrap round, which is what the assertion in ArrayBody::resize is for
+static void
+build_past_the_limit()
+{
+	StrVal	piece("0123456789abcdef", 16, 17);	// Sixteen characters, cheap to repeat
+	StrVal	s;
+
+	while ((long)s.length() + (long)piece.length() <= (long)StrValIndexMaxChars)
+		s += piece;
+	while ((long)s.length() <= (long)StrValIndexMaxChars)
+		s += (UCS4)'x';
+	_exit(0);				// Not reached: the limit stops us first
+}
+#endif
+
 static void
 assert_true()
 {
@@ -165,6 +185,18 @@ main(int argc, const char** argv)
 
 	test_group("StrppAssert: an assertion that holds is not a failure");
 	expect("an assertion that holds leaves the process alone", run_quietly());
+
+	test_group("StrppAssert: a string past its index's limit stops the program");
+#if StrValIndexBits <= 16
+	// Only that it stops: the dump's text is not looked at here, because a
+	// sanitised build replaces the death of the process and takes the dump
+	// with it. What was counted is in the message, when there is one.
+	expect("a string longer than an index can count aborts",
+		aborts(build_past_the_limit, out, sizeof(out)));
+#else
+	expect("...not reachable at StrValIndexBits=" STRINGIFY_VALUE(StrValIndexBits)
+		", where a string past the limit cannot be built and held", true);
+#endif
 
 	test_group("StrppAssert: a failure while dumping dies at once");
 	expect("a writer that asserts does not make a second dump",

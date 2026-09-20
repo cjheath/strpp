@@ -4,6 +4,7 @@
  * (c) Copyright Clifford Heath 2026. See LICENSE file for usage rights.
  */
 #include	<strassert.h>
+#include	<errbuf.h>			// The buffer the dump comes from
 
 #include	<cstdlib>
 #if	defined(HAVE_PTHREADS)

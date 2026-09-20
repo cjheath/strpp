@@ -18,9 +18,24 @@
 #include	<type_traits>
 
 #include	<refcount.h>
+#include	<strassert.h>			// A body that cannot hold what it is asked to stops
 
+/*
+ * The index type for array sizes. A build may set ArrayIndexBits to any width
+ * from 8 bits up to the width of a pointer (see the INDEXBITS option in the
+ * Makefile); the narrower it is, the less memory a body's own counts take,
+ * which is what it is for on a small target.
+ */
+#if	!defined(ArrayIndexBits)
 #define ArrayIndexBits	32
-typedef typename std::conditional<(ArrayIndexBits <= 16), uint16_t, uint32_t>::type  ArrayIndex;
+#endif
+typedef typename std::conditional<(ArrayIndexBits <= 8), uint8_t,
+	typename std::conditional<(ArrayIndexBits <= 16), uint16_t,
+	typename std::conditional<(ArrayIndexBits <= 32), uint32_t, uint64_t>::type>::type>::type	ArrayIndex;
+static_assert(ArrayIndexBits >= 8 && ArrayIndexBits <= sizeof(void*)*8,
+	"ArrayIndexBits must be from 8 to the width of a pointer");
+
+
 
 template<typename E, typename I = ArrayIndex>	class	ArrayBody;
 template<typename E, typename I, typename Self, typename Body>	class	ArrayR;
@@ -521,6 +536,11 @@ public:
 	using		Element = E;
 	using		Index = I;
 
+	// The largest count this body's index can hold. Note that a body may be
+	// instantiated with an index narrower than ArrayIndex - a string body is -
+	// so this is the only limit that is right for it.
+	static const Index	IndexMax = (Index)-1;
+
 	~ArrayBody()
 			{
 				if (start
@@ -574,7 +594,8 @@ public:
 				assert(pos >= 0);		// Insertion point not before beginning
 				assert(pos <= num_elements);	// Insertion point not after the end
 				Index new_size = num_elements+num;
-				assert(new_size >= num_elements); // Ensure the Index didn't wrap
+				assert(new_size >= num_elements);	// Ensure the Index didn't wrap
+				StrppAssert((size_t)num_elements + num <= (size_t)IndexMax);
 
 				resize(new_size);
 
@@ -654,11 +675,16 @@ protected:
 				if (minimum <= num_alloc)
 					return;		// Never release memory on a downsize
 
+				// A body cannot hold more than its index can count, and
+				// wrapping round would truncate it silently: stop instead
+				StrppAssert(minimum <= (size_t)IndexMax);
+
 				minimum = ((minimum-1)|0x7)+1;	// round up to multiple of 8
 				if (num_alloc)	// Minimum growth 50% rounded up to nearest 16
 					num_alloc = ((num_alloc*3/2) | 0xF) + 1;
 				if (num_alloc < minimum)
 					num_alloc = minimum;		// Still not enough, get enough
+				StrppAssert(num_alloc >= minimum);	// ...and that the growth did not wrap
 				Element*	newdata = new Element[num_alloc];
 				if (start)
 				{

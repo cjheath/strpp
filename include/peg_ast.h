@@ -10,7 +10,9 @@
 #include	<peg.h>
 #include	<utf8_ptr.h>
 
-#include	<cstdio>
+#if	defined(PEG_TRACE)
+#include	<cstdio>			// Only the tracing below uses it
+#endif
 
 using	PegMemorySourceSup = PegexpPointerSource<GuardedUTF8Ptr>;
 
@@ -188,7 +190,10 @@ public:
 			num_captures = 0;
 			return;
 		}
+#if	defined(PEG_TRACE)
+		// A case this function exists to avoid: see the comment above it
 		printf("REVISIT: Not rolling back to %d from %d\n", count, num_captures);
+#endif
 	}
 
 	void		record_failure(PatternP op, PatternP op_end, Source location)
@@ -237,7 +242,7 @@ public:
 	int		depth()
 	{ return parent ? parent->depth()+1 : 0; }
 
-	void		print_path(int depth = 0) const
+	void		print_path(int depth = 0) const		// Tracing only: peg.h calls it there
 	{
 		if (parent)
 		{

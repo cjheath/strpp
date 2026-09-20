@@ -5,7 +5,24 @@
 CXX	=	g++
 CXXFLAGS =	-std=c++11
 
-COPT	=	-DHAVE_PTHREADS # -DPEG_TRACE
+# The most levels of array or map that formatting and JSON rendering descend
+# to, overridable here: `make DEPTH=8`. It bounds the stack against a
+# structure far deeper than any message needs. See RENDER_MAX_DEPTH.
+DEPTH	=	16
+
+# The width in bits of the index a string counts with, and of the one an array
+# body counts with. Each may be anything from 8 up to the width of a pointer,
+# and the narrower it is the less memory a body's own counts take, which is
+# what it is for on a small target. The number of characters a string may hold
+# follows from the first, and is enforced rather than wrapping round.
+# `make STRVALINDEXBITS=16 ARRAYINDEXBITS=16`
+STRVALINDEXBITS	=	32
+ARRAYINDEXBITS	=	32
+
+COPT	=	-DHAVE_PTHREADS \
+		-DRENDER_MAX_DEPTH=$(DEPTH) \
+		-DStrValIndexBits=$(STRVALINDEXBITS) \
+		-DArrayIndexBits=$(ARRAYINDEXBITS) # -DPEG_TRACE
 # For a real FreeRTOS build, use -DHAVE_FREERTOS instead of -DHAVE_PTHREADS above,
 # add e.g. -DTHREAD_DEFAULT_STACK_BYTES=4096 -DTHREAD_DEFAULT_PRIORITY=1 -DMAX_THREAD=8,
 # and point -I at your real FreeRTOS headers instead of test/freertos_stub.

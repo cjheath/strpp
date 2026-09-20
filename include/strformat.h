@@ -41,14 +41,15 @@
  *
  * A parameter that is an array or a map is expanded rather than named: an array
  * in brackets, its elements rendered the same way, and a map as JSON, which is
- * what a map is for. `depth`, which format() takes and defaults to two levels,
- * bounds how far the arrays go - a composite at the limit answers its type name
- * in angle brackets instead, as does a type with no rendering at all - so that
- * a structure deep enough to run away with the stack cannot, whatever a program
- * passes in. A map goes by way of as_json(), which has no depth of its own and
- * descends as far as the map does. The limit belongs to the call rather than to
- * the text, since it is the programmer who knows what is being passed and a
- * translator who does not.
+ * what a map is for. The levels descended are bounded by RENDER_MAX_DEPTH, a
+ * structure deeper than any text needs answering its type name in angle
+ * brackets, as does a type with no rendering at all, so that a structure deep
+ * enough to run away with the stack cannot, whatever a program passes in. A map
+ * goes by way of as_json(), which the same constant bounds. The limit is not in
+ * the text, since a translator cannot know what will be passed, and not a
+ * parameter of format(), since every marker in a text would share it; a build
+ * may set it, and a caller who wants another depth renders the parameter
+ * itself.
  *
  * A brace that is meant literally is doubled, as it is in Python and .NET: {{
  * is a {, and }} is a }. Nothing else is escaped, so a text may carry regular
@@ -416,8 +417,9 @@ void	strval_format_into(StrVal f, VariantArray args, Push& out, int depth)
 }
 
 template<typename Index>
-StrVal	StrValI<Index>::format(StrVal f, VariantArray args, int depth)
+StrVal	StrValI<Index>::format(StrVal f, VariantArray args)
 {
+	const	int	depth = RENDER_MAX_DEPTH;
 	// Walk it once to learn how much room the answer needs, then once more to
 	// write it: two passes over the text, but each parameter is rendered once,
 	// and the answer is built with one allocation rather than one per piece.
