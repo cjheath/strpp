@@ -36,7 +36,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-cac6e935.js";
+            window.path_to_searchindex_js = "searchindex-a11fc733.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-58dc7aeb.js"></script>
@@ -300,29 +300,36 @@ does not add the enclosing quotes.</li>
 <li><code>asInt32(ErrNum* err, int radix = 0, Index* scanned = 0)</code> - the number this
 string reads as, in any radix from 2 to 36 and auto-detected when 0,
 reporting what it could not use.</li>
-<li><code>static format(StrVal f, VariantArray args, int depth = 2)</code> - the text <code>f</code>
-with each <code>{1}</code>, <code>{2}</code> and so on replaced by that parameter, which the marker
-may say how to render, and how far an array or a map among them is expanded.
-See “Substituting parameters into a text” below.</li>
+<li><code>static format(StrVal f, VariantArray args)</code> - the text <code>f</code> with each <code>{1}</code>,
+<code>{2}</code> and so on replaced by that parameter, which the marker may say how to
+render. See “Substituting parameters into a text” below.</li>
 <li><code>StringArray::join(StrVal joiner)</code> - the elements of a <code>StringArray</code>,
 concatenated with <code>joiner</code> between them.</li>
 </ul>
-<p><code>Index</code> is <code>StrValIndex</code>, which is 32 bits unless the build says otherwise, so
-a string is limited to 2^32 characters.</p>
+<p><code>Index</code> is <code>StrValIndex</code>, 32 bits unless the build says otherwise. The
+<code>INDEXBITS</code> option in the Makefile sets it to any width from 8 bits up to the
+width of a pointer, and the number of characters a string may hold follows from
+it, one short of the index’s range - the largest value is spoken for as the
+marker that says a body holds raw binary data. That limit is enforced: asking a
+string to hold more characters than its index can count stops the program with
+the panic in <code>strassert.h</code>, rather than wrapping round and truncating it.</p>
 <p>Example:</p>
 <pre><code>// This example creates precisely three strings, but with four references
-#include        &lt;stdio.h&gt;
-#include        &lt;strval.h&gt;
+#include	&lt;strval.h&gt;
+#include	&lt;unistd.h&gt;		// write, since a Strpp library uses no stdio
 
 void greet(StrVal greeting)
 {
-	StrVal  decorated = greeting + "! 🎉🍾\n";
-	fputs(decorated.asUTF8(), stdout);
+	StrVal		decorated = greeting + "! 🎉🍾\n";
+	StrValIndex	bytes = 0;
+	const char*	utf8 = decorated.asUTF8(bytes);
+
+	(void)!write(1, utf8, bytes);
 }
 
 int main()
 {
-	StrVal  hello("Hello, world");
+	StrVal	hello("Hello, world");
 
 	greet(hello);
 }
@@ -376,15 +383,15 @@ one is cut. A minimum is applied after the cut rather than before it, so
 <code>{1:8&lt;6...}</code> gives two spaces and then <code>abc...</code>.</p>
 <p>A parameter that is an array or a map is expanded rather than named: an array
 in brackets, its elements rendered the same way, and a map as JSON, which is
-what a map is for. <code>format()</code>’s third argument is how deep that goes, and it
-defaults to two levels; an array at that limit answers its type name in angle
-brackets instead, as does a type with no rendering at all here. A map goes by
-way of <code>as_json()</code>, which has no depth of its own and descends as far as the
-map does. The limit belongs to the call and not to the text, since it is the
-programmer who knows what is being passed and a translator who does not; a
-parameter that needs another depth, or another rendering entirely, can be
-rendered by the caller and passed as a string. A specification the type has no
-use for is ignored, so <code>{1:x}</code> of an array is just the array:</p>
+what a map is for. An array at the limit of <code>RENDER_MAX_DEPTH</code> levels answers
+its type name in angle brackets instead, as does a type with no rendering at
+all here, so a structure deeper than any text needs cannot run away with the
+stack. The limit is a build option - <code>make DEPTH=8</code> - rather than an argument
+of <code>format()</code>, because every marker in a text would share one argument, and
+rather than part of the text, because a translator cannot know what will be
+passed. <code>as_json()</code> is bounded by the same constant, and <code>as_json_at(indent, depth)</code> is there for a caller who wants more or less of a structure. A
+specification the type has no use for is ignored, so <code>{1:x}</code> of an array is
+just the array:</p>
 <pre><code>StrVal::format("{1}", VariantArray() &lt;&lt; Variant(array))
 // [1, [x, y]]
 </code></pre>
