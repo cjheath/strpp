@@ -124,11 +124,11 @@ doc:
 	mdbook build
 	git worktree prune
 	@test -d build/gh-pages || git worktree add -f build/gh-pages gh-pages
-	rm -rf build/gh-pages/doc
-	cp -R build/doc build/gh-pages/doc
-	cd build/gh-pages && git add -A doc
+	find build/gh-pages -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+	cp -R build/doc/. build/gh-pages/
+	cd build/gh-pages && git add -A
 	@echo "staged in build/gh-pages, on the gh-pages branch:"
-	@cd build/gh-pages && git status --short doc | head -20
+	@cd build/gh-pages && git status --short | head -20
 	@echo ""
 	@echo "review with:  cd build/gh-pages && git status && git diff --cached"
 	@echo "then commit it there, and 'git worktree remove --force build/gh-pages' when done"
