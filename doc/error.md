@@ -1,4 +1,50 @@
-## Error numbers: the ErrNum type
+## Error Management
+
+User-focussed management of errors requires that the user is provided with
+all relevant context to an error, not just a simple error code with a
+generic message. Where one error cascades into another that can provide more
+context, or a path to recovery, that must be provided, with neither error
+report masking the others. Failure to properly report error context and a
+math to making progress has been a major cause of inconvenience to users
+throughout the history of the software industry.
+
+This level of error management is tedious to implement with a bare Unix
+errno or a Windows HRESULT. If a "file not found" message must be emitted,
+the message must say what file or directory component was the cause of the
+search path failure. If "access is denied", it must say what access was
+requested, to what object, and on what basis the request was denied.
+
+An error here carries its parameters in full, preferably with a structured
+presentation of the problem, reason and solution - what went wrong, why it
+went wrong, and what can be done about it. Cascading errors build a
+tombstone from which the user can discern the original cause as well as the
+end result, and is given every assistance in fixing it.  They are never
+left guessing, and that is a design goal for the whole system rather than a
+property of any one part of it.
+
+The second goal is to make it awkward for a programmer to return a bare error
+code. A code by itself tells the reader nothing, and an error is worth
+reporting only with the parameters that allow it to be avoided in future.
+Since the call that records the error is also the call that produces the
+value returned, the ordinary way to return an error is the way that records
+it. Awkward rather than impossible: a very few places justify returning the
+code alone, so it has to stay possible; what the shape must avoid is the
+bare code being the easy thing to write.
+
+None of this is justification for an expensive implementation, because it
+may have to run on very limited hardware. An error which can be recovered is
+never formatted into text, only the minimum work is done. The caller who
+receives an error code can ignore the presence of message text and
+parameters, and just act on the error code, or they can recover by deleting
+the reported error.
+
+So reporting a failure takes two things: an `ErrNum` names what went wrong,
+and an entry in a per-thread buffer accumulates what has been reported but
+not yet recovered or delivered as a message. The error number is compact,
+just a 32-bit compile-time constant, so error handling can use `switch`
+cases.
+
+### Error numbers: the ErrNum type
 
 `#include	<error.h>`
 
@@ -46,6 +92,172 @@ software.
 `is_failure` and `is_info` are the intended API but their names are not yet
 settled.
 
-Reporting an error, and reading back what has been reported, is the error
-buffer's job: see [errbuf.md](errbuf.md). The `Error` function declared
-there is what the generated reporting functions call.
+#### Public methods
+
+Defined in [error.h](https://github.com/cjheath/strpp/blob/main/include/error.h).
+
+- `ErrNum()` - the zero value, which is success.
+- `ErrNum(int set, int msg)` - a failure, from a message set number and a
+  message number within it.
+- `ErrNum(int32_t system)` - a system's own number, errno or HRESULT, wrapped
+  exactly as it stands.
+- `set()`, `msg()` - the message set number, and the number within that set.
+- `is_failure()`, `is_info()` - whether the failure bit or the information bit
+  is set.
+- `operator int32_t()` - the raw number, which is what lets the values be used
+  in a switch.
+- `operator==`, `operator!=`, `operator<`, `operator>` - compared by number,
+  against another ErrNum or against an integer.
+
+The bits it is built from are public too: `ERR_FLAG` marks a failure,
+`ERR_INFO` information or a warning, `ERR_CUST` is set on ours so that no
+Microsoft subsystem can collide with them, and `ERR_RSVD` must stay clear.
+
+### The error buffer
+
+`#include	<errbuf.h>`
+
+Every thread has one error buffer, holding the messages it has reported and
+not yet dealt with. Nothing is formatted and nothing is decided about
+language, style or severity when a message is reported: the buffer holds the
+message number, its default text and its parameters, and whoever displays
+the message decides all of that. That may be another thread or another
+process entirely.
+
+#### Public methods
+
+Defined in [errbuf.h](https://github.com/cjheath/strpp/blob/main/include/errbuf.h).
+
+- `count()` - the messages it holds, reported and not yet dealt with.
+- `checkpoint()` - the number the next report would take, which is what you
+  keep to roll back to.
+- `error(MsgIndex n)` - the number of the nth message, and nothing else. What
+  recovery usually wants.
+- `message(MsgIndex n)` - the nth message: its number, default text and
+  parameters.
+- `report(ErrNum err, const char* default_text, VariantArray params)` - append
+  a message and answer its sequence number. A zero ErrNum reports nothing.
+- `rollback(MsgSequence which)` - discard everything reported since that
+  checkpoint, the parameters going with it.
+- `delivered()` - retire the oldest message, once you have delivered it.
+- `clear()` - drop everything at once, keeping the storage.
+- `Error(ErrNum err, const char* default_text, VariantArray params)` - the
+  free function the generated reporting functions call: it reports into this
+  thread's buffer and answers the number, so reporting and returning are one
+  act.
+- `error_buffer()` - the free function that answers this thread's buffer,
+  making it on first use.
+
+#### Reporting
+
+Generated code calls `Error` through a function per message:
+
+	ErrNum	Error(ErrNum err, const char* default_text, VariantArray params);
+
+It appends the message, and answers the number it was given, so that
+reporting an error and returning it are one act:
+
+	return ErrorADL_Syntax("foo", source.location);
+
+The generated functions gather their arguments and call `Error`; there is
+one of those per message, and one `Error` for all of them. A zero `ErrNum`
+reports nothing.
+
+#### Reading
+
+	MsgIndex	count() const;			// Messages held
+	MsgSequence	checkpoint() const;		// The next number a report would take
+	ErrNum		error(MsgIndex n) const;	// The number alone
+	Message		message(MsgIndex n) const;	// Number, default text, parameters
+
+`Message` is what someone about to deliver a message needs:
+
+	struct Message
+	{
+		ErrNum		error;
+		const char*	default_text;
+		VariantArray	parameters;	// A slice of the buffer's parameter array
+	};
+
+Recovery usually wants only `error(n)`. Take a `Message` when you are about
+to display one.
+
+**A `Message`'s parameters share the buffer's parameter array, so let the
+message go before delivering it.** While a slice is outstanding the array
+cannot be reclaimed, and one held across a drain leaks that action's
+parameters. `delivered()` and `clear()` assert that none is outstanding, so
+the mistake stops rather than quietly leaking. In practice this means the
+`Message` wants a scope of its own:
+
+	{
+		ErrBuf::Message	shown = buffer->message(0);
+		display(shown);
+	}
+	buffer->delivered();
+
+#### Recovering
+
+	MsgSequence	mark = buffer->checkpoint();
+	...call something that may report...
+	if (!wanted)
+		buffer->rollback(mark);
+
+`rollback` discards everything reported since the checkpoint, the callee
+having no part in it. Messages the callee reported take their parameters
+with them, so what remains stays contiguous.
+
+Messages are consecutively numbered: a rollback gives its numbers back, and
+the next report takes them again. A number is therefore only unique among
+the messages currently held, which is all a checkpoint needs to be.
+
+#### Delivering
+
+	while (buffer->count() > 0)
+	{
+		...read message(0) and let it go...
+		buffer->delivered();		// The oldest has been delivered
+	}
+
+Delivery always drains the buffer. Delivering advances past the message
+rather than compacting what follows, so it costs the same whatever is behind
+it, and the last one to go empties both arrays while keeping their storage.
+That is what makes the steady state free: **an action that reports and
+delivers the same number of messages as the last one allocates nothing at
+all.** `clear()` drops everything at once without delivering, retiring the
+numbers.
+
+#### What a reporting function should do
+
+Build the parameters in a scratch array that is emptied between reports
+rather than rebuilt. A fresh `VariantArray` per report costs two
+allocations, which is the cost this shape exists to avoid:
+
+	static ThreadLocal<VariantArray>	scratch;
+
+	VariantArray&	params = *scratch.get();
+	params.evacuate();			// Empty, keeping the storage
+	params.append(Variant(42));
+	params.append(Variant("context"));
+	return Error(SomeError, "the default text", params);
+
+`evacuate()` is what keeps the storage; `clear()` would give it back.
+
+#### Threads and other processes
+
+There is one buffer per thread, reached through a thread-local slot, so two
+threads never see each other's messages. A caller running on one thread that
+completes work for another - or a server answering a client - packs the
+unformatted messages (number, default text and parameters) into whatever it
+already speaks and ships them. The receiving context is the one that knows
+the reader's language and the room there is to display in, so it is the one
+that formats.
+
+#### Not implemented yet
+
+- **Formatting.** What the substitution points look like, and what replaces
+  printf-style directives, is not settled.
+- **Catalogs.** Nothing yet reads a compiled catalog; the default text is
+  what a message carries.
+- **Severity.** A message has no severity recorded. Severity is contextual,
+  and a warning may be demoted to information or raised by whoever displays
+  it.

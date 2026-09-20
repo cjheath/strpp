@@ -96,7 +96,50 @@ possible to proceed from that position in the stream. When a Source is
 deleted, no further access will be required to data from that position
 unless an older copy still exists.
 
-You can subclass `Pegexp<>` to override `match_extended` and
-`skip_extended` to handle special command characters.
+### Public methods
 
-Read the header file for more details.
+Defined in [pegexp.h](https://github.com/cjheath/strpp/blob/main/include/pegexp.h).
+
+`Pegexp`:
+
+- `Pegexp(PatternP pattern)` - a matcher over the 8-bit pattern text.
+- `match(Source& source, Context* context)` - match at or after the source's
+  position, advance it to the end of the match, and answer the Match.
+- `match_here(Source& source, Context* context)` - match at exactly that
+  position, without scanning forward for somewhere the pattern does fit.
+- `pattern` - the pattern text it was built from.
+- `special` - the characters that must be backslash-escaped to be literal.
+
+A subclass can override `match_extended` and `skip_extended` to give a meaning
+of its own to the extension characters listed in the table above.
+
+`PegexpPointerSource`, the Source to model yours on:
+
+- `PegexpPointerSource(const DataPtr cp)` - a Source at the start of the data.
+- `is_null()` - whether there is no data at all, which is how a null Source is
+  told from one that has run out.
+- `get_byte()`, `get_char()` - the next byte, or the next character as a UCS4,
+  moving forward.
+- `at_eof()`, `at_bol()` - whether the data has run out, and whether this is
+  the beginning of a line.
+- `same(other)` - whether another copy is at the same position.
+- `bytes_from(origin)` - the bytes between two positions.
+- `current_byte()`, `current_line()`, `current_column()` - where it is now, for
+  error reporting.
+- `string_to(other)` - the text between two positions, as a StrVal.
+
+`PegexpDefaultContext`, the Context to model yours on:
+
+- `capture(name, name_len, match, in_repetition)` - called for a labelled
+  atom, and answers the capture count afterwards. The default forgets it.
+- `capture_count()`, `rollback_capture(count)` - number the captures, and give
+  the recent ones back when a path fails.
+- `record_failure(op, op_end, location)` - called for an atom that did not
+  match, with the place it was tried.
+- `match_result(from, to)`, `match_failure(at)` - how a Context declares its
+  answers.
+- `capture_disabled`, `repetition_nesting` - how deep inside a look-ahead, and
+  inside a repetition, the match currently is.
+
+`PegexpState` is the pattern position and the Source position together, and
+`PegexpDefaultMatch` is the pair of States a Match runs between.

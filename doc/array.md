@@ -2,26 +2,66 @@
 
 `#include	<array.h>`
 
-The Array<T> template creates a slice into an array of type T. New slices
+The `Array<T>` template creates a slice into an array of type T. New slices
 (and copies) onto the same ArrayBody are inexpensive (using atomic
 reference-counting), but any attempt to modify a slice first creates a copy
 of the Body, leaving other slices unaffected. The ArrayBody itself is only
 accessible as a constant, and a new Array may be created over a static body.
 
-### The API
+### Public methods
 
-	Array<T>	a;			// Empty
-	a.push(x), a.append(x), a += x;	// Add at the end
-	a.remove(i);			// Delete from i to the end
-	a.remove(i, n);			// Delete n elements from i
-	a.insert(i, other);		// Insert another array at i
-	a[i], a.last(), a.length(), a.isEmpty()
-	a.slice(at, len), a.head(n), a.tail(n), a.shorter(n)
-	a.find(x), a.each(f), a.select(f), a.map(f), a.all/any/one(f)
-	a.evacuate(), a.clear()
+Defined in [array.h](https://github.com/cjheath/strpp/blob/main/include/array.h).
 
-`a[i]` and `a.last()` answer copies. `each`, `select`, `map` and the
-`all`/`any`/`one` predicates take a function and leave the array alone.
+Making one:
+
+- `Array()` - empty.
+- `Array(const Element data)` - an array holding that one element.
+- `Array(const Element* data, Index size, Index allocate = 0)` - copies `size`
+  elements, with room for `allocate` more before it must grow.
+- `Array(const Array&)`, `operator=` - share the body, so both are cheap.
+- `Array(Body*)` - a reference to a body that already exists, for statics.
+
+Reading:
+
+- `length()`, `isEmpty()`, `isShared()` - the elements in this slice, whether
+  it has any, and whether another array shares the body.
+- `operator[](int)`, `elem(n)`, `last()` - copies of the elements.
+- `last_ref()`, `elem_ref(n)` - const references, without copying.
+- `asElements()` - a pointer to the first element of this slice.
+- `operator->()`, `operator*()`, `operator const Body&()` - the body itself.
+- `compare(const Array&)` and the comparison operators - element-wise.
+- `find(e)`, `rfind(e)`, `find(f)`, `rfind(f)` - the index of an element, by
+  value or by a match function, or -1 if it is not there.
+- `detect(f)` - the index of the first element satisfying `f`, or -1.
+- `bsearch(f)` - binary search of a sorted array by comparator.
+
+Slicing, all O(1) and none of them copying:
+
+- `slice(at, len = -1)`, `head(n)`, `tail(n)`, `shorter(n)`, `drop(n)`.
+
+Changing, each taking a private copy first if the body is shared:
+
+- `push(e)`, `append(e)`, `append(Array)`, `operator+=(e)`, `operator+=(Array)`,
+  `operator<<(e)` - add at the end.
+- `operator+` - concatenation, making a new array.
+- `insert(pos, Array)` - insert another array at `pos`.
+- `unshift(e)` - insert at the start; `shift()` removes from the start.
+- `pull()`, `last_mut()` - take the last element, or reach it to write.
+- `remove(at, len = -1)`, `delete_at(at)`, `delete_if(f)` - remove elements.
+- `set(n, e)`, `elem_mut(n)` - write an element, and reach one to write.
+- `reverse()` - reverse the elements of this slice.
+- `each(f)` - call `f` for every element, leaving the array alone.
+- `select(f)` - a new array of the elements that satisfy `f`.
+- `map(f)` - a new array of what `f` answers for each element.
+- `inject(start, f)` - fold the elements into an accumulator.
+- `all(f)`, `any(f)`, `one(f)` - whether all, any, or exactly one element
+  satisfies `f`.
+- `evacuate()`, `clear()` - empty it, keeping the storage or giving it back.
+- `free_if_emptied()` - release the body if this empty slice is its only
+  owner.
+
+`each`, `select`, `map`, `inject` and the `all`/`any`/`one` predicates take a
+function and leave the array alone.
 
 ### What a slice costs
 
