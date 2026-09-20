@@ -1,129 +1,110 @@
-## Raw Unicode character processing
+## Unicode character processing
 
 `#include <char_encoding.h>`
 
-<pre>
-typedef char		UTF8;		// We don't assume un/signed
-typedef uint16_t	UTF16;		// Used in Unicode 2, and 3 with surrogates
-typedef	char32_t	UCS4;		// A UCS4 character, aka UTF-32, aka Rune
-</pre>
+	typedef char		UTF8;		// We don't assume un/signed
+	typedef uint16_t	UTF16;		// Used in Unicode 2, and 3 with surrogates
+	typedef	char32_t	UCS4;		// A UCS4 character, aka UTF-32, aka Rune
 
-### UTF8 processing
+Characters are passed and returned as UCS4 whatever their encoding.
+UCS4_NONE (0xFFFFFFFF) marks end of input.
 
-UTF8 consists of a leading byte which indicates how many bytes follow,
-from zero to five. In practise, a UTF8 character may be encoded with a
-longer sequence than required by zero-padding. This implementation will
-not unintentionally generate non-minimum length encodings.
+### Illegal UTF-8
 
-* `bool UTF8Is1st(UTF8)` indicates a valid leading byte,
+A byte sequence that is not legal UTF-8 is not an error. Its raw bytes are
+returned as characters of the form 0x800000xx, one per byte, so naive code
+passes such data through unchanged instead of needing an exception, and
+`UTF8Backup` mirrors `UTF8Get` so that stepping back over them works.
 
-* `bool UTF8Is2nd(UTF8)` the following bytes
+### UTF-8
 
-* `int UTF8CorrectLen(UTF8)` returns the number of bytes expected in the
-sequence starting with this byte, but does not check them
+* `bool UTF8Is1st(UTF8)` a valid leading byte
 
-* `int UTF8Len(const UTF8* cp)` looks at the data and checks that the required
-following bytes are all correct
+* `bool UTF8Is2nd(UTF8)` a following byte
 
-* `UCS4 UTF8Get(const UTF8*& cp)` returns the next UCS4 character,
-advancing cp, and handling illegal encodings by the method described
-above
+* `int UTF8CorrectLen(UTF8)` the number of bytes the sequence should have,
+given this leading byte, without checking them
 
-* `UCS4 UTF8Peek(const UTF8*& cp)` returns the next UCS4 character without
-advancing cp
+* `int UTF8Len(const UTF8* cp)` the actual length, having checked that the
+following bytes are correct
 
-* `const UTF8* UTF8Backup(const UTF8* cp, const UTF8* limit)` backs up one
-character, correctly handling illegal UTF8 to mirror UTF8Get
+* `UCS4 UTF8Get(const UTF8*& cp)` the next character, advancing cp
 
-* `UTF8PutPaddedZero(UTF8*& cp, int length)` puts a zero character of
-length bytes, which is sometimes useful to create a place-holder
+* `UCS4 UTF8Peek(const UTF8*& cp)` the next character, without advancing cp
 
-### UCS4 processing
+* `const UTF8* UTF8Backup(const UTF8* cp, const UTF8* limit)` back one
+character
 
-The full 32-bit range of UCS4 (aka UTF-32) may be encoded using six-byte
-UTF-8 (not just 31 bits as in some implementations).  The raw bytes of
-an illegal UTF-8 sequence is encoded here as a series of replacement
-characters as the `xx` bits in 0x800000xx.  In this way there is no need
-for an exception to be thrown on an illegal sequence, and naive programs
-will pass such data unchanged.  The value 0xFFFFFFFF defined as UCS4_NONE
-is used to mark EOF and in similar situations.
+* `UTF8PutPaddedZero(UTF8*& cp, int length)` a zero character occupying
+  length
+bytes, sometimes wanted as a place-holder
 
-* `int UTF8Len(UCS4)` returns the required number of bytes to encode
-a UCS4 character as UTF8
+A non-minimum length encoding - a character zero-padded to a longer sequence
+than it needs - is accepted when read, and is never produced when written.
 
-* `bool UCS4IsAlphabetic(UCS4)` A character is deemed alphabetic
-if it is susceptible to case conversion, of if it is in a list of
-208 non-case-convertible characters
+### Encoding a character
 
-* `int UCS4Digit(UCS4)` Unicode contains 20 digit ranges. This
-returns the decimal value for a digit, or -1 for non-digits
+* `int UTF8Len(UCS4)` the bytes needed to encode the character as UTF-8
 
-* `bool UCS4IsDecimal(UCS4)` Return true if the character is decimal
+* `int UTF16Len(UCS4)` the UTF-16 words needed
 
-* `int UCS4HexDigit(UCS4)` Return the decimal or hexadecimal (a-f,
-A-F) value or -1
+### Classifying and converting characters
 
-* `UCS4 UCS4ToUpper(UCS4)` Return the uppercase equivalent
+* `bool UCS4IsAlphabetic(UCS4)` susceptible to case conversion, or in a list
+  of
+208 characters that are not
 
-* `UCS4 UCS4ToLower(UCS4)` Return the lowercase equivalent
+* `int UCS4Digit(UCS4)` the decimal value of a digit from any of Unicode's
+  20
+digit ranges, or -1
 
-* `UCS4 UCS4ToTitle(UCS4)` Return the title-case equivalent if one
-exists, otherwise uppercase
+* `bool UCS4IsDecimal(UCS4)`
 
-* `bool UCS4IsWhite(UCS4)` In addition to ASCII white-space, there
-are four other Unicode groups of whitespace
+* `int UCS4HexDigit(UCS4)` the decimal or hexadecimal value of a digit, or
+  -1
 
-* `bool UCS4IsASCII(UCS4)` Return true if the UCS4 character is in
-the ASCII range 0..0x7F
+* `UCS4 UCS4ToUpper(UCS4)`, `UCS4ToLower(UCS4)`, `UCS4ToTitle(UCS4)` the
+title-case equivalent where one exists, otherwise uppercase
 
-* `bool UCS4IsLatin1(UCS4)` Return true if the UCS4 character is
-in the ISO-8859-1 range 0..0x7F
+* `bool UCS4IsWhite(UCS4)` ASCII white-space or any of Unicode's four other
+white-space groups
 
-* `bool UCS4IsUTF16(UCS4)` Return true if the UCS4 character is in
-the UTF16 range 0..0xFFFF (which includes surrogates)
+* `bool UCS4IsASCII(UCS4)` 0..0x7F
 
-* `bool UCS4IsUnicode(UCS4)` Return true if the UCS4 character is
-in Unicode UTF16 range 0..10FFFF
+* `bool UCS4IsLatin1(UCS4)` 0..0xFF
 
-* `bool UCS4IsIllegal(UCS4)` Return true if the character encodes
-an out-of-sequence UTF8 byte
+* `bool UCS4IsUTF16(UCS4)` 0..0xFFFF, including surrogates
 
-The actual classification functions use reduced tables derived from
-the official standard. You might wish to expand these for fully
-legal Unicode processing (or a future implementation may provide
-them as a compile-time option).
+* `bool UCS4IsUnicode(UCS4)` 0..0x10FFFF
+
+* `bool UCS4IsIllegal(UCS4)` an out-of-sequence UTF-8 byte, as described
+  above
+
+The classification functions use reduced tables derived from the standard.
 
 ### UTF-16
 
-In case you should be unfortunate enough to need to support UTF-16,
-these functions are provided.
+In case you should be unfortunate enough to need to support UTF-16, these
+functions are provided.
 
-* `bool UTF16IsSurrogate(UTF16 ch)` Returns true if the UTF16 word
-is a surrogate (low or high)
+* `bool UTF16IsSurrogate(UTF16 ch)` a surrogate of either kind
 
-* `bool UTF16Is1st(UTF16 ch)` Returns true if the UTF16 word is a
-high surrogate
+* `bool UTF16Is1st(UTF16 ch)` a high surrogate
 
-* `bool UTF16Is2nd(UTF16 ch)` Returns true if the UTF16 word is a
-low surrogate
+* `bool UTF16Is2nd(UTF16 ch)` a low surrogate
 
-* `UTF16 UCS4HighSurrogate(UCS4 ch)` Return the high surrogate value
-for the Unicode character
+* `UTF16 UCS4HighSurrogate(UCS4 ch)`, `UCS4LowSurrogate(UCS4 ch)` the
+surrogate values for the character
 
-* `UTF16 UCS4LowSurrogate(UCS4 ch)` Return the low surrogate value
-for the Unicode character
+* `UTF16 UTF16Swab(UTF16 x)` swap the bytes of a word
 
-* `UTF16 UTF16Swab(UTF16 x)` Swap the bytes of a UTF16 word
+* `UCS4 UTF16Get(const UTF16*& cp, bool swap = false)` the next character
+  from
+one or two words, advancing cp
 
-* `UCS4 UTF16Get(const UTF16*& cp, const bool swap = false)` Return
-a UCS4 character from one or two UTF16 words, advancing cp and
-swapping bytes if requested
+* `int UTF16Len(const UTF16* cp, bool swap = false)` the words making up the
+next character
 
-* `int UTF16Len(UCS4 ch)` Return the number of UTF16 words required
-to encode the character
-
-* `int UTF16Len(const UTF16* cp, bool swap = false)` Return the
-number of UTF16 words that make up the next character
-
-* `void UTF16Put(UTF16*& cp, UCS4 ch, bool swap = false)` Convert
-and store a UCS4 character as UTF16, advancing cp
+* `void UTF16Put(UTF16*& cp, UCS4 ch, bool swap = false)` store the
+  character
+as UTF-16, advancing cp

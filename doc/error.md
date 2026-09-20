@@ -1,42 +1,51 @@
-## Error and ErrNum type
+## Error numbers: the ErrNum type
 
-`#include <error.h>`
+`#include	<error.h>`
 
-Error is a lightweight type intended to encapsulate success or failure reason from a function.
-It includes:
-- a 32-bit ErrNum (which subsumes <strong>errno</strong> and <strong>HRESULT</strong>)
-- a <strong>const char*</strong> to a default message text format string
-- a reference-counted Variant array of typed arguments to be inserted into a format string
+An ErrNum is a 32-bit value naming a message: a set number, and a number
+within that set. It subsumes both errno and Microsoft's HRESULT, so one
+value carries a failure from anywhere - ours, the C library's, or Windows'
+without the reader needing to know which.
 
-Error and the ErrNum class has a constexpr cast to <strong>int32_t</strong>
-which allows the values to be used in switch statements.  The actual
-number is made up of a 16-bit subsystem identifier (a message set number)
-and a 14-bit message number within that set.  Message Numbers in each set
-should be defined in a message catalog file, and generated to #defines
-in a header file.  The intention is that each message may contain text
-in one or more natural languages, allowing a message to be formatted with
-parameter values in the user's locale.
+ErrNum is a class rather than a bare integer, so the tests over it are
+methods:
 
-The tooling to automate this will be included in this repository later.
+	ErrNum	e = ...;
+	if (e.is_failure())		// Something went wrong
+		...
+	if (e.is_info())		// Worth knowing, but not a failure
+		...
 
-Example:
+Its constexpr cast to int32_t allows the values in a switch, which is how a
+caller handles the errors it knows and passes on the rest:
 
-	#include	<subsys_errors.h>
-		....
-		return SubsysErrorOfSomeType(param1, param2, ...)
-		....
+	ErrNum e = DoSomeWork();
+	switch (e)
+	{
+	case 0:
+		// That seemed to go ok
+		break;
+	case SubsysErrorOfSomeTypeNum:	// A generated name for a set's message
+		// Handle the error
+		Complain(e);
+		return;
+	default:
+		return e;		// Not ours to handle
+	}
 
-		switch (Error e = DoSomeWork())
-		{
-		case 0:
-			// That seemed to go ok
-			break;
-		case ENOENT:
-			// No such file or directory!
-			break;
+Set and message numbers are generated from a message set description: a
+set's messages become `#define`s in a generated header, `<Module>_err.h`,
+one per message with the default text in a comment, so that code has names
+rather than numbers. There are 1024 messages to a set, and set numbers run
+to 262143.
 
-		case SubsysErrorOfSomeTypeNum:
-			// Handle the error
-			Complain(e);
-			return;
-		}
+A number, once used, is never re-used, so a number written into a log, a
+manual or a customer's report keeps its meaning over the life of the
+software.
+
+`is_failure` and `is_info` are the intended API but their names are not yet
+settled.
+
+Reporting an error, and reading back what has been reported, is the error
+buffer's job: see [errbuf.md](errbuf.md). The `Error` function declared
+there is what the generated reporting functions call.

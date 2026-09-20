@@ -117,6 +117,28 @@ run_variant_test: variant_test
 %:	%.cpp $(LIB) $(MEMCHECK)
 	$(CXX) $(DEBUG) $(CXXFLAGS) -Iinclude -Itest -o $@ $< $(MEMCHECK) $(LIB)
 
+# Build the documentation site and commit it to the gh-pages branch, for review
+# before pushing. Nothing is pushed. See book.toml.
+doc:
+	@command -v mdbook >/dev/null || { echo "mdbook is not installed: brew install mdbook"; exit 1; }
+	mdbook build
+	git worktree prune
+	@test -d build/gh-pages || git worktree add -f build/gh-pages gh-pages
+	rm -rf build/gh-pages/doc
+	cp -R build/doc build/gh-pages/doc
+	cd build/gh-pages && git add -A doc
+	@echo "staged in build/gh-pages, on the gh-pages branch:"
+	@cd build/gh-pages && git status --short doc | head -20
+	@echo ""
+	@echo "review with:  cd build/gh-pages && git status && git diff --cached"
+	@echo "then commit it there, and 'git worktree remove --force build/gh-pages' when done"
+
+# Commit the staged documentation in the gh-pages worktree, opening an editor
+# for the message. Run `make doc` first.
+commit-docs:
+	@test -d build/gh-pages || { echo "nothing staged: run 'make doc' first"; exit 1; }
+	cd build/gh-pages && git commit
+
 px:
 	cd ../px; $(MAKE)
 
@@ -187,4 +209,4 @@ clobber:	clean
 	rm -f $(LIB) libstrpp_freertos.a
 	$(foreach subdir,$(SUBDIRS),$(MAKE) -C $(subdir) $@;)
 
-.PHONY:	all lib clean test tests clean clobber px freertos_check
+.PHONY:	all lib clean test tests doc freertos_check

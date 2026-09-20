@@ -82,7 +82,7 @@ public:
 			{ return errnum & 0x3FF; }
 	bool		is_failure() const		// REVISIT: names to settle with the reporting API
 			{ return (errnum & ERR_FLAG) != 0; }
-	bool		is_informational() const
+	bool		is_info() const
 			{ return (errnum & ERR_INFO) != 0; }
 	bool		operator==(ErrNum x) const
 			{ return errnum == x.errnum; }

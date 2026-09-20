@@ -1,0 +1,18 @@
+# The documentation site, built with mdbook:
+#
+#   make doc		build, and commit the result to the gh-pages branch
+#
+# The Markdown sources live in doc/ on this branch; the built site replaces
+# doc/ on gh-pages, which is what Github Pages serves.
+[book]
+title = "strpp"
+description = "Reference-counted, copy-on-write value types with slices"
+src = "doc"
+language = "en"
+
+[build]
+build-dir = "build/doc"
+
+[output.html]
+default-theme = "light"
+git-repository-url = "https://github.com/cjheath/strpp"
