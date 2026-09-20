@@ -3,7 +3,8 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Array with slices - strpp</title>
+        <title>Page not found - strpp</title>
+        <base href="/">
 
 
         <!-- Custom HTML head -->
@@ -35,7 +36,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-4f729be3.js";
+            window.path_to_searchindex_js = "searchindex-aa04d821.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-cecf5e01.js"></script>
@@ -177,62 +178,14 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h2 id="array-with-slices"><a class="header" href="#array-with-slices">Array with slices</a></h2>
-<p><code>#include	&lt;array.h&gt;</code></p>
-<p>The Array<t> template creates a slice into an array of type T. New slices
-(and copies) onto the same ArrayBody are inexpensive (using atomic
-reference-counting), but any attempt to modify a slice first creates a copy
-of the Body, leaving other slices unaffected. The ArrayBody itself is only
-accessible as a constant, and a new Array may be created over a static body.</t></p>
-<h3 id="the-api"><a class="header" href="#the-api">The API</a></h3>
-<pre><code>Array&lt;T&gt;	a;			// Empty
-a.push(x), a.append(x), a += x;	// Add at the end
-a.remove(i);			// Delete from i to the end
-a.remove(i, n);			// Delete n elements from i
-a.insert(i, other);		// Insert another array at i
-a[i], a.last(), a.length(), a.isEmpty()
-a.slice(at, len), a.head(n), a.tail(n), a.shorter(n)
-a.find(x), a.each(f), a.select(f), a.map(f), a.all/any/one(f)
-a.evacuate(), a.clear()
-</code></pre>
-<p><code>a[i]</code> and <code>a.last()</code> answer copies. <code>each</code>, <code>select</code>, <code>map</code> and the
-<code>all</code>/<code>any</code>/<code>one</code> predicates take a function and leave the array alone.</p>
-<h3 id="what-a-slice-costs"><a class="header" href="#what-a-slice-costs">What a slice costs</a></h3>
-<p>A slice holds a reference to the Body, so while any slice is outstanding the
-body is shared (<code>isShared()</code>), and the next mutation copies it. That is what
-makes an array safe to pass around by value - and it is why an array that is
-meant to be appended to repeatedly should not be handed out as a slice.
-Every outstanding slice costs one copy on the next append, however the slice
-is used.</p>
-<h3 id="shrinking-a-slice"><a class="header" href="#shrinking-a-slice">Shrinking a slice</a></h3>
-<p><code>remove()</code>, <code>pull()</code>, <code>drop()</code>, <code>shift()</code> and <code>delete_at()</code> take sole
-ownership before they release anything, so an element they drop is destroyed
-there and then. Shrinking a slice from either end therefore moves the
-survivors down: a copy when the body is shared, and a move of the live
-elements when it is not. Draining an array one element at a time is
-quadratic in its length; at the sizes these are used at that is nothing, but
-a large array is better drained in one call.</p>
-<h3 id="emptying-and-keeping-the-storage"><a class="header" href="#emptying-and-keeping-the-storage">Emptying, and keeping the storage</a></h3>
-<p><code>evacuate()</code> empties an array, releasing its elements but <strong>keeping its
-storage</strong>, so that refilling it costs no allocation. <code>clear()</code> is the same
-except that it also gives the storage back; an array that is emptied and
-refilled repeatedly wants <code>evacuate()</code>.</p>
-<p>Neither can release elements a shared body still shows to another array; the
-elements stay alive until the last reference goes.</p>
-<p>The StrVal class uses a specialisation of this template to provide its
-storage and reference counting.</p>
+                        <h1 id="document-not-found-404"><a class="header" href="#document-not-found-404">Document not found (404)</a></h1>
+<p>This URL is invalid, sorry. Please use the navigation bar or search to continue.</p>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="unicode.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
-                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
-                            </a>
 
-                            <a rel="next prefetch" href="variant.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
-                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
-                            </a>
 
                         <div style="clear: both"></div>
                     </nav>
@@ -240,13 +193,7 @@ storage and reference counting.</p>
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="unicode.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
-                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
-                    </a>
 
-                    <a rel="next prefetch" href="variant.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
-                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
-                    </a>
             </nav>
 
         </div>

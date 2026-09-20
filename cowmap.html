@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>PEG parsing - strpp</title>
+        <title>COWMap - strpp</title>
 
 
         <!-- Custom HTML head -->
@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-4f729be3.js";
+            window.path_to_searchindex_js = "searchindex-aa04d821.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-cecf5e01.js"></script>
@@ -177,44 +177,52 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h2 id="peg-parsing"><a class="header" href="#peg-parsing">PEG parsing</a></h2>
-<p><code>#include	&lt;peg.h&gt;</code></p>
-<pre> template&lt;typename Source&gt; class PegDefaultMatch;
-template&lt;typename Match&gt; class PegContextNoCapture;
-template&lt;typename Source, typename Match, typename Context&gt; class Peg;
-</pre>
+                        <h2 id="cowmap"><a class="header" href="#cowmap">COWMap</a></h2>
+<p><code>#include	&lt;cowmap.h&gt;</code></p>
+<p>The Copy-on-write Map template is a sorted key/value map with by-value
+semantics, like StrVal and Array: copying a CowMap is cheap (O(1), sharing
+the same underlying tree with the original), and modifying it transparently
+takes a private copy first if it’s shared with any other reference.</p>
+<p>Internally, CowMap is backed by a persistent (path-copying) red-black tree
+(see redblack.h), not the STL’s std::map. This is what makes copying O(1): a
+copy just shares the tree’s root; a subsequent mutation on either copy only
+replaces the O(log n) nodes on the path to the change, leaving every other
+node - and so every other reference still holding an older version
+completely untouched. Node colour is packed into the spare low bits of each
+child pointer (see taggedref.h) at no extra memory cost. A node that is
+uniquely owned is mutated in place; a shared node is copied first - safe
+because a single reference is confined to one thread, and sharing a map
+across threads always goes through copying it.</p>
+<p><code>operator[]</code> and <code>keys()</code>/<code>values()</code> return copies of the value/keys;
+<code>find()</code> returns an iterator instead, giving read-only access (<code>-&gt;first</code>/
+<code>-&gt;second</code>) without copying. <code>put()</code>/<code>insert()</code>/<code>remove()</code>/<code>clear()</code> mutate
+the map; <code>select()</code>/<code>map()</code>/<code>inject()</code>/<code>each()</code>/<code>all()</code>/<code>any()</code>/<code>one()</code> are
+read-only, functional-style traversal helpers.</p>
+<p>Read the header file for the full API.</p>
+<p>Tested in test/cowmap_test.cpp (the public CowMap API, including
+copy-onwrite behaviour) and test/redblack_test.cpp (the underlying tree:
+structural invariants, differential testing against std::map, persistence/
+sharing, and leak checking).</p>
+<p>Example:</p>
+<pre><code>#include	&lt;cowmap.h&gt;
 
-<p>The Peg parser templates make use of Pegexp to provide a powerful PEG
-parsing engine for arbitrary grammars. No memoization is performed, so a
-badly constructed grammar can cause long runtimes. Peg uses a new Context
-for each nested call to a Pegexp. The default Context detects left recursion
-and reports failure.</p>
-<p>The grammar is expressed using a compact in-memory table. No executable code
-needs to be generated. No heap memory allocation is required during
-execution (and minimal stack), unless you use a Context that saves text
-captures, builds Abstract Syntax Trees, or records failure tokens and
-locations.</p>
-<p>The preferred way to use this is to compile a grammar expressed in the
-BNFlike language <a href="https://github.com/cjheath/px">Px</a>, which (will) emit C++
-data definitions for the parser engine to interpret.</p>
-<p>Like the Pegexp template, Peg&lt;&gt; processes data from a Source, which may be
-a stream.</p>
-<p>You should define a Context which implements whatever result capture you
-require. Context should have a nested Context::Rule type, which can be
-refined where necessary.</p>
-<p>The <a href="../test/peg_test.cpp">Peg parser</a> for
-<a href="https://github.com/cjheath/px">Px</a> shows how to generate an AST from
-captures.</p>
+CowMap&lt;int, StrVal&gt;	ages;
+ages.insert("Alice", 30);
+ages.insert("Bob", 25);
+
+CowMap&lt;int, StrVal&gt;	snapshot(ages);	// O(1): shares the same tree
+ages.insert("Carol", 40);		// Only ages sees "Carol"; snapshot is unaffected
+</code></pre>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="threading.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="variant.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="pegexp.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="error.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -224,11 +232,11 @@ captures.</p>
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="threading.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="variant.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="pegexp.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="error.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Raw Unicode character processing - strpp</title>
+        <title>Error numbers: the ErrNum type - strpp</title>
 
 
         <!-- Custom HTML head -->
@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-4f729be3.js";
+            window.path_to_searchindex_js = "searchindex-aa04d821.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-cecf5e01.js"></script>
@@ -177,152 +177,59 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h2 id="unicode-character-processing"><a class="header" href="#unicode-character-processing">Unicode character processing</a></h2>
-<p><code>#include &lt;char_encoding.h&gt;</code></p>
-<pre><code>typedef char		UTF8;		// We don't assume un/signed
-typedef uint16_t	UTF16;		// Used in Unicode 2, and 3 with surrogates
-typedef	char32_t	UCS4;		// A UCS4 character, aka UTF-32, aka Rune
+                        <h2 id="error-numbers-the-errnum-type"><a class="header" href="#error-numbers-the-errnum-type">Error numbers: the ErrNum type</a></h2>
+<p><code>#include	&lt;error.h&gt;</code></p>
+<p>An ErrNum is a 32-bit value naming a message: a set number, and a number
+within that set. It subsumes both errno and Microsoft’s HRESULT, so one
+value carries a failure from anywhere - ours, the C library’s, or Windows’
+without the reader needing to know which.</p>
+<p>ErrNum is a class rather than a bare integer, so the tests over it are
+methods:</p>
+<pre><code>ErrNum	e = ...;
+if (e.is_failure())		// Something went wrong
+	...
+if (e.is_info())		// Worth knowing, but not a failure
+	...
 </code></pre>
-<p>Characters are passed and returned as UCS4 whatever their encoding.
-UCS4_NONE (0xFFFFFFFF) marks end of input.</p>
-<h3 id="illegal-utf-8"><a class="header" href="#illegal-utf-8">Illegal UTF-8</a></h3>
-<p>A byte sequence that is not legal UTF-8 is not an error. Its raw bytes are
-returned as characters of the form 0x800000xx, one per byte, so naive code
-passes such data through unchanged instead of needing an exception, and
-<code>UTF8Backup</code> mirrors <code>UTF8Get</code> so that stepping back over them works.</p>
-<h3 id="utf-8"><a class="header" href="#utf-8">UTF-8</a></h3>
-<ul>
-<li>
-<p><code>bool UTF8Is1st(UTF8)</code> a valid leading byte</p>
-</li>
-<li>
-<p><code>bool UTF8Is2nd(UTF8)</code> a following byte</p>
-</li>
-<li>
-<p><code>int UTF8CorrectLen(UTF8)</code> the number of bytes the sequence should have,
-given this leading byte, without checking them</p>
-</li>
-<li>
-<p><code>int UTF8Len(const UTF8* cp)</code> the actual length, having checked that the
-following bytes are correct</p>
-</li>
-<li>
-<p><code>UCS4 UTF8Get(const UTF8*&amp; cp)</code> the next character, advancing cp</p>
-</li>
-<li>
-<p><code>UCS4 UTF8Peek(const UTF8*&amp; cp)</code> the next character, without advancing cp</p>
-</li>
-<li>
-<p><code>const UTF8* UTF8Backup(const UTF8* cp, const UTF8* limit)</code> back one
-character</p>
-</li>
-<li>
-<p><code>UTF8PutPaddedZero(UTF8*&amp; cp, int length)</code> a zero character occupying
-length
-bytes, sometimes wanted as a place-holder</p>
-</li>
-</ul>
-<p>A non-minimum length encoding - a character zero-padded to a longer sequence
-than it needs - is accepted when read, and is never produced when written.</p>
-<h3 id="encoding-a-character"><a class="header" href="#encoding-a-character">Encoding a character</a></h3>
-<ul>
-<li>
-<p><code>int UTF8Len(UCS4)</code> the bytes needed to encode the character as UTF-8</p>
-</li>
-<li>
-<p><code>int UTF16Len(UCS4)</code> the UTF-16 words needed</p>
-</li>
-</ul>
-<h3 id="classifying-and-converting-characters"><a class="header" href="#classifying-and-converting-characters">Classifying and converting characters</a></h3>
-<ul>
-<li>
-<p><code>bool UCS4IsAlphabetic(UCS4)</code> susceptible to case conversion, or in a list
-of
-208 characters that are not</p>
-</li>
-<li>
-<p><code>int UCS4Digit(UCS4)</code> the decimal value of a digit from any of Unicode’s
-20
-digit ranges, or -1</p>
-</li>
-<li>
-<p><code>bool UCS4IsDecimal(UCS4)</code></p>
-</li>
-<li>
-<p><code>int UCS4HexDigit(UCS4)</code> the decimal or hexadecimal value of a digit, or
--1</p>
-</li>
-<li>
-<p><code>UCS4 UCS4ToUpper(UCS4)</code>, <code>UCS4ToLower(UCS4)</code>, <code>UCS4ToTitle(UCS4)</code> the
-title-case equivalent where one exists, otherwise uppercase</p>
-</li>
-<li>
-<p><code>bool UCS4IsWhite(UCS4)</code> ASCII white-space or any of Unicode’s four other
-white-space groups</p>
-</li>
-<li>
-<p><code>bool UCS4IsASCII(UCS4)</code> 0..0x7F</p>
-</li>
-<li>
-<p><code>bool UCS4IsLatin1(UCS4)</code> 0..0xFF</p>
-</li>
-<li>
-<p><code>bool UCS4IsUTF16(UCS4)</code> 0..0xFFFF, including surrogates</p>
-</li>
-<li>
-<p><code>bool UCS4IsUnicode(UCS4)</code> 0..0x10FFFF</p>
-</li>
-<li>
-<p><code>bool UCS4IsIllegal(UCS4)</code> an out-of-sequence UTF-8 byte, as described
-above</p>
-</li>
-</ul>
-<p>The classification functions use reduced tables derived from the standard.</p>
-<h3 id="utf-16"><a class="header" href="#utf-16">UTF-16</a></h3>
-<p>In case you should be unfortunate enough to need to support UTF-16, these
-functions are provided.</p>
-<ul>
-<li>
-<p><code>bool UTF16IsSurrogate(UTF16 ch)</code> a surrogate of either kind</p>
-</li>
-<li>
-<p><code>bool UTF16Is1st(UTF16 ch)</code> a high surrogate</p>
-</li>
-<li>
-<p><code>bool UTF16Is2nd(UTF16 ch)</code> a low surrogate</p>
-</li>
-<li>
-<p><code>UTF16 UCS4HighSurrogate(UCS4 ch)</code>, <code>UCS4LowSurrogate(UCS4 ch)</code> the
-surrogate values for the character</p>
-</li>
-<li>
-<p><code>UTF16 UTF16Swab(UTF16 x)</code> swap the bytes of a word</p>
-</li>
-<li>
-<p><code>UCS4 UTF16Get(const UTF16*&amp; cp, bool swap = false)</code> the next character
-from
-one or two words, advancing cp</p>
-</li>
-<li>
-<p><code>int UTF16Len(const UTF16* cp, bool swap = false)</code> the words making up the
-next character</p>
-</li>
-<li>
-<p><code>void UTF16Put(UTF16*&amp; cp, UCS4 ch, bool swap = false)</code> store the
-character
-as UTF-16, advancing cp</p>
-</li>
-</ul>
+<p>Its constexpr cast to int32_t allows the values in a switch, which is how a
+caller handles the errors it knows and passes on the rest:</p>
+<pre><code>ErrNum e = DoSomeWork();
+switch (e)
+{
+case 0:
+	// That seemed to go ok
+	break;
+case SubsysErrorOfSomeTypeNum:	// A generated name for a set's message
+	// Handle the error
+	Complain(e);
+	return;
+default:
+	return e;		// Not ours to handle
+}
+</code></pre>
+<p>Set and message numbers are generated from a message set description: a
+set’s messages become <code>#define</code>s in a generated header, <code>&lt;Module&gt;_err.h</code>,
+one per message with the default text in a comment, so that code has names
+rather than numbers. There are 1024 messages to a set, and set numbers run
+to 262143.</p>
+<p>A number, once used, is never re-used, so a number written into a log, a
+manual or a customer’s report keeps its meaning over the life of the
+software.</p>
+<p><code>is_failure</code> and <code>is_info</code> are the intended API but their names are not yet
+settled.</p>
+<p>Reporting an error, and reading back what has been reported, is the error
+buffer’s job: see <a href="errbuf.html">errbuf.md</a>. The <code>Error</code> function declared
+there is what the generated reporting functions call.</p>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="strval.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="cowmap.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="array.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="errbuf.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -332,11 +239,11 @@ as UTF-16, advancing cp</p>
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="strval.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="cowmap.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="array.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="errbuf.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

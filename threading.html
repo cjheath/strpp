@@ -3,8 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Page not found - strpp</title>
-        <base href="/">
+        <title>Threads, locks and thread-local storage - strpp</title>
 
 
         <!-- Custom HTML head -->
@@ -36,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-4f729be3.js";
+            window.path_to_searchindex_js = "searchindex-aa04d821.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-cecf5e01.js"></script>
@@ -178,14 +177,73 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="document-not-found-404"><a class="header" href="#document-not-found-404">Document not found (404)</a></h1>
-<p>This URL is invalid, sorry. Please use the navigation bar or search to continue.</p>
+                        <h2 id="threads-locks-and-thread-local-storage"><a class="header" href="#threads-locks-and-thread-local-storage">Threads, locks and thread-local storage</a></h2>
+<p><code>#include	&lt;thread.h&gt;</code>, which brings in <code>lockfree.h</code> (the Latch),
+<code>condition.h</code> (the Condition) and <code>thread_local.h</code> (ThreadSlot, ThreadLocal).</p>
+<h3 id="choosing-a-threading-model"><a class="header" href="#choosing-a-threading-model">Choosing a threading model</a></h3>
+<p>Exactly one must be defined, or the build stops with a single error in
+<code>thread.h</code>:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>define</th><th></th></tr>
+</thead>
+<tbody>
+<tr><td><code>HAVE_PTHREADS</code></td><td>POSIX threads</td></tr>
+<tr><td><code>HAVE_FREERTOS</code></td><td>FreeRTOS</td></tr>
+<tr><td><code>MSW</code></td><td>Windows</td></tr>
+<tr><td><code>NO_THREAD</code></td><td>No threading: one thread, and locks that never block</td></tr>
+</tbody>
+</table>
+</div>
+<p>The models satisfy the same declarations with <em>different implementations</em>,
+so <strong>whatever model the library was built with, a program using it must be
+compiled with</strong>. Two translation units built with different selections agree
+on the declarations but not on the objects, and the mismatch then shows up
+as unexplained behaviour at run time rather than as an error - which is why
+selecting none, or more than one, is refused at compile time.</p>
+<p><code>make COPT=-DNO_THREAD lib</code> builds the library without threads. The object
+files are shared between models, so a <code>make clean</code> is needed when switching.</p>
+<h3 id="thread-local-storage"><a class="header" href="#thread-local-storage">Thread-local storage</a></h3>
+<p><code>ThreadSlot</code> holds one <code>void*</code> per thread. <code>ThreadLocal&lt;T&gt;</code> holds one object
+of type T per thread, made on first use:</p>
+<pre><code>static ThreadLocal&lt;VariantArray&gt;	scratch;
+
+VariantArray&amp;	params = *scratch.get();	// This thread's, made if new
+</code></pre>
+<p>Slots are process-wide and few, because every backend offers only a small
+pool of them - a pthread key, a TLS index, or a compile-time index into a
+fixed array of pointers per task. Claim them early and rarely: one per
+subsystem that needs one, not one per object.</p>
+<p>There are deliberately <strong>no thread-exit destructors</strong>. A pthread key can run
+one, but <code>TlsAlloc</code> and FreeRTOS task-local storage cannot, and behaviour
+that differs by backend is worse than uniformly not having it. So whatever a
+thread puts in a slot is released by the process, or by whoever owns the
+thread, or by <code>ThreadLocal::clear()</code> - not by the slot.</p>
+<p>This is not a compiler <code>thread_local</code>: that works on pthreads and Windows
+but not on FreeRTOS, where it needs toolchain support, so it could not cover
+every model this library builds for.</p>
+<p>Under FreeRTOS, <code>configNUM_THREAD_LOCAL_STORAGE_POINTERS</code> must be raised
+from its default of 0 to at least <code>THREAD_LOCAL_MAX_SLOTS</code>.</p>
+<h3 id="locks"><a class="header" href="#locks">Locks</a></h3>
+<p>A <code>Latch</code> is a lock, held by one thread at a time. <code>enter()</code> waits for it,
+<code>probe()</code> takes it only if it is free, <code>holding()</code> asks whether this thread
+has it, and <code>leave()</code> releases it. Under <code>NO_THREAD</code> there is one thread, so
+all of these are no-ops and <code>holding()</code> is always true.</p>
+<p>A <code>Condition</code> lets a thread wait until another signals it, with an optional
+timeout. Under <code>NO_THREAD</code> nothing waits, so every method is a no-op.</p>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="errbuf.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
+                            </a>
 
+                            <a rel="next prefetch" href="peg.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
+                            </a>
 
                         <div style="clear: both"></div>
                     </nav>
@@ -193,7 +251,13 @@
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="errbuf.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
+                    </a>
 
+                    <a rel="next prefetch" href="peg.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
+                    </a>
             </nav>
 
         </div>

@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Unicode strings: the StrVal class - strpp</title>
+        <title>PEG parsing - strpp</title>
 
 
         <!-- Custom HTML head -->
@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-4f729be3.js";
+            window.path_to_searchindex_js = "searchindex-aa04d821.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-cecf5e01.js"></script>
@@ -177,67 +177,44 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h2 id="unicode-strings-the-strval-class"><a class="header" href="#unicode-strings-the-strval-class">Unicode strings: the StrVal class</a></h2>
-<p><code>#include	&lt;strval.h&gt;</code></p>
-<ul>
-<li>By-value semantics (use StrVal like int, no explicit allocation, pass by
-reference/pointer, etc)</li>
-<li>Copies and substrings are slices (they do not copy the data)</li>
-<li>All strings are stored as UTF-8</li>
-<li>All references to individual characters are UCS4 (UTF-32, aka Runes)</li>
-<li>All string indexing is by character position, not byte offsets</li>
-<li>String scanning and indexing is efficient, with internal use of bookmarks</li>
-<li>Content sharing is SMP and thread-safe using atomic reference counting and
-garbage collection</li>
-<li>Any StrVal may be mutated - it will safely make a private copy of any
-shared data</li>
-</ul>
-<p>Read the header file for the full API.</p>
-<p>Example:</p>
-<pre><code>// This example creates precisely three strings, but with four references
-#include        &lt;stdio.h&gt;
-#include        &lt;strval.h&gt;
+                        <h2 id="peg-parsing"><a class="header" href="#peg-parsing">PEG parsing</a></h2>
+<p><code>#include	&lt;peg.h&gt;</code></p>
+<pre> template&lt;typename Source&gt; class PegDefaultMatch;
+template&lt;typename Match&gt; class PegContextNoCapture;
+template&lt;typename Source, typename Match, typename Context&gt; class Peg;
+</pre>
 
-void greet(StrVal greeting)
-{
-	StrVal  decorated = greeting + "! 🎉🍾\n";
-	fputs(decorated.asUTF8(), stdout);
-}
-
-int main()
-{
-	StrVal  hello("Hello, world");
-
-	greet(hello);
-}
-</code></pre>
-<h3 id="sharing-slices-and-nul-termination"><a class="header" href="#sharing-slices-and-nul-termination">Sharing, slices and NUL termination</a></h3>
-<p>A StrVal holds a reference to a reference-counted body, and a substring is a
-slice of that body - it does not copy the characters. Two consequences worth
-knowing:</p>
-<ul>
-<li>
-<p><strong>While any slice of a body is alive, the body is shared</strong>, so writing to
-any of them copies it first. That is what makes StrVal safe to pass by
-value, and it is also why a long-lived slice of a large string costs a
-copy when the string is next written to.</p>
-</li>
-<li>
-<p><strong><code>asUTF8()</code> guarantees NUL termination; <code>asUTF8(Index&amp; length)</code> does
-not.</strong> The second form is for a byte range you already have a length for,
-and it will not copy the string to add a terminator. Where the bytes go to
-something that expects a C string, use the first form.</p>
-</li>
-</ul>
-<p>The empty string is the same for everyone: every <code>StrVal("")</code> refers to one
-static empty body, which is why they can be built and copied freely.</p>
+<p>The Peg parser templates make use of Pegexp to provide a powerful PEG
+parsing engine for arbitrary grammars. No memoization is performed, so a
+badly constructed grammar can cause long runtimes. Peg uses a new Context
+for each nested call to a Pegexp. The default Context detects left recursion
+and reports failure.</p>
+<p>The grammar is expressed using a compact in-memory table. No executable code
+needs to be generated. No heap memory allocation is required during
+execution (and minimal stack), unless you use a Context that saves text
+captures, builds Abstract Syntax Trees, or records failure tokens and
+locations.</p>
+<p>The preferred way to use this is to compile a grammar expressed in the
+BNFlike language <a href="https://github.com/cjheath/px">Px</a>, which (will) emit C++
+data definitions for the parser engine to interpret.</p>
+<p>Like the Pegexp template, Peg&lt;&gt; processes data from a Source, which may be
+a stream.</p>
+<p>You should define a Context which implements whatever result capture you
+require. Context should have a nested Context::Rule type, which can be
+refined where necessary.</p>
+<p>The <a href="../test/peg_test.cpp">Peg parser</a> for
+<a href="https://github.com/cjheath/px">Px</a> shows how to generate an AST from
+captures.</p>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="threading.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
+                            </a>
 
-                            <a rel="next prefetch" href="unicode.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="pegexp.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -247,8 +224,11 @@ static empty body, which is why they can be built and copied freely.</p>
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="threading.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
+                    </a>
 
-                    <a rel="next prefetch" href="unicode.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="pegexp.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>
