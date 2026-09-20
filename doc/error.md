@@ -228,19 +228,18 @@ numbers.
 
 #### What a reporting function should do
 
-Build the parameters in a scratch array that is emptied between reports
-rather than rebuilt. A fresh `VariantArray` per report costs two
-allocations, which is the cost this shape exists to avoid:
+Build the parameters where they are used, as an array handed to the reporting
+call:
 
-	static ThreadLocal<VariantArray>	scratch;
+	return Error(SomeError, "the default text", VariantArray() << 42 << "context");
 
-	VariantArray&	params = *scratch.get();
-	params.evacuate();			// Empty, keeping the storage
-	params.append(Variant(42));
-	params.append(Variant("context"));
-	return Error(SomeError, "the default text", params);
-
-`evacuate()` is what keeps the storage; `clear()` would give it back.
+There is no scratch array and no thread-local slot for one: a report costs its
+parameters and nothing else, and one report may be made from within another.
+The default text names its substitution points by position, and carries what
+belongs around them - backticks for a name, slashes for a syntax - so that a
+translation can place them where its own language wants them. What replaces
+printf-style directives is [substituting parameters into a
+text](strval.md), which is what renders a message when it is displayed.
 
 #### Threads and other processes
 
@@ -252,10 +251,25 @@ already speaks and ships them. The receiving context is the one that knows
 the reader's language and the room there is to display in, so it is the one
 that formats.
 
+#### When a program must not continue
+
+A report is not a decision to stop: the library returns the number and carries
+on, and what the caller does with it is the caller's business. Where carrying
+on would be wrong - a count its own type could not hold, a table that does not
+match its keys - the library asserts instead, with `StrppAssert`: the failed
+condition is reported to the same buffer as a message, including the file and
+line it failed at, that buffer is dumped, and the program aborts. A failure
+while the dump is running aborts at once, without reporting or dumping again,
+so that a fault in the reporting path cannot become a loop.
+
+Where the dump goes is the application's to say, since only it knows what a
+developer will see. `strpp_panic_write` is a function pointer: the library
+sets it to write to standard error where there is a `write(2)`, and to write
+nowhere at all where there is not. See
+[strassert.h](https://github.com/cjheath/strpp/blob/main/include/strassert.h).
+
 #### Not implemented yet
 
-- **Formatting.** What the substitution points look like, and what replaces
-  printf-style directives, is not settled.
 - **Catalogs.** Nothing yet reads a compiled catalog; the default text is
   what a message carries.
 - **Severity.** A message has no severity recorded. Severity is contextual,
