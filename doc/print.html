@@ -1,0 +1,877 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>strpp</title>
+        <meta name="robots" content="noindex">
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="Reference-counted, copy-on-write value types with slices">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon-de23e50b.svg">
+        <link rel="shortcut icon" href="favicon-8114d1fc.png">
+        <link rel="stylesheet" href="css/variables-8adf115d.css">
+        <link rel="stylesheet" href="css/general-e96d0476.css">
+        <link rel="stylesheet" href="css/chrome-d279d366.css">
+        <link rel="stylesheet" href="css/print-9e4910d8.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="fonts/fonts-9644e21d.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="mdbook-highlight-css" href="highlight-493f70e1.css">
+        <link rel="stylesheet" id="mdbook-tomorrow-night-css" href="tomorrow-night-4c0ae647.css">
+        <link rel="stylesheet" id="mdbook-ayu-highlight-css" href="ayu-highlight-3fdfc3ac.css">
+
+        <!-- Custom theme stylesheets -->
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "searchindex-4f729be3.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc-cecf5e01.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="mdbook-body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="mdbook-sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="mdbook-sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="mdbook-page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="mdbook-menu-bar-hover-placeholder"></div>
+                <div id="mdbook-menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="mdbook-sidebar-toggle" class="icon-button" for="mdbook-sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="mdbook-sidebar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M0 96C0 78.3 14.3 64 32 64H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32C14.3 128 0 113.7 0 96zM0 256c0-17.7 14.3-32 32-32H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32c-17.7 0-32-14.3-32-32zM448 416c0 17.7-14.3 32-32 32H32c-17.7 0-32-14.3-32-32s14.3-32 32-32H416c17.7 0 32 14.3 32 32z"/></svg></span>
+                        </label>
+                        <button id="mdbook-theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="mdbook-theme-list">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M371.3 367.1c27.3-3.9 51.9-19.4 67.2-42.9L600.2 74.1c12.6-19.5 9.4-45.3-7.6-61.2S549.7-4.4 531.1 9.6L294.4 187.2c-24 18-38.2 46.1-38.4 76.1L371.3 367.1zm-19.6 25.4l-116-104.4C175.9 290.3 128 339.6 128 400c0 3.9 .2 7.8 .6 11.6c1.8 17.5-10.2 36.4-27.8 36.4H96c-17.7 0-32 14.3-32 32s14.3 32 32 32H240c61.9 0 112-50.1 112-112c0-2.5-.1-5-.2-7.5z"/></svg></span>
+                        </button>
+                        <ul id="mdbook-theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-ayu">Ayu</button></li>
+                        </ul>
+                        <button id="mdbook-search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="mdbook-searchbar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352c79.5 0 144-64.5 144-144s-64.5-144-144-144S64 128.5 64 208s64.5 144 144 144z"/></svg></span>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">strpp</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <span class=fa-svg id="print-button"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M128 0C92.7 0 64 28.7 64 64v96h64V64H354.7L384 93.3V160h64V93.3c0-17-6.7-33.3-18.7-45.3L400 18.7C388 6.7 371.7 0 354.7 0H128zM384 352v32 64H128V384 368 352H384zm64 32h32c17.7 0 32-14.3 32-32V256c0-35.3-28.7-64-64-64H64c-35.3 0-64 28.7-64 64v96c0 17.7 14.3 32 32 32H64v64c0 35.3 28.7 64 64 64H384c35.3 0 64-28.7 64-64V384zm-16-88c-13.3 0-24-10.7-24-24s10.7-24 24-24s24 10.7 24 24s-10.7 24-24 24z"/></svg></span>
+                        </a>
+                        <a href="https://github.com/cjheath/strpp" title="Git repository" aria-label="Git repository">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg></span>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="mdbook-search-wrapper" class="hidden">
+                    <form id="mdbook-searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="mdbook-searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="mdbook-searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <span class=fa-svg id="fa-spin"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M304 48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zm0 416c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM48 304c26.5 0 48-21.5 48-48s-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48zm464-48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM142.9 437c18.7-18.7 18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zm0-294.2c18.7-18.7 18.7-49.1 0-67.9S93.7 56.2 75 75s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zM369.1 437c18.7 18.7 49.1 18.7 67.9 0s18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9z"/></svg></span>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="mdbook-searchresults-outer" class="searchresults-outer hidden">
+                        <div id="mdbook-searchresults-header" class="searchresults-header"></div>
+                        <ul id="mdbook-searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('mdbook-sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('mdbook-sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#mdbook-sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="mdbook-content" class="content">
+                    <main>
+                        <h1 id="unicode-strings-the-strval-class-1"><a href="#unicode-strings-the-strval-class-1" class="header">Unicode strings: the StrVal class</a></h1>
+<h2 id="unicode-strings-the-strval-class"><a class="header" href="#unicode-strings-the-strval-class">Unicode strings: the StrVal class</a></h2>
+<p><code>#include	&lt;strval.h&gt;</code></p>
+<ul>
+<li>By-value semantics (use StrVal like int, no explicit allocation, pass by
+reference/pointer, etc)</li>
+<li>Copies and substrings are slices (they do not copy the data)</li>
+<li>All strings are stored as UTF-8</li>
+<li>All references to individual characters are UCS4 (UTF-32, aka Runes)</li>
+<li>All string indexing is by character position, not byte offsets</li>
+<li>String scanning and indexing is efficient, with internal use of bookmarks</li>
+<li>Content sharing is SMP and thread-safe using atomic reference counting and
+garbage collection</li>
+<li>Any StrVal may be mutated - it will safely make a private copy of any
+shared data</li>
+</ul>
+<p>Read the header file for the full API.</p>
+<p>Example:</p>
+<pre><code>// This example creates precisely three strings, but with four references
+#include        &lt;stdio.h&gt;
+#include        &lt;strval.h&gt;
+
+void greet(StrVal greeting)
+{
+	StrVal  decorated = greeting + "! 🎉🍾\n";
+	fputs(decorated.asUTF8(), stdout);
+}
+
+int main()
+{
+	StrVal  hello("Hello, world");
+
+	greet(hello);
+}
+</code></pre>
+<h3 id="sharing-slices-and-nul-termination"><a class="header" href="#sharing-slices-and-nul-termination">Sharing, slices and NUL termination</a></h3>
+<p>A StrVal holds a reference to a reference-counted body, and a substring is a
+slice of that body - it does not copy the characters. Two consequences worth
+knowing:</p>
+<ul>
+<li>
+<p><strong>While any slice of a body is alive, the body is shared</strong>, so writing to
+any of them copies it first. That is what makes StrVal safe to pass by
+value, and it is also why a long-lived slice of a large string costs a
+copy when the string is next written to.</p>
+</li>
+<li>
+<p><strong><code>asUTF8()</code> guarantees NUL termination; <code>asUTF8(Index&amp; length)</code> does
+not.</strong> The second form is for a byte range you already have a length for,
+and it will not copy the string to add a terminator. Where the bytes go to
+something that expects a C string, use the first form.</p>
+</li>
+</ul>
+<p>The empty string is the same for everyone: every <code>StrVal("")</code> refers to one
+static empty body, which is why they can be built and copied freely.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="raw-unicode-character-processing"><a href="#raw-unicode-character-processing" class="header">Raw Unicode character processing</a></h1>
+<h2 id="unicode-character-processing"><a class="header" href="#unicode-character-processing">Unicode character processing</a></h2>
+<p><code>#include &lt;char_encoding.h&gt;</code></p>
+<pre><code>typedef char		UTF8;		// We don't assume un/signed
+typedef uint16_t	UTF16;		// Used in Unicode 2, and 3 with surrogates
+typedef	char32_t	UCS4;		// A UCS4 character, aka UTF-32, aka Rune
+</code></pre>
+<p>Characters are passed and returned as UCS4 whatever their encoding.
+UCS4_NONE (0xFFFFFFFF) marks end of input.</p>
+<h3 id="illegal-utf-8"><a class="header" href="#illegal-utf-8">Illegal UTF-8</a></h3>
+<p>A byte sequence that is not legal UTF-8 is not an error. Its raw bytes are
+returned as characters of the form 0x800000xx, one per byte, so naive code
+passes such data through unchanged instead of needing an exception, and
+<code>UTF8Backup</code> mirrors <code>UTF8Get</code> so that stepping back over them works.</p>
+<h3 id="utf-8"><a class="header" href="#utf-8">UTF-8</a></h3>
+<ul>
+<li>
+<p><code>bool UTF8Is1st(UTF8)</code> a valid leading byte</p>
+</li>
+<li>
+<p><code>bool UTF8Is2nd(UTF8)</code> a following byte</p>
+</li>
+<li>
+<p><code>int UTF8CorrectLen(UTF8)</code> the number of bytes the sequence should have,
+given this leading byte, without checking them</p>
+</li>
+<li>
+<p><code>int UTF8Len(const UTF8* cp)</code> the actual length, having checked that the
+following bytes are correct</p>
+</li>
+<li>
+<p><code>UCS4 UTF8Get(const UTF8*&amp; cp)</code> the next character, advancing cp</p>
+</li>
+<li>
+<p><code>UCS4 UTF8Peek(const UTF8*&amp; cp)</code> the next character, without advancing cp</p>
+</li>
+<li>
+<p><code>const UTF8* UTF8Backup(const UTF8* cp, const UTF8* limit)</code> back one
+character</p>
+</li>
+<li>
+<p><code>UTF8PutPaddedZero(UTF8*&amp; cp, int length)</code> a zero character occupying
+length
+bytes, sometimes wanted as a place-holder</p>
+</li>
+</ul>
+<p>A non-minimum length encoding - a character zero-padded to a longer sequence
+than it needs - is accepted when read, and is never produced when written.</p>
+<h3 id="encoding-a-character"><a class="header" href="#encoding-a-character">Encoding a character</a></h3>
+<ul>
+<li>
+<p><code>int UTF8Len(UCS4)</code> the bytes needed to encode the character as UTF-8</p>
+</li>
+<li>
+<p><code>int UTF16Len(UCS4)</code> the UTF-16 words needed</p>
+</li>
+</ul>
+<h3 id="classifying-and-converting-characters"><a class="header" href="#classifying-and-converting-characters">Classifying and converting characters</a></h3>
+<ul>
+<li>
+<p><code>bool UCS4IsAlphabetic(UCS4)</code> susceptible to case conversion, or in a list
+of
+208 characters that are not</p>
+</li>
+<li>
+<p><code>int UCS4Digit(UCS4)</code> the decimal value of a digit from any of Unicode’s
+20
+digit ranges, or -1</p>
+</li>
+<li>
+<p><code>bool UCS4IsDecimal(UCS4)</code></p>
+</li>
+<li>
+<p><code>int UCS4HexDigit(UCS4)</code> the decimal or hexadecimal value of a digit, or
+-1</p>
+</li>
+<li>
+<p><code>UCS4 UCS4ToUpper(UCS4)</code>, <code>UCS4ToLower(UCS4)</code>, <code>UCS4ToTitle(UCS4)</code> the
+title-case equivalent where one exists, otherwise uppercase</p>
+</li>
+<li>
+<p><code>bool UCS4IsWhite(UCS4)</code> ASCII white-space or any of Unicode’s four other
+white-space groups</p>
+</li>
+<li>
+<p><code>bool UCS4IsASCII(UCS4)</code> 0..0x7F</p>
+</li>
+<li>
+<p><code>bool UCS4IsLatin1(UCS4)</code> 0..0xFF</p>
+</li>
+<li>
+<p><code>bool UCS4IsUTF16(UCS4)</code> 0..0xFFFF, including surrogates</p>
+</li>
+<li>
+<p><code>bool UCS4IsUnicode(UCS4)</code> 0..0x10FFFF</p>
+</li>
+<li>
+<p><code>bool UCS4IsIllegal(UCS4)</code> an out-of-sequence UTF-8 byte, as described
+above</p>
+</li>
+</ul>
+<p>The classification functions use reduced tables derived from the standard.</p>
+<h3 id="utf-16"><a class="header" href="#utf-16">UTF-16</a></h3>
+<p>In case you should be unfortunate enough to need to support UTF-16, these
+functions are provided.</p>
+<ul>
+<li>
+<p><code>bool UTF16IsSurrogate(UTF16 ch)</code> a surrogate of either kind</p>
+</li>
+<li>
+<p><code>bool UTF16Is1st(UTF16 ch)</code> a high surrogate</p>
+</li>
+<li>
+<p><code>bool UTF16Is2nd(UTF16 ch)</code> a low surrogate</p>
+</li>
+<li>
+<p><code>UTF16 UCS4HighSurrogate(UCS4 ch)</code>, <code>UCS4LowSurrogate(UCS4 ch)</code> the
+surrogate values for the character</p>
+</li>
+<li>
+<p><code>UTF16 UTF16Swab(UTF16 x)</code> swap the bytes of a word</p>
+</li>
+<li>
+<p><code>UCS4 UTF16Get(const UTF16*&amp; cp, bool swap = false)</code> the next character
+from
+one or two words, advancing cp</p>
+</li>
+<li>
+<p><code>int UTF16Len(const UTF16* cp, bool swap = false)</code> the words making up the
+next character</p>
+</li>
+<li>
+<p><code>void UTF16Put(UTF16*&amp; cp, UCS4 ch, bool swap = false)</code> store the
+character
+as UTF-16, advancing cp</p>
+</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="array-with-slices-1"><a href="#array-with-slices-1" class="header">Array with slices</a></h1>
+<h2 id="array-with-slices"><a class="header" href="#array-with-slices">Array with slices</a></h2>
+<p><code>#include	&lt;array.h&gt;</code></p>
+<p>The Array<t> template creates a slice into an array of type T. New slices
+(and copies) onto the same ArrayBody are inexpensive (using atomic
+reference-counting), but any attempt to modify a slice first creates a copy
+of the Body, leaving other slices unaffected. The ArrayBody itself is only
+accessible as a constant, and a new Array may be created over a static body.</t></p>
+<h3 id="the-api"><a class="header" href="#the-api">The API</a></h3>
+<pre><code>Array&lt;T&gt;	a;			// Empty
+a.push(x), a.append(x), a += x;	// Add at the end
+a.remove(i);			// Delete from i to the end
+a.remove(i, n);			// Delete n elements from i
+a.insert(i, other);		// Insert another array at i
+a[i], a.last(), a.length(), a.isEmpty()
+a.slice(at, len), a.head(n), a.tail(n), a.shorter(n)
+a.find(x), a.each(f), a.select(f), a.map(f), a.all/any/one(f)
+a.evacuate(), a.clear()
+</code></pre>
+<p><code>a[i]</code> and <code>a.last()</code> answer copies. <code>each</code>, <code>select</code>, <code>map</code> and the
+<code>all</code>/<code>any</code>/<code>one</code> predicates take a function and leave the array alone.</p>
+<h3 id="what-a-slice-costs"><a class="header" href="#what-a-slice-costs">What a slice costs</a></h3>
+<p>A slice holds a reference to the Body, so while any slice is outstanding the
+body is shared (<code>isShared()</code>), and the next mutation copies it. That is what
+makes an array safe to pass around by value - and it is why an array that is
+meant to be appended to repeatedly should not be handed out as a slice.
+Every outstanding slice costs one copy on the next append, however the slice
+is used.</p>
+<h3 id="shrinking-a-slice"><a class="header" href="#shrinking-a-slice">Shrinking a slice</a></h3>
+<p><code>remove()</code>, <code>pull()</code>, <code>drop()</code>, <code>shift()</code> and <code>delete_at()</code> take sole
+ownership before they release anything, so an element they drop is destroyed
+there and then. Shrinking a slice from either end therefore moves the
+survivors down: a copy when the body is shared, and a move of the live
+elements when it is not. Draining an array one element at a time is
+quadratic in its length; at the sizes these are used at that is nothing, but
+a large array is better drained in one call.</p>
+<h3 id="emptying-and-keeping-the-storage"><a class="header" href="#emptying-and-keeping-the-storage">Emptying, and keeping the storage</a></h3>
+<p><code>evacuate()</code> empties an array, releasing its elements but <strong>keeping its
+storage</strong>, so that refilling it costs no allocation. <code>clear()</code> is the same
+except that it also gives the storage back; an array that is emptied and
+refilled repeatedly wants <code>evacuate()</code>.</p>
+<p>Neither can release elements a shared body still shows to another array; the
+elements stay alive until the last reference goes.</p>
+<p>The StrVal class uses a specialisation of this template to provide its
+storage and reference counting.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="variant-data-type-1"><a href="#variant-data-type-1" class="header">Variant data type</a></h1>
+<h2 id="variant-data-type"><a class="header" href="#variant-data-type">Variant Data Type</a></h2>
+<p><code>#include	&lt;variant.h&gt;</code></p>
+<p>The Variant class offers a type-safe way to manage numeric and StrVal types
+in a compact union, along with Array<strval>, Array<variant>, and a
+StrValkeyed COWMap to Variant. This allows building arbitrary data
+structures, which support asJSON() to render the whole structure as a
+string.</variant></strval></p>
+<p>A Variant is a type tag and a union holding one of</p>
+<pre><code>None, Integer, Long, LongLong, String (a StrRef),
+StrArray, VarArray, StrVarMap
+</code></pre>
+<p>A String holds a StrRef rather than a StrVal: it does not need the bookmark
+that makes StrVal’s scanning and indexing fast, and does not pay for it.</p>
+<p>A Variant is as large as its largest member plus the tag - 24 bytes where
+pointers are 8 bytes, and less where they are smaller. A parameter list of
+them is therefore compact, but it is not a fixed size: do not assume one.</p>
+<p>The three container types are reference-counted and copy-on-write, like
+StrVal and Array, so a Variant that holds one is cheap to copy - but <em>how</em>
+cheap differs, and the difference matters when a map is large:</p>
+<ul>
+<li><code>StrArray</code> and <code>VarArray</code> copies share the array body, so a copy is O(1)
+until either copy is written to.</li>
+<li><code>StrVarMap</code> is backed by a pure functional (path-copying) red-black tree,
+so <strong>copying one copies only the root</strong> - a copy is O(1) however many
+entries it holds, and a later change replaces only the nodes on the path
+to it, leaving every other node shared. See <a href="#cowmap-1">cowmap.md</a>.</li>
+</ul>
+<h3 id="variantarray"><a class="header" href="#variantarray">VariantArray</a></h3>
+<p><code>VariantArray</code> is <code>Array&lt;Variant&gt;</code>: a type-safe array of values of mixed
+type, each carrying its own type. It is what the error system carries
+message parameters in - see <a href="#the-error-buffer-1">errbuf.md</a>.</p>
+<p>A value is read back by asking for the type it should be, which coerces
+where the coercion loses nothing (an integer to its digits, say) and
+otherwise reports the mismatch. That is what makes a parameter list typesafe
+where printf-style arguments are not: printf, handed the wrong argument,
+reinterprets its bytes.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="cowmap-1"><a href="#cowmap-1" class="header">COWMap</a></h1>
+<h2 id="cowmap"><a class="header" href="#cowmap">COWMap</a></h2>
+<p><code>#include	&lt;cowmap.h&gt;</code></p>
+<p>The Copy-on-write Map template is a sorted key/value map with by-value
+semantics, like StrVal and Array: copying a CowMap is cheap (O(1), sharing
+the same underlying tree with the original), and modifying it transparently
+takes a private copy first if it’s shared with any other reference.</p>
+<p>Internally, CowMap is backed by a persistent (path-copying) red-black tree
+(see redblack.h), not the STL’s std::map. This is what makes copying O(1): a
+copy just shares the tree’s root; a subsequent mutation on either copy only
+replaces the O(log n) nodes on the path to the change, leaving every other
+node - and so every other reference still holding an older version
+completely untouched. Node colour is packed into the spare low bits of each
+child pointer (see taggedref.h) at no extra memory cost. A node that is
+uniquely owned is mutated in place; a shared node is copied first - safe
+because a single reference is confined to one thread, and sharing a map
+across threads always goes through copying it.</p>
+<p><code>operator[]</code> and <code>keys()</code>/<code>values()</code> return copies of the value/keys;
+<code>find()</code> returns an iterator instead, giving read-only access (<code>-&gt;first</code>/
+<code>-&gt;second</code>) without copying. <code>put()</code>/<code>insert()</code>/<code>remove()</code>/<code>clear()</code> mutate
+the map; <code>select()</code>/<code>map()</code>/<code>inject()</code>/<code>each()</code>/<code>all()</code>/<code>any()</code>/<code>one()</code> are
+read-only, functional-style traversal helpers.</p>
+<p>Read the header file for the full API.</p>
+<p>Tested in test/cowmap_test.cpp (the public CowMap API, including
+copy-onwrite behaviour) and test/redblack_test.cpp (the underlying tree:
+structural invariants, differential testing against std::map, persistence/
+sharing, and leak checking).</p>
+<p>Example:</p>
+<pre><code>#include	&lt;cowmap.h&gt;
+
+CowMap&lt;int, StrVal&gt;	ages;
+ages.insert("Alice", 30);
+ages.insert("Bob", 25);
+
+CowMap&lt;int, StrVal&gt;	snapshot(ages);	// O(1): shares the same tree
+ages.insert("Carol", 40);		// Only ages sees "Carol"; snapshot is unaffected
+</code></pre>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="error-numbers-the-errnum-type-1"><a href="#error-numbers-the-errnum-type-1" class="header">Error numbers: the ErrNum type</a></h1>
+<h2 id="error-numbers-the-errnum-type"><a class="header" href="#error-numbers-the-errnum-type">Error numbers: the ErrNum type</a></h2>
+<p><code>#include	&lt;error.h&gt;</code></p>
+<p>An ErrNum is a 32-bit value naming a message: a set number, and a number
+within that set. It subsumes both errno and Microsoft’s HRESULT, so one
+value carries a failure from anywhere - ours, the C library’s, or Windows’
+without the reader needing to know which.</p>
+<p>ErrNum is a class rather than a bare integer, so the tests over it are
+methods:</p>
+<pre><code>ErrNum	e = ...;
+if (e.is_failure())		// Something went wrong
+	...
+if (e.is_info())		// Worth knowing, but not a failure
+	...
+</code></pre>
+<p>Its constexpr cast to int32_t allows the values in a switch, which is how a
+caller handles the errors it knows and passes on the rest:</p>
+<pre><code>ErrNum e = DoSomeWork();
+switch (e)
+{
+case 0:
+	// That seemed to go ok
+	break;
+case SubsysErrorOfSomeTypeNum:	// A generated name for a set's message
+	// Handle the error
+	Complain(e);
+	return;
+default:
+	return e;		// Not ours to handle
+}
+</code></pre>
+<p>Set and message numbers are generated from a message set description: a
+set’s messages become <code>#define</code>s in a generated header, <code>&lt;Module&gt;_err.h</code>,
+one per message with the default text in a comment, so that code has names
+rather than numbers. There are 1024 messages to a set, and set numbers run
+to 262143.</p>
+<p>A number, once used, is never re-used, so a number written into a log, a
+manual or a customer’s report keeps its meaning over the life of the
+software.</p>
+<p><code>is_failure</code> and <code>is_info</code> are the intended API but their names are not yet
+settled.</p>
+<p>Reporting an error, and reading back what has been reported, is the error
+buffer’s job: see <a href="#the-error-buffer-1">errbuf.md</a>. The <code>Error</code> function declared
+there is what the generated reporting functions call.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="the-error-buffer-1"><a href="#the-error-buffer-1" class="header">The error buffer</a></h1>
+<h2 id="the-error-buffer"><a class="header" href="#the-error-buffer">The error buffer</a></h2>
+<p><code>#include &lt;errbuf.h&gt;</code></p>
+<p>Every thread has one error buffer, holding the messages it has reported and
+not yet dealt with. Nothing is formatted and nothing is decided about
+language, style or severity when a message is reported: the buffer holds the
+message number, its default text and its parameters, and whoever displays
+the message decides all of that. That may be another thread or another
+process entirely.</p>
+<p>The design this implements is in <code>Notes/ErrorManagement.md</code>.</p>
+<h3 id="reporting"><a class="header" href="#reporting">Reporting</a></h3>
+<p>Generated code calls <code>Error</code> through a function per message:</p>
+<pre><code>ErrNum	Error(ErrNum err, const char* default_text, VariantArray params);
+</code></pre>
+<p>It appends the message, and answers the number it was given, so that
+reporting an error and returning it are one act:</p>
+<pre><code>return ErrorADL_Syntax("foo", source.location);
+</code></pre>
+<p>The generated functions gather their arguments and call <code>Error</code>; there is
+one of those per message, and one <code>Error</code> for all of them. A zero <code>ErrNum</code>
+reports nothing.</p>
+<h3 id="reading"><a class="header" href="#reading">Reading</a></h3>
+<pre><code>MsgIndex	count() const;			// Messages held
+MsgSequence	checkpoint() const;		// The next number a report would take
+ErrNum		error(MsgIndex n) const;	// The number alone
+Message		message(MsgIndex n) const;	// Number, default text, parameters
+</code></pre>
+<p><code>Message</code> is what someone about to deliver a message needs:</p>
+<pre><code>struct Message
+{
+	ErrNum		error;
+	const char*	default_text;
+	VariantArray	parameters;	// A slice of the buffer's parameter array
+};
+</code></pre>
+<p>Recovery usually wants only <code>error(n)</code>. Take a <code>Message</code> when you are about
+to display one.</p>
+<p><strong>A <code>Message</code>’s parameters share the buffer’s parameter array, so let the
+message go before delivering it.</strong> While a slice is outstanding the array
+cannot be reclaimed, and one held across a drain leaks that action’s
+parameters. <code>delivered()</code> and <code>clear()</code> assert that none is outstanding, so
+the mistake stops rather than quietly leaking. In practice this means the
+<code>Message</code> wants a scope of its own:</p>
+<pre><code>{
+	ErrBuf::Message	shown = buffer-&gt;message(0);
+	display(shown);
+}
+buffer-&gt;delivered();
+</code></pre>
+<h3 id="recovering"><a class="header" href="#recovering">Recovering</a></h3>
+<pre><code>MsgSequence	mark = buffer-&gt;checkpoint();
+...call something that may report...
+if (!wanted)
+	buffer-&gt;rollback(mark);
+</code></pre>
+<p><code>rollback</code> discards everything reported since the checkpoint, the callee
+having no part in it. Messages the callee reported take their parameters
+with them, so what remains stays contiguous.</p>
+<p>Messages are consecutively numbered: a rollback gives its numbers back, and
+the next report takes them again. A number is therefore only unique among
+the messages currently held, which is all a checkpoint needs to be.</p>
+<h3 id="delivering"><a class="header" href="#delivering">Delivering</a></h3>
+<pre><code>while (buffer-&gt;count() &gt; 0)
+{
+	...read message(0) and let it go...
+	buffer-&gt;delivered();		// The oldest has been delivered
+}
+</code></pre>
+<p>Delivery always drains the buffer. Delivering advances past the message
+rather than compacting what follows, so it costs the same whatever is behind
+it, and the last one to go empties both arrays while keeping their storage.
+That is what makes the steady state free: <strong>an action that reports and
+delivers the same number of messages as the last one allocates nothing at
+all.</strong> <code>clear()</code> drops everything at once without delivering, retiring the
+numbers.</p>
+<h3 id="what-a-reporting-function-should-do"><a class="header" href="#what-a-reporting-function-should-do">What a reporting function should do</a></h3>
+<p>Build the parameters in a scratch array that is emptied between reports
+rather than rebuilt. A fresh <code>VariantArray</code> per report costs two
+allocations, which is the cost this shape exists to avoid:</p>
+<pre><code>static ThreadLocal&lt;VariantArray&gt;	scratch;
+
+VariantArray&amp;	params = *scratch.get();
+params.evacuate();			// Empty, keeping the storage
+params.append(Variant(42));
+params.append(Variant("context"));
+return Error(SomeError, "the default text", params);
+</code></pre>
+<p><code>evacuate()</code> is what keeps the storage; <code>clear()</code> would give it back.</p>
+<h3 id="threads-and-other-processes"><a class="header" href="#threads-and-other-processes">Threads and other processes</a></h3>
+<p>There is one buffer per thread, reached through a thread-local slot, so two
+threads never see each other’s messages. A caller running on one thread that
+completes work for another - or a server answering a client - packs the
+unformatted messages (number, default text and parameters) into whatever it
+already speaks and ships them. The receiving context is the one that knows
+the reader’s language and the room there is to display in, so it is the one
+that formats.</p>
+<h3 id="not-implemented-yet"><a class="header" href="#not-implemented-yet">Not implemented yet</a></h3>
+<ul>
+<li><strong>Formatting.</strong> What the substitution points look like, and what replaces
+printf-style directives, is not settled.</li>
+<li><strong>Catalogs.</strong> Nothing yet reads a compiled catalog; the default text is
+what a message carries.</li>
+<li><strong>Severity.</strong> A message has no severity recorded. Severity is contextual,
+and a warning may be demoted to information or raised by whoever displays
+it.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="threads-locks-and-thread-local-storage-1"><a href="#threads-locks-and-thread-local-storage-1" class="header">Threads, locks and thread-local storage</a></h1>
+<h2 id="threads-locks-and-thread-local-storage"><a class="header" href="#threads-locks-and-thread-local-storage">Threads, locks and thread-local storage</a></h2>
+<p><code>#include	&lt;thread.h&gt;</code>, which brings in <code>lockfree.h</code> (the Latch),
+<code>condition.h</code> (the Condition) and <code>thread_local.h</code> (ThreadSlot, ThreadLocal).</p>
+<h3 id="choosing-a-threading-model"><a class="header" href="#choosing-a-threading-model">Choosing a threading model</a></h3>
+<p>Exactly one must be defined, or the build stops with a single error in
+<code>thread.h</code>:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>define</th><th></th></tr>
+</thead>
+<tbody>
+<tr><td><code>HAVE_PTHREADS</code></td><td>POSIX threads</td></tr>
+<tr><td><code>HAVE_FREERTOS</code></td><td>FreeRTOS</td></tr>
+<tr><td><code>MSW</code></td><td>Windows</td></tr>
+<tr><td><code>NO_THREAD</code></td><td>No threading: one thread, and locks that never block</td></tr>
+</tbody>
+</table>
+</div>
+<p>The models satisfy the same declarations with <em>different implementations</em>,
+so <strong>whatever model the library was built with, a program using it must be
+compiled with</strong>. Two translation units built with different selections agree
+on the declarations but not on the objects, and the mismatch then shows up
+as unexplained behaviour at run time rather than as an error - which is why
+selecting none, or more than one, is refused at compile time.</p>
+<p><code>make COPT=-DNO_THREAD lib</code> builds the library without threads. The object
+files are shared between models, so a <code>make clean</code> is needed when switching.</p>
+<h3 id="thread-local-storage"><a class="header" href="#thread-local-storage">Thread-local storage</a></h3>
+<p><code>ThreadSlot</code> holds one <code>void*</code> per thread. <code>ThreadLocal&lt;T&gt;</code> holds one object
+of type T per thread, made on first use:</p>
+<pre><code>static ThreadLocal&lt;VariantArray&gt;	scratch;
+
+VariantArray&amp;	params = *scratch.get();	// This thread's, made if new
+</code></pre>
+<p>Slots are process-wide and few, because every backend offers only a small
+pool of them - a pthread key, a TLS index, or a compile-time index into a
+fixed array of pointers per task. Claim them early and rarely: one per
+subsystem that needs one, not one per object.</p>
+<p>There are deliberately <strong>no thread-exit destructors</strong>. A pthread key can run
+one, but <code>TlsAlloc</code> and FreeRTOS task-local storage cannot, and behaviour
+that differs by backend is worse than uniformly not having it. So whatever a
+thread puts in a slot is released by the process, or by whoever owns the
+thread, or by <code>ThreadLocal::clear()</code> - not by the slot.</p>
+<p>This is not a compiler <code>thread_local</code>: that works on pthreads and Windows
+but not on FreeRTOS, where it needs toolchain support, so it could not cover
+every model this library builds for.</p>
+<p>Under FreeRTOS, <code>configNUM_THREAD_LOCAL_STORAGE_POINTERS</code> must be raised
+from its default of 0 to at least <code>THREAD_LOCAL_MAX_SLOTS</code>.</p>
+<h3 id="locks"><a class="header" href="#locks">Locks</a></h3>
+<p>A <code>Latch</code> is a lock, held by one thread at a time. <code>enter()</code> waits for it,
+<code>probe()</code> takes it only if it is free, <code>holding()</code> asks whether this thread
+has it, and <code>leave()</code> releases it. Under <code>NO_THREAD</code> there is one thread, so
+all of these are no-ops and <code>holding()</code> is always true.</p>
+<p>A <code>Condition</code> lets a thread wait until another signals it, with an optional
+timeout. Under <code>NO_THREAD</code> nothing waits, so every method is a no-op.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="peg-parsing-1"><a href="#peg-parsing-1" class="header">PEG parsing</a></h1>
+<h2 id="peg-parsing"><a class="header" href="#peg-parsing">PEG parsing</a></h2>
+<p><code>#include	&lt;peg.h&gt;</code></p>
+<pre> template&lt;typename Source&gt; class PegDefaultMatch;
+template&lt;typename Match&gt; class PegContextNoCapture;
+template&lt;typename Source, typename Match, typename Context&gt; class Peg;
+</pre>
+
+<p>The Peg parser templates make use of Pegexp to provide a powerful PEG
+parsing engine for arbitrary grammars. No memoization is performed, so a
+badly constructed grammar can cause long runtimes. Peg uses a new Context
+for each nested call to a Pegexp. The default Context detects left recursion
+and reports failure.</p>
+<p>The grammar is expressed using a compact in-memory table. No executable code
+needs to be generated. No heap memory allocation is required during
+execution (and minimal stack), unless you use a Context that saves text
+captures, builds Abstract Syntax Trees, or records failure tokens and
+locations.</p>
+<p>The preferred way to use this is to compile a grammar expressed in the
+BNFlike language <a href="https://github.com/cjheath/px">Px</a>, which (will) emit C++
+data definitions for the parser engine to interpret.</p>
+<p>Like the Pegexp template, Peg&lt;&gt; processes data from a Source, which may be
+a stream.</p>
+<p>You should define a Context which implements whatever result capture you
+require. Context should have a nested Context::Rule type, which can be
+refined where necessary.</p>
+<p>The <a href="../test/peg_test.cpp">Peg parser</a> for
+<a href="https://github.com/cjheath/px">Px</a> shows how to generate an AST from
+captures.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="pegexp"><a href="#pegexp" class="header">Pegexp</a></h1>
+<h2 id="prefix-regular-expression-pattern-matching"><a class="header" href="#prefix-regular-expression-pattern-matching">Prefix Regular Expression pattern matching</a></h2>
+<p><code>#include	&lt;pegexp.h&gt;</code></p>
+<p>This template class implements Prefix Regular Expressions (aka
+<strong>pegular expressions</strong> or pegexp).</p>
+<p>Regular expressions describe text patterns, backtracking after a failure
+caused by greedy repetition.</p>
+<p>Pegular expressions also match text, but never backtrack, which requires
+avoiding excessive repetition using look-aheads. Repetition and optional
+operators precede the atom they affect (hence <strong>prefix</strong>). This
+prefix notation means no pre-compiler is needed for efficient execution,
+which reduces memory demand.</p>
+<p>Alternates and repetition are possessive and will never backtrack.  * Once
+an alternate has matched, no subsequent alterative will be tried in that
+group.  * Once a repetition has been made, it will never be unwound.  * It
+is your responsibility to ensure these possessive operators never match
+unless it’s final.  * You should use negative assertions to control
+inappropriate greed</p>
+<p>The advantage of Pegexp over Regexp is there is no easy ReDOS attack, and no
+computational or memory expense to avoiding that.</p>
+<p>The syntax implemented here (unlike regexp, BNF and normal PEG grammars)
+uses <strong>prefix notation</strong>, which allows an efficient interpreter
+without needing a compiler.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Atom</th><th>Matches</th></tr>
+</thead>
+<tbody>
+<tr><td>^</td><td>start of the input or start of any line</td></tr>
+<tr><td>$</td><td>end of the input or the end of any line</td></tr>
+<tr><td>.</td><td>any character (alternately, byte), including a newline</td></tr>
+<tr><td>?</td><td>Zero or one of the following expression</td></tr>
+<tr><td>*</td><td>Zero or more of the following expression</td></tr>
+<tr><td>+</td><td>One or more of the following expression</td></tr>
+<tr><td>(expr)</td><td>Group subexpressions (does not capture; use a label for that)</td></tr>
+<tr><td>|A|B…</td><td>Either A or B (or …)</td></tr>
+<tr><td>&amp;A</td><td>Continue only if A succeeds</td></tr>
+<tr><td>!A</td><td>Continue only if A fails</td></tr>
+<tr><td>anychar</td><td>match that non-operator character</td></tr>
+<tr><td>\char</td><td>match the escaped character (including the operators, 0 b e f n r t, and any other char)</td></tr>
+<tr><td>\a</td><td>alpha character (alternately, byte)</td></tr>
+<tr><td>\d</td><td>digit character (alternately, byte)</td></tr>
+<tr><td>\h</td><td>hexadecimal</td></tr>
+<tr><td>\s</td><td>whitespace character (alternately, byte)</td></tr>
+<tr><td>\w</td><td>word (alpha or digit) character (alternately, byte)</td></tr>
+<tr><td>\177</td><td>match the specified octal character</td></tr>
+<tr><td>\xXX</td><td>match the specified hexadecimal (0-9a-fA-F)</td></tr>
+<tr><td>\x{1-2}</td><td>match the specified hexadecimal (0-9a-fA-F)</td></tr>
+<tr><td>\u12345</td><td>match the specified 1-5 digit Unicode character (only if compiled for Unicode support)</td></tr>
+<tr><td>\u{1-5}</td><td>match the specified 1-5 digit Unicode character (only if compiled for Unicode support)</td></tr>
+<tr><td>[a-z]</td><td>Normal character (alternately, byte) class (a literal hyphen may occur at start)</td></tr>
+<tr><td>[^a-z]</td><td>Negated character (alternately, byte) class. Characters may include the \escapes listed above</td></tr>
+<tr><td>`</td><td>Use the byte alternative (not UTF-8) for the following atom</td></tr>
+<tr><td>! @ # % _ ; &lt;</td><td>Call the extended_match function, which defaults to just match that character</td></tr>
+<tr><td>control-character</td><td>Call the extended_match function</td></tr>
+<tr><td>:name:</td><td>Capture the text matched by the previous atom to the named variable (postfix!)</td></tr>
+</tbody>
+</table>
+</div>
+<p>Note: alternates and repetition are possessive, they will never backtrack.
+Once an alternate has matched, no subsequent alterative will be tried in
+that group. Once a repetition has been made, it will never be unwound. It is
+your responsibility to ensure these possessive operators never match unless
+it’s final. You should use assertions to control inappropriate greed.</p>
+<p>All template parameters may be omitted to use defaults: 
+<pre>
+template&lt;typename DataPtr = const UTF8*, typename _Char = UCS4&gt; class
+PegexpPointerSource; template&lt;typename Source;gt; class
+PegexpDefaultMatch; template&lt;typename Match&gt; class
+PegexpDefaultContext; template&lt;typename Context&gt; class Pegexp; </pre>
+</p>
+<p>A Context may accumulate data on Captures and failure locations. It should
+have a nested Context::Match type. A PegexpDefaultContext is provided to
+demonstrate the minimum API. Read the code.</p>
+<p>A Match reports details on success or failure. Match should have a nested
+Match::Source type. A PegexpDefaultMatch is provided to demonstrate the
+minimum API. Read the code.</p>
+<p>A Source provides a location in a stream of data, and can read data, but forwards only.
+Source should have a nested Source::Char type. You can use any scalar data type for Char (often char but defaults to UCS4).
+A PegexpPointerSource class	is provided to demonstrate the minimum API, with some extra features added.</p>
+<p>The structure of Source is designed to be able to process data that’s
+arriving on an ephemeral stream, such as a network socket.  The only extra
+processing required is that when any copy of a Source is made, it must be
+possible to proceed from that position in the stream. When a Source is
+deleted, no further access will be required to data from that position
+unless an older copy still exists. This “stream memory” behaviour is being
+implemented in a <strong>StreamFork</strong> class.</p>
+<p>You can subclass Pegexp&lt;&gt; to override match_extended&amp;skip_extended to
+handle special command characters.</p>
+<p>Read the header file for more details.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+
+            </nav>
+
+        </div>
+
+        <template id=fa-eye><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M288 32c-80.8 0-145.5 36.8-192.6 80.6C48.6 156 17.3 208 2.5 243.7c-3.3 7.9-3.3 16.7 0 24.6C17.3 304 48.6 356 95.4 399.4C142.5 443.2 207.2 480 288 480s145.5-36.8 192.6-80.6c46.8-43.5 78.1-95.4 93-131.1c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C433.5 68.8 368.8 32 288 32zM432 256c0 79.5-64.5 144-144 144s-144-64.5-144-144s64.5-144 144-144s144 64.5 144 144zM288 192c0 35.3-28.7 64-64 64c-11.5 0-22.3-3-31.6-8.4c-.2 2.8-.4 5.5-.4 8.4c0 53 43 96 96 96s96-43 96-96s-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6z"/></svg></span></template>
+        <template id=fa-eye-slash><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M38.8 5.1C28.4-3.1 13.3-1.2 5.1 9.2S-1.2 34.7 9.2 42.9l592 464c10.4 8.2 25.5 6.3 33.7-4.1s6.3-25.5-4.1-33.7L525.6 386.7c39.6-40.6 66.4-86.1 79.9-118.4c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C465.5 68.8 400.8 32 320 32c-68.2 0-125 26.3-169.3 60.8L38.8 5.1zM223.1 149.5C248.6 126.2 282.7 112 320 112c79.5 0 144 64.5 144 144c0 24.9-6.3 48.3-17.4 68.7L408 294.5c5.2-11.8 8-24.8 8-38.5c0-53-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6c0 10.2-2.4 19.8-6.6 28.3l-90.3-70.8zm223.1 298L373 389.9c-16.4 6.5-34.3 10.1-53 10.1c-79.5 0-144-64.5-144-144c0-6.9 .5-13.6 1.4-20.2L83.1 161.5C60.3 191.2 44 220.8 34.5 243.7c-3.3 7.9-3.3 16.7 0 24.6c14.9 35.7 46.2 87.7 93 131.1C174.5 443.2 239.2 480 320 480c47.8 0 89.9-12.9 126.2-32.5z"/></svg></span></template>
+        <template id=fa-copy><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M502.6 70.63l-61.25-61.25C435.4 3.371 427.2 0 418.7 0H255.1c-35.35 0-64 28.66-64 64l.0195 256C192 355.4 220.7 384 256 384h192c35.2 0 64-28.8 64-64V93.25C512 84.77 508.6 76.63 502.6 70.63zM464 320c0 8.836-7.164 16-16 16H255.1c-8.838 0-16-7.164-16-16L239.1 64.13c0-8.836 7.164-16 16-16h128L384 96c0 17.67 14.33 32 32 32h47.1V320zM272 448c0 8.836-7.164 16-16 16H63.1c-8.838 0-16-7.164-16-16L47.98 192.1c0-8.836 7.164-16 16-16H160V128H63.99c-35.35 0-64 28.65-64 64l.0098 256C.002 483.3 28.66 512 64 512h192c35.2 0 64-28.8 64-64v-32h-47.1L272 448z"/></svg></span></template>
+        <template id=fa-play><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M73 39c-14.8-9.1-33.4-9.4-48.5-.9S0 62.6 0 80V432c0 17.4 9.4 33.4 24.5 41.9s33.7 8.1 48.5-.9L361 297c14.3-8.7 23-24.2 23-41s-8.7-32.2-23-41L73 39z"/></svg></span></template>
+        <template id=fa-clock-rotate-left><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M75 75L41 41C25.9 25.9 0 36.6 0 57.9V168c0 13.3 10.7 24 24 24H134.1c21.4 0 32.1-25.9 17-41l-30.8-30.8C155 85.5 203 64 256 64c106 0 192 86 192 192s-86 192-192 192c-40.8 0-78.6-12.7-109.7-34.4c-14.5-10.1-34.4-6.6-44.6 7.9s-6.6 34.4 7.9 44.6C151.2 495 201.7 512 256 512c141.4 0 256-114.6 256-256S397.4 0 256 0C185.3 0 121.3 28.7 75 75zm181 53c-13.3 0-24 10.7-24 24V256c0 6.4 2.5 12.5 7 17l72 72c9.4 9.4 24.6 9.4 33.9 0s9.4-24.6 0-33.9l-65-65V152c0-13.3-10.7-24-24-24z"/></svg></span></template>
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr-ef4e11c1.min.js"></script>
+        <script src="mark-09e88c2c.min.js"></script>
+        <script src="searcher-09f2665d.js"></script>
+
+        <script src="clipboard-1626706a.min.js"></script>
+        <script src="highlight-abc7f01d.js"></script>
+        <script src="book-609e4cb8.js"></script>
+
+        <!-- Custom JS scripts -->
+
+        <script>
+        window.addEventListener('load', function() {
+            window.setTimeout(window.print, 100);
+        });
+        </script>
+
+
+    </div>
+    </body>
+</html>
