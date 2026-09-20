@@ -5,7 +5,7 @@ all relevant context to an error, not just a simple error code with a
 generic message. Where one error cascades into another that can provide more
 context, or a path to recovery, that must be provided, with neither error
 report masking the others. Failure to properly report error context and a
-math to making progress has been a major cause of inconvenience to users
+path to making progress has been a major cause of inconvenience to users
 throughout the history of the software industry.
 
 This level of error management is tedious to implement with a bare Unix
