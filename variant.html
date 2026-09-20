@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-8f916473.js";
+            window.path_to_searchindex_js = "searchindex-cac6e935.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-58dc7aeb.js"></script>
@@ -213,7 +213,11 @@ therefore compact and fairly efficient to manipulate.</p>
 <h3 id="variantarray"><a class="header" href="#variantarray">VariantArray</a></h3>
 <p><code>VariantArray</code> is <code>Array&lt;Variant&gt;</code>: a type-safe array of values of mixed
 type, each carrying its own type.  Ask for the type before reading the
-value, to avoid type coercions or assertion failures.</p>
+value, to avoid type coercions or assertion failures. A value read as the
+wrong type is reported before it is asserted: the report names the type that
+was wanted and the type that is held, and goes to the thread’s error buffer
+like any other message, so a program built with assertions left out still has
+a record of what went wrong - and one a translation can carry.</p>
 <p>Error message parameters are carried this way, for example.  That is what
 makes a parameter list typesafe where printf-style arguments are not:
 printf, handed the wrong argument, reinterprets its bytes.</p>
@@ -240,8 +244,8 @@ held before.</li>
 <li><code>is_null()</code> - true when it holds nothing.</li>
 <li><code>type_name()</code> - the name of the held type, for messages about it.</li>
 <li><code>as_int()</code>, <code>as_long()</code>, <code>as_longlong()</code> - the number held. The mutable
-forms coerce to that type first, and assert when the coercion would lose
-data.</li>
+forms coerce to that type first, and report and then assert when the value
+cannot be read as it.</li>
 <li><code>as_strval()</code>, <code>as_string_array()</code>, <code>as_variant_array()</code>, <code>as_variant_map()</code>
 <ul>
 <li>the string or container held.</li>
