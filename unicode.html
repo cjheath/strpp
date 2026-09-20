@@ -35,10 +35,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-aa04d821.js";
+            window.path_to_searchindex_js = "searchindex-7fa71223.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-cecf5e01.js"></script>
+        <script src="toc-58dc7aeb.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -178,141 +178,95 @@
                 <div id="mdbook-content" class="content">
                     <main>
                         <h2 id="unicode-character-processing"><a class="header" href="#unicode-character-processing">Unicode character processing</a></h2>
-<p><code>#include &lt;char_encoding.h&gt;</code></p>
+<p>This library of global methods provides efficient low-level support for
+32-bit Unicode characters, encoded as UTF-8 for preference, UTF-16 where
+necessary, and able to handle incorrect encodings without corrupting the
+data further. The UTF-8 methods handle the entire 32-bit range by extending
+UTF-8 up to six bytes (this is sometimes called WTF-8).</p>
+<p><code>#include	&lt;char_encoding.h&gt;</code></p>
+<p>Defined in
+<a href="https://github.com/cjheath/strpp/blob/main/include/char_encoding.h">char_encoding.h</a>.</p>
 <pre><code>typedef char		UTF8;		// We don't assume un/signed
 typedef uint16_t	UTF16;		// Used in Unicode 2, and 3 with surrogates
 typedef	char32_t	UCS4;		// A UCS4 character, aka UTF-32, aka Rune
 </code></pre>
 <p>Characters are passed and returned as UCS4 whatever their encoding.
 UCS4_NONE (0xFFFFFFFF) marks end of input.</p>
-<h3 id="illegal-utf-8"><a class="header" href="#illegal-utf-8">Illegal UTF-8</a></h3>
-<p>A byte sequence that is not legal UTF-8 is not an error. Its raw bytes are
-returned as characters of the form 0x800000xx, one per byte, so naive code
-passes such data through unchanged instead of needing an exception, and
-<code>UTF8Backup</code> mirrors <code>UTF8Get</code> so that stepping back over them works.</p>
 <h3 id="utf-8"><a class="header" href="#utf-8">UTF-8</a></h3>
 <ul>
-<li>
-<p><code>bool UTF8Is1st(UTF8)</code> a valid leading byte</p>
-</li>
-<li>
-<p><code>bool UTF8Is2nd(UTF8)</code> a following byte</p>
-</li>
-<li>
-<p><code>int UTF8CorrectLen(UTF8)</code> the number of bytes the sequence should have,
-given this leading byte, without checking them</p>
-</li>
-<li>
-<p><code>int UTF8Len(const UTF8* cp)</code> the actual length, having checked that the
-following bytes are correct</p>
-</li>
-<li>
-<p><code>UCS4 UTF8Get(const UTF8*&amp; cp)</code> the next character, advancing cp</p>
-</li>
-<li>
-<p><code>UCS4 UTF8Peek(const UTF8*&amp; cp)</code> the next character, without advancing cp</p>
-</li>
-<li>
-<p><code>const UTF8* UTF8Backup(const UTF8* cp, const UTF8* limit)</code> back one
-character</p>
-</li>
-<li>
-<p><code>UTF8PutPaddedZero(UTF8*&amp; cp, int length)</code> a zero character occupying
-length
-bytes, sometimes wanted as a place-holder</p>
-</li>
+<li><code>bool UTF8Is1st(UTF8)</code> - a valid leading byte.</li>
+<li><code>bool UTF8Is2nd(UTF8)</code> - a following byte.</li>
+<li><code>int UTF8CorrectLen(UTF8)</code> - the number of bytes the sequence should have,
+given this leading byte, without checking them.</li>
+<li><code>int UTF8Len(const UTF8* cp)</code> - the actual length, having checked that the
+following bytes are correct.</li>
+<li><code>int UTF8Len(UCS4)</code> - how many bytes needed to encode the character as UTF-8.</li>
+<li><code>UCS4 UTF8Get(const UTF8*&amp; cp)</code> - the next character, advancing cp.</li>
+<li><code>UCS4 UTF8Peek(const UTF8*&amp; cp)</code> - the next character, without advancing cp.</li>
+<li><code>const UTF8* UTF8Backup(const UTF8* cp, const UTF8* limit)</code> - back one
+character.</li>
+<li><code>void UTF8Put(UTF8*&amp; cp, UCS4 ch)</code> - store a character as UTF-8, advancing
+cp.</li>
+<li><code>void UTF8PutPaddedZero(UTF8*&amp; cp, int length)</code> - a zero character occupying
+<code>length</code> bytes, sometimes wanted as a place-holder.</li>
+<li><code>UCS4 UTF8EncodeIllegal(UTF8)</code> - the UCS4 value that stands for an illegal
+UTF-8 byte.</li>
 </ul>
 <p>A non-minimum length encoding - a character zero-padded to a longer sequence
-than it needs - is accepted when read, and is never produced when written.</p>
-<h3 id="encoding-a-character"><a class="header" href="#encoding-a-character">Encoding a character</a></h3>
-<ul>
-<li>
-<p><code>int UTF8Len(UCS4)</code> the bytes needed to encode the character as UTF-8</p>
-</li>
-<li>
-<p><code>int UTF16Len(UCS4)</code> the UTF-16 words needed</p>
-</li>
-</ul>
+than it needs - is accepted when read, but is never produced when written.</p>
 <h3 id="classifying-and-converting-characters"><a class="header" href="#classifying-and-converting-characters">Classifying and converting characters</a></h3>
+<p>Classification here is restricted to what can be done without carrying
+Unicode’s full code tables: these functions use reduced tables derived from
+the standard.</p>
 <ul>
-<li>
-<p><code>bool UCS4IsAlphabetic(UCS4)</code> susceptible to case conversion, or in a list
-of
-208 characters that are not</p>
-</li>
-<li>
-<p><code>int UCS4Digit(UCS4)</code> the decimal value of a digit from any of Unicode’s
-20
-digit ranges, or -1</p>
-</li>
-<li>
-<p><code>bool UCS4IsDecimal(UCS4)</code></p>
-</li>
-<li>
-<p><code>int UCS4HexDigit(UCS4)</code> the decimal or hexadecimal value of a digit, or
--1</p>
-</li>
-<li>
-<p><code>UCS4 UCS4ToUpper(UCS4)</code>, <code>UCS4ToLower(UCS4)</code>, <code>UCS4ToTitle(UCS4)</code> the
-title-case equivalent where one exists, otherwise uppercase</p>
-</li>
-<li>
-<p><code>bool UCS4IsWhite(UCS4)</code> ASCII white-space or any of Unicode’s four other
-white-space groups</p>
-</li>
-<li>
-<p><code>bool UCS4IsASCII(UCS4)</code> 0..0x7F</p>
-</li>
-<li>
-<p><code>bool UCS4IsLatin1(UCS4)</code> 0..0xFF</p>
-</li>
-<li>
-<p><code>bool UCS4IsUTF16(UCS4)</code> 0..0xFFFF, including surrogates</p>
-</li>
-<li>
-<p><code>bool UCS4IsUnicode(UCS4)</code> 0..0x10FFFF</p>
-</li>
-<li>
-<p><code>bool UCS4IsIllegal(UCS4)</code> an out-of-sequence UTF-8 byte, as described
-above</p>
-</li>
+<li><code>bool UCS4IsAlphabetic(UCS4)</code> - susceptible to case conversion, or in a list
+of 208 characters that are not.</li>
+<li><code>int UCS4Digit(UCS4)</code> - the decimal value of a digit from any of Unicode’s
+20 digit ranges, or -1.</li>
+<li><code>bool UCS4IsDecimal(UCS4)</code> - a decimal digit.</li>
+<li><code>int UCS4HexDigit(UCS4)</code> - the decimal or hexadecimal value of a digit, or
+-1.</li>
+<li><code>int ASCIIDigit(UCS4)</code> - the value of an ASCII digit only, or -1.</li>
+<li><code>UCS4 UCS4ToUpper(UCS4)</code>, <code>UCS4ToLower(UCS4)</code>, <code>UCS4ToTitle(UCS4)</code> - the
+upper, lower or title-case equivalent, title falling back to upper.</li>
+<li><code>bool UCS4IsWhite(UCS4)</code> - ASCII white-space, or any of Unicode’s four other
+white-space groups.</li>
+<li><code>bool UCS4IsASCII(UCS4)</code> - 0..0x7F.</li>
+<li><code>bool UCS4IsASCIIPrintable(UCS4)</code> - ASCII that is not a control character.</li>
+<li><code>bool UCS4IsLatin1(UCS4)</code> - 0..0xFF.</li>
+<li><code>bool UCS4IsUTF16(UCS4)</code> - 0..0xFFFF, including surrogates.</li>
+<li><code>bool UCS4IsUnicode(UCS4)</code> - 0..0x10FFFF.</li>
+<li><code>bool UCS4IsIllegal(UCS4)</code> - an out-of-sequence UTF-8 byte, as described
+above.</li>
 </ul>
-<p>The classification functions use reduced tables derived from the standard.</p>
+<p>ctype-style overloads of <code>isalpha</code>, <code>isdigit</code>, <code>isalnum</code>, <code>isspace</code>,
+<code>isupper</code>, <code>islower</code>, <code>toupper</code> and <code>tolower</code> take a UCS4 character too.</p>
+<h3 id="illegal-utf-8"><a class="header" href="#illegal-utf-8">Illegal UTF-8</a></h3>
+<p>A byte sequence that is not legal UTF-8 does not produce panics. Its raw
+bytes are returned as separate UCS4 codes of the form 0x800000xx, one per
+byte, so naive code passes such data through unchanged instead of needing an
+exception, and <code>UTF8Backup</code> mirrors <code>UTF8Get</code> so that stepping back over
+them works. See <code>UCS4IsIllegal</code>, <code>UTF8EncodeIllegal</code>.</p>
 <h3 id="utf-16"><a class="header" href="#utf-16">UTF-16</a></h3>
-<p>In case you should be unfortunate enough to need to support UTF-16, these
-functions are provided.</p>
+<p>In case you should be unfortunate enough to need to support UTF-16 (for
+example, for JSON), these functions are provided.</p>
 <ul>
-<li>
-<p><code>bool UTF16IsSurrogate(UTF16 ch)</code> a surrogate of either kind</p>
-</li>
-<li>
-<p><code>bool UTF16Is1st(UTF16 ch)</code> a high surrogate</p>
-</li>
-<li>
-<p><code>bool UTF16Is2nd(UTF16 ch)</code> a low surrogate</p>
-</li>
-<li>
-<p><code>UTF16 UCS4HighSurrogate(UCS4 ch)</code>, <code>UCS4LowSurrogate(UCS4 ch)</code> the
-surrogate values for the character</p>
-</li>
-<li>
-<p><code>UTF16 UTF16Swab(UTF16 x)</code> swap the bytes of a word</p>
-</li>
-<li>
-<p><code>UCS4 UTF16Get(const UTF16*&amp; cp, bool swap = false)</code> the next character
-from
-one or two words, advancing cp</p>
-</li>
-<li>
-<p><code>int UTF16Len(const UTF16* cp, bool swap = false)</code> the words making up the
-next character</p>
-</li>
-<li>
-<p><code>void UTF16Put(UTF16*&amp; cp, UCS4 ch, bool swap = false)</code> store the
-character
-as UTF-16, advancing cp</p>
-</li>
+<li><code>int UTF16Len(UCS4)</code> - how many UTF-16 words needed.</li>
+<li><code>bool UTF16IsSurrogate(UTF16 ch)</code> - a surrogate of either kind.</li>
+<li><code>bool UTF16Is1st(UTF16 ch)</code> - a high surrogate.</li>
+<li><code>bool UTF16Is2nd(UTF16 ch)</code> - a low surrogate.</li>
+<li><code>UTF16 UCS4HighSurrogate(UCS4 ch)</code>, <code>UCS4LowSurrogate(UCS4 ch)</code> - the
+surrogate values for the character.</li>
+<li><code>UTF16 UTF16Swab(UTF16 x)</code> - swap the bytes of a word.</li>
+<li><code>UCS4 UTF16Get(const UTF16*&amp; cp, bool swap = false)</code> - the next character
+from one or two words, advancing cp.</li>
+<li><code>int UTF16Len(const UTF16* cp, bool swap = false)</code> - the words making up the
+next character.</li>
+<li><code>void UTF16Put(UTF16*&amp; cp, UCS4 ch, bool swap = false)</code> - store the
+character as UTF-16, advancing cp.</li>
 </ul>
+<p><code>UCS4_REPLACEMENT</code> is the character written where one is unknown, and
+<code>UCS4_NO_GLYPH</code> the UTF-8 sequence used to display it.</p>
 
                     </main>
 

@@ -35,10 +35,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-aa04d821.js";
+            window.path_to_searchindex_js = "searchindex-7fa71223.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-cecf5e01.js"></script>
+        <script src="toc-58dc7aeb.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -269,18 +269,62 @@ processing required is that when any copy of a Source is made, it must be
 possible to proceed from that position in the stream. When a Source is
 deleted, no further access will be required to data from that position
 unless an older copy still exists.</p>
-<p>You can subclass <code>Pegexp&lt;&gt;</code> to override <code>match_extended</code> and
-<code>skip_extended</code> to handle special command characters.</p>
-<p>Read the header file for more details.</p>
+<h3 id="public-methods"><a class="header" href="#public-methods">Public methods</a></h3>
+<p>Defined in <a href="https://github.com/cjheath/strpp/blob/main/include/pegexp.h">pegexp.h</a>.</p>
+<p><code>Pegexp</code>:</p>
+<ul>
+<li><code>Pegexp(PatternP pattern)</code> - a matcher over the 8-bit pattern text.</li>
+<li><code>match(Source&amp; source, Context* context)</code> - match at or after the source’s
+position, advance it to the end of the match, and answer the Match.</li>
+<li><code>match_here(Source&amp; source, Context* context)</code> - match at exactly that
+position, without scanning forward for somewhere the pattern does fit.</li>
+<li><code>pattern</code> - the pattern text it was built from.</li>
+<li><code>special</code> - the characters that must be backslash-escaped to be literal.</li>
+</ul>
+<p>A subclass can override <code>match_extended</code> and <code>skip_extended</code> to give a meaning
+of its own to the extension characters listed in the table above.</p>
+<p><code>PegexpPointerSource</code>, the Source to model yours on:</p>
+<ul>
+<li><code>PegexpPointerSource(const DataPtr cp)</code> - a Source at the start of the data.</li>
+<li><code>is_null()</code> - whether there is no data at all, which is how a null Source is
+told from one that has run out.</li>
+<li><code>get_byte()</code>, <code>get_char()</code> - the next byte, or the next character as a UCS4,
+moving forward.</li>
+<li><code>at_eof()</code>, <code>at_bol()</code> - whether the data has run out, and whether this is
+the beginning of a line.</li>
+<li><code>same(other)</code> - whether another copy is at the same position.</li>
+<li><code>bytes_from(origin)</code> - the bytes between two positions.</li>
+<li><code>current_byte()</code>, <code>current_line()</code>, <code>current_column()</code> - where it is now, for
+error reporting.</li>
+<li><code>string_to(other)</code> - the text between two positions, as a StrVal.</li>
+</ul>
+<p><code>PegexpDefaultContext</code>, the Context to model yours on:</p>
+<ul>
+<li><code>capture(name, name_len, match, in_repetition)</code> - called for a labelled
+atom, and answers the capture count afterwards. The default forgets it.</li>
+<li><code>capture_count()</code>, <code>rollback_capture(count)</code> - number the captures, and give
+the recent ones back when a path fails.</li>
+<li><code>record_failure(op, op_end, location)</code> - called for an atom that did not
+match, with the place it was tried.</li>
+<li><code>match_result(from, to)</code>, <code>match_failure(at)</code> - how a Context declares its
+answers.</li>
+<li><code>capture_disabled</code>, <code>repetition_nesting</code> - how deep inside a look-ahead, and
+inside a repetition, the match currently is.</li>
+</ul>
+<p><code>PegexpState</code> is the pattern position and the Source position together, and
+<code>PegexpDefaultMatch</code> is the pair of States a Match runs between.</p>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="peg.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="threading.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
+                            <a rel="next prefetch" href="peg.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
+                            </a>
 
                         <div style="clear: both"></div>
                     </nav>
@@ -288,10 +332,13 @@ unless an older copy still exists.</p>
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="peg.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="threading.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
+                    <a rel="next prefetch" href="peg.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
+                    </a>
             </nav>
 
         </div>

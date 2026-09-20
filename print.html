@@ -36,10 +36,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-aa04d821.js";
+            window.path_to_searchindex_js = "searchindex-7fa71223.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-cecf5e01.js"></script>
+        <script src="toc-58dc7aeb.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -178,8 +178,46 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="unicode-strings-the-strval-class-1"><a href="#unicode-strings-the-strval-class-1" class="header">Unicode strings: the StrVal class</a></h1>
+                        <h1 id="prologue"><a href="#prologue" class="header">Prologue</a></h1>
+<h2 id="strpp---stringplusplus---pronounced-strip"><a class="header" href="#strpp---stringplusplus---pronounced-strip">strpp - StringPlusPlus - pronounced “strip”</a></h2>
+<p>A value-oriented C++ library implementing maps, arrays and strings (with
+slices), raw Unicode processing, Variant type, pattern-matching and parsing.
+Designed to minimise dynamic memory allocation and memory safety issues,
+<em>strpp</em> provides efficient but advanced functionality on machines with
+restricted memory, such as many embedded systems.</p>
+<p><em>Strpp</em> uses copy-on-write to implement <em>value semantics</em> on shared objects
+(<a href="#unicode-strings-the-strval-class-1">Unicode strings</a>, generic <a href="#array-with-slices-1">arrays</a> and
+<a href="#cowmap-1">maps</a>) using thread-safe atomic reference-counting. Values may
+be passed by copying references, which means you can pass complex structures
+cheaply without much fear of aliasing, memory leaks, or object lifetime
+violations.</p>
+<p>The <a href="#variant-data-type-1">Variant class</a> provides type-safe support for passing any
+data object, as is common in interpreted languages (Perl, Ruby, Python).</p>
+<p>Greedy <a href="#pegexp">PEG expressions</a> with look-ahead assertions match text
+without backtracking, and all their operators are in the prefix position,
+which does not require a compilation step (or memory allocation) for
+efficient execution. These <em>Pegular Expressions</em> are also composed into full
+(non-regular) <a href="#peg-parsing-1">PEG grammars</a>. Parser template parameters allow
+capturing parse results, with a generic <a href="https://github.com/cjheath/strpp/blob/main/include/peg_ast.h">Abstract Syntax Tree
+builder</a> for
+any of those grammars.</p>
+<p>The <a href="https://github.com/cjheath/strpp/blob/main/rx/README.md">rx</a> library
+provides a regular expression implementation using <code>StrVal</code> that is
+ReDoS-safe (using the Thompson algorithm). These regular expressions are
+deprecated in favour of the PEG expressions above.</p>
+<p><a href="https://github.com/cjheath/px">Px</a> is an external parser generator for those
+grammars: it compiles a grammar into a compact table-driven parser that
+allocates no memory, and generates grammar documentation using Javascript
+and SVG.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="unicode-strings-the-strval-class-1"><a href="#unicode-strings-the-strval-class-1" class="header">Unicode strings: the StrVal class</a></h1>
 <h2 id="unicode-strings-the-strval-class"><a class="header" href="#unicode-strings-the-strval-class">Unicode strings: the StrVal class</a></h2>
+<p>Unicode strings stored as UTF-8, with value semantics and fast compact
+per-character indexing (light-weight copy-on-write implementation using
+slices, and bookmarks to speed up character indexing).</p>
+<p>Can also handle whatever character set is implied by raw 8-bit bytes in the
+program’s locale, (not yet always) converting to UTF-8 where processing
+involves Unicode.</p>
 <p><code>#include	&lt;strval.h&gt;</code></p>
 <ul>
 <li>By-value semantics (use StrVal like int, no explicit allocation, pass by
@@ -194,7 +232,78 @@ garbage collection</li>
 <li>Any StrVal may be mutated - it will safely make a private copy of any
 shared data</li>
 </ul>
-<p>Read the header file for the full API.</p>
+<h3 id="public-methods"><a class="header" href="#public-methods">Public methods</a></h3>
+<p>Defined in <a href="https://github.com/cjheath/strpp/blob/main/include/strval.h">strval.h</a>.</p>
+<p>Making one:</p>
+<ul>
+<li><code>StrVal()</code> - the empty string. Every empty string shares one static body.</li>
+<li><code>StrVal(const char* data, StrDataType dt = StrUTF8)</code> - copies NUL-terminated
+data.</li>
+<li><code>StrVal(const char* data, Index length, size_t allocate = 0)</code> - copies a
+run of bytes of known length, preallocating if the length will grow.</li>
+<li><code>StrVal(UCS4 character)</code> - one character, encoded to UTF-8.</li>
+<li><code>StrVal(const StrRef&amp;)</code> - from the body reference a Variant carries.</li>
+<li><code>StrVal(Body*)</code> - a reference to a body that already exists, for statics.</li>
+<li><code>StrVal(const StrVal&amp;)</code>, <code>operator=</code> - both share the body, and the next
+write to either copies it.</li>
+</ul>
+<p>Reading:</p>
+<ul>
+<li><code>length()</code> - the number of characters, not bytes.</li>
+<li><code>numBytes()</code> - the number of bytes of UTF-8 (or raw binary) data.</li>
+<li><code>isEmpty()</code>, <code>explicit operator bool()</code> - whether anything is held.</li>
+<li><code>operator[](int charNum)</code> - the character at an index, as UCS4; <code>'\0'</code> one
+past the end, and <code>UCS4_NONE</code> for an offset that is not there.</li>
+<li><code>asUTF8()</code> - the bytes, NUL-terminated, copying the body first if this is a
+substring whose terminator was elided.</li>
+<li><code>asUTF8(Index&amp; bytes)</code> - the bytes without that guarantee, answering the
+byte count.</li>
+<li><code>operator-&gt;()</code>, <code>operator*()</code>, <code>operator const Body&amp;()</code> - the body itself.</li>
+</ul>
+<p>Cutting one up:</p>
+<ul>
+<li><code>substr(Index at, int len = -1)</code>, <code>head(n)</code>, <code>tail(n)</code>, <code>shorter(n)</code> - a
+slice, or everything but the last <code>n</code> characters. All are O(1).</li>
+<li><code>find</code>/<code>rfind(UCS4 ch, int after/before)</code> - where a character is, or -1.</li>
+<li><code>find</code>/<code>rfind(const StrVal&amp;, int after/before)</code> - where a substring is.</li>
+<li><code>findAny</code>/<code>rfindAny(const StrVal&amp; s, int after/before)</code> - where any of the
+characters in <code>s</code> is.</li>
+<li><code>findNot</code>/<code>rfindNot(const StrVal&amp; s, int after/before)</code> - where a character
+not in <code>s</code> is.</li>
+<li><code>compare(const StrVal&amp;, CompareStyle = CompareRaw)</code>, <code>equalCI</code>, and the
+comparison operators - ordering, optionally case independent. <code>compare</code>
+with a style other than <code>CompareRaw</code> is not implemented yet.</li>
+<li><code>static compare(a, b)</code>, <code>static equiv(a, b)</code> - the ordering and equality
+predicates a std::map needs of its key.</li>
+<li><code>isStatic()</code> - true when the data is not owned by this string’s body.</li>
+</ul>
+<p>Building one:</p>
+<ul>
+<li><code>operator+</code> with a string, a <code>const char*</code>, or a <code>UCS4</code> - a new string.</li>
+<li><code>operator+=</code> with a string or a <code>UCS4</code> - appended in place.</li>
+<li><code>operator*(int repeats)</code> - this string, repeated.</li>
+<li><code>insert(Index pos, const StrVal&amp;)</code>, <code>append</code>, <code>prepend</code> - insert into the
+copy this string owns.</li>
+<li><code>asLower()</code>, <code>asUpper()</code>, <code>toLower()</code>, <code>toUpper()</code> - the first two answer a
+copy, the second two change this string and its length.</li>
+<li><code>transform(std::function&lt;StrVal(const char*&amp; cp, const char* ep)&gt;, int after = -1)</code>
+<ul>
+<li>rewrite each character from <code>after</code> on, with whatever the function
+answers.</li>
+</ul>
+</li>
+<li><code>asJSON()</code>, <code>toJSON()</code> - escaped for JSON; <code>toJSON</code> escapes in place and
+does not add the enclosing quotes.</li>
+<li><code>asInt32(ErrNum* err, int radix = 0, Index* scanned = 0)</code> - the number this
+string reads as, in any radix from 2 to 36 and auto-detected when 0,
+reporting what it could not use.</li>
+<li><code>static format(StrVal f, VariantArray args)</code> - the template string <code>f</code> with
+its substitutions taken from <code>args</code>.</li>
+<li><code>StringArray::join(StrVal joiner)</code> - the elements of a <code>StringArray</code>,
+concatenated with <code>joiner</code> between them.</li>
+</ul>
+<p><code>Index</code> is <code>StrValIndex</code>, which is 32 bits unless the build says otherwise, so
+a string is limited to 2^32 characters.</p>
 <p>Example:</p>
 <pre><code>// This example creates precisely three strings, but with four references
 #include        &lt;stdio.h&gt;
@@ -236,163 +345,156 @@ static empty body, which is why they can be built and copied freely.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="raw-unicode-character-processing"><a href="#raw-unicode-character-processing" class="header">Raw Unicode character processing</a></h1>
 <h2 id="unicode-character-processing"><a class="header" href="#unicode-character-processing">Unicode character processing</a></h2>
-<p><code>#include &lt;char_encoding.h&gt;</code></p>
+<p>This library of global methods provides efficient low-level support for
+32-bit Unicode characters, encoded as UTF-8 for preference, UTF-16 where
+necessary, and able to handle incorrect encodings without corrupting the
+data further. The UTF-8 methods handle the entire 32-bit range by extending
+UTF-8 up to six bytes (this is sometimes called WTF-8).</p>
+<p><code>#include	&lt;char_encoding.h&gt;</code></p>
+<p>Defined in
+<a href="https://github.com/cjheath/strpp/blob/main/include/char_encoding.h">char_encoding.h</a>.</p>
 <pre><code>typedef char		UTF8;		// We don't assume un/signed
 typedef uint16_t	UTF16;		// Used in Unicode 2, and 3 with surrogates
 typedef	char32_t	UCS4;		// A UCS4 character, aka UTF-32, aka Rune
 </code></pre>
 <p>Characters are passed and returned as UCS4 whatever their encoding.
 UCS4_NONE (0xFFFFFFFF) marks end of input.</p>
-<h3 id="illegal-utf-8"><a class="header" href="#illegal-utf-8">Illegal UTF-8</a></h3>
-<p>A byte sequence that is not legal UTF-8 is not an error. Its raw bytes are
-returned as characters of the form 0x800000xx, one per byte, so naive code
-passes such data through unchanged instead of needing an exception, and
-<code>UTF8Backup</code> mirrors <code>UTF8Get</code> so that stepping back over them works.</p>
 <h3 id="utf-8"><a class="header" href="#utf-8">UTF-8</a></h3>
 <ul>
-<li>
-<p><code>bool UTF8Is1st(UTF8)</code> a valid leading byte</p>
-</li>
-<li>
-<p><code>bool UTF8Is2nd(UTF8)</code> a following byte</p>
-</li>
-<li>
-<p><code>int UTF8CorrectLen(UTF8)</code> the number of bytes the sequence should have,
-given this leading byte, without checking them</p>
-</li>
-<li>
-<p><code>int UTF8Len(const UTF8* cp)</code> the actual length, having checked that the
-following bytes are correct</p>
-</li>
-<li>
-<p><code>UCS4 UTF8Get(const UTF8*&amp; cp)</code> the next character, advancing cp</p>
-</li>
-<li>
-<p><code>UCS4 UTF8Peek(const UTF8*&amp; cp)</code> the next character, without advancing cp</p>
-</li>
-<li>
-<p><code>const UTF8* UTF8Backup(const UTF8* cp, const UTF8* limit)</code> back one
-character</p>
-</li>
-<li>
-<p><code>UTF8PutPaddedZero(UTF8*&amp; cp, int length)</code> a zero character occupying
-length
-bytes, sometimes wanted as a place-holder</p>
-</li>
+<li><code>bool UTF8Is1st(UTF8)</code> - a valid leading byte.</li>
+<li><code>bool UTF8Is2nd(UTF8)</code> - a following byte.</li>
+<li><code>int UTF8CorrectLen(UTF8)</code> - the number of bytes the sequence should have,
+given this leading byte, without checking them.</li>
+<li><code>int UTF8Len(const UTF8* cp)</code> - the actual length, having checked that the
+following bytes are correct.</li>
+<li><code>int UTF8Len(UCS4)</code> - how many bytes needed to encode the character as UTF-8.</li>
+<li><code>UCS4 UTF8Get(const UTF8*&amp; cp)</code> - the next character, advancing cp.</li>
+<li><code>UCS4 UTF8Peek(const UTF8*&amp; cp)</code> - the next character, without advancing cp.</li>
+<li><code>const UTF8* UTF8Backup(const UTF8* cp, const UTF8* limit)</code> - back one
+character.</li>
+<li><code>void UTF8Put(UTF8*&amp; cp, UCS4 ch)</code> - store a character as UTF-8, advancing
+cp.</li>
+<li><code>void UTF8PutPaddedZero(UTF8*&amp; cp, int length)</code> - a zero character occupying
+<code>length</code> bytes, sometimes wanted as a place-holder.</li>
+<li><code>UCS4 UTF8EncodeIllegal(UTF8)</code> - the UCS4 value that stands for an illegal
+UTF-8 byte.</li>
 </ul>
 <p>A non-minimum length encoding - a character zero-padded to a longer sequence
-than it needs - is accepted when read, and is never produced when written.</p>
-<h3 id="encoding-a-character"><a class="header" href="#encoding-a-character">Encoding a character</a></h3>
-<ul>
-<li>
-<p><code>int UTF8Len(UCS4)</code> the bytes needed to encode the character as UTF-8</p>
-</li>
-<li>
-<p><code>int UTF16Len(UCS4)</code> the UTF-16 words needed</p>
-</li>
-</ul>
+than it needs - is accepted when read, but is never produced when written.</p>
 <h3 id="classifying-and-converting-characters"><a class="header" href="#classifying-and-converting-characters">Classifying and converting characters</a></h3>
+<p>Classification here is restricted to what can be done without carrying
+Unicode’s full code tables: these functions use reduced tables derived from
+the standard.</p>
 <ul>
-<li>
-<p><code>bool UCS4IsAlphabetic(UCS4)</code> susceptible to case conversion, or in a list
-of
-208 characters that are not</p>
-</li>
-<li>
-<p><code>int UCS4Digit(UCS4)</code> the decimal value of a digit from any of Unicode’s
-20
-digit ranges, or -1</p>
-</li>
-<li>
-<p><code>bool UCS4IsDecimal(UCS4)</code></p>
-</li>
-<li>
-<p><code>int UCS4HexDigit(UCS4)</code> the decimal or hexadecimal value of a digit, or
--1</p>
-</li>
-<li>
-<p><code>UCS4 UCS4ToUpper(UCS4)</code>, <code>UCS4ToLower(UCS4)</code>, <code>UCS4ToTitle(UCS4)</code> the
-title-case equivalent where one exists, otherwise uppercase</p>
-</li>
-<li>
-<p><code>bool UCS4IsWhite(UCS4)</code> ASCII white-space or any of Unicode’s four other
-white-space groups</p>
-</li>
-<li>
-<p><code>bool UCS4IsASCII(UCS4)</code> 0..0x7F</p>
-</li>
-<li>
-<p><code>bool UCS4IsLatin1(UCS4)</code> 0..0xFF</p>
-</li>
-<li>
-<p><code>bool UCS4IsUTF16(UCS4)</code> 0..0xFFFF, including surrogates</p>
-</li>
-<li>
-<p><code>bool UCS4IsUnicode(UCS4)</code> 0..0x10FFFF</p>
-</li>
-<li>
-<p><code>bool UCS4IsIllegal(UCS4)</code> an out-of-sequence UTF-8 byte, as described
-above</p>
-</li>
+<li><code>bool UCS4IsAlphabetic(UCS4)</code> - susceptible to case conversion, or in a list
+of 208 characters that are not.</li>
+<li><code>int UCS4Digit(UCS4)</code> - the decimal value of a digit from any of Unicode’s
+20 digit ranges, or -1.</li>
+<li><code>bool UCS4IsDecimal(UCS4)</code> - a decimal digit.</li>
+<li><code>int UCS4HexDigit(UCS4)</code> - the decimal or hexadecimal value of a digit, or
+-1.</li>
+<li><code>int ASCIIDigit(UCS4)</code> - the value of an ASCII digit only, or -1.</li>
+<li><code>UCS4 UCS4ToUpper(UCS4)</code>, <code>UCS4ToLower(UCS4)</code>, <code>UCS4ToTitle(UCS4)</code> - the
+upper, lower or title-case equivalent, title falling back to upper.</li>
+<li><code>bool UCS4IsWhite(UCS4)</code> - ASCII white-space, or any of Unicode’s four other
+white-space groups.</li>
+<li><code>bool UCS4IsASCII(UCS4)</code> - 0..0x7F.</li>
+<li><code>bool UCS4IsASCIIPrintable(UCS4)</code> - ASCII that is not a control character.</li>
+<li><code>bool UCS4IsLatin1(UCS4)</code> - 0..0xFF.</li>
+<li><code>bool UCS4IsUTF16(UCS4)</code> - 0..0xFFFF, including surrogates.</li>
+<li><code>bool UCS4IsUnicode(UCS4)</code> - 0..0x10FFFF.</li>
+<li><code>bool UCS4IsIllegal(UCS4)</code> - an out-of-sequence UTF-8 byte, as described
+above.</li>
 </ul>
-<p>The classification functions use reduced tables derived from the standard.</p>
+<p>ctype-style overloads of <code>isalpha</code>, <code>isdigit</code>, <code>isalnum</code>, <code>isspace</code>,
+<code>isupper</code>, <code>islower</code>, <code>toupper</code> and <code>tolower</code> take a UCS4 character too.</p>
+<h3 id="illegal-utf-8"><a class="header" href="#illegal-utf-8">Illegal UTF-8</a></h3>
+<p>A byte sequence that is not legal UTF-8 does not produce panics. Its raw
+bytes are returned as separate UCS4 codes of the form 0x800000xx, one per
+byte, so naive code passes such data through unchanged instead of needing an
+exception, and <code>UTF8Backup</code> mirrors <code>UTF8Get</code> so that stepping back over
+them works. See <code>UCS4IsIllegal</code>, <code>UTF8EncodeIllegal</code>.</p>
 <h3 id="utf-16"><a class="header" href="#utf-16">UTF-16</a></h3>
-<p>In case you should be unfortunate enough to need to support UTF-16, these
-functions are provided.</p>
+<p>In case you should be unfortunate enough to need to support UTF-16 (for
+example, for JSON), these functions are provided.</p>
 <ul>
-<li>
-<p><code>bool UTF16IsSurrogate(UTF16 ch)</code> a surrogate of either kind</p>
-</li>
-<li>
-<p><code>bool UTF16Is1st(UTF16 ch)</code> a high surrogate</p>
-</li>
-<li>
-<p><code>bool UTF16Is2nd(UTF16 ch)</code> a low surrogate</p>
-</li>
-<li>
-<p><code>UTF16 UCS4HighSurrogate(UCS4 ch)</code>, <code>UCS4LowSurrogate(UCS4 ch)</code> the
-surrogate values for the character</p>
-</li>
-<li>
-<p><code>UTF16 UTF16Swab(UTF16 x)</code> swap the bytes of a word</p>
-</li>
-<li>
-<p><code>UCS4 UTF16Get(const UTF16*&amp; cp, bool swap = false)</code> the next character
-from
-one or two words, advancing cp</p>
-</li>
-<li>
-<p><code>int UTF16Len(const UTF16* cp, bool swap = false)</code> the words making up the
-next character</p>
-</li>
-<li>
-<p><code>void UTF16Put(UTF16*&amp; cp, UCS4 ch, bool swap = false)</code> store the
-character
-as UTF-16, advancing cp</p>
-</li>
+<li><code>int UTF16Len(UCS4)</code> - how many UTF-16 words needed.</li>
+<li><code>bool UTF16IsSurrogate(UTF16 ch)</code> - a surrogate of either kind.</li>
+<li><code>bool UTF16Is1st(UTF16 ch)</code> - a high surrogate.</li>
+<li><code>bool UTF16Is2nd(UTF16 ch)</code> - a low surrogate.</li>
+<li><code>UTF16 UCS4HighSurrogate(UCS4 ch)</code>, <code>UCS4LowSurrogate(UCS4 ch)</code> - the
+surrogate values for the character.</li>
+<li><code>UTF16 UTF16Swab(UTF16 x)</code> - swap the bytes of a word.</li>
+<li><code>UCS4 UTF16Get(const UTF16*&amp; cp, bool swap = false)</code> - the next character
+from one or two words, advancing cp.</li>
+<li><code>int UTF16Len(const UTF16* cp, bool swap = false)</code> - the words making up the
+next character.</li>
+<li><code>void UTF16Put(UTF16*&amp; cp, UCS4 ch, bool swap = false)</code> - store the
+character as UTF-16, advancing cp.</li>
 </ul>
+<p><code>UCS4_REPLACEMENT</code> is the character written where one is unknown, and
+<code>UCS4_NO_GLYPH</code> the UTF-8 sequence used to display it.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="array-with-slices-1"><a href="#array-with-slices-1" class="header">Array with slices</a></h1>
 <h2 id="array-with-slices"><a class="header" href="#array-with-slices">Array with slices</a></h2>
 <p><code>#include	&lt;array.h&gt;</code></p>
-<p>The Array<t> template creates a slice into an array of type T. New slices
+<p>The <code>Array&lt;T&gt;</code> template creates a slice into an array of type T. New slices
 (and copies) onto the same ArrayBody are inexpensive (using atomic
 reference-counting), but any attempt to modify a slice first creates a copy
 of the Body, leaving other slices unaffected. The ArrayBody itself is only
-accessible as a constant, and a new Array may be created over a static body.</t></p>
-<h3 id="the-api"><a class="header" href="#the-api">The API</a></h3>
-<pre><code>Array&lt;T&gt;	a;			// Empty
-a.push(x), a.append(x), a += x;	// Add at the end
-a.remove(i);			// Delete from i to the end
-a.remove(i, n);			// Delete n elements from i
-a.insert(i, other);		// Insert another array at i
-a[i], a.last(), a.length(), a.isEmpty()
-a.slice(at, len), a.head(n), a.tail(n), a.shorter(n)
-a.find(x), a.each(f), a.select(f), a.map(f), a.all/any/one(f)
-a.evacuate(), a.clear()
-</code></pre>
-<p><code>a[i]</code> and <code>a.last()</code> answer copies. <code>each</code>, <code>select</code>, <code>map</code> and the
-<code>all</code>/<code>any</code>/<code>one</code> predicates take a function and leave the array alone.</p>
+accessible as a constant, and a new Array may be created over a static body.</p>
+<h3 id="public-methods-1"><a class="header" href="#public-methods-1">Public methods</a></h3>
+<p>Defined in <a href="https://github.com/cjheath/strpp/blob/main/include/array.h">array.h</a>.</p>
+<p>Making one:</p>
+<ul>
+<li><code>Array()</code> - empty.</li>
+<li><code>Array(const Element data)</code> - an array holding that one element.</li>
+<li><code>Array(const Element* data, Index size, Index allocate = 0)</code> - copies <code>size</code>
+elements, with room for <code>allocate</code> more before it must grow.</li>
+<li><code>Array(const Array&amp;)</code>, <code>operator=</code> - share the body, so both are cheap.</li>
+<li><code>Array(Body*)</code> - a reference to a body that already exists, for statics.</li>
+</ul>
+<p>Reading:</p>
+<ul>
+<li><code>length()</code>, <code>isEmpty()</code>, <code>isShared()</code> - the elements in this slice, whether
+it has any, and whether another array shares the body.</li>
+<li><code>operator[](int)</code>, <code>elem(n)</code>, <code>last()</code> - copies of the elements.</li>
+<li><code>last_ref()</code>, <code>elem_ref(n)</code> - const references, without copying.</li>
+<li><code>asElements()</code> - a pointer to the first element of this slice.</li>
+<li><code>operator-&gt;()</code>, <code>operator*()</code>, <code>operator const Body&amp;()</code> - the body itself.</li>
+<li><code>compare(const Array&amp;)</code> and the comparison operators - element-wise.</li>
+<li><code>find(e)</code>, <code>rfind(e)</code>, <code>find(f)</code>, <code>rfind(f)</code> - the index of an element, by
+value or by a match function, or -1 if it is not there.</li>
+<li><code>detect(f)</code> - the index of the first element satisfying <code>f</code>, or -1.</li>
+<li><code>bsearch(f)</code> - binary search of a sorted array by comparator.</li>
+</ul>
+<p>Slicing, all O(1) and none of them copying:</p>
+<ul>
+<li><code>slice(at, len = -1)</code>, <code>head(n)</code>, <code>tail(n)</code>, <code>shorter(n)</code>, <code>drop(n)</code>.</li>
+</ul>
+<p>Changing, each taking a private copy first if the body is shared:</p>
+<ul>
+<li><code>push(e)</code>, <code>append(e)</code>, <code>append(Array)</code>, <code>operator+=(e)</code>, <code>operator+=(Array)</code>,
+<code>operator&lt;&lt;(e)</code> - add at the end.</li>
+<li><code>operator+</code> - concatenation, making a new array.</li>
+<li><code>insert(pos, Array)</code> - insert another array at <code>pos</code>.</li>
+<li><code>unshift(e)</code> - insert at the start; <code>shift()</code> removes from the start.</li>
+<li><code>pull()</code>, <code>last_mut()</code> - take the last element, or reach it to write.</li>
+<li><code>remove(at, len = -1)</code>, <code>delete_at(at)</code>, <code>delete_if(f)</code> - remove elements.</li>
+<li><code>set(n, e)</code>, <code>elem_mut(n)</code> - write an element, and reach one to write.</li>
+<li><code>reverse()</code> - reverse the elements of this slice.</li>
+<li><code>each(f)</code> - call <code>f</code> for every element, leaving the array alone.</li>
+<li><code>select(f)</code> - a new array of the elements that satisfy <code>f</code>.</li>
+<li><code>map(f)</code> - a new array of what <code>f</code> answers for each element.</li>
+<li><code>inject(start, f)</code> - fold the elements into an accumulator.</li>
+<li><code>all(f)</code>, <code>any(f)</code>, <code>one(f)</code> - whether all, any, or exactly one element
+satisfies <code>f</code>.</li>
+<li><code>evacuate()</code>, <code>clear()</code> - empty it, keeping the storage or giving it back.</li>
+<li><code>free_if_emptied()</code> - release the body if this empty slice is its only
+owner.</li>
+</ul>
+<p><code>each</code>, <code>select</code>, <code>map</code>, <code>inject</code> and the <code>all</code>/<code>any</code>/<code>one</code> predicates take a
+function and leave the array alone.</p>
 <h3 id="what-a-slice-costs"><a class="header" href="#what-a-slice-costs">What a slice costs</a></h3>
 <p>A slice holds a reference to the Body, so while any slice is outstanding the
 body is shared (<code>isShared()</code>), and the next mutation copies it. That is what
@@ -418,43 +520,95 @@ elements stay alive until the last reference goes.</p>
 <p>The StrVal class uses a specialisation of this template to provide its
 storage and reference counting.</p>
 <div style="break-before: page; page-break-before: always;"></div>
-<h1 id="variant-data-type-1"><a href="#variant-data-type-1" class="header">Variant data type</a></h1>
-<h2 id="variant-data-type"><a class="header" href="#variant-data-type">Variant Data Type</a></h2>
-<p><code>#include	&lt;variant.h&gt;</code></p>
-<p>The Variant class offers a type-safe way to manage numeric and StrVal types
-in a compact union, along with Array<strval>, Array<variant>, and a
-StrValkeyed COWMap to Variant. This allows building arbitrary data
-structures, which support asJSON() to render the whole structure as a
-string.</variant></strval></p>
-<p>A Variant is a type tag and a union holding one of</p>
-<pre><code>None, Integer, Long, LongLong, String (a StrRef),
-StrArray, VarArray, StrVarMap
+<h1 id="red-black-trees-the-rbtree-class-1"><a href="#red-black-trees-the-rbtree-class-1" class="header">Red-black trees: the RbTree class</a></h1>
+<h2 id="red-black-trees-the-rbtree-class"><a class="header" href="#red-black-trees-the-rbtree-class">Red-black trees: the RbTree class</a></h2>
+<p><code>#include	&lt;redblack.h&gt;</code></p>
+<p><code>RbTree&lt;K, V&gt;</code> is a map from a key to a value, one that keeps every older
+version of the map usable. Changing the map makes a new tree that shares
+almost all of its nodes with the old one: only the nodes along the path to
+the change are new. So a map can be copied and edited freely - one version
+per thread, one per parse, one kept as a snapshot - without the cost of
+copying it, and without disturbing the versions already held. An old version
+stays exactly as it was.</p>
+<p>This is the tree that CowMap is built on, and it can be used directly where
+the versions themselves are what you want to keep.</p>
+<h3 id="the-api"><a class="header" href="#the-api">The API</a></h3>
+<pre><code>using	Tree = RbTree&lt;StrVal, int&gt;;	// Any key and value types you have
+
+Tree::Link	root;			// The tree itself is just its root link
+
+Tree::insert(root, key, value);		// Add, or update the value of a key
+Tree::erase(root, key);			// Remove; nothing if the key is absent
+Tree::find(root, key);			// An Iter at the key, or end()
+Tree::begin(root), Tree::end();		// In-order iteration
+
+for (Tree::Iter it = Tree::begin(root); it != Tree::end(); ++it)
+	... (*it).first, (*it).second ...
 </code></pre>
-<p>A String holds a StrRef rather than a StrVal: it does not need the bookmark
-that makes StrVal’s scanning and indexing fast, and does not pay for it.</p>
-<p>A Variant is as large as its largest member plus the tag - 24 bytes where
-pointers are 8 bytes, and less where they are smaller. A parameter list of
-them is therefore compact, but it is not a fixed size: do not assume one.</p>
-<p>The three container types are reference-counted and copy-on-write, like
-StrVal and Array, so a Variant that holds one is cheap to copy - but <em>how</em>
-cheap differs, and the difference matters when a map is large:</p>
+<p>The iterator carries no parent pointer, because a shared node can have
+several “parents” across versions and no single one is well defined. It
+holds the ancestors reached by a left turn as an explicit path stack;
+<code>find</code> builds the same stack by a key-guided walk, so <code>++</code> works the same
+however the iterator was made. <code>(*it).first</code>/<code>(*it).second</code> and
+<code>it-&gt;first</code>/<code>it-&gt;second</code> read as std::map’s iterator does.</p>
+<p>A key that is already present keeps its own key and takes the new value, and
+erasing a key that is absent does nothing - map-style expectations, both.</p>
+<h3 id="public-methods-2"><a class="header" href="#public-methods-2">Public methods</a></h3>
+<p>Defined in <a href="https://github.com/cjheath/strpp/blob/main/include/redblack.h">redblack.h</a>.</p>
 <ul>
-<li><code>StrArray</code> and <code>VarArray</code> copies share the array body, so a copy is O(1)
-until either copy is written to.</li>
-<li><code>StrVarMap</code> is backed by a pure functional (path-copying) red-black tree,
-so <strong>copying one copies only the root</strong> - a copy is O(1) however many
-entries it holds, and a later change replaces only the nodes on the path
-to it, leaving every other node shared. See <a href="#cowmap-1">cowmap.md</a>.</li>
+<li><code>RbTree&lt;K,V&gt;::insert(Link&amp; root, const K&amp; key, const V&amp; val)</code> - adds the
+key, or updates the value if the key is already there.</li>
+<li><code>RbTree&lt;K,V&gt;::erase(Link&amp; root, const K&amp; key)</code> - removes the key; nothing
+happens if it is absent.</li>
+<li><code>RbTree&lt;K,V&gt;::find(Link root, const K&amp; key)</code> - an Iter at the key, or
+<code>end()</code> if it is not in the tree.</li>
+<li><code>RbTree&lt;K,V&gt;::begin(Link root)</code> - an Iter at the smallest key.</li>
+<li><code>RbTree&lt;K,V&gt;::end()</code> - the past-the-end Iter, and what <code>find</code> answers when
+the key is missing.</li>
+<li><code>RbTree&lt;K,V&gt;::Iter::locate(Link root, const K&amp; key)</code> - an iterator built by
+a key-guided walk; what <code>find</code> returns.</li>
+<li><code>RbTree&lt;K,V&gt;::Iter::current()</code> - the node the iterator is on, or null at
+the end.</li>
+<li><code>RbTree&lt;K,V&gt;::Iter::operator++</code> - step to the next key, in order.</li>
+<li><code>RbTree&lt;K,V&gt;::Iter::operator*</code>, <code>operator-&gt;</code> - the key and value at the
+iterator, as <code>first</code> and <code>second</code>.</li>
+<li><code>RbNode&lt;K,V&gt;::key</code>, <code>.value</code> - the pair the node holds.</li>
+<li><code>RbNode&lt;K,V&gt;::left</code>, <code>.right</code> - the child links, each carrying its colour
+in its tag.</li>
+<li><code>RbNode&lt;K,V&gt;::live_count</code> - how many nodes are alive, for tests and
+diagnostics.</li>
 </ul>
-<h3 id="variantarray"><a class="header" href="#variantarray">VariantArray</a></h3>
-<p><code>VariantArray</code> is <code>Array&lt;Variant&gt;</code>: a type-safe array of values of mixed
-type, each carrying its own type. It is what the error system carries
-message parameters in - see <a href="#the-error-buffer-1">errbuf.md</a>.</p>
-<p>A value is read back by asking for the type it should be, which coerces
-where the coercion loses nothing (an integer to its digits, say) and
-otherwise reports the mismatch. That is what makes a parameter list typesafe
-where printf-style arguments are not: printf, handed the wrong argument,
-reinterprets its bytes.</p>
+<h3 id="threading-assumptions"><a class="header" href="#threading-assumptions">Threading assumptions</a></h3>
+<p>A single reference is only ever visible to one thread at a time, and sharing
+across threads always goes through copying it, so a reference count of 1
+means that no one else, anywhere, can be observing that node. On that basis
+a node is mutated in place while its count is 1, and cloned first when it is
+not.</p>
+<p>Tested in test/redblack_test.cpp (the structural invariants, differential
+testing against std::map, snapshot persistence and sharing, and leak
+counting by <code>RbNode::live_count</code>, which counts the nodes alive).</p>
+<h2 id="technical-details"><a class="header" href="#technical-details">Technical details</a></h2>
+<h3 id="algorithm"><a class="header" href="#algorithm">Algorithm</a></h3>
+<p>This is a <em>persistent</em> (path-copying) left-leaning red-black tree.
+Persistent means an edit yields a new version and leaves the old one intact;
+path-copying means that only the O(log n) nodes on the path from the root to
+the change are replaced, every other node being shared. Nodes are
+reference-counted, so a node that is uniquely owned is mutated in place - an
+unshared tree costs no more than an ordinary red-black tree, allocating only
+the node being inserted - while a node shared with another version is copied
+before it is modified.</p>
+<p>The algorithm is left-leaning red-black (Sedgewick and Wayne, as used in
+“Algorithms, 4th Edition”), which collapses red-black deletion’s usual many
+rebalancing cases into three primitives - rotateLeft, rotateRight and
+flipColors - composed into moveRedLeft, moveRedRight and balance. The header
+gives the original pseudocode of each above its translation.</p>
+<h3 id="colours-belong-to-the-links-not-the-nodes"><a class="header" href="#colours-belong-to-the-links-not-the-nodes">Colours belong to the links, not the nodes</a></h3>
+<p>A node’s colour is a property of the edge that reaches it, packed into the
+spare low-order bits of the child pointer (see taggedref.h) at no extra
+space cost. It has to be the edge rather than the node: a shared node can be
+reached by a red link from one version and a black link from another at the
+same time, which happens as soon as a rotation copies a parent but reuses
+its child.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="cowmap-1"><a href="#cowmap-1" class="header">COWMap</a></h1>
 <h2 id="cowmap"><a class="header" href="#cowmap">COWMap</a></h2>
@@ -464,25 +618,53 @@ semantics, like StrVal and Array: copying a CowMap is cheap (O(1), sharing
 the same underlying tree with the original), and modifying it transparently
 takes a private copy first if it’s shared with any other reference.</p>
 <p>Internally, CowMap is backed by a persistent (path-copying) red-black tree
-(see redblack.h), not the STL’s std::map. This is what makes copying O(1): a
-copy just shares the tree’s root; a subsequent mutation on either copy only
-replaces the O(log n) nodes on the path to the change, leaving every other
-node - and so every other reference still holding an older version
-completely untouched. Node colour is packed into the spare low bits of each
-child pointer (see taggedref.h) at no extra memory cost. A node that is
-uniquely owned is mutated in place; a shared node is copied first - safe
-because a single reference is confined to one thread, and sharing a map
-across threads always goes through copying it.</p>
-<p><code>operator[]</code> and <code>keys()</code>/<code>values()</code> return copies of the value/keys;
-<code>find()</code> returns an iterator instead, giving read-only access (<code>-&gt;first</code>/
-<code>-&gt;second</code>) without copying. <code>put()</code>/<code>insert()</code>/<code>remove()</code>/<code>clear()</code> mutate
-the map; <code>select()</code>/<code>map()</code>/<code>inject()</code>/<code>each()</code>/<code>all()</code>/<code>any()</code>/<code>one()</code> are
-read-only, functional-style traversal helpers.</p>
-<p>Read the header file for the full API.</p>
-<p>Tested in test/cowmap_test.cpp (the public CowMap API, including
-copy-onwrite behaviour) and test/redblack_test.cpp (the underlying tree:
-structural invariants, differential testing against std::map, persistence/
-sharing, and leak checking).</p>
+(see <a href="#red-black-trees-the-rbtree-class-1">redblack.md</a>), not the STL’s std::map. This is what
+makes copying O(1): a copy just shares the tree’s root; a subsequent
+mutation on either copy only replaces the O(log n) nodes on the path to the
+change, leaving every other node - and so every other reference still
+holding an older version completely untouched. Node colour is packed into
+the spare low bits of each child pointer (see taggedref.h) at no extra
+memory cost. A node that is uniquely owned is mutated in place; a shared
+node is copied first, which is safe because our rules require that a single
+reference is confined to one thread; sharing a map across threads should
+always copy the reference.</p>
+<p><code>operator[]</code> answers a copy of the value; <code>find()</code> returns an iterator
+instead, giving read-only access (<code>-&gt;first</code>/<code>-&gt;second</code>) without copying.
+<code>put()</code>/<code>insert()</code>/<code>remove()</code>/<code>clear()</code> mutate the map, unsharing first; the
+rest are read-only, functional-style traversal helpers.</p>
+<h3 id="public-methods-3"><a class="header" href="#public-methods-3">Public methods</a></h3>
+<p>Defined in <a href="https://github.com/cjheath/strpp/blob/main/include/cowmap.h">cowmap.h</a>.</p>
+<p>Making one:</p>
+<ul>
+<li><code>CowMap()</code> - empty.</li>
+<li><code>CowMap(const Key* keys, const Value* values, int size)</code> - from <code>size</code>
+parallel key and value arrays.</li>
+<li><code>CowMap(const CowMap&amp;)</code>, <code>operator=</code> - share the tree’s root, which is O(1)
+however many entries the map holds.</li>
+</ul>
+<p>Reading:</p>
+<ul>
+<li><code>operator[](const Key&amp;)</code> - the value stored for the key, or a
+default-constructed one when it is absent. It does not insert.</li>
+<li><code>contains(const Key&amp;)</code> - whether the key is in the map.</li>
+<li><code>find(const Key&amp;)</code> - an iterator at the entry, to compare with <code>end()</code>.</li>
+<li><code>begin()</code>, <code>end()</code> - the entries, in key order.</li>
+<li><code>size()</code> - how many entries there are.</li>
+<li><code>values()</code> - an array of the values, in key order.</li>
+<li><code>each(f)</code> - call <code>f</code> with every key and value.</li>
+<li><code>select(f)</code> - a new map of the entries that satisfy <code>f</code>.</li>
+<li><code>inject(start, f)</code> - fold the entries into an accumulator.</li>
+<li><code>all(f)</code>, <code>any(f)</code>, <code>one(f)</code> - whether all, any, or exactly one entry
+satisfies <code>f</code>.</li>
+</ul>
+<p>Changing, each unsharing first so that no other map sees the change:</p>
+<ul>
+<li><code>insert(const Key, const Value)</code> - insert the pair.</li>
+<li><code>remove(const Key&amp;)</code> - erase the entry.</li>
+<li><code>put(const Key&amp;, Value)</code> - erase any entry for the key, then insert the new
+value, and answer the key.</li>
+<li><code>clear()</code> - empty the map.</li>
+</ul>
 <p>Example:</p>
 <pre><code>#include	&lt;cowmap.h&gt;
 
@@ -494,8 +676,128 @@ CowMap&lt;int, StrVal&gt;	snapshot(ages);	// O(1): shares the same tree
 ages.insert("Carol", 40);		// Only ages sees "Carol"; snapshot is unaffected
 </code></pre>
 <div style="break-before: page; page-break-before: always;"></div>
-<h1 id="error-numbers-the-errnum-type-1"><a href="#error-numbers-the-errnum-type-1" class="header">Error numbers: the ErrNum type</a></h1>
-<h2 id="error-numbers-the-errnum-type"><a class="header" href="#error-numbers-the-errnum-type">Error numbers: the ErrNum type</a></h2>
+<h1 id="variant-data-type-1"><a href="#variant-data-type-1" class="header">Variant data type</a></h1>
+<h2 id="variant-data-type"><a class="header" href="#variant-data-type">Variant Data Type</a></h2>
+<p><code>#include	&lt;variant.h&gt;</code></p>
+<p>The Variant class offers a type-safe way to manage atomic (numeric) and
+composite types in a compact union, including <code>StrVal</code>, <code>Array&lt;StrVal&gt;</code>,
+<code>Array&lt;Variant&gt;</code>, and a StrVal-keyed COWMap to Variant. You can build
+data structures of any depth, and even convert to a single JSON StrVal
+using as_json().</p>
+<p>A Variant is a type tag and a union holding one of</p>
+<pre><code>None,
+Integer,
+Long,
+LongLong,
+String (a StrRef),
+StrArray,
+VarArray,
+StrVarMap
+</code></pre>
+<p>String means a compact StrRef rather than a StrVal: it does not need the
+bookmark that makes StrVal’s scanning and indexing fast, and does not pay
+for it.</p>
+<p>This header also provides <code>VariantArray</code>, which is just <code>Array&lt;Variant&gt;</code>,
+and <code>StrVariantMap</code>, which is a <code>CowMap&lt;StrVal, Variant&gt;</code> used by StrVarMap.
+The three container types are reference-counted and copy-on-write, like
+StrVal and Array, so all Variants are cheap to copy:</p>
+<ul>
+<li><code>StrVal</code> is just the reference to a string body,</li>
+<li><code>StrArray</code> and <code>VarArray</code> copies share the array body, so a copy is O(1),</li>
+<li><code>StrVarMap</code> is backed by a CowMap (pure functional red-black tree),
+so copying is O(1) however many entries it holds. See <a href="#cowmap-1">cowmap.md</a>.</li>
+</ul>
+<p>A Variant is as large as its largest member plus the tag - 24 bytes on
+64-bit machines, and less where pointers are smaller. A VariantArray is
+therefore compact and fairly efficient to manipulate.</p>
+<h3 id="variantarray"><a class="header" href="#variantarray">VariantArray</a></h3>
+<p><code>VariantArray</code> is <code>Array&lt;Variant&gt;</code>: a type-safe array of values of mixed
+type, each carrying its own type.  Ask for the type before reading the
+value, to avoid type coercions or assertion failures.</p>
+<p>Error message parameters are carried this way, for example.  That is what
+makes a parameter list typesafe where printf-style arguments are not:
+printf, handed the wrong argument, reinterprets its bytes.</p>
+<h3 id="public-methods-4"><a class="header" href="#public-methods-4">Public methods</a></h3>
+<p>Defined in <a href="https://github.com/cjheath/strpp/blob/main/include/variant.h">variant.h</a>.</p>
+<p>Making one:</p>
+<ul>
+<li><code>Variant()</code> - nothing at all, of type <code>None</code>.</li>
+<li><code>Variant(int)</code>, <code>Variant(long)</code>, <code>Variant(long long)</code> - a number.</li>
+<li><code>Variant(StrVal)</code>, <code>Variant(const char*)</code> - a string.</li>
+<li><code>Variant(StringArray)</code>, <code>Variant(StrVal* v, StringArray::Index count)</code> - an
+array of strings.</li>
+<li><code>Variant(VariantArray)</code>, <code>Variant(Variant* v, VariantArray::Index count)</code> -
+an array of Variants.</li>
+<li><code>Variant(StrVal* keys, Variant* values, StringArray::Index count)</code>,
+<code>Variant(StrVariantMap)</code> - a string-keyed map to Variant.</li>
+<li><code>Variant(VariantType t)</code> - an empty Variant of the given type.</li>
+<li><code>Variant(const Variant&amp;)</code>, <code>operator=</code> - a copy, discarding what the target
+held before.</li>
+</ul>
+<p>Reading:</p>
+<ul>
+<li><code>type()</code> - which kind of value is held.</li>
+<li><code>is_null()</code> - true when it holds nothing.</li>
+<li><code>type_name()</code> - the name of the held type, for messages about it.</li>
+<li><code>as_int()</code>, <code>as_long()</code>, <code>as_longlong()</code> - the number held. The mutable
+forms coerce to that type first, and assert when the coercion would lose
+data.</li>
+<li><code>as_strval()</code>, <code>as_string_array()</code>, <code>as_variant_array()</code>, <code>as_variant_map()</code>
+<ul>
+<li>the string or container held.</li>
+</ul>
+</li>
+<li><code>as_json(int indent = -1)</code> - the value as JSON. <code>-1</code> adds single spaces,
+<code>-2</code> is maximally compact, and <code>n &gt;= 0</code> indents two spaces per level from
+<code>n</code>.</li>
+</ul>
+<p>Building:</p>
+<ul>
+<li><code>operator&lt;&lt;(const Variant&amp; n)</code> - a new <code>VariantArray</code> of this Variant
+followed by <code>n</code>, so arrays can be built by chaining.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="error-management-1"><a href="#error-management-1" class="header">Error Management</a></h1>
+<h2 id="error-management"><a class="header" href="#error-management">Error Management</a></h2>
+<p>User-focussed management of errors requires that the user is provided with
+all relevant context to an error, not just a simple error code with a
+generic message. Where one error cascades into another that can provide more
+context, or a path to recovery, that must be provided, with neither error
+report masking the others. Failure to properly report error context and a
+math to making progress has been a major cause of inconvenience to users
+throughout the history of the software industry.</p>
+<p>This level of error management is tedious to implement with a bare Unix
+errno or a Windows HRESULT. If a “file not found” message must be emitted,
+the message must say what file or directory component was the cause of the
+search path failure. If “access is denied”, it must say what access was
+requested, to what object, and on what basis the request was denied.</p>
+<p>An error here carries its parameters in full, preferably with a structured
+presentation of the problem, reason and solution - what went wrong, why it
+went wrong, and what can be done about it. Cascading errors build a
+tombstone from which the user can discern the original cause as well as the
+end result, and is given every assistance in fixing it.  They are never
+left guessing, and that is a design goal for the whole system rather than a
+property of any one part of it.</p>
+<p>The second goal is to make it awkward for a programmer to return a bare error
+code. A code by itself tells the reader nothing, and an error is worth
+reporting only with the parameters that allow it to be avoided in future.
+Since the call that records the error is also the call that produces the
+value returned, the ordinary way to return an error is the way that records
+it. Awkward rather than impossible: a very few places justify returning the
+code alone, so it has to stay possible; what the shape must avoid is the
+bare code being the easy thing to write.</p>
+<p>None of this is justification for an expensive implementation, because it
+may have to run on very limited hardware. An error which can be recovered is
+never formatted into text, only the minimum work is done. The caller who
+receives an error code can ignore the presence of message text and
+parameters, and just act on the error code, or they can recover by deleting
+the reported error.</p>
+<p>So reporting a failure takes two things: an <code>ErrNum</code> names what went wrong,
+and an entry in a per-thread buffer accumulates what has been reported but
+not yet recovered or delivered as a message. The error number is compact,
+just a 32-bit compile-time constant, so error handling can use <code>switch</code>
+cases.</p>
+<h3 id="error-numbers-the-errnum-type"><a class="header" href="#error-numbers-the-errnum-type">Error numbers: the ErrNum type</a></h3>
 <p><code>#include	&lt;error.h&gt;</code></p>
 <p>An ErrNum is a 32-bit value naming a message: a set number, and a number
 within that set. It subsumes both errno and Microsoft’s HRESULT, so one
@@ -535,21 +837,57 @@ manual or a customer’s report keeps its meaning over the life of the
 software.</p>
 <p><code>is_failure</code> and <code>is_info</code> are the intended API but their names are not yet
 settled.</p>
-<p>Reporting an error, and reading back what has been reported, is the error
-buffer’s job: see <a href="#the-error-buffer-1">errbuf.md</a>. The <code>Error</code> function declared
-there is what the generated reporting functions call.</p>
-<div style="break-before: page; page-break-before: always;"></div>
-<h1 id="the-error-buffer-1"><a href="#the-error-buffer-1" class="header">The error buffer</a></h1>
-<h2 id="the-error-buffer"><a class="header" href="#the-error-buffer">The error buffer</a></h2>
-<p><code>#include &lt;errbuf.h&gt;</code></p>
+<h4 id="public-methods-5"><a class="header" href="#public-methods-5">Public methods</a></h4>
+<p>Defined in <a href="https://github.com/cjheath/strpp/blob/main/include/error.h">error.h</a>.</p>
+<ul>
+<li><code>ErrNum()</code> - the zero value, which is success.</li>
+<li><code>ErrNum(int set, int msg)</code> - a failure, from a message set number and a
+message number within it.</li>
+<li><code>ErrNum(int32_t system)</code> - a system’s own number, errno or HRESULT, wrapped
+exactly as it stands.</li>
+<li><code>set()</code>, <code>msg()</code> - the message set number, and the number within that set.</li>
+<li><code>is_failure()</code>, <code>is_info()</code> - whether the failure bit or the information bit
+is set.</li>
+<li><code>operator int32_t()</code> - the raw number, which is what lets the values be used
+in a switch.</li>
+<li><code>operator==</code>, <code>operator!=</code>, <code>operator&lt;</code>, <code>operator&gt;</code> - compared by number,
+against another ErrNum or against an integer.</li>
+</ul>
+<p>The bits it is built from are public too: <code>ERR_FLAG</code> marks a failure,
+<code>ERR_INFO</code> information or a warning, <code>ERR_CUST</code> is set on ours so that no
+Microsoft subsystem can collide with them, and <code>ERR_RSVD</code> must stay clear.</p>
+<h3 id="the-error-buffer"><a class="header" href="#the-error-buffer">The error buffer</a></h3>
+<p><code>#include	&lt;errbuf.h&gt;</code></p>
 <p>Every thread has one error buffer, holding the messages it has reported and
 not yet dealt with. Nothing is formatted and nothing is decided about
 language, style or severity when a message is reported: the buffer holds the
 message number, its default text and its parameters, and whoever displays
 the message decides all of that. That may be another thread or another
 process entirely.</p>
-<p>The design this implements is in <code>Notes/ErrorManagement.md</code>.</p>
-<h3 id="reporting"><a class="header" href="#reporting">Reporting</a></h3>
+<h4 id="public-methods-1-1"><a class="header" href="#public-methods-1-1">Public methods</a></h4>
+<p>Defined in <a href="https://github.com/cjheath/strpp/blob/main/include/errbuf.h">errbuf.h</a>.</p>
+<ul>
+<li><code>count()</code> - the messages it holds, reported and not yet dealt with.</li>
+<li><code>checkpoint()</code> - the number the next report would take, which is what you
+keep to roll back to.</li>
+<li><code>error(MsgIndex n)</code> - the number of the nth message, and nothing else. What
+recovery usually wants.</li>
+<li><code>message(MsgIndex n)</code> - the nth message: its number, default text and
+parameters.</li>
+<li><code>report(ErrNum err, const char* default_text, VariantArray params)</code> - append
+a message and answer its sequence number. A zero ErrNum reports nothing.</li>
+<li><code>rollback(MsgSequence which)</code> - discard everything reported since that
+checkpoint, the parameters going with it.</li>
+<li><code>delivered()</code> - retire the oldest message, once you have delivered it.</li>
+<li><code>clear()</code> - drop everything at once, keeping the storage.</li>
+<li><code>Error(ErrNum err, const char* default_text, VariantArray params)</code> - the
+free function the generated reporting functions call: it reports into this
+thread’s buffer and answers the number, so reporting and returning are one
+act.</li>
+<li><code>error_buffer()</code> - the free function that answers this thread’s buffer,
+making it on first use.</li>
+</ul>
+<h4 id="reporting"><a class="header" href="#reporting">Reporting</a></h4>
 <p>Generated code calls <code>Error</code> through a function per message:</p>
 <pre><code>ErrNum	Error(ErrNum err, const char* default_text, VariantArray params);
 </code></pre>
@@ -560,7 +898,7 @@ reporting an error and returning it are one act:</p>
 <p>The generated functions gather their arguments and call <code>Error</code>; there is
 one of those per message, and one <code>Error</code> for all of them. A zero <code>ErrNum</code>
 reports nothing.</p>
-<h3 id="reading"><a class="header" href="#reading">Reading</a></h3>
+<h4 id="reading"><a class="header" href="#reading">Reading</a></h4>
 <pre><code>MsgIndex	count() const;			// Messages held
 MsgSequence	checkpoint() const;		// The next number a report would take
 ErrNum		error(MsgIndex n) const;	// The number alone
@@ -588,7 +926,7 @@ the mistake stops rather than quietly leaking. In practice this means the
 }
 buffer-&gt;delivered();
 </code></pre>
-<h3 id="recovering"><a class="header" href="#recovering">Recovering</a></h3>
+<h4 id="recovering"><a class="header" href="#recovering">Recovering</a></h4>
 <pre><code>MsgSequence	mark = buffer-&gt;checkpoint();
 ...call something that may report...
 if (!wanted)
@@ -600,7 +938,7 @@ with them, so what remains stays contiguous.</p>
 <p>Messages are consecutively numbered: a rollback gives its numbers back, and
 the next report takes them again. A number is therefore only unique among
 the messages currently held, which is all a checkpoint needs to be.</p>
-<h3 id="delivering"><a class="header" href="#delivering">Delivering</a></h3>
+<h4 id="delivering"><a class="header" href="#delivering">Delivering</a></h4>
 <pre><code>while (buffer-&gt;count() &gt; 0)
 {
 	...read message(0) and let it go...
@@ -614,7 +952,7 @@ That is what makes the steady state free: <strong>an action that reports and
 delivers the same number of messages as the last one allocates nothing at
 all.</strong> <code>clear()</code> drops everything at once without delivering, retiring the
 numbers.</p>
-<h3 id="what-a-reporting-function-should-do"><a class="header" href="#what-a-reporting-function-should-do">What a reporting function should do</a></h3>
+<h4 id="what-a-reporting-function-should-do"><a class="header" href="#what-a-reporting-function-should-do">What a reporting function should do</a></h4>
 <p>Build the parameters in a scratch array that is emptied between reports
 rather than rebuilt. A fresh <code>VariantArray</code> per report costs two
 allocations, which is the cost this shape exists to avoid:</p>
@@ -627,7 +965,7 @@ params.append(Variant("context"));
 return Error(SomeError, "the default text", params);
 </code></pre>
 <p><code>evacuate()</code> is what keeps the storage; <code>clear()</code> would give it back.</p>
-<h3 id="threads-and-other-processes"><a class="header" href="#threads-and-other-processes">Threads and other processes</a></h3>
+<h4 id="threads-and-other-processes"><a class="header" href="#threads-and-other-processes">Threads and other processes</a></h4>
 <p>There is one buffer per thread, reached through a thread-local slot, so two
 threads never see each other’s messages. A caller running on one thread that
 completes work for another - or a server answering a client - packs the
@@ -635,7 +973,7 @@ unformatted messages (number, default text and parameters) into whatever it
 already speaks and ships them. The receiving context is the one that knows
 the reader’s language and the room there is to display in, so it is the one
 that formats.</p>
-<h3 id="not-implemented-yet"><a class="header" href="#not-implemented-yet">Not implemented yet</a></h3>
+<h4 id="not-implemented-yet"><a class="header" href="#not-implemented-yet">Not implemented yet</a></h4>
 <ul>
 <li><strong>Formatting.</strong> What the substitution points look like, and what replaces
 printf-style directives, is not settled.</li>
@@ -648,8 +986,70 @@ it.</li>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="threads-locks-and-thread-local-storage-1"><a href="#threads-locks-and-thread-local-storage-1" class="header">Threads, locks and thread-local storage</a></h1>
 <h2 id="threads-locks-and-thread-local-storage"><a class="header" href="#threads-locks-and-thread-local-storage">Threads, locks and thread-local storage</a></h2>
+<p>This is a cross-platform thread API, allowing multi-threaded code to be
+written once for Posix Threads, Windows, or FreeRTOS systems, with efficient
+synchronisation primitives and thread-local storage.</p>
 <p><code>#include	&lt;thread.h&gt;</code>, which brings in <code>lockfree.h</code> (the Latch),
 <code>condition.h</code> (the Condition) and <code>thread_local.h</code> (ThreadSlot, ThreadLocal).</p>
+<h3 id="locks"><a class="header" href="#locks">Locks</a></h3>
+<p>A <code>Latch</code> is a lock, held by one thread at a time. <code>enter()</code> waits for it,
+<code>probe()</code> takes it only if it is free, <code>holding()</code> asks whether this thread
+has it, and <code>leave()</code> releases it. Under <code>NO_THREAD</code> there is one thread, so
+all of these are no-ops and <code>holding()</code> is always true.</p>
+<p>A <code>Condition</code> lets a thread wait until another signals it, with an optional
+timeout. Under <code>NO_THREAD</code> nothing waits, so every method is a no-op.</p>
+<h3 id="public-methods-6"><a class="header" href="#public-methods-6">Public methods</a></h3>
+<p><code>Thread</code> and <code>ThreadParams</code>, in
+<a href="https://github.com/cjheath/strpp/blob/main/include/thread.h">thread.h</a>:</p>
+<ul>
+<li><code>Thread(const ThreadParams* params = 0)</code> - a thread object, not yet started.
+<code>ThreadParams::stackBytes</code> asks for a stack size, 0 taking the platform’s
+default.</li>
+<li><code>run()</code> - virtual, and yours to override. The thread’s body, whose return
+value is its exit code.</li>
+<li><code>resume()</code>, <code>suspend()</code> - start the thread, and suspend or resume it.</li>
+<li><code>join()</code> - wait for the thread to end. Not from the thread itself.</li>
+<li><code>id()</code> - this thread’s platform identifier.</li>
+<li><code>exit(int)</code> - end the current thread.</li>
+<li><code>static yield(unsigned long milliseconds = 0)</code> - give up the CPU, sleeping
+for that long where the platform can.</li>
+<li><code>static joinAny()</code> - wait until one of the registered threads has ended, and
+answer it; 0 if there are none.</li>
+<li><code>static currentId()</code>, <code>static current()</code> - the calling thread, by identifier
+or by pointer.</li>
+<li><code>static currentProcessId()</code> - the process the calling thread is in, or 0
+where the platform has no such notion.</li>
+<li><code>static main()</code> - the main thread.</li>
+</ul>
+<p><code>Latch</code>, in
+<a href="https://github.com/cjheath/strpp/blob/main/include/lockfree.h">lockfree.h</a>:</p>
+<ul>
+<li><code>enter()</code> - wait for the latch, then hold it.</li>
+<li><code>probe()</code> - take the latch if it is free, without waiting.</li>
+<li><code>holding()</code> - whether the calling thread holds it.</li>
+<li><code>leave()</code> - release it.</li>
+</ul>
+<p><code>Condition</code>, in
+<a href="https://github.com/cjheath/strpp/blob/main/include/condition.h">condition.h</a>:</p>
+<ul>
+<li><code>wait(Latch* = 0)</code> - sleep until signalled, releasing the latch while it
+waits if one is given.</li>
+<li><code>wait(long&amp; delay_ms, Latch* = 0)</code> - the same, giving up after that many
+milliseconds.</li>
+<li><code>signal()</code>, <code>broadcast()</code> - wake one thread that is waiting, or all of them.</li>
+<li><code>ok()</code> - whether the underlying primitive was made.</li>
+<li><code>waiters()</code>, where the model offers it - how many threads are waiting.</li>
+</ul>
+<p><code>ThreadLocal&lt;T&gt;</code> and <code>ThreadSlot</code>, in
+<a href="https://github.com/cjheath/strpp/blob/main/include/thread_local.h">thread_local.h</a>:</p>
+<ul>
+<li><code>ThreadLocal&lt;T&gt;::get()</code> - this thread’s object, made on first use.</li>
+<li><code>ThreadLocal&lt;T&gt;::peek()</code> - this thread’s object, if it already has one, and
+null otherwise.</li>
+<li><code>ThreadLocal&lt;T&gt;::clear()</code> - destroy this thread’s object, if it has one.</li>
+<li><code>ThreadSlot::get()</code>, <code>ThreadSlot::set(void*)</code> - this thread’s one <code>void*</code> in
+the slot.</li>
+</ul>
 <h3 id="choosing-a-threading-model"><a class="header" href="#choosing-a-threading-model">Choosing a threading model</a></h3>
 <p>Exactly one must be defined, or the build stops with a single error in
 <code>thread.h</code>:</p>
@@ -695,43 +1095,6 @@ but not on FreeRTOS, where it needs toolchain support, so it could not cover
 every model this library builds for.</p>
 <p>Under FreeRTOS, <code>configNUM_THREAD_LOCAL_STORAGE_POINTERS</code> must be raised
 from its default of 0 to at least <code>THREAD_LOCAL_MAX_SLOTS</code>.</p>
-<h3 id="locks"><a class="header" href="#locks">Locks</a></h3>
-<p>A <code>Latch</code> is a lock, held by one thread at a time. <code>enter()</code> waits for it,
-<code>probe()</code> takes it only if it is free, <code>holding()</code> asks whether this thread
-has it, and <code>leave()</code> releases it. Under <code>NO_THREAD</code> there is one thread, so
-all of these are no-ops and <code>holding()</code> is always true.</p>
-<p>A <code>Condition</code> lets a thread wait until another signals it, with an optional
-timeout. Under <code>NO_THREAD</code> nothing waits, so every method is a no-op.</p>
-<div style="break-before: page; page-break-before: always;"></div>
-<h1 id="peg-parsing-1"><a href="#peg-parsing-1" class="header">PEG parsing</a></h1>
-<h2 id="peg-parsing"><a class="header" href="#peg-parsing">PEG parsing</a></h2>
-<p><code>#include	&lt;peg.h&gt;</code></p>
-<pre> template&lt;typename Source&gt; class PegDefaultMatch;
-template&lt;typename Match&gt; class PegContextNoCapture;
-template&lt;typename Source, typename Match, typename Context&gt; class Peg;
-</pre>
-
-<p>The Peg parser templates make use of Pegexp to provide a powerful PEG
-parsing engine for arbitrary grammars. No memoization is performed, so a
-badly constructed grammar can cause long runtimes. Peg uses a new Context
-for each nested call to a Pegexp. The default Context detects left recursion
-and reports failure.</p>
-<p>The grammar is expressed using a compact in-memory table. No executable code
-needs to be generated. No heap memory allocation is required during
-execution (and minimal stack), unless you use a Context that saves text
-captures, builds Abstract Syntax Trees, or records failure tokens and
-locations.</p>
-<p>The preferred way to use this is to compile a grammar expressed in the
-BNFlike language <a href="https://github.com/cjheath/px">Px</a>, which (will) emit C++
-data definitions for the parser engine to interpret.</p>
-<p>Like the Pegexp template, Peg&lt;&gt; processes data from a Source, which may be
-a stream.</p>
-<p>You should define a Context which implements whatever result capture you
-require. Context should have a nested Context::Rule type, which can be
-refined where necessary.</p>
-<p>The <a href="../test/peg_test.cpp">Peg parser</a> for
-<a href="https://github.com/cjheath/px">Px</a> shows how to generate an AST from
-captures.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="pegexp"><a href="#pegexp" class="header">Pegexp</a></h1>
 <h2 id="prefix-regular-expression-pattern-matching"><a class="header" href="#prefix-regular-expression-pattern-matching">Prefix Regular Expression pattern matching</a></h2>
@@ -826,9 +1189,129 @@ processing required is that when any copy of a Source is made, it must be
 possible to proceed from that position in the stream. When a Source is
 deleted, no further access will be required to data from that position
 unless an older copy still exists.</p>
-<p>You can subclass <code>Pegexp&lt;&gt;</code> to override <code>match_extended</code> and
-<code>skip_extended</code> to handle special command characters.</p>
-<p>Read the header file for more details.</p>
+<h3 id="public-methods-7"><a class="header" href="#public-methods-7">Public methods</a></h3>
+<p>Defined in <a href="https://github.com/cjheath/strpp/blob/main/include/pegexp.h">pegexp.h</a>.</p>
+<p><code>Pegexp</code>:</p>
+<ul>
+<li><code>Pegexp(PatternP pattern)</code> - a matcher over the 8-bit pattern text.</li>
+<li><code>match(Source&amp; source, Context* context)</code> - match at or after the source’s
+position, advance it to the end of the match, and answer the Match.</li>
+<li><code>match_here(Source&amp; source, Context* context)</code> - match at exactly that
+position, without scanning forward for somewhere the pattern does fit.</li>
+<li><code>pattern</code> - the pattern text it was built from.</li>
+<li><code>special</code> - the characters that must be backslash-escaped to be literal.</li>
+</ul>
+<p>A subclass can override <code>match_extended</code> and <code>skip_extended</code> to give a meaning
+of its own to the extension characters listed in the table above.</p>
+<p><code>PegexpPointerSource</code>, the Source to model yours on:</p>
+<ul>
+<li><code>PegexpPointerSource(const DataPtr cp)</code> - a Source at the start of the data.</li>
+<li><code>is_null()</code> - whether there is no data at all, which is how a null Source is
+told from one that has run out.</li>
+<li><code>get_byte()</code>, <code>get_char()</code> - the next byte, or the next character as a UCS4,
+moving forward.</li>
+<li><code>at_eof()</code>, <code>at_bol()</code> - whether the data has run out, and whether this is
+the beginning of a line.</li>
+<li><code>same(other)</code> - whether another copy is at the same position.</li>
+<li><code>bytes_from(origin)</code> - the bytes between two positions.</li>
+<li><code>current_byte()</code>, <code>current_line()</code>, <code>current_column()</code> - where it is now, for
+error reporting.</li>
+<li><code>string_to(other)</code> - the text between two positions, as a StrVal.</li>
+</ul>
+<p><code>PegexpDefaultContext</code>, the Context to model yours on:</p>
+<ul>
+<li><code>capture(name, name_len, match, in_repetition)</code> - called for a labelled
+atom, and answers the capture count afterwards. The default forgets it.</li>
+<li><code>capture_count()</code>, <code>rollback_capture(count)</code> - number the captures, and give
+the recent ones back when a path fails.</li>
+<li><code>record_failure(op, op_end, location)</code> - called for an atom that did not
+match, with the place it was tried.</li>
+<li><code>match_result(from, to)</code>, <code>match_failure(at)</code> - how a Context declares its
+answers.</li>
+<li><code>capture_disabled</code>, <code>repetition_nesting</code> - how deep inside a look-ahead, and
+inside a repetition, the match currently is.</li>
+</ul>
+<p><code>PegexpState</code> is the pattern position and the Source position together, and
+<code>PegexpDefaultMatch</code> is the pair of States a Match runs between.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="peg-parsing-1"><a href="#peg-parsing-1" class="header">PEG parsing</a></h1>
+<h2 id="peg-parsing"><a class="header" href="#peg-parsing">PEG parsing</a></h2>
+<p><code>#include	&lt;peg.h&gt;</code></p>
+<pre>template&lt;typename Source&gt; class PegDefaultMatch;
+template&lt;typename Match&gt; class PegContextNoCapture;
+template&lt;typename Source, typename Match, typename Context&gt; class Peg;
+</pre>
+
+<p>The Peg parser templates make use of Pegexp to provide a powerful PEG
+parsing engine for arbitrary grammars. No memoization is performed, so a
+badly constructed grammar can cause long runtimes. Peg uses a new Context
+for each nested call to a Pegexp. The default Context detects left recursion
+and reports failure.</p>
+<p>The grammar is expressed using a compact in-memory table. No executable code
+needs to be generated. No heap memory allocation is required during
+execution (and minimal stack), unless you use a Context that saves text
+captures, builds Abstract Syntax Trees, or records failure tokens and
+locations.</p>
+<p>The preferred way to use this is to compile a grammar expressed in the
+BNFlike language <a href="https://github.com/cjheath/px">Px</a>, which (will) emit C++
+data definitions for the parser engine to interpret.</p>
+<p>Like the Pegexp template, Peg&lt;&gt; processes data from a Source, which may be
+a stream.</p>
+<p>You should define a Context which implements whatever result capture you
+require. Context should have a nested Context::Rule type, which can be
+refined where necessary.</p>
+<p>The <a href="https://github.com/cjheath/strpp/blob/main/test/peg_test.cpp">Peg parser</a>
+for <a href="https://github.com/cjheath/px">Px</a> shows how to generate an AST from
+captures.</p>
+<h3 id="public-methods-8"><a class="header" href="#public-methods-8">Public methods</a></h3>
+<p><code>Peg</code> and the no-capture Context it comes with are defined in
+<a href="https://github.com/cjheath/strpp/blob/main/include/peg.h">peg.h</a>:</p>
+<ul>
+<li><code>Peg(Rule* rules, int num_rule)</code> - a parser over an array of rules, sorted
+by name in place so that a binary search finds them.</li>
+<li><code>parse(Source&amp; source)</code> - run the rule named <code>TOP</code> over the source, and
+answer the Match.</li>
+<li><code>lookup(const char* name)</code> - the rule of that name. A shortened name ended
+by <code>&gt;</code> or by the end of the string is allowed.</li>
+<li><code>recurse(Rule* sub_rule, State&amp; state, Context* context)</code> - match a sub-rule
+at the current position, or fail when it would be left recursion.</li>
+<li><code>PegRuleNoCapture(const char* name, PegexpT pegexp)</code> - one named rule,
+holding the Pegexp it matches.</li>
+<li><code>PegPegexp</code> - the Pegexp subclass that gives <code>&lt;rule&gt;</code> its meaning, through
+<code>match_extended</code> and <code>skip_extended</code>.</li>
+</ul>
+<p>A Context must provide these, and <code>PegContextNoCapture</code> is the default that
+implements them all as no-ops:</p>
+<ul>
+<li><code>capture(name, name_len, match, in_repetition)</code> - called for a labelled
+atom, and answers the capture count afterwards.</li>
+<li><code>capture_count()</code>, <code>rollback_capture(count)</code> - number the captures, and give
+the recent ones back when a path fails.</li>
+<li><code>record_failure(op, op_end, location)</code> - called for an atom that did not
+match, with the place it was tried.</li>
+<li><code>match_result(from, to)</code>, <code>match_failure(at)</code> - how the Context declares its
+answers.</li>
+<li><code>capture_disabled</code>, <code>repetition_nesting</code> - how deep inside a look-ahead, and
+inside a repetition, the match currently is.</li>
+</ul>
+<p>The Context that builds an AST is in
+<a href="https://github.com/cjheath/strpp/blob/main/include/peg_ast.h">peg_ast.h</a>:</p>
+<ul>
+<li><code>PegContext::capture(...)</code> - records the captured text into the AST, growing
+an array where a label repeats, or where the capture was inside a
+repetition.</li>
+<li><code>PegContext::record_failure(...)</code> - keeps the atoms tried at the furthest
+point reached, which is what a parse error is reported from.</li>
+<li><code>PegMatch::var</code> - the AST the parse produced.</li>
+<li><code>PegMatch::is_failure()</code> - whether the parse failed.</li>
+<li><code>PegMatch::furthermost_success</code>, <code>PegMatch::failures</code> - where the parse got
+to, and what it wanted there. Both are filled in only by the outermost
+parse.</li>
+<li><code>PegCaptureRule(name, pegexp, captures)</code> - a rule that collects the labels
+in a zero-terminated list of names.</li>
+<li><code>PegMemorySource(const char* cp)</code> - the in-memory Source these use, whose
+<code>peek()</code> answers the raw pointer at the current position.</li>
+</ul>
 
                     </main>
 

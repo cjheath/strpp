@@ -35,10 +35,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-aa04d821.js";
+            window.path_to_searchindex_js = "searchindex-7fa71223.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-cecf5e01.js"></script>
+        <script src="toc-58dc7aeb.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -179,7 +179,7 @@
                     <main>
                         <h2 id="peg-parsing"><a class="header" href="#peg-parsing">PEG parsing</a></h2>
 <p><code>#include	&lt;peg.h&gt;</code></p>
-<pre> template&lt;typename Source&gt; class PegDefaultMatch;
+<pre>template&lt;typename Source&gt; class PegDefaultMatch;
 template&lt;typename Match&gt; class PegContextNoCapture;
 template&lt;typename Source, typename Match, typename Context&gt; class Peg;
 </pre>
@@ -202,21 +202,67 @@ a stream.</p>
 <p>You should define a Context which implements whatever result capture you
 require. Context should have a nested Context::Rule type, which can be
 refined where necessary.</p>
-<p>The <a href="../test/peg_test.cpp">Peg parser</a> for
-<a href="https://github.com/cjheath/px">Px</a> shows how to generate an AST from
+<p>The <a href="https://github.com/cjheath/strpp/blob/main/test/peg_test.cpp">Peg parser</a>
+for <a href="https://github.com/cjheath/px">Px</a> shows how to generate an AST from
 captures.</p>
+<h3 id="public-methods"><a class="header" href="#public-methods">Public methods</a></h3>
+<p><code>Peg</code> and the no-capture Context it comes with are defined in
+<a href="https://github.com/cjheath/strpp/blob/main/include/peg.h">peg.h</a>:</p>
+<ul>
+<li><code>Peg(Rule* rules, int num_rule)</code> - a parser over an array of rules, sorted
+by name in place so that a binary search finds them.</li>
+<li><code>parse(Source&amp; source)</code> - run the rule named <code>TOP</code> over the source, and
+answer the Match.</li>
+<li><code>lookup(const char* name)</code> - the rule of that name. A shortened name ended
+by <code>&gt;</code> or by the end of the string is allowed.</li>
+<li><code>recurse(Rule* sub_rule, State&amp; state, Context* context)</code> - match a sub-rule
+at the current position, or fail when it would be left recursion.</li>
+<li><code>PegRuleNoCapture(const char* name, PegexpT pegexp)</code> - one named rule,
+holding the Pegexp it matches.</li>
+<li><code>PegPegexp</code> - the Pegexp subclass that gives <code>&lt;rule&gt;</code> its meaning, through
+<code>match_extended</code> and <code>skip_extended</code>.</li>
+</ul>
+<p>A Context must provide these, and <code>PegContextNoCapture</code> is the default that
+implements them all as no-ops:</p>
+<ul>
+<li><code>capture(name, name_len, match, in_repetition)</code> - called for a labelled
+atom, and answers the capture count afterwards.</li>
+<li><code>capture_count()</code>, <code>rollback_capture(count)</code> - number the captures, and give
+the recent ones back when a path fails.</li>
+<li><code>record_failure(op, op_end, location)</code> - called for an atom that did not
+match, with the place it was tried.</li>
+<li><code>match_result(from, to)</code>, <code>match_failure(at)</code> - how the Context declares its
+answers.</li>
+<li><code>capture_disabled</code>, <code>repetition_nesting</code> - how deep inside a look-ahead, and
+inside a repetition, the match currently is.</li>
+</ul>
+<p>The Context that builds an AST is in
+<a href="https://github.com/cjheath/strpp/blob/main/include/peg_ast.h">peg_ast.h</a>:</p>
+<ul>
+<li><code>PegContext::capture(...)</code> - records the captured text into the AST, growing
+an array where a label repeats, or where the capture was inside a
+repetition.</li>
+<li><code>PegContext::record_failure(...)</code> - keeps the atoms tried at the furthest
+point reached, which is what a parse error is reported from.</li>
+<li><code>PegMatch::var</code> - the AST the parse produced.</li>
+<li><code>PegMatch::is_failure()</code> - whether the parse failed.</li>
+<li><code>PegMatch::furthermost_success</code>, <code>PegMatch::failures</code> - where the parse got
+to, and what it wanted there. Both are filled in only by the outermost
+parse.</li>
+<li><code>PegCaptureRule(name, pegexp, captures)</code> - a rule that collects the labels
+in a zero-terminated list of names.</li>
+<li><code>PegMemorySource(const char* cp)</code> - the in-memory Source these use, whose
+<code>peek()</code> answers the raw pointer at the current position.</li>
+</ul>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="threading.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="pegexp.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="pegexp.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
-                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
-                            </a>
 
                         <div style="clear: both"></div>
                     </nav>
@@ -224,13 +270,10 @@ captures.</p>
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="threading.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="pegexp.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="pegexp.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
-                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
-                    </a>
             </nav>
 
         </div>

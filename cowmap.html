@@ -35,10 +35,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-aa04d821.js";
+            window.path_to_searchindex_js = "searchindex-7fa71223.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-cecf5e01.js"></script>
+        <script src="toc-58dc7aeb.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -184,25 +184,53 @@ semantics, like StrVal and Array: copying a CowMap is cheap (O(1), sharing
 the same underlying tree with the original), and modifying it transparently
 takes a private copy first if it’s shared with any other reference.</p>
 <p>Internally, CowMap is backed by a persistent (path-copying) red-black tree
-(see redblack.h), not the STL’s std::map. This is what makes copying O(1): a
-copy just shares the tree’s root; a subsequent mutation on either copy only
-replaces the O(log n) nodes on the path to the change, leaving every other
-node - and so every other reference still holding an older version
-completely untouched. Node colour is packed into the spare low bits of each
-child pointer (see taggedref.h) at no extra memory cost. A node that is
-uniquely owned is mutated in place; a shared node is copied first - safe
-because a single reference is confined to one thread, and sharing a map
-across threads always goes through copying it.</p>
-<p><code>operator[]</code> and <code>keys()</code>/<code>values()</code> return copies of the value/keys;
-<code>find()</code> returns an iterator instead, giving read-only access (<code>-&gt;first</code>/
-<code>-&gt;second</code>) without copying. <code>put()</code>/<code>insert()</code>/<code>remove()</code>/<code>clear()</code> mutate
-the map; <code>select()</code>/<code>map()</code>/<code>inject()</code>/<code>each()</code>/<code>all()</code>/<code>any()</code>/<code>one()</code> are
-read-only, functional-style traversal helpers.</p>
-<p>Read the header file for the full API.</p>
-<p>Tested in test/cowmap_test.cpp (the public CowMap API, including
-copy-onwrite behaviour) and test/redblack_test.cpp (the underlying tree:
-structural invariants, differential testing against std::map, persistence/
-sharing, and leak checking).</p>
+(see <a href="redblack.html">redblack.md</a>), not the STL’s std::map. This is what
+makes copying O(1): a copy just shares the tree’s root; a subsequent
+mutation on either copy only replaces the O(log n) nodes on the path to the
+change, leaving every other node - and so every other reference still
+holding an older version completely untouched. Node colour is packed into
+the spare low bits of each child pointer (see taggedref.h) at no extra
+memory cost. A node that is uniquely owned is mutated in place; a shared
+node is copied first, which is safe because our rules require that a single
+reference is confined to one thread; sharing a map across threads should
+always copy the reference.</p>
+<p><code>operator[]</code> answers a copy of the value; <code>find()</code> returns an iterator
+instead, giving read-only access (<code>-&gt;first</code>/<code>-&gt;second</code>) without copying.
+<code>put()</code>/<code>insert()</code>/<code>remove()</code>/<code>clear()</code> mutate the map, unsharing first; the
+rest are read-only, functional-style traversal helpers.</p>
+<h3 id="public-methods"><a class="header" href="#public-methods">Public methods</a></h3>
+<p>Defined in <a href="https://github.com/cjheath/strpp/blob/main/include/cowmap.h">cowmap.h</a>.</p>
+<p>Making one:</p>
+<ul>
+<li><code>CowMap()</code> - empty.</li>
+<li><code>CowMap(const Key* keys, const Value* values, int size)</code> - from <code>size</code>
+parallel key and value arrays.</li>
+<li><code>CowMap(const CowMap&amp;)</code>, <code>operator=</code> - share the tree’s root, which is O(1)
+however many entries the map holds.</li>
+</ul>
+<p>Reading:</p>
+<ul>
+<li><code>operator[](const Key&amp;)</code> - the value stored for the key, or a
+default-constructed one when it is absent. It does not insert.</li>
+<li><code>contains(const Key&amp;)</code> - whether the key is in the map.</li>
+<li><code>find(const Key&amp;)</code> - an iterator at the entry, to compare with <code>end()</code>.</li>
+<li><code>begin()</code>, <code>end()</code> - the entries, in key order.</li>
+<li><code>size()</code> - how many entries there are.</li>
+<li><code>values()</code> - an array of the values, in key order.</li>
+<li><code>each(f)</code> - call <code>f</code> with every key and value.</li>
+<li><code>select(f)</code> - a new map of the entries that satisfy <code>f</code>.</li>
+<li><code>inject(start, f)</code> - fold the entries into an accumulator.</li>
+<li><code>all(f)</code>, <code>any(f)</code>, <code>one(f)</code> - whether all, any, or exactly one entry
+satisfies <code>f</code>.</li>
+</ul>
+<p>Changing, each unsharing first so that no other map sees the change:</p>
+<ul>
+<li><code>insert(const Key, const Value)</code> - insert the pair.</li>
+<li><code>remove(const Key&amp;)</code> - erase the entry.</li>
+<li><code>put(const Key&amp;, Value)</code> - erase any entry for the key, then insert the new
+value, and answer the key.</li>
+<li><code>clear()</code> - empty the map.</li>
+</ul>
 <p>Example:</p>
 <pre><code>#include	&lt;cowmap.h&gt;
 
@@ -218,11 +246,11 @@ ages.insert("Carol", 40);		// Only ages sees "Carol"; snapshot is unaffected
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="variant.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="redblack.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="error.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="variant.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -232,11 +260,11 @@ ages.insert("Carol", 40);		// Only ages sees "Carol"; snapshot is unaffected
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="variant.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="redblack.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="error.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="variant.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

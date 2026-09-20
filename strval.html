@@ -35,10 +35,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-aa04d821.js";
+            window.path_to_searchindex_js = "searchindex-7fa71223.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-cecf5e01.js"></script>
+        <script src="toc-58dc7aeb.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -178,6 +178,12 @@
                 <div id="mdbook-content" class="content">
                     <main>
                         <h2 id="unicode-strings-the-strval-class"><a class="header" href="#unicode-strings-the-strval-class">Unicode strings: the StrVal class</a></h2>
+<p>Unicode strings stored as UTF-8, with value semantics and fast compact
+per-character indexing (light-weight copy-on-write implementation using
+slices, and bookmarks to speed up character indexing).</p>
+<p>Can also handle whatever character set is implied by raw 8-bit bytes in the
+program’s locale, (not yet always) converting to UTF-8 where processing
+involves Unicode.</p>
 <p><code>#include	&lt;strval.h&gt;</code></p>
 <ul>
 <li>By-value semantics (use StrVal like int, no explicit allocation, pass by
@@ -192,7 +198,78 @@ garbage collection</li>
 <li>Any StrVal may be mutated - it will safely make a private copy of any
 shared data</li>
 </ul>
-<p>Read the header file for the full API.</p>
+<h3 id="public-methods"><a class="header" href="#public-methods">Public methods</a></h3>
+<p>Defined in <a href="https://github.com/cjheath/strpp/blob/main/include/strval.h">strval.h</a>.</p>
+<p>Making one:</p>
+<ul>
+<li><code>StrVal()</code> - the empty string. Every empty string shares one static body.</li>
+<li><code>StrVal(const char* data, StrDataType dt = StrUTF8)</code> - copies NUL-terminated
+data.</li>
+<li><code>StrVal(const char* data, Index length, size_t allocate = 0)</code> - copies a
+run of bytes of known length, preallocating if the length will grow.</li>
+<li><code>StrVal(UCS4 character)</code> - one character, encoded to UTF-8.</li>
+<li><code>StrVal(const StrRef&amp;)</code> - from the body reference a Variant carries.</li>
+<li><code>StrVal(Body*)</code> - a reference to a body that already exists, for statics.</li>
+<li><code>StrVal(const StrVal&amp;)</code>, <code>operator=</code> - both share the body, and the next
+write to either copies it.</li>
+</ul>
+<p>Reading:</p>
+<ul>
+<li><code>length()</code> - the number of characters, not bytes.</li>
+<li><code>numBytes()</code> - the number of bytes of UTF-8 (or raw binary) data.</li>
+<li><code>isEmpty()</code>, <code>explicit operator bool()</code> - whether anything is held.</li>
+<li><code>operator[](int charNum)</code> - the character at an index, as UCS4; <code>'\0'</code> one
+past the end, and <code>UCS4_NONE</code> for an offset that is not there.</li>
+<li><code>asUTF8()</code> - the bytes, NUL-terminated, copying the body first if this is a
+substring whose terminator was elided.</li>
+<li><code>asUTF8(Index&amp; bytes)</code> - the bytes without that guarantee, answering the
+byte count.</li>
+<li><code>operator-&gt;()</code>, <code>operator*()</code>, <code>operator const Body&amp;()</code> - the body itself.</li>
+</ul>
+<p>Cutting one up:</p>
+<ul>
+<li><code>substr(Index at, int len = -1)</code>, <code>head(n)</code>, <code>tail(n)</code>, <code>shorter(n)</code> - a
+slice, or everything but the last <code>n</code> characters. All are O(1).</li>
+<li><code>find</code>/<code>rfind(UCS4 ch, int after/before)</code> - where a character is, or -1.</li>
+<li><code>find</code>/<code>rfind(const StrVal&amp;, int after/before)</code> - where a substring is.</li>
+<li><code>findAny</code>/<code>rfindAny(const StrVal&amp; s, int after/before)</code> - where any of the
+characters in <code>s</code> is.</li>
+<li><code>findNot</code>/<code>rfindNot(const StrVal&amp; s, int after/before)</code> - where a character
+not in <code>s</code> is.</li>
+<li><code>compare(const StrVal&amp;, CompareStyle = CompareRaw)</code>, <code>equalCI</code>, and the
+comparison operators - ordering, optionally case independent. <code>compare</code>
+with a style other than <code>CompareRaw</code> is not implemented yet.</li>
+<li><code>static compare(a, b)</code>, <code>static equiv(a, b)</code> - the ordering and equality
+predicates a std::map needs of its key.</li>
+<li><code>isStatic()</code> - true when the data is not owned by this string’s body.</li>
+</ul>
+<p>Building one:</p>
+<ul>
+<li><code>operator+</code> with a string, a <code>const char*</code>, or a <code>UCS4</code> - a new string.</li>
+<li><code>operator+=</code> with a string or a <code>UCS4</code> - appended in place.</li>
+<li><code>operator*(int repeats)</code> - this string, repeated.</li>
+<li><code>insert(Index pos, const StrVal&amp;)</code>, <code>append</code>, <code>prepend</code> - insert into the
+copy this string owns.</li>
+<li><code>asLower()</code>, <code>asUpper()</code>, <code>toLower()</code>, <code>toUpper()</code> - the first two answer a
+copy, the second two change this string and its length.</li>
+<li><code>transform(std::function&lt;StrVal(const char*&amp; cp, const char* ep)&gt;, int after = -1)</code>
+<ul>
+<li>rewrite each character from <code>after</code> on, with whatever the function
+answers.</li>
+</ul>
+</li>
+<li><code>asJSON()</code>, <code>toJSON()</code> - escaped for JSON; <code>toJSON</code> escapes in place and
+does not add the enclosing quotes.</li>
+<li><code>asInt32(ErrNum* err, int radix = 0, Index* scanned = 0)</code> - the number this
+string reads as, in any radix from 2 to 36 and auto-detected when 0,
+reporting what it could not use.</li>
+<li><code>static format(StrVal f, VariantArray args)</code> - the template string <code>f</code> with
+its substitutions taken from <code>args</code>.</li>
+<li><code>StringArray::join(StrVal joiner)</code> - the elements of a <code>StringArray</code>,
+concatenated with <code>joiner</code> between them.</li>
+</ul>
+<p><code>Index</code> is <code>StrValIndex</code>, which is 32 bits unless the build says otherwise, so
+a string is limited to 2^32 characters.</p>
 <p>Example:</p>
 <pre><code>// This example creates precisely three strings, but with four references
 #include        &lt;stdio.h&gt;
@@ -236,6 +313,9 @@ static empty body, which is why they can be built and copied freely.</p>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="prologue.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
+                            </a>
 
                             <a rel="next prefetch" href="unicode.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
@@ -247,6 +327,9 @@ static empty body, which is why they can be built and copied freely.</p>
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="prologue.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
+                    </a>
 
                     <a rel="next prefetch" href="unicode.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>

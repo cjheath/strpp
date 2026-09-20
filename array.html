@@ -35,10 +35,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-aa04d821.js";
+            window.path_to_searchindex_js = "searchindex-7fa71223.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-cecf5e01.js"></script>
+        <script src="toc-58dc7aeb.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -179,24 +179,63 @@
                     <main>
                         <h2 id="array-with-slices"><a class="header" href="#array-with-slices">Array with slices</a></h2>
 <p><code>#include	&lt;array.h&gt;</code></p>
-<p>The Array<t> template creates a slice into an array of type T. New slices
+<p>The <code>Array&lt;T&gt;</code> template creates a slice into an array of type T. New slices
 (and copies) onto the same ArrayBody are inexpensive (using atomic
 reference-counting), but any attempt to modify a slice first creates a copy
 of the Body, leaving other slices unaffected. The ArrayBody itself is only
-accessible as a constant, and a new Array may be created over a static body.</t></p>
-<h3 id="the-api"><a class="header" href="#the-api">The API</a></h3>
-<pre><code>Array&lt;T&gt;	a;			// Empty
-a.push(x), a.append(x), a += x;	// Add at the end
-a.remove(i);			// Delete from i to the end
-a.remove(i, n);			// Delete n elements from i
-a.insert(i, other);		// Insert another array at i
-a[i], a.last(), a.length(), a.isEmpty()
-a.slice(at, len), a.head(n), a.tail(n), a.shorter(n)
-a.find(x), a.each(f), a.select(f), a.map(f), a.all/any/one(f)
-a.evacuate(), a.clear()
-</code></pre>
-<p><code>a[i]</code> and <code>a.last()</code> answer copies. <code>each</code>, <code>select</code>, <code>map</code> and the
-<code>all</code>/<code>any</code>/<code>one</code> predicates take a function and leave the array alone.</p>
+accessible as a constant, and a new Array may be created over a static body.</p>
+<h3 id="public-methods"><a class="header" href="#public-methods">Public methods</a></h3>
+<p>Defined in <a href="https://github.com/cjheath/strpp/blob/main/include/array.h">array.h</a>.</p>
+<p>Making one:</p>
+<ul>
+<li><code>Array()</code> - empty.</li>
+<li><code>Array(const Element data)</code> - an array holding that one element.</li>
+<li><code>Array(const Element* data, Index size, Index allocate = 0)</code> - copies <code>size</code>
+elements, with room for <code>allocate</code> more before it must grow.</li>
+<li><code>Array(const Array&amp;)</code>, <code>operator=</code> - share the body, so both are cheap.</li>
+<li><code>Array(Body*)</code> - a reference to a body that already exists, for statics.</li>
+</ul>
+<p>Reading:</p>
+<ul>
+<li><code>length()</code>, <code>isEmpty()</code>, <code>isShared()</code> - the elements in this slice, whether
+it has any, and whether another array shares the body.</li>
+<li><code>operator[](int)</code>, <code>elem(n)</code>, <code>last()</code> - copies of the elements.</li>
+<li><code>last_ref()</code>, <code>elem_ref(n)</code> - const references, without copying.</li>
+<li><code>asElements()</code> - a pointer to the first element of this slice.</li>
+<li><code>operator-&gt;()</code>, <code>operator*()</code>, <code>operator const Body&amp;()</code> - the body itself.</li>
+<li><code>compare(const Array&amp;)</code> and the comparison operators - element-wise.</li>
+<li><code>find(e)</code>, <code>rfind(e)</code>, <code>find(f)</code>, <code>rfind(f)</code> - the index of an element, by
+value or by a match function, or -1 if it is not there.</li>
+<li><code>detect(f)</code> - the index of the first element satisfying <code>f</code>, or -1.</li>
+<li><code>bsearch(f)</code> - binary search of a sorted array by comparator.</li>
+</ul>
+<p>Slicing, all O(1) and none of them copying:</p>
+<ul>
+<li><code>slice(at, len = -1)</code>, <code>head(n)</code>, <code>tail(n)</code>, <code>shorter(n)</code>, <code>drop(n)</code>.</li>
+</ul>
+<p>Changing, each taking a private copy first if the body is shared:</p>
+<ul>
+<li><code>push(e)</code>, <code>append(e)</code>, <code>append(Array)</code>, <code>operator+=(e)</code>, <code>operator+=(Array)</code>,
+<code>operator&lt;&lt;(e)</code> - add at the end.</li>
+<li><code>operator+</code> - concatenation, making a new array.</li>
+<li><code>insert(pos, Array)</code> - insert another array at <code>pos</code>.</li>
+<li><code>unshift(e)</code> - insert at the start; <code>shift()</code> removes from the start.</li>
+<li><code>pull()</code>, <code>last_mut()</code> - take the last element, or reach it to write.</li>
+<li><code>remove(at, len = -1)</code>, <code>delete_at(at)</code>, <code>delete_if(f)</code> - remove elements.</li>
+<li><code>set(n, e)</code>, <code>elem_mut(n)</code> - write an element, and reach one to write.</li>
+<li><code>reverse()</code> - reverse the elements of this slice.</li>
+<li><code>each(f)</code> - call <code>f</code> for every element, leaving the array alone.</li>
+<li><code>select(f)</code> - a new array of the elements that satisfy <code>f</code>.</li>
+<li><code>map(f)</code> - a new array of what <code>f</code> answers for each element.</li>
+<li><code>inject(start, f)</code> - fold the elements into an accumulator.</li>
+<li><code>all(f)</code>, <code>any(f)</code>, <code>one(f)</code> - whether all, any, or exactly one element
+satisfies <code>f</code>.</li>
+<li><code>evacuate()</code>, <code>clear()</code> - empty it, keeping the storage or giving it back.</li>
+<li><code>free_if_emptied()</code> - release the body if this empty slice is its only
+owner.</li>
+</ul>
+<p><code>each</code>, <code>select</code>, <code>map</code>, <code>inject</code> and the <code>all</code>/<code>any</code>/<code>one</code> predicates take a
+function and leave the array alone.</p>
 <h3 id="what-a-slice-costs"><a class="header" href="#what-a-slice-costs">What a slice costs</a></h3>
 <p>A slice holds a reference to the Body, so while any slice is outstanding the
 body is shared (<code>isShared()</code>), and the next mutation copies it. That is what
@@ -230,7 +269,7 @@ storage and reference counting.</p>
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="variant.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="redblack.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -244,7 +283,7 @@ storage and reference counting.</p>
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="variant.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="redblack.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

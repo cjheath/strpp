@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>The error buffer - strpp</title>
+        <title>Prologue - strpp</title>
 
 
         <!-- Custom HTML head -->
@@ -35,10 +35,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-aa04d821.js";
+            window.path_to_searchindex_js = "searchindex-7fa71223.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-cecf5e01.js"></script>
+        <script src="toc-58dc7aeb.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -177,121 +177,43 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h2 id="the-error-buffer"><a class="header" href="#the-error-buffer">The error buffer</a></h2>
-<p><code>#include &lt;errbuf.h&gt;</code></p>
-<p>Every thread has one error buffer, holding the messages it has reported and
-not yet dealt with. Nothing is formatted and nothing is decided about
-language, style or severity when a message is reported: the buffer holds the
-message number, its default text and its parameters, and whoever displays
-the message decides all of that. That may be another thread or another
-process entirely.</p>
-<p>The design this implements is in <code>Notes/ErrorManagement.md</code>.</p>
-<h3 id="reporting"><a class="header" href="#reporting">Reporting</a></h3>
-<p>Generated code calls <code>Error</code> through a function per message:</p>
-<pre><code>ErrNum	Error(ErrNum err, const char* default_text, VariantArray params);
-</code></pre>
-<p>It appends the message, and answers the number it was given, so that
-reporting an error and returning it are one act:</p>
-<pre><code>return ErrorADL_Syntax("foo", source.location);
-</code></pre>
-<p>The generated functions gather their arguments and call <code>Error</code>; there is
-one of those per message, and one <code>Error</code> for all of them. A zero <code>ErrNum</code>
-reports nothing.</p>
-<h3 id="reading"><a class="header" href="#reading">Reading</a></h3>
-<pre><code>MsgIndex	count() const;			// Messages held
-MsgSequence	checkpoint() const;		// The next number a report would take
-ErrNum		error(MsgIndex n) const;	// The number alone
-Message		message(MsgIndex n) const;	// Number, default text, parameters
-</code></pre>
-<p><code>Message</code> is what someone about to deliver a message needs:</p>
-<pre><code>struct Message
-{
-	ErrNum		error;
-	const char*	default_text;
-	VariantArray	parameters;	// A slice of the buffer's parameter array
-};
-</code></pre>
-<p>Recovery usually wants only <code>error(n)</code>. Take a <code>Message</code> when you are about
-to display one.</p>
-<p><strong>A <code>Message</code>’s parameters share the buffer’s parameter array, so let the
-message go before delivering it.</strong> While a slice is outstanding the array
-cannot be reclaimed, and one held across a drain leaks that action’s
-parameters. <code>delivered()</code> and <code>clear()</code> assert that none is outstanding, so
-the mistake stops rather than quietly leaking. In practice this means the
-<code>Message</code> wants a scope of its own:</p>
-<pre><code>{
-	ErrBuf::Message	shown = buffer-&gt;message(0);
-	display(shown);
-}
-buffer-&gt;delivered();
-</code></pre>
-<h3 id="recovering"><a class="header" href="#recovering">Recovering</a></h3>
-<pre><code>MsgSequence	mark = buffer-&gt;checkpoint();
-...call something that may report...
-if (!wanted)
-	buffer-&gt;rollback(mark);
-</code></pre>
-<p><code>rollback</code> discards everything reported since the checkpoint, the callee
-having no part in it. Messages the callee reported take their parameters
-with them, so what remains stays contiguous.</p>
-<p>Messages are consecutively numbered: a rollback gives its numbers back, and
-the next report takes them again. A number is therefore only unique among
-the messages currently held, which is all a checkpoint needs to be.</p>
-<h3 id="delivering"><a class="header" href="#delivering">Delivering</a></h3>
-<pre><code>while (buffer-&gt;count() &gt; 0)
-{
-	...read message(0) and let it go...
-	buffer-&gt;delivered();		// The oldest has been delivered
-}
-</code></pre>
-<p>Delivery always drains the buffer. Delivering advances past the message
-rather than compacting what follows, so it costs the same whatever is behind
-it, and the last one to go empties both arrays while keeping their storage.
-That is what makes the steady state free: <strong>an action that reports and
-delivers the same number of messages as the last one allocates nothing at
-all.</strong> <code>clear()</code> drops everything at once without delivering, retiring the
-numbers.</p>
-<h3 id="what-a-reporting-function-should-do"><a class="header" href="#what-a-reporting-function-should-do">What a reporting function should do</a></h3>
-<p>Build the parameters in a scratch array that is emptied between reports
-rather than rebuilt. A fresh <code>VariantArray</code> per report costs two
-allocations, which is the cost this shape exists to avoid:</p>
-<pre><code>static ThreadLocal&lt;VariantArray&gt;	scratch;
-
-VariantArray&amp;	params = *scratch.get();
-params.evacuate();			// Empty, keeping the storage
-params.append(Variant(42));
-params.append(Variant("context"));
-return Error(SomeError, "the default text", params);
-</code></pre>
-<p><code>evacuate()</code> is what keeps the storage; <code>clear()</code> would give it back.</p>
-<h3 id="threads-and-other-processes"><a class="header" href="#threads-and-other-processes">Threads and other processes</a></h3>
-<p>There is one buffer per thread, reached through a thread-local slot, so two
-threads never see each other’s messages. A caller running on one thread that
-completes work for another - or a server answering a client - packs the
-unformatted messages (number, default text and parameters) into whatever it
-already speaks and ships them. The receiving context is the one that knows
-the reader’s language and the room there is to display in, so it is the one
-that formats.</p>
-<h3 id="not-implemented-yet"><a class="header" href="#not-implemented-yet">Not implemented yet</a></h3>
-<ul>
-<li><strong>Formatting.</strong> What the substitution points look like, and what replaces
-printf-style directives, is not settled.</li>
-<li><strong>Catalogs.</strong> Nothing yet reads a compiled catalog; the default text is
-what a message carries.</li>
-<li><strong>Severity.</strong> A message has no severity recorded. Severity is contextual,
-and a warning may be demoted to information or raised by whoever displays
-it.</li>
-</ul>
+                        <h2 id="strpp---stringplusplus---pronounced-strip"><a class="header" href="#strpp---stringplusplus---pronounced-strip">strpp - StringPlusPlus - pronounced “strip”</a></h2>
+<p>A value-oriented C++ library implementing maps, arrays and strings (with
+slices), raw Unicode processing, Variant type, pattern-matching and parsing.
+Designed to minimise dynamic memory allocation and memory safety issues,
+<em>strpp</em> provides efficient but advanced functionality on machines with
+restricted memory, such as many embedded systems.</p>
+<p><em>Strpp</em> uses copy-on-write to implement <em>value semantics</em> on shared objects
+(<a href="strval.html">Unicode strings</a>, generic <a href="array.html">arrays</a> and
+<a href="cowmap.html">maps</a>) using thread-safe atomic reference-counting. Values may
+be passed by copying references, which means you can pass complex structures
+cheaply without much fear of aliasing, memory leaks, or object lifetime
+violations.</p>
+<p>The <a href="variant.html">Variant class</a> provides type-safe support for passing any
+data object, as is common in interpreted languages (Perl, Ruby, Python).</p>
+<p>Greedy <a href="pegexp.html">PEG expressions</a> with look-ahead assertions match text
+without backtracking, and all their operators are in the prefix position,
+which does not require a compilation step (or memory allocation) for
+efficient execution. These <em>Pegular Expressions</em> are also composed into full
+(non-regular) <a href="peg.html">PEG grammars</a>. Parser template parameters allow
+capturing parse results, with a generic <a href="https://github.com/cjheath/strpp/blob/main/include/peg_ast.h">Abstract Syntax Tree
+builder</a> for
+any of those grammars.</p>
+<p>The <a href="https://github.com/cjheath/strpp/blob/main/rx/README.md">rx</a> library
+provides a regular expression implementation using <code>StrVal</code> that is
+ReDoS-safe (using the Thompson algorithm). These regular expressions are
+deprecated in favour of the PEG expressions above.</p>
+<p><a href="https://github.com/cjheath/px">Px</a> is an external parser generator for those
+grammars: it compiles a grammar into a compact table-driven parser that
+allocates no memory, and generates grammar documentation using Javascript
+and SVG.</p>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="error.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
-                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
-                            </a>
 
-                            <a rel="next prefetch" href="threading.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="strval.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -301,11 +223,8 @@ it.</li>
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="error.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
-                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
-                    </a>
 
-                    <a rel="next prefetch" href="threading.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="strval.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

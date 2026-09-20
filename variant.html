@@ -35,10 +35,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-aa04d821.js";
+            window.path_to_searchindex_js = "searchindex-7fa71223.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-cecf5e01.js"></script>
+        <script src="toc-58dc7aeb.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -179,50 +179,93 @@
                     <main>
                         <h2 id="variant-data-type"><a class="header" href="#variant-data-type">Variant Data Type</a></h2>
 <p><code>#include	&lt;variant.h&gt;</code></p>
-<p>The Variant class offers a type-safe way to manage numeric and StrVal types
-in a compact union, along with Array<strval>, Array<variant>, and a
-StrValkeyed COWMap to Variant. This allows building arbitrary data
-structures, which support asJSON() to render the whole structure as a
-string.</variant></strval></p>
+<p>The Variant class offers a type-safe way to manage atomic (numeric) and
+composite types in a compact union, including <code>StrVal</code>, <code>Array&lt;StrVal&gt;</code>,
+<code>Array&lt;Variant&gt;</code>, and a StrVal-keyed COWMap to Variant. You can build
+data structures of any depth, and even convert to a single JSON StrVal
+using as_json().</p>
 <p>A Variant is a type tag and a union holding one of</p>
-<pre><code>None, Integer, Long, LongLong, String (a StrRef),
-StrArray, VarArray, StrVarMap
+<pre><code>None,
+Integer,
+Long,
+LongLong,
+String (a StrRef),
+StrArray,
+VarArray,
+StrVarMap
 </code></pre>
-<p>A String holds a StrRef rather than a StrVal: it does not need the bookmark
-that makes StrVal’s scanning and indexing fast, and does not pay for it.</p>
-<p>A Variant is as large as its largest member plus the tag - 24 bytes where
-pointers are 8 bytes, and less where they are smaller. A parameter list of
-them is therefore compact, but it is not a fixed size: do not assume one.</p>
-<p>The three container types are reference-counted and copy-on-write, like
-StrVal and Array, so a Variant that holds one is cheap to copy - but <em>how</em>
-cheap differs, and the difference matters when a map is large:</p>
+<p>String means a compact StrRef rather than a StrVal: it does not need the
+bookmark that makes StrVal’s scanning and indexing fast, and does not pay
+for it.</p>
+<p>This header also provides <code>VariantArray</code>, which is just <code>Array&lt;Variant&gt;</code>,
+and <code>StrVariantMap</code>, which is a <code>CowMap&lt;StrVal, Variant&gt;</code> used by StrVarMap.
+The three container types are reference-counted and copy-on-write, like
+StrVal and Array, so all Variants are cheap to copy:</p>
 <ul>
-<li><code>StrArray</code> and <code>VarArray</code> copies share the array body, so a copy is O(1)
-until either copy is written to.</li>
-<li><code>StrVarMap</code> is backed by a pure functional (path-copying) red-black tree,
-so <strong>copying one copies only the root</strong> - a copy is O(1) however many
-entries it holds, and a later change replaces only the nodes on the path
-to it, leaving every other node shared. See <a href="cowmap.html">cowmap.md</a>.</li>
+<li><code>StrVal</code> is just the reference to a string body,</li>
+<li><code>StrArray</code> and <code>VarArray</code> copies share the array body, so a copy is O(1),</li>
+<li><code>StrVarMap</code> is backed by a CowMap (pure functional red-black tree),
+so copying is O(1) however many entries it holds. See <a href="cowmap.html">cowmap.md</a>.</li>
 </ul>
+<p>A Variant is as large as its largest member plus the tag - 24 bytes on
+64-bit machines, and less where pointers are smaller. A VariantArray is
+therefore compact and fairly efficient to manipulate.</p>
 <h3 id="variantarray"><a class="header" href="#variantarray">VariantArray</a></h3>
 <p><code>VariantArray</code> is <code>Array&lt;Variant&gt;</code>: a type-safe array of values of mixed
-type, each carrying its own type. It is what the error system carries
-message parameters in - see <a href="errbuf.html">errbuf.md</a>.</p>
-<p>A value is read back by asking for the type it should be, which coerces
-where the coercion loses nothing (an integer to its digits, say) and
-otherwise reports the mismatch. That is what makes a parameter list typesafe
-where printf-style arguments are not: printf, handed the wrong argument,
-reinterprets its bytes.</p>
+type, each carrying its own type.  Ask for the type before reading the
+value, to avoid type coercions or assertion failures.</p>
+<p>Error message parameters are carried this way, for example.  That is what
+makes a parameter list typesafe where printf-style arguments are not:
+printf, handed the wrong argument, reinterprets its bytes.</p>
+<h3 id="public-methods"><a class="header" href="#public-methods">Public methods</a></h3>
+<p>Defined in <a href="https://github.com/cjheath/strpp/blob/main/include/variant.h">variant.h</a>.</p>
+<p>Making one:</p>
+<ul>
+<li><code>Variant()</code> - nothing at all, of type <code>None</code>.</li>
+<li><code>Variant(int)</code>, <code>Variant(long)</code>, <code>Variant(long long)</code> - a number.</li>
+<li><code>Variant(StrVal)</code>, <code>Variant(const char*)</code> - a string.</li>
+<li><code>Variant(StringArray)</code>, <code>Variant(StrVal* v, StringArray::Index count)</code> - an
+array of strings.</li>
+<li><code>Variant(VariantArray)</code>, <code>Variant(Variant* v, VariantArray::Index count)</code> -
+an array of Variants.</li>
+<li><code>Variant(StrVal* keys, Variant* values, StringArray::Index count)</code>,
+<code>Variant(StrVariantMap)</code> - a string-keyed map to Variant.</li>
+<li><code>Variant(VariantType t)</code> - an empty Variant of the given type.</li>
+<li><code>Variant(const Variant&amp;)</code>, <code>operator=</code> - a copy, discarding what the target
+held before.</li>
+</ul>
+<p>Reading:</p>
+<ul>
+<li><code>type()</code> - which kind of value is held.</li>
+<li><code>is_null()</code> - true when it holds nothing.</li>
+<li><code>type_name()</code> - the name of the held type, for messages about it.</li>
+<li><code>as_int()</code>, <code>as_long()</code>, <code>as_longlong()</code> - the number held. The mutable
+forms coerce to that type first, and assert when the coercion would lose
+data.</li>
+<li><code>as_strval()</code>, <code>as_string_array()</code>, <code>as_variant_array()</code>, <code>as_variant_map()</code>
+<ul>
+<li>the string or container held.</li>
+</ul>
+</li>
+<li><code>as_json(int indent = -1)</code> - the value as JSON. <code>-1</code> adds single spaces,
+<code>-2</code> is maximally compact, and <code>n &gt;= 0</code> indents two spaces per level from
+<code>n</code>.</li>
+</ul>
+<p>Building:</p>
+<ul>
+<li><code>operator&lt;&lt;(const Variant&amp; n)</code> - a new <code>VariantArray</code> of this Variant
+followed by <code>n</code>, so arrays can be built by chaining.</li>
+</ul>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="array.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="cowmap.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="cowmap.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="error.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -232,11 +275,11 @@ reinterprets its bytes.</p>
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="array.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="cowmap.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="cowmap.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="error.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>
