@@ -61,7 +61,7 @@ static ThreadLocal<VariantArray>	scratch_params;
 static ErrNum
 report_with(VariantArray& params, int msg)
 {
-	return ErrReport(ErrNum(100, msg), "a default text", params);
+	return Error(ErrNum(100, msg), "a default text", params);
 }
 
 static ErrNum
@@ -82,7 +82,7 @@ main(int argc, const char** argv)
 
 	// Reporting answers the number it was given, and records it
 	ErrNum	reported = report_one(1, 42, "first");
-	check("ErrReport answers its argument", (int32_t)reported == (int32_t)ErrNum(100, 1), 1);
+	check("Error answers its argument", (int32_t)reported == (int32_t)ErrNum(100, 1), 1);
 	check("count after one report", buf->count(), 1);
 
 	// A message carries its number, its default text and its parameters
@@ -95,7 +95,7 @@ main(int argc, const char** argv)
 	check("and the number alone", (int32_t)buf->error(0) == (int32_t)ErrNum(100, 1), 1);
 
 	// A zero error number reports nothing
-	ErrReport(ErrNum(), "no error", VariantArray());
+	Error(ErrNum(), "no error", VariantArray());
 	check("a zero ErrNum is not recorded", buf->count(), 1);
 
 	// Messages are consecutively numbered

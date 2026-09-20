@@ -21,7 +21,7 @@ error_buffer()
 }
 
 ErrNum
-ErrReport(ErrNum err, const char* default_text, VariantArray params)
+Error(ErrNum err, const char* default_text, VariantArray params)
 {
 	error_buffer().get()->report(err, default_text, params);
 	return err;

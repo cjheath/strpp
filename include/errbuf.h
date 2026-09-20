@@ -183,15 +183,9 @@ private:
 };
 
 /*
- * The global error API that the generated reporting functions call, each with
- * its own message's SM number and default text. This is where the appending
- * happens, and it answers the number it was given, so that reporting an error
- * and returning it are one act.
- *
- * REVISIT: the name is mine, not the author's - to settle with the rest of the
- * generated API.
+ * Report an error, lodging it in the thread's error buffer, and returning the ErrNum.
  */
-ErrNum	ErrReport(ErrNum err, const char* default_text, VariantArray params);
+ErrNum	Error(ErrNum err, const char* default_text, VariantArray params);
 
 // This thread's error buffer, made on first use
 ThreadLocal<ErrBuf>&	error_buffer();
