@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-a11fc733.js";
+            window.path_to_searchindex_js = "searchindex-45b4b769.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-58dc7aeb.js"></script>
@@ -372,18 +372,17 @@ delivers the same number of messages as the last one allocates nothing at
 all.</strong> <code>clear()</code> drops everything at once without delivering, retiring the
 numbers.</p>
 <h4 id="what-a-reporting-function-should-do"><a class="header" href="#what-a-reporting-function-should-do">What a reporting function should do</a></h4>
-<p>Build the parameters in a scratch array that is emptied between reports
-rather than rebuilt. A fresh <code>VariantArray</code> per report costs two
-allocations, which is the cost this shape exists to avoid:</p>
-<pre><code>static ThreadLocal&lt;VariantArray&gt;	scratch;
-
-VariantArray&amp;	params = *scratch.get();
-params.evacuate();			// Empty, keeping the storage
-params.append(Variant(42));
-params.append(Variant("context"));
-return Error(SomeError, "the default text", params);
+<p>Build the parameters where they are used, as an array handed to the reporting
+call:</p>
+<pre><code>return Error(SomeError, "the default text", VariantArray() &lt;&lt; 42 &lt;&lt; "context");
 </code></pre>
-<p><code>evacuate()</code> is what keeps the storage; <code>clear()</code> would give it back.</p>
+<p>There is no scratch array and no thread-local slot for one: a report costs its
+parameters and nothing else, and one report may be made from within another.
+The default text names its substitution points by position, and carries what
+belongs around them - backticks for a name, slashes for a syntax - so that a
+translation can place them where its own language wants them. What replaces
+printf-style directives is <a href="strval.html">substituting parameters into a
+text</a>, which is what renders a message when it is displayed.</p>
 <h4 id="threads-and-other-processes"><a class="header" href="#threads-and-other-processes">Threads and other processes</a></h4>
 <p>There is one buffer per thread, reached through a thread-local slot, so two
 threads never see each other’s messages. A caller running on one thread that
@@ -392,10 +391,22 @@ unformatted messages (number, default text and parameters) into whatever it
 already speaks and ships them. The receiving context is the one that knows
 the reader’s language and the room there is to display in, so it is the one
 that formats.</p>
+<h4 id="when-a-program-must-not-continue"><a class="header" href="#when-a-program-must-not-continue">When a program must not continue</a></h4>
+<p>A report is not a decision to stop: the library returns the number and carries
+on, and what the caller does with it is the caller’s business. Where carrying
+on would be wrong - a count its own type could not hold, a table that does not
+match its keys - the library asserts instead, with <code>StrppAssert</code>: the failed
+condition is reported to the same buffer as a message, including the file and
+line it failed at, that buffer is dumped, and the program aborts. A failure
+while the dump is running aborts at once, without reporting or dumping again,
+so that a fault in the reporting path cannot become a loop.</p>
+<p>Where the dump goes is the application’s to say, since only it knows what a
+developer will see. <code>strpp_panic_write</code> is a function pointer: the library
+sets it to write to standard error where there is a <code>write(2)</code>, and to write
+nowhere at all where there is not. See
+<a href="https://github.com/cjheath/strpp/blob/main/include/strassert.h">strassert.h</a>.</p>
 <h4 id="not-implemented-yet"><a class="header" href="#not-implemented-yet">Not implemented yet</a></h4>
 <ul>
-<li><strong>Formatting.</strong> What the substitution points look like, and what replaces
-printf-style directives, is not settled.</li>
 <li><strong>Catalogs.</strong> Nothing yet reads a compiled catalog; the default text is
 what a message carries.</li>
 <li><strong>Severity.</strong> A message has no severity recorded. Severity is contextual,

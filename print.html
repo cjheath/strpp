@@ -36,7 +36,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-a11fc733.js";
+            window.path_to_searchindex_js = "searchindex-45b4b769.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-58dc7aeb.js"></script>
@@ -209,6 +209,48 @@ deprecated in favour of the PEG expressions above.</p>
 grammars: it compiles a grammar into a compact table-driven parser that
 allocates no memory, and generates grammar documentation using Javascript
 and SVG.</p>
+<h3 id="building-the-library"><a class="header" href="#building-the-library">Building the library</a></h3>
+<p>The <code>Makefile</code> that comes with the library is a plain one, and a few settings
+may be given to <code>make</code> to fit a build to its target. Each has a default that
+suits a general purpose machine, and none of them changes what the library
+does, only how much it may hold and how much room its own bookkeeping takes.</p>
+<ul>
+<li>
+<p><code>STRVALINDEXBITS</code> (32) - the width in bits of the index a string counts its
+characters with, from 8 up to the width of a pointer. The longest a string
+may be follows from it, and is enforced: a 16-bit index holds 65 534
+characters, and asking for one more <a href="#error-management-1">stops the program</a> rather
+than wrapping round. The narrower it is, the less memory the count itself
+takes.</p>
+</li>
+<li>
+<p><code>ARRAYINDEXBITS</code> (32) - the same for the index an array body counts its
+elements with. The two are independent: a string body counts with the string
+index whatever this one says, so a 32-bit array may hold more elements than a
+16-bit string may hold characters.</p>
+</li>
+<li>
+<p><code>DEPTH</code> (16) - the most levels of array or map that
+<a href="#unicode-strings-the-strval-class-1">formatting</a> and JSON rendering descend into. A structure nested
+deeper than that answers its type name instead, so that one far deeper than
+any text needs cannot run away with the stack.</p>
+</li>
+<li>
+<p><code>PEG_TRACE</code> (off) - traces the <a href="#peg-parsing-1">PEG parsers</a> as they run, writing to
+standard output.</p>
+</li>
+</ul>
+<p>A small target might be built with an index of two bytes and less depth than a
+message needs:</p>
+<pre><code>make STRVALINDEXBITS=16 ARRAYINDEXBITS=16 DEPTH=8
+</code></pre>
+<p>A threaded build chooses its model with <code>HAVE_PTHREADS</code>, <code>HAVE_FREERTOS</code>, <code>MSW</code>
+or <code>NO_THREAD</code>, and a FreeRTOS build also sets <code>THREAD_DEFAULT_STACK_BYTES</code>,
+<code>THREAD_DEFAULT_PRIORITY</code> and <code>MAX_THREAD</code>. See <a href="#threads-locks-and-thread-local-storage-1">Threads, locks and
+thread-local storage</a>, and <code>include/thread_local.h</code> for the pool
+of thread-local slots that a FreeRTOS build must make room for.</p>
+<p>An ESP-IDF build registers the library with <code>CMakeLists.txt</code> and sets the
+thread settings from <code>Kconfig</code> rather than from this Makefile.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="unicode-strings-the-strval-class-1"><a href="#unicode-strings-the-strval-class-1" class="header">Unicode strings: the StrVal class</a></h1>
 <h2 id="unicode-strings-the-strval-class"><a class="header" href="#unicode-strings-the-strval-class">Unicode strings: the StrVal class</a></h2>
@@ -1046,18 +1088,17 @@ delivers the same number of messages as the last one allocates nothing at
 all.</strong> <code>clear()</code> drops everything at once without delivering, retiring the
 numbers.</p>
 <h4 id="what-a-reporting-function-should-do"><a class="header" href="#what-a-reporting-function-should-do">What a reporting function should do</a></h4>
-<p>Build the parameters in a scratch array that is emptied between reports
-rather than rebuilt. A fresh <code>VariantArray</code> per report costs two
-allocations, which is the cost this shape exists to avoid:</p>
-<pre><code>static ThreadLocal&lt;VariantArray&gt;	scratch;
-
-VariantArray&amp;	params = *scratch.get();
-params.evacuate();			// Empty, keeping the storage
-params.append(Variant(42));
-params.append(Variant("context"));
-return Error(SomeError, "the default text", params);
+<p>Build the parameters where they are used, as an array handed to the reporting
+call:</p>
+<pre><code>return Error(SomeError, "the default text", VariantArray() &lt;&lt; 42 &lt;&lt; "context");
 </code></pre>
-<p><code>evacuate()</code> is what keeps the storage; <code>clear()</code> would give it back.</p>
+<p>There is no scratch array and no thread-local slot for one: a report costs its
+parameters and nothing else, and one report may be made from within another.
+The default text names its substitution points by position, and carries what
+belongs around them - backticks for a name, slashes for a syntax - so that a
+translation can place them where its own language wants them. What replaces
+printf-style directives is <a href="#unicode-strings-the-strval-class-1">substituting parameters into a
+text</a>, which is what renders a message when it is displayed.</p>
 <h4 id="threads-and-other-processes"><a class="header" href="#threads-and-other-processes">Threads and other processes</a></h4>
 <p>There is one buffer per thread, reached through a thread-local slot, so two
 threads never see each other’s messages. A caller running on one thread that
@@ -1066,10 +1107,22 @@ unformatted messages (number, default text and parameters) into whatever it
 already speaks and ships them. The receiving context is the one that knows
 the reader’s language and the room there is to display in, so it is the one
 that formats.</p>
+<h4 id="when-a-program-must-not-continue"><a class="header" href="#when-a-program-must-not-continue">When a program must not continue</a></h4>
+<p>A report is not a decision to stop: the library returns the number and carries
+on, and what the caller does with it is the caller’s business. Where carrying
+on would be wrong - a count its own type could not hold, a table that does not
+match its keys - the library asserts instead, with <code>StrppAssert</code>: the failed
+condition is reported to the same buffer as a message, including the file and
+line it failed at, that buffer is dumped, and the program aborts. A failure
+while the dump is running aborts at once, without reporting or dumping again,
+so that a fault in the reporting path cannot become a loop.</p>
+<p>Where the dump goes is the application’s to say, since only it knows what a
+developer will see. <code>strpp_panic_write</code> is a function pointer: the library
+sets it to write to standard error where there is a <code>write(2)</code>, and to write
+nowhere at all where there is not. See
+<a href="https://github.com/cjheath/strpp/blob/main/include/strassert.h">strassert.h</a>.</p>
 <h4 id="not-implemented-yet"><a class="header" href="#not-implemented-yet">Not implemented yet</a></h4>
 <ul>
-<li><strong>Formatting.</strong> What the substitution points look like, and what replaces
-printf-style directives, is not settled.</li>
 <li><strong>Catalogs.</strong> Nothing yet reads a compiled catalog; the default text is
 what a message carries.</li>
 <li><strong>Severity.</strong> A message has no severity recorded. Severity is contextual,
