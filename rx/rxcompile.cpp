@@ -10,32 +10,12 @@
 
 /*
  * Two of this compiler's parses are expected to fail, and reading a number out
- * of a text now reports what it could not read. A repetition count may be
- * absent, and a fixed-width escape slice runs out of digits by design, so those
- * complaints are the caller's own doing and are taken back again.
- *
- * The checkpoint says which messages are ours to drop: a rollback to it leaves
- * anything an enclosing operation had already reported. Where no buffer exists
- * yet, the checkpoint is 0, which is right - there is nothing yet to keep.
+ * of a text now reports what it could not read: a repetition count may be
+ * absent, and a fixed-width escape slice runs out of digits by design. Those
+ * complaints are the caller's own doing, so each is taken back with the
+ * checkpoint taken before the parse - ErrCheckpoint keeps what an enclosing
+ * operation had already reported.
  */
-static ErrBuf::MsgSequence
-reported_so_far()
-{
-	ErrBuf*	buf = error_buffer().peek();
-	return buf ? buf->checkpoint() : 0;
-}
-
-// Whether the failure was the tolerated one, and if so, take its report back
-static bool
-tolerated(ErrNum e, ErrNum expected, ErrBuf::MsgSequence from)
-{
-	if (e != expected)
-		return false;
-	ErrBuf*	buf = error_buffer().peek();
-	if (buf)
-		buf->rollback(from);
-	return true;
-}
 
 /*
  * Structure of the virtual machine:
@@ -210,10 +190,14 @@ bool RxCompiler::scanRegex(const std::function<bool(const RxToken& instr)> func)
 			}
 			if (close > 0)
 			{
-				at = reported_so_far();
+				at = ErrCheckpoint();
 				min = param.substr(0, close).asInt32(&int_error, 10, &scanned);
-				if (!tolerated(int_error, STRERR_NO_DIGITS, at)
-				 && (int_error || min < 0))
+				if (STRERR_NO_DIGITS == int_error)
+				{
+					ErrRollback(at);
+					int_error = 0;	// An absent count is not a mistake
+				}
+				if (int_error || min < 0)
 					goto bad_repetition;
 			}
 			i += close;	// Skip the ',' or '}'
@@ -224,10 +208,14 @@ bool RxCompiler::scanRegex(const std::function<bool(const RxToken& instr)> func)
 				close = param.find('}');
 				if (close < 0)
 					goto bad_repetition;
-				at = reported_so_far();
+				at = ErrCheckpoint();
 				max = param.substr(0, close).asInt32(&int_error, 10, &scanned);
-				if (!tolerated(int_error, STRERR_NO_DIGITS, at)
-				 && (int_error || (max && max < min)))
+				if (STRERR_NO_DIGITS == int_error)
+				{
+					ErrRollback(at);
+					int_error = 0;	// An absent count is not a mistake
+				}
+				if (int_error || (max && max < min))
 					goto bad_repetition;
 				i += close;
 			}
@@ -252,10 +240,14 @@ bool RxCompiler::scanRegex(const std::function<bool(const RxToken& instr)> func)
 				if (!enabled(RxFeature::OctalChar))
 					goto simple_escape;
 				param = re.substr(i, 3);
-				at = reported_so_far();
+				at = ErrCheckpoint();
 				ch = param.asInt32(&int_error, 8, &scanned);
-				if (!tolerated(int_error, STRERR_TRAIL_TEXT, at)
-				 && (int_error || scanned == 0))
+				if (STRERR_TRAIL_TEXT == int_error)
+				{
+					ErrRollback(at);
+					int_error = 0;	// The fixed-width slice ran out, as it should
+				}
+				if (int_error || scanned == 0)
 				{
 					error_message = "Illegal octal character";
 					break;
@@ -268,10 +260,14 @@ bool RxCompiler::scanRegex(const std::function<bool(const RxToken& instr)> func)
 					goto simple_escape;
 				// REVISIT: Support \x{XX}?
 				param = re.substr(++i, 2);
-				at = reported_so_far();
+				at = ErrCheckpoint();
 				ch = param.asInt32(&int_error, 16, &scanned);
-				if (!tolerated(int_error, STRERR_TRAIL_TEXT, at)
-				 && (int_error || scanned == 0))
+				if (STRERR_TRAIL_TEXT == int_error)
+				{
+					ErrRollback(at);
+					int_error = 0;	// The fixed-width slice ran out, as it should
+				}
+				if (int_error || scanned == 0)
 				{
 					error_message = "Illegal hexadecimal character";
 					break;
@@ -284,10 +280,14 @@ bool RxCompiler::scanRegex(const std::function<bool(const RxToken& instr)> func)
 					goto simple_escape;
 				// REVISIT: Support \u{XX}?
 				param = re.substr(++i, 5);
-				at = reported_so_far();
+				at = ErrCheckpoint();
 				ch = param.asInt32(&int_error, 16, &scanned);
-				if (!tolerated(int_error, STRERR_TRAIL_TEXT, at)
-				 && (int_error || scanned == 0))
+				if (STRERR_TRAIL_TEXT == int_error)
+				{
+					ErrRollback(at);
+					int_error = 0;	// The fixed-width slice ran out, as it should
+				}
+				if (int_error || scanned == 0)
 				{
 					error_message = "Illegal Unicode escape";
 					break;

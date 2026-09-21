@@ -50,7 +50,7 @@ strpp_assert_failed(const char* file, int line, const char* condition)
 
 	ErrorSTR_Assert(condition, file, line);
 
-	ErrBuf*	buf = error_buffer().peek();
+	ErrBuf*	buf = ErrBuffer();
 	if (buf)
 	{
 		/*

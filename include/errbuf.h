@@ -129,7 +129,18 @@ private:
  */
 ErrNum	Error(ErrNum err, const char* default_text, VariantArray params);
 
-// This thread's error buffer, made on first use
-ThreadLocal<ErrBuf>&	error_buffer();
+extern ErrBuf*	ErrBuffer();
+
+inline ErrBuf::MsgSequence
+ErrCheckpoint()
+{
+	return ErrBuffer()->checkpoint();
+}
+
+inline void
+ErrRollback(ErrBuf::MsgSequence to)
+{
+	ErrBuffer()->rollback(to);
+}
 
 #endif	// ERRBUF_H

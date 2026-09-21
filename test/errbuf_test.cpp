@@ -78,7 +78,7 @@ int
 main(int argc, const char** argv)
 {
 	setvbuf(stdout, 0, _IONBF, 0);
-	ErrBuf*	buf = error_buffer().get();
+	ErrBuf*	buf = ErrBuffer();
 
 	// Reporting answers the number it was given, and records it
 	ErrNum	reported = report_one(1, 42, "first");
@@ -188,7 +188,7 @@ main(int argc, const char** argv)
 		Reporter(int n) : count(n) { resume(); }
 		int	run()
 		{
-			ErrBuf*	b = error_buffer().get();
+			ErrBuf*	b = ErrBuffer();
 			if (b->count() != 0)
 				fail("a new thread's buffer was not empty");
 			for (int i = 0; i < count; i++)

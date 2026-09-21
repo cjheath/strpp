@@ -55,22 +55,22 @@ main(int argc, const char** argv)
 		break;
 
 	case ERRNUM_Something:
+	{
+		/*
+		 * What a display does: read the message, use it, let it go,
+		 * then retire it. Formatting is not designed yet, so this
+		 * only shows what the buffer holds.
+		 */
+		ErrBuf*		buf = ErrBuffer();
 		{
-			/*
-			 * What a display does: read the message, use it, let it go,
-			 * then retire it. Formatting is not designed yet, so this
-			 * only shows what the buffer holds.
-			 */
-			ErrBuf*		buf = error_buffer().get();
-			{
-				ErrBuf::Message	m = buf->message(0);
-				printf("It happened: \"%s\"", m.default_text);
-				for (unsigned i = 0; i < m.parameters.length(); i++)
-					printf(" [%u] %s", i, m.parameters[i].as_strval().asUTF8());
-				printf("\n");
-			}
-			buf->clear();	// Only once the message has been let go
+			ErrBuf::Message	m = buf->message(0);
+			printf("It happened: \"%s\"", m.default_text);
+			for (unsigned i = 0; i < m.parameters.length(); i++)
+				printf(" [%u] %s", i, m.parameters[i].as_strval().asUTF8());
+			printf("\n");
 		}
+		buf->clear();	// Only once the message has been let go
+	}
 		break;
 
 	default:

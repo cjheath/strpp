@@ -27,7 +27,7 @@ static int	report_fd = -1;
 static void
 dump_error_buffer(int sig)
 {
-	ErrBuf*	buf = error_buffer().peek();
+	ErrBuf*	buf = ErrBuffer();
 	if (buf && report_fd >= 0)
 		for (ErrBuf::MsgIndex i = 0; i < buf->count(); i++)
 		{
@@ -55,6 +55,11 @@ coercion_aborts(bool (*body)(), StrVal& report)
 	int	fds[2];
 	if (pipe(fds) != 0)
 		return false;
+
+	// Empty this process's buffered output before forking: abort() flushes
+	// what a child inherited, so every line printed so far would come out
+	// once per child as well
+	fflush(stdout);
 
 	pid_t	child = fork();
 	if (child == 0)
@@ -186,6 +191,28 @@ void variant_array_tests()
 	variant_array_from_param(VariantArray() << "bah" << 47);	// this too
 	variant_array_from_param("bah" << Variant(53));			// So does this
 	variant_array_from_param(Variant(29));
+
+	/*
+	 * The closing bracket of a nested structure stands at its *parent's*
+	 * indent, one level less than the opening. Sizing it as "the separator
+	 * less one level per depth" instead took the parent's indent away too,
+	 * which looks right at the outermost level and is wrong everywhere else -
+	 * and nothing here had covered the indented mode at depth until px's
+	 * golden files caught it.
+	 */
+	{
+		VariantArray	inner;
+		inner << 2 << 3;
+		VariantArray	outer;
+		outer << 1 << inner;
+		Variant		v(outer);
+
+		assert(v.as_json(-2) == "[1,[2,3]]");		// Tight
+		assert(v.as_json(-1) == "[ 1, [ 2, 3 ] ]");	// Compact: spaces, inside too
+		assert(v.as_json(0) == "[\n  1,\n  [\n    2,\n    3\n  ]\n]");
+		assert(v.as_json(1) == "[\n    1,\n    [\n      2,\n      3\n    ]\n  ]");
+		printf("as_json: tight, compact and both indented forms close at the parent's indent\n");
+	}
 }
 
 /*

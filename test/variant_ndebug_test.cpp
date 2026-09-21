@@ -76,7 +76,7 @@ main()
 		Variant	v(4000000000u);
 		(void)v.as_int();
 
-		ErrBuf*	buf = error_buffer().peek();
+		ErrBuf*	buf = ErrBuffer();
 		expect("the refusal was reported", buf && buf->count() > 0);
 
 		if (buf && buf->count() > 0)

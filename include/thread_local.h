@@ -143,17 +143,20 @@ template<typename T>
 class	ThreadLocal
 {
 public:
-	T*	get()			// This thread's object, created if it has none
-			{
+	T*	get()
+			{		// This thread's object, created if it has none
 				T*	p = (T*)slot.get();
 				if (!p)
 					slot.set(p = new T);
 				return p;
 			}
-	T*	peek() const		{ return (T*)slot.get(); }	// May be null
+	T*	peek() const
+			{		// May be null
+				return (T*)slot.get();
+			}
 
-	void	clear()			// Destroy this thread's object, if it has one
-			{
+	void	clear()
+			{		// Destroy this thread's object, if it has one
 				T*	p = (T*)slot.get();
 				if (p)
 				{

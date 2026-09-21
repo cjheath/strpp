@@ -273,11 +273,13 @@ public:
 				sep = StrVal(",\n")+StrVal("  ")*next_indent;
 				break;
 		}
-		// // Remove the extra indent
-		// Remove the extra indent
+		// The closing bracket stands at the *parent's* indent, which is the
+		// opening's indent less one level - two characters, whatever the
+		// depth. Removing next_indent levels instead took the parent's indent
+		// away as well, which is only invisible at the outermost level.
 		close = sep.substr(1);
 		if (indent >= 0)
-			close = close.shorter(2 * next_indent);
+			close = close.shorter(2);
 
 		switch (_type)
 		{

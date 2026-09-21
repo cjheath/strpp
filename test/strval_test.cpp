@@ -785,7 +785,7 @@ int_conversion_tests()
 static StrVal
 reported(ErrNum& number)	// What the buffer holds, its number; and empty it
 {
-	ErrBuf*	buf = error_buffer().peek();
+	ErrBuf*	buf = ErrBuffer();
 	if (!buf || buf->count() == 0)
 	{
 		number = 0;
@@ -816,7 +816,7 @@ int_conversion_report_tests()
 
 	// The tests above have been failing on purpose, and every failure now
 	// reports: start from an empty buffer, and leave one
-	ErrBuf*	first = error_buffer().peek();
+	ErrBuf*	first = ErrBuffer();
 	if (first)
 		first->clear();
 
@@ -852,7 +852,7 @@ int_conversion_report_tests()
 
 	// A parse that succeeds reports nothing: the buffer must be untouched
 	StrVal("42").asInt32(&err, 10, &scanned);
-	ErrBuf*	buf = error_buffer().peek();
+	ErrBuf*	buf = ErrBuffer();
 	expect("a successful parse reports nothing", err == 0 && (!buf || buf->count() == 0));
 }
 

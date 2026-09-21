@@ -154,8 +154,30 @@ Defined in [errbuf.h](https://github.com/cjheath/strpp/blob/main/include/errbuf.
   free function the generated reporting functions call: it reports into this
   thread's buffer and answers the number, so reporting and returning are one
   act.
-- `error_buffer()` - the free function that answers this thread's buffer,
-  making it on first use.
+
+Three free functions are there so that a caller need not reach through the
+slot at all, which is what almost every caller wants:
+
+- `ErrBuffer()` - this thread's buffer, made on first use.
+- `ErrBuffer()` - this thread's buffer as a `ErrBuf*`.
+- `ErrCheckpoint()` - the same as `ErrBuffer()->checkpoint()`: keep what it
+  answers, and roll back to it.
+- `ErrRollback(MsgSequence to)` - the same as `ErrBuffer()->rollback(to)`:
+  discard everything reported since that checkpoint, as a callee's reports
+  are dropped without the callee being party to it. It makes the buffer if
+  this thread has none, so it is safe to call whether or not anything was
+  reported.
+
+That last pair is what a caller that *expects* a failure uses, so that the
+report does not become noise:
+
+	ErrBuf::MsgSequence	at = ErrCheckpoint();
+	...call something whose failure is one of the answers...
+	if (the failure was the expected one)
+		ErrRollback(at);	// Not a mistake: take the report back
+
+`rx` and `px` both do exactly this around a parse that is expected to run out
+of digits, so that a normal run leaves the buffer empty.
 
 #### Reporting
 

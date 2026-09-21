@@ -114,17 +114,17 @@ ErrBuf::clear()
  * have the locks that guard wants. Nothing may report an error before static
  * initialisation has run.
  */
-static ThreadLocal<ErrBuf>	the_error_buffer;
+static ThreadLocal<ErrBuf>	error_buffer_tls;
 
-ThreadLocal<ErrBuf>&
-error_buffer()
+ErrBuf*
+ErrBuffer()
 {
-	return the_error_buffer;
+	return error_buffer_tls.get();
 }
 
 ErrNum
 Error(ErrNum err, const char* default_text, VariantArray params)
 {
-	error_buffer().get()->report(err, default_text, params);
+	ErrBuffer()->report(err, default_text, params);
 	return err;
 }
