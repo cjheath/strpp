@@ -24,6 +24,7 @@
 #include	<type_traits>
 
 #include	<error.h>
+#include	<str_err.h>			// The error numbers this header returns
 #include	<array.h>
 #include	<refcount.h>
 #include	<char_encoding.h>
@@ -50,13 +51,6 @@ typedef enum {
 	StrUTF8,		// UTF-8 data that is allocated internally
 	StrRawBinary,		// Normal character-per-byte data in the locale's 8-bit encoding
 } StrDataType;
-
-#define	STRERR_SET		1	// Message set number for StrVal
-#define	STRERR_TRAIL_TEXT	ErrNum(STRERR_SET, 1)	// There are non-blank characters after the number
-#define	STRERR_NO_DIGITS	ErrNum(STRERR_SET, 2)	// Number string contains only blank characters
-#define	STRERR_NUMBER_OVERFLOW	ErrNum(STRERR_SET, 3)	// The number doesn't fit in the requested type
-#define	STRERR_NOT_NUMBER	ErrNum(STRERR_SET, 4)	// The first non-blank character was non-numeric
-#define	STRERR_ILLEGAL_RADIX	ErrNum(STRERR_SET, 5)	// Use of an unsupported radix
 
 template<typename Index = StrValIndex> class StrRefI;
 template<typename Index = StrValIndex> class StrValI;
@@ -576,7 +570,11 @@ public:
 	StrValI		tail(Index chars) const
 			{ return substr(length()-chars, chars); }
 	StrValI		shorter(Index chars) const	// all chars up to tail
-			{ return substr(0, length()-chars); }
+			{
+				if (chars > length())	// Nothing left
+					return StrValI();
+				return substr(0, length()-chars);
+			}
 //	StrValI&	remove(Index at, int len = -1);	// Delete a substring from the middle
 
 	// Search for a character:
@@ -1089,157 +1087,9 @@ StrValI<Index>& StrValI<Index>::transform(const std::function<StrValI(const char
 	return *this;
 }
 
-template<typename Index>
-int32_t StrValI<Index>::asInt32(
-	ErrNum*	err_return,	// error return
-	int	radix,		// base for conversion
-	Index*	scanned		// characters scanned
-) const
-{
-	Index		len = length();		// length of string
-	Index		i = 0;			// position of next character
-	UCS4		ch = 0;			// current character
-	int		d;			// current digit value
-	bool		negative = false;	// Was a '-' sign seen?
-	unsigned long	l = 0;			// Number being converted
-	unsigned long	last;
-	unsigned long	max;
-
-	if (err_return)
-		*err_return = 0;
-
-	// Check legal radix
-	if (radix < 0 || radix > 36)
-	{
-		if (err_return)
-			*err_return = ErrNum(STRERR_SET, STRERR_ILLEGAL_RADIX);
-		if (scanned)
-			*scanned = 0;
-		return 0;
-	}
-
-	// Skip leading white-space
-	while (i < len && UCS4IsWhite(ch = (*this)[i]))
-		i++;
-	if (i == len)
-		goto no_digits;
-
-	// Check for sign character
-	if (ch == '+' || ch == '-')
-	{
-		i++;
-		negative = ch == '-';
-		while (i < len && UCS4IsWhite(ch = (*this)[i]))
-			i++;
-		if (i == len)
-			goto no_digits;
-	}
-
-	if (radix == 0)		// Auto-detect radix (octal, decimal, binary)
-	{
-		if (UCS4Digit(ch) == 0 && i+1 < len)
-		{
-			// ch is the digit zero, look ahead
-			switch ((*this)[i+1])
-			{
-			case 'b': case 'B':
-				if (radix == 0 || radix == 2)
-				{
-					radix = 2;
-					ch = (*this)[i += 2];
-					if (i == len)
-						goto no_digits;
-				}
-				break;
-			case 'x': case 'X':
-				if (radix == 0 || radix == 16)
-				{
-					radix = 16;
-					ch = (*this)[i += 2];
-					if (i == len)
-						goto no_digits;
-				}
-				break;
-			default:
-				if (radix == 0)
-					radix = 8;
-				break;
-			}
-		}
-		else
-			radix = 10;
-	}
-
-	// Check there's at least one digit:
-	if ((d = Digit(ch, radix)) < 0)
-		goto not_number;
-
-	max = (ULONG_MAX-1)/radix + 1;
-	// Convert digits
-	do {
-		i++;			// We're definitely using this char
-		last = l;
-		if (l > max		// Detect *unsigned* long overflow
-		 || (l = l*radix + d) < last)
-		{
-			// Overflowed unsigned long!
-			if (err_return)
-				*err_return = ErrNum(STRERR_SET, STRERR_NUMBER_OVERFLOW);
-			if (scanned)
-				*scanned = i;
-			return 0;
-		}
-	} while (i < len && (d = Digit((*this)[i], radix)) >= 0);
-
-	if (err_return)
-		*err_return = 0;
-
-	// Check for trailing non-white characters
-	while (i < len && UCS4IsWhite((*this)[i]))
-		i++;
-	if (i != len && err_return)
-		*err_return = ErrNum(STRERR_SET, STRERR_TRAIL_TEXT);
-
-	// Return number of digits scanned
-	if (scanned)
-		*scanned = i;
-
-	/*
-	 * The answer is an int32_t, so the bound is that of an int32_t and not of
-	 * a long. The two were the same width where this was written, and on a
-	 * 64-bit target they are not: a long's bound lets four billion through to
-	 * be wrapped into a negative number. INT32_MIN has no positive
-	 * counterpart, so a negative number is allowed one more than a positive.
-	 */
-	if (l > (unsigned long)INT32_MAX+(negative ? 1 : 0))
-	{
-		if (err_return)
-			*err_return = ErrNum(STRERR_SET, STRERR_NUMBER_OVERFLOW);
-		// The low word is answered anyway, as a number with trailing text is:
-		// a caller reading a 32-bit bit pattern wants it, and the error is
-		// what says these digits do not spell the number it is.
-	}
-
-	/*
-	 * Casting unsigned long down to long doesn't clear the high bit
-	 * on a twos-complement architecture:
-	 */
-	return negative ? -(long)l : (long)l;
-
-no_digits:
-	if (err_return)
-		*err_return = ErrNum(STRERR_SET, STRERR_NO_DIGITS);
-	if (scanned)
-		*scanned = i;
-	return 0;
-
-not_number:
-	if (err_return)
-		*err_return = ErrNum(STRERR_SET, STRERR_NOT_NUMBER);
-	if (scanned)
-		*scanned = i;
-	return 0;
-}
+// asInt32 is defined in src/strval.cpp, and not here: it reports a failure
+// through the message set, and reporting needs a Variant, which needs this
+// header. See the comment at the head of that file.
 
 /*
  * Represent the string as JSON, using UTF16 surrogates if necessary.

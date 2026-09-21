@@ -53,7 +53,9 @@ HDRS	=	\
 		refcount.h		\
 		lockfree.h		\
 		strassert.h		\
+		str_err.h		\
 		strformat.h		\
+		str_msg.h		\
 		threadid.h		\
 		strval.h		\
 		taggedref.h		\
@@ -67,6 +69,7 @@ SRCS	=	\
 		errbuf.cpp		\
 		lockfree.cpp		\
 		strassert.cpp		\
+		strval.cpp		\
 		thread.cpp		\
 		variant.cpp
 

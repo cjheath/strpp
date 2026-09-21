@@ -10,6 +10,7 @@
 
 #define	protected	public
 #include	<strregex.h>
+#include	<errbuf.h>
 
 #include	"memory_monitor.h"
 
@@ -328,6 +329,32 @@ int automated_tests()
 		// On incorrect NFA, dump what we got:
 		if (nfa && (!nfa_pass || verbose))
 			rx.dump(nfa);
+
+		/*
+		 * In two situations where we expect a number, it's ok if they're missing.
+		 * We checkpoint the error buffer and roll it back when those occur.
+		 * Any remaining message means a parse failed unexpectedly
+		 */
+		{
+			ErrBuf*	buf = error_buffer().peek();
+			int	left = buf ? (int)buf->count() : 0;
+			if (ct->expected_message == 0 && left != 0)
+			{
+				printf("A compile left %d message(s) in the buffer: \"%s\"\n", left, ct->regex);
+				for (ErrBuf::MsgIndex n = 0; n < buf->count(); n++)
+				{
+					StrVal	said;
+					{
+						ErrBuf::Message	m = buf->message(n);
+						said = StrVal::format(m.default_text, m.parameters);
+					}
+					printf("      %s\n", said.asUTF8());
+				}
+				test_pass = false;
+			}
+			if (buf)
+				buf->clear();
+		}
 
 		// Clean up and check for leaks:
 		if (nfa)

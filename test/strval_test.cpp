@@ -33,6 +33,7 @@
  * (c) Copyright Clifford Heath 2026. See LICENSE file for usage rights.
  */
 #include	<strval.h>
+#include	<errbuf.h>		// What a failure reports
 
 #include	<cstdio>
 #include	<cstring>
@@ -59,6 +60,7 @@ void		insert_append_prepend_tests();
 void		case_conversion_tests();
 void		json_tests();
 void		int_conversion_tests();
+void		int_conversion_report_tests();
 void		comparison_tests();
 void		copy_on_write_tests();
 void		raw_binary_tests();
@@ -770,6 +772,88 @@ int_conversion_tests()
 	// the bound was a long's where the answer was an int32_t's
 	StrVal("4000000000").asInt32(&err, 10);
 	expect_eq_err("4000000000 overflow err", err, ErrNum(STRERR_SET, STRERR_NUMBER_OVERFLOW));
+
+	int_conversion_report_tests();
+}
+
+/*
+ * Each failure is not only returned but reported, with all the context a reader
+ * needs: the text, the radix, and how far the parse got. What is reported is
+ * read back here, formatted, which is the only way to see it - the buffer holds
+ * the number, the default text and the parameters, and formats nothing.
+ */
+static StrVal
+reported(ErrNum& number)	// What the buffer holds, its number; and empty it
+{
+	ErrBuf*	buf = error_buffer().peek();
+	if (!buf || buf->count() == 0)
+	{
+		number = 0;
+		return "<nothing was reported>";
+	}
+
+	StrVal	said;
+	{
+		// Scoped: a Message holds a slice of the buffer's parameters, and
+		// clear() refuses while any slice is outstanding
+		ErrBuf::Message	msg = buf->message(0);
+		number = msg.error;
+		said = StrVal::format(msg.default_text, msg.parameters);
+	}
+	buf->clear();			// Leaves nothing for the next case
+	return said;
+}
+
+void
+int_conversion_report_tests()
+{
+	ErrNum		err;
+	ErrNum		number;
+	StrValIndex	scanned;
+	StrVal		said;
+
+	test_group("asInt32: a failure is reported, with the text and the radix in it");
+
+	// The tests above have been failing on purpose, and every failure now
+	// reports: start from an empty buffer, and leave one
+	ErrBuf*	first = error_buffer().peek();
+	if (first)
+		first->clear();
+
+	StrVal("123").asInt32(&err, 37, &scanned);
+	said = reported(number);
+	expect_eq_err("radix 37 reported as ILLEGAL_RADIX", number, STRERR_ILLEGAL_RADIX);
+	expect_eq_str("...naming the radix and the text", said,
+		"The radix 37 is not one a number can be read in, so `123` was not read");
+
+	StrVal("   ").asInt32(&err, 10, &scanned);
+	said = reported(number);
+	expect_eq_err("a blank text is reported as NO_DIGITS", number, STRERR_NO_DIGITS);
+	expect_eq_str("...naming the text and the radix", said,
+		"There are no digits in `   ` to read a number from, in radix 10");
+
+	StrVal("abc").asInt32(&err, 0, &scanned);
+	said = reported(number);
+	expect_eq_err("a non-number is reported as NOT_NUMBER", number, STRERR_NOT_NUMBER);
+	expect_eq_str("...naming the character and where it is", said,
+		"`abc` is not a number in radix 10: the character `a` at 0 is not a digit");
+
+	StrVal("12x").asInt32(&err, 0, &scanned);
+	said = reported(number);
+	expect_eq_err("trailing text is reported as TRAIL_TEXT", number, STRERR_TRAIL_TEXT);
+	expect_eq_str("...naming where the number ended", said,
+		"Reading `12x` in radix 10: the number ends at 2 and `x` is not part of it");
+
+	StrVal("4000000000").asInt32(&err, 10, &scanned);
+	said = reported(number);
+	expect_eq_err("too large is reported as NUMBER_OVERFLOW", number, STRERR_NUMBER_OVERFLOW);
+	expect_eq_str("...naming the text and the radix", said,
+		"The number in `4000000000` is too large to be read as an `int32_t` in radix 10, overflowing at 10");
+
+	// A parse that succeeds reports nothing: the buffer must be untouched
+	StrVal("42").asInt32(&err, 10, &scanned);
+	ErrBuf*	buf = error_buffer().peek();
+	expect("a successful parse reports nothing", err == 0 && (!buf || buf->count() == 0));
 }
 
 /*

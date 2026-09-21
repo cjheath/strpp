@@ -58,7 +58,9 @@ Reading:
 Cutting one up:
 
 - `substr(Index at, int len = -1)`, `head(n)`, `tail(n)`, `shorter(n)` - a
-  slice, or everything but the last `n` characters. All are O(1).
+  slice, or everything but the last `n` characters. All are O(1), and all
+  reduce to what there is: `shorter(n)` for more characters than the string
+  has is the empty string, which is what removing all of them leaves.
 - `find`/`rfind(UCS4 ch, int after/before)` - where a character is, or -1.
 - `find`/`rfind(const StrVal&, int after/before)` - where a substring is.
 - `findAny`/`rfindAny(const StrVal& s, int after/before)` - where any of the
@@ -87,8 +89,9 @@ Building one:
 - `asJSON()`, `toJSON()` - escaped for JSON; `toJSON` escapes in place and
   does not add the enclosing quotes.
 - `asInt32(ErrNum* err, int radix = 0, Index* scanned = 0)` - the number this
-  string reads as, in any radix from 2 to 36 and auto-detected when 0,
-  reporting what it could not use.
+  string reads as, in any radix from 2 to 36 and auto-detected when 0. A text
+  it cannot read whole is reported into the thread's error buffer as well as
+  returned: see [Errors](error.md) and the `STR` set in `str_err.h`.
 - `static format(StrVal f, VariantArray args)` - the text `f` with each `{1}`,
   `{2}` and so on replaced by that parameter, which the marker may say how to
   render. See "Substituting parameters into a text" below.
@@ -232,7 +235,9 @@ same one a format marker names:
 
 `asInt32` reads in any radix from 2 to 36, or in the radix the text's own
 prefix says when it is given 0; the `from*` functions write in 2, 8, 10 or 16,
-which is what a representation names. Neither direction adds a prefix: a text
+which is what a representation names. A text `asInt32` cannot read whole is
+reported as well as answered - the text, the radix, and how far the parse got -
+so that a failure has a record even where nobody looked at the answer. Neither direction adds a prefix: a text
 that wants `0x` writes it itself, so that a translated text keeps the prefix
 where its own language wants it.
 

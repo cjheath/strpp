@@ -79,11 +79,20 @@ caller handles the errors it knows and passes on the rest:
 		return e;		// Not ours to handle
 	}
 
-Set and message numbers are generated from a message set description: a
-set's messages become `#define`s in a generated header, `<Module>_err.h`,
-one per message with the default text in a comment, so that code has names
-rather than numbers. There are 1024 messages to a set, and set numbers run
-to 262143.
+Set and message numbers come from a message set description: a set's messages
+become `#define`s in a generated header, `<Module>_err.h`, one per message with
+the default text in a comment, so that code has names rather than numbers. Its
+companion, `<Module>_msg.h`, holds the reporting function of each - the pair is
+for the two things a message is for, and a translation is written against the
+texts the first half carries.
+
+One library has one message source file, however many sets are in it. This
+library's is [str_err.h](https://github.com/cjheath/strpp/blob/main/include/str_err.h)
+and [str_msg.h](https://github.com/cjheath/strpp/blob/main/include/str_msg.h),
+which hold the sets `STR`, for the strings, and `VAR`, for the Variant. A set
+carries what can go wrong within it and nothing else, which is why a message
+about reading a number from a text is in `STR` rather than beside the class it
+came from. There are 1024 messages to a set, and set numbers run to 262143.
 
 A number, once used, is never re-used, so a number written into a log, a
 manual or a customer's report keeps its meaning over the life of the

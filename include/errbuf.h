@@ -50,47 +50,23 @@ public:
 		VariantArray	parameters;
 	};
 
-			ErrBuf()
-			: first_entry(0), first_parameter(0), delivered_count(0) {}
+			ErrBuf();
 
-	MsgIndex	count() const		{ return live(); }
-	MsgSequence	checkpoint() const	{ return delivered_count + live(); }
+	MsgIndex	count() const;
+	MsgSequence	checkpoint() const;
 
 	// What recovery almost always wants: the number and nothing else
-	ErrNum		error(MsgIndex n) const
-			{
-				assert(n < live());
-				return entries[first_entry+n].error();
-			}
+	ErrNum		error(MsgIndex n) const;
 
 	// The whole message, for whoever is about to deliver it
-	Message		message(MsgIndex n) const
-			{
-				Entry	e = entries[first_entry+n];
-				Message	m;
-				m.error = e.error();
-				m.default_text = e.default_text();
-				m.parameters = parameters.slice(e.first(), e.parameters());
-				return m;
-			}
+	Message		message(MsgIndex n) const;
 
 	/*
 	 * Append a reported message, and answer its sequence number. Messages are
 	 * consecutively numbered: a recovery gives its numbers back, so the next
 	 * report takes them again, and a delivered number is never re-used.
 	 */
-	MsgSequence	report(ErrNum err, const char* default_text, VariantArray params)
-			{
-				if (!err)
-					return 0;	// No error: nothing to report
-
-				ParamIndex	first = parameters.length();
-				for (ParamIndex i = 0; i < params.length(); i++)
-					parameters.append(params[i]);
-
-				entries.append(Entry(err, default_text, first, params.length()));
-				return delivered_count + live();
-			}
+	MsgSequence	report(ErrNum err, const char* default_text, VariantArray params);
 
 	/*
 	 * Discard everything reported since a checkpoint, parameters and all - so
@@ -99,20 +75,7 @@ public:
 	 * outcome of a call drops what the callee reported, without the callee
 	 * being party to it.
 	 */
-	void		rollback(MsgSequence which)
-			{
-				// Everything live is newer than the checkpoint, even where a
-				// delivery has already carried the checkpoint's own message away
-				MsgIndex	keep = which > delivered_count ? which - delivered_count : 0;
-				if (keep >= live())
-					return;
-
-				// The recovered messages are the last ones, and so are their
-				// parameters: drop just those, leaving the rest where they are
-				ParamIndex	at = entries[first_entry+keep].first();
-				entries.remove(first_entry+keep, live()-keep);
-				parameters.remove(at, parameters.length()-at);
-			}
+	void		rollback(MsgSequence which);
 
 	/*
 	 * The oldest message has been delivered: take it out of the buffer. This
@@ -121,31 +84,10 @@ public:
 	 * arrays, which empties them while keeping the storage for the next action
 	 * to reuse. That is what bounds the storage: an action's worth, reused.
 	 */
-	void		delivered()
-			{
-				assert(live() > 0);
-				assert(!parameters.isShared());	// No Message still holding a slice
-				delivered_count += 1;		// Its number is retired for good
-				if (live() == 1)
-				{
-					entries.evacuate();
-					parameters.evacuate();
-					first_entry = first_parameter = 0;
-					return;
-				}
-				first_parameter += entries[first_entry].parameters();
-				first_entry++;
-			}
+	void		delivered();
 
 	// Drop everything, keeping the storage for the next action to reuse
-	void		clear()
-			{
-				assert(!parameters.isShared());	// No Message still holding a slice
-				delivered_count += live();
-				entries.evacuate();
-				parameters.evacuate();
-				first_entry = first_parameter = 0;
-			}
+	void		clear();
 
 private:
 	/*
@@ -173,7 +115,7 @@ private:
 		ParamIndex	count;
 	};
 
-	MsgIndex	live() const		{ return entries.length() - first_entry; }
+	MsgIndex	live() const;
 
 	Array<Entry>	entries;		// Delivered ones are behind first_entry
 	MsgIndex	first_entry;

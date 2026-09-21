@@ -1,8 +1,9 @@
 /*
- * Variant data type.
+ * Variant data type: the two reports it makes, which cannot be made from the
+ * header because reporting needs the message set. See src/strval.cpp.
  */
 #include	<variant.h>
-#include	<errbuf.h>			// For the type assertion below
+#include	<str_msg.h>			// The functions that report
 
 const char*	Variant::type_names[] = {
 	"None",
@@ -31,8 +32,7 @@ Variant::must_be(VariantType t) const
 	if (_type == t)
 		return;
 
-	Error(VARERR_WRONG_TYPE, "A `{1}` was expected, but this Variant is a `{2}`",
-		VariantArray() << type_names[t] << type_names[_type]);
+	ErrorVAR_WrongType(type_names[t], type_names[_type]);
 	assert(!"Mismatched type");
 }
 
@@ -51,8 +51,7 @@ Variant::must_be(VariantType t) const
 void
 Variant::cannot_convert(VariantType t)
 {
-	Error(VARERR_DOES_NOT_FIT, "Cannot convert to a `{1}` because the value {2} does not fit",
-		VariantArray() << type_names[t] << value_text());
+	ErrorVAR_DoesNotFit(type_names[t], value_text());
 	assert(!"Value does not fit the type it was asked for");
 
 	VariantType	to = fitting_signed();

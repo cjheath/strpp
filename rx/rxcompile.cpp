@@ -5,7 +5,37 @@
  * (c) Copyright Clifford Heath 2022. See LICENSE file for usage rights.
  */
 #include	<strregex.h>
+#include	<errbuf.h>
 #include	<cstring>
+
+/*
+ * Two of this compiler's parses are expected to fail, and reading a number out
+ * of a text now reports what it could not read. A repetition count may be
+ * absent, and a fixed-width escape slice runs out of digits by design, so those
+ * complaints are the caller's own doing and are taken back again.
+ *
+ * The checkpoint says which messages are ours to drop: a rollback to it leaves
+ * anything an enclosing operation had already reported. Where no buffer exists
+ * yet, the checkpoint is 0, which is right - there is nothing yet to keep.
+ */
+static ErrBuf::MsgSequence
+reported_so_far()
+{
+	ErrBuf*	buf = error_buffer().peek();
+	return buf ? buf->checkpoint() : 0;
+}
+
+// Whether the failure was the tolerated one, and if so, take its report back
+static bool
+tolerated(ErrNum e, ErrNum expected, ErrBuf::MsgSequence from)
+{
+	if (e != expected)
+		return false;
+	ErrBuf*	buf = error_buffer().peek();
+	if (buf)
+		buf->rollback(from);
+	return true;
+}
 
 /*
  * Structure of the virtual machine:
@@ -96,6 +126,7 @@ bool RxCompiler::scanRegex(const std::function<bool(const RxToken& instr)> func)
 	StrVal		param;		// A string argument
 	int		close;		// String offset of the character ending a param
 	ErrNum		int_error;
+	ErrBuf::MsgSequence	at;	// Where the last tolerated report began
 	StrValIndex 	scanned;
 	bool		ok = true;
 	int		min, max;
@@ -179,8 +210,10 @@ bool RxCompiler::scanRegex(const std::function<bool(const RxToken& instr)> func)
 			}
 			if (close > 0)
 			{
+				at = reported_so_far();
 				min = param.substr(0, close).asInt32(&int_error, 10, &scanned);
-				if ((int_error && int_error != STRERR_NO_DIGITS) || min < 0)
+				if (!tolerated(int_error, STRERR_NO_DIGITS, at)
+				 && (int_error || min < 0))
 					goto bad_repetition;
 			}
 			i += close;	// Skip the ',' or '}'
@@ -191,8 +224,10 @@ bool RxCompiler::scanRegex(const std::function<bool(const RxToken& instr)> func)
 				close = param.find('}');
 				if (close < 0)
 					goto bad_repetition;
+				at = reported_so_far();
 				max = param.substr(0, close).asInt32(&int_error, 10, &scanned);
-				if ((int_error && int_error != STRERR_NO_DIGITS) || (max && max < min))
+				if (!tolerated(int_error, STRERR_NO_DIGITS, at)
+				 && (int_error || (max && max < min)))
 					goto bad_repetition;
 				i += close;
 			}
@@ -217,8 +252,10 @@ bool RxCompiler::scanRegex(const std::function<bool(const RxToken& instr)> func)
 				if (!enabled(RxFeature::OctalChar))
 					goto simple_escape;
 				param = re.substr(i, 3);
+				at = reported_so_far();
 				ch = param.asInt32(&int_error, 8, &scanned);
-				if ((int_error && int_error != STRERR_TRAIL_TEXT) || scanned == 0)
+				if (!tolerated(int_error, STRERR_TRAIL_TEXT, at)
+				 && (int_error || scanned == 0))
 				{
 					error_message = "Illegal octal character";
 					break;
@@ -231,8 +268,10 @@ bool RxCompiler::scanRegex(const std::function<bool(const RxToken& instr)> func)
 					goto simple_escape;
 				// REVISIT: Support \x{XX}?
 				param = re.substr(++i, 2);
+				at = reported_so_far();
 				ch = param.asInt32(&int_error, 16, &scanned);
-				if ((int_error && int_error != STRERR_TRAIL_TEXT) || scanned == 0)
+				if (!tolerated(int_error, STRERR_TRAIL_TEXT, at)
+				 && (int_error || scanned == 0))
 				{
 					error_message = "Illegal hexadecimal character";
 					break;
@@ -245,8 +284,10 @@ bool RxCompiler::scanRegex(const std::function<bool(const RxToken& instr)> func)
 					goto simple_escape;
 				// REVISIT: Support \u{XX}?
 				param = re.substr(++i, 5);
+				at = reported_so_far();
 				ch = param.asInt32(&int_error, 16, &scanned);
-				if ((int_error && int_error != STRERR_TRAIL_TEXT) || scanned == 0)
+				if (!tolerated(int_error, STRERR_TRAIL_TEXT, at)
+				 && (int_error || scanned == 0))
 				{
 					error_message = "Illegal Unicode escape";
 					break;

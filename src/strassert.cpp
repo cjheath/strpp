@@ -4,6 +4,7 @@
  * (c) Copyright Clifford Heath 2026. See LICENSE file for usage rights.
  */
 #include	<strassert.h>
+#include	<str_msg.h>			// The assertion's message
 #include	<errbuf.h>			// The buffer the dump comes from
 
 #include	<cstdlib>
@@ -47,20 +48,24 @@ strpp_assert_failed(const char* file, int line, const char* condition)
 		abort();
 	dying = true;
 
-	Error(STRPPERR_ASSERT, "Assertion failed: `{1}` at {2}:{3}",
-		VariantArray() << condition << file << line);
+	ErrorSTR_Assert(condition, file, line);
 
 	ErrBuf*	buf = error_buffer().peek();
 	if (buf)
 	{
-		for (ErrBuf::MsgIndex i = 0; i < buf->count(); i++)
+		/*
+		 * Always the oldest message, and delivered before the next is read:
+		 * delivered() advances past it, so an index that rose as the count
+		 * fell would leave every other message undumped.
+		 */
+		while (buf->count() > 0)
 		{
 			StrVal	written;
 
 			{	// The message's parameters are a slice of the buffer's
 				// array, so the message, and the string built from it,
 				// are both gone before delivered() is called
-				ErrBuf::Message	msg = buf->message(i);
+				ErrBuf::Message	msg = buf->message(0);
 				written = StrVal("error ")
 					+ StrVal::fromInt32((int32_t)msg.error, 'X')
 					+ ": "

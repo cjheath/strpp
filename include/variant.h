@@ -7,6 +7,7 @@
 #include	<functional>
 
 #include	<strval.h>
+#include	<str_err.h>			// The error numbers reported from src/variant.cpp
 #include	<array.h>
 #include	<cowmap.h>
 
@@ -19,10 +20,6 @@
 #if	!defined(RENDER_MAX_DEPTH)
 #define	RENDER_MAX_DEPTH	16
 #endif
-
-#define	VARERR_SET		2	// Message set number for Variant
-#define	VARERR_WRONG_TYPE	ErrNum(VARERR_SET, 1)	// The Variant is not of the type that was expected
-#define	VARERR_DOES_NOT_FIT	ErrNum(VARERR_SET, 2)	// The value is too large for the type it was asked for
 
 class	Variant;
 
@@ -267,6 +264,7 @@ public:
 
 		int		next_indent = indent;
 		StrVal		sep;			// Separator string between array or map items
+		StrVal		close;			// What stands before the closing bracket
 		switch (indent)
 		{
 		case -2:	sep = ","; break;	// Tight
@@ -275,6 +273,11 @@ public:
 				sep = StrVal(",\n")+StrVal("  ")*next_indent;
 				break;
 		}
+		// // Remove the extra indent
+		// Remove the extra indent
+		close = sep.substr(1);
+		if (indent >= 0)
+			close = close.shorter(2 * next_indent);
 
 		switch (_type)
 		{
@@ -306,7 +309,7 @@ public:
 			for (int i = 0; i < u.str_arr.length(); i++)
 				str += (i > 0 ? sep : StrVal())
 				    + Variant(u.str_arr[i]).as_json_at(next_indent, depth-1);
-			return str+sep.substr(1).shorter(2)+"]";
+			return str+close+"]";
 			}
 
 		case VarArray:
@@ -315,7 +318,7 @@ public:
 			for (int i = 0; i < u.var_arr.length(); i++)
 				str += (i > 0 ? sep : StrVal())
 				    + u.var_arr[i].as_json_at(next_indent, depth-1);
-			return str+sep.substr(1).shorter(2)+"]";
+			return str+close+"]";
 			}
 
 		case StrVarMap:
@@ -328,7 +331,7 @@ public:
 				    + (indent==-2 ? ":" : ": ")
 				    + (*iter).second.as_json_at(next_indent, depth-1);
 			}
-			return str+sep.substr(1).shorter(2)+"}";
+			return str+close+"}";
 			}
 		}
 	}
