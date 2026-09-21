@@ -90,7 +90,8 @@ TESTS	=	\
 		thread_test		\
 		thread_local_test	\
 		utf8pointer_test	\
-		variant_test
+		variant_test		\
+		variant_ndebug_test
 
 SUBDIRS	=	rx
 
@@ -111,7 +112,7 @@ tests:	$(TESTS)
 
 test:	run_pegexp_test run_pegexp_size_test \
 	run_peg_test run_peg_size_test \
-	run_variant_test
+	run_variant_test run_variant_ndebug_test
 
 run_pegexp_test: pegexp_test
 	test/run_pegexp_test < test/pegexp_test.cases
@@ -137,6 +138,18 @@ run_pegexp_size_test:
 
 run_variant_test: variant_test
 	variant_test
+
+# The half of a refused coercion that only a build without assertions can show:
+# there is no one to stop for, so the value must be kept. It needs NDEBUG all
+# through, so the two library sources that report are compiled here rather than
+# taken from the archive, whose copies are built with assertions on. Nothing
+# else in the archive defines what they do, so the linker pulls only the rest.
+variant_ndebug_test: test/variant_ndebug_test.cpp $(HDRS) Makefile
+	$(CXX) $(DEBUG) -DNDEBUG $(CXXFLAGS) -Iinclude -Itest -o $@ \
+		$< src/variant.cpp src/errbuf.cpp $(LIB)
+
+run_variant_ndebug_test: variant_ndebug_test
+	variant_ndebug_test
 
 %:	%.cpp $(LIB) $(MEMCHECK)
 	$(CXX) $(DEBUG) $(CXXFLAGS) -Iinclude -Itest -o $@ $< $(MEMCHECK) $(LIB)

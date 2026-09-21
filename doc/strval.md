@@ -94,6 +94,11 @@ Building one:
   render. See "Substituting parameters into a text" below.
 - `StringArray::join(StrVal joiner)` - the elements of a `StringArray`,
   concatenated with `joiner` between them.
+- `fromInt32(int32_t n, char repr = 0)`, and `fromUInt32`, `fromLong`,
+  `fromULong`, `fromInt64`, `fromUInt64` - the number written out as text, in
+  the representation `repr` names. These are the inverse of `asInt32`, and are
+  what a format marker for a number is rendered with. See "Integers as text"
+  below.
 
 `Index` is `StrValIndex`, 32 bits unless the build says otherwise. The
 `INDEXBITS` option in the Makefile sets it to any width from 8 bits up to the
@@ -210,6 +215,45 @@ losing the text around it. A brace that is meant literally is doubled, as it is
 in Python and .NET: `{{` is a `{`, and `}}` is a `}`. Nothing else needs
 escaping, so a text may carry a regular expression, a path or a backslash as it
 stands.
+
+### Integers as text
+
+`asInt32` answers the number a text reads as, and the six `from*` functions
+answer the text a number writes as. Both take a representation, and it is the
+same one a format marker names:
+
+	StrVal::fromInt32(255, 'x')		// ff
+	StrVal::fromInt32(-255)			// -255
+	StrVal::fromInt32(-255, 'X')		// FFFFFF01
+	StrVal::fromUInt32(4000000000u)		// 4000000000
+	StrVal::fromInt64(-1, 'x')		// ffffffffffffffff
+	StrVal::fromUInt64(18446744073709551615ull)
+						// 18446744073709551615
+
+`asInt32` reads in any radix from 2 to 36, or in the radix the text's own
+prefix says when it is given 0; the `from*` functions write in 2, 8, 10 or 16,
+which is what a representation names. Neither direction adds a prefix: a text
+that wants `0x` writes it itself, so that a translated text keeps the prefix
+where its own language wants it.
+
+The representation is one character - `b` binary, `o` octal, `d` decimal, `x`
+and `X` hexadecimal for the two cases of the alphabet - or 0, which is
+decimal. Decimal renders the sign, and the most negative value of a type is
+written from its unsigned form, since that value has no positive counterpart
+to negate. Any other base renders the bit pattern of the value at the width of
+its own type, which is what a base is for: an `int` of -1 is `ffffffff`, eight
+F's and no sign.
+
+This is why there are six functions rather than one taking a `long long`: an
+`int` and a `long long` that hold the same value render differently in a base,
+and a `long` is not the same width on every target. The one matching the type
+in hand is the one that writes the width that type has, which is what makes
+the `X` line above eight characters and the `x` line sixteen.
+
+Nothing here uses the `printf` family, which a library that formats its own
+text cannot have: the digits are placed by the library itself. That is the
+same code that `format()` renders a number parameter with, and that
+[Variant](variant.md) renders a number into JSON with.
 
 ### Sharing, slices and NUL termination
 

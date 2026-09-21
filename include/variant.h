@@ -22,6 +22,7 @@
 
 #define	VARERR_SET		2	// Message set number for Variant
 #define	VARERR_WRONG_TYPE	ErrNum(VARERR_SET, 1)	// The Variant is not of the type that was expected
+#define	VARERR_DOES_NOT_FIT	ErrNum(VARERR_SET, 2)	// The value is too large for the type it was asked for
 
 class	Variant;
 
@@ -181,6 +182,57 @@ public:
 	unsigned		as_uint() const { must_be(UInteger); return (unsigned)u.i; }
 	unsigned long		as_ulong() const { must_be(ULong); return (unsigned long)u.l; }
 	unsigned long long	as_ulonglong() const { must_be(ULongLong); return (unsigned long long)u.ll; }
+
+	/*
+	 * The number held as a signed one, in the closest signed type that holds
+	 * it: an Integer, or a Long, or a LongLong. This is the read for a caller
+	 * who has a number of unknown origin, and it is the answer to an unsigned
+	 * value that its own signed twin is too narrow for - one beyond INT_MAX
+	 * becomes a Long, and one beyond LONG_MAX a LongLong, where asking for the
+	 * twin leaves nowhere to put it.
+	 *
+	 * A value already signed is answered as it stands, and not narrowed to the
+	 * smallest type that would hold it: it is already signed, and its width is
+	 * what its holder chose.
+	 *
+	 * It answers a value rather than a reference, because the width of a
+	 * reference would be whatever the value turned out to need - so this is a
+	 * read, and not a way to write into the Variant.
+	 *
+	 * An unsigned value no signed type can hold, which is a ULongLong beyond
+	 * LLONG_MAX, is refused and reported like any other lossy coercion.
+	 */
+	long long	as_signed()
+	{
+		switch (_type)
+		{
+		case Integer:	return u.i;
+		case Long:	return u.l;
+		case LongLong:	return u.ll;
+
+		case String:	coerce(Integer);	// asInt32 answers an int32
+				return u.i;
+
+		case UInteger:	// FALL THROUGH
+		case ULong:	// FALL THROUGH
+		case ULongLong:
+			{
+				VariantType	to = fitting_signed();
+				if (to == None)		// No signed type holds it
+				{
+					cannot_convert(LongLong);
+					return u.ll;	// Where that returns: the bits, at their width
+				}
+				coerce(to);		// It fits, so this cannot fail
+				return to == Integer ? (long long)u.i
+				     : to == Long ? (long long)u.l : u.ll;
+			}
+
+		default:	break;			// Nothing numeric is held
+		}
+		must_be(LongLong);			// Reports and asserts: not a number
+		return 0;				// Not reached
+	}
 	const StrVal		as_strval() const { must_be(String); return u.str; }
 	const StringArray		as_string_array() const { must_be(StrArray); return u.str_arr; }
 	const VariantArray	as_variant_array() const { must_be(VarArray); return u.var_arr; }
@@ -332,6 +384,50 @@ protected:
 		}
 	}
 
+	static bool	is_number(VariantType t)	{ return t >= Integer && t <= ULongLong; }
+
+	// The number held, written out as it stands, for a message about it
+	StrVal		value_text() const
+	{
+		switch (_type)
+		{
+		case Integer:	return StrVal::fromInt32(u.i, 0);
+		case Long:	return StrVal::fromLong(u.l, 0);
+		case LongLong:	return StrVal::fromInt64(u.ll, 0);
+		case UInteger:	return StrVal::fromUInt32((unsigned)u.i, 0);
+		case ULong:	return StrVal::fromULong((unsigned long)u.l, 0);
+		case ULongLong: return StrVal::fromUInt64((unsigned long long)u.ll, 0);
+		default:	break;
+		}
+		return StrVal("<")+type_name()+">";
+	}
+
+	/*
+	 * The closest signed type that holds the value held now, or None where no
+	 * signed type does - which is a value of the widest width with its top bit
+	 * set, and so a value that must stay unsigned. A value already signed is
+	 * answered as the type it is in, that type holding it by definition.
+	 */
+	VariantType	fitting_signed() const
+	{
+		switch (_type)
+		{
+		case UInteger:	return u.i >= 0 ? Integer
+				     : (sizeof(long) > sizeof(int) ? Long : LongLong);
+		case ULong:	return u.l >= 0 ? Long
+				     : (sizeof(long long) > sizeof(long) ? LongLong : None);
+		case ULongLong:	return u.ll >= 0 ? LongLong : None;
+		default:	return _type;
+		}
+	}
+
+	/*
+	 * A number that the type it was asked for cannot hold. Where assertions
+	 * are on this does not return; where they are off, the value must not be
+	 * lost, so the Variant is left of a type that holds it - see src/variant.cpp.
+	 */
+	void	cannot_convert(VariantType t);
+
 	void	coerce(VariantType new_type)
 	{
 		VariantType	old_type = _type;
@@ -356,93 +452,144 @@ protected:
 			coerce_none();
 			return;
 
+		/*
+		 * The three numeric targets read the same way, so they are written the
+		 * same way. An unsigned source is dealt with first and on its own: it
+		 * either fits the target or it is refused, and a refusal must not reach
+		 * the switch below, whose tests read the value as signed - which it is
+		 * not, so `u.l != (int)u.l` calls ULONG_MAX an int.
+		 *
+		 * A value fits a signed type when it is no greater than that type's
+		 * maximum. At the source's own width that is the sign bit, and one
+		 * width up it is the same test at the wider width.
+		 */
 		case Integer:
-			switch (was)
-			{			// An unsigned value widens by value, where the sign bit is clear
-			case UInteger:	if (u.i < 0) break;	// The same width, so that is the test
-					return;
-			default:	break;
+			if (was != old_type)
+			{			// An unsigned source
+				if (was == UInteger)
+				{		// The same width: the word already holds the value
+					if ((unsigned)u.i > (unsigned)INT32_MAX)
+						break;
+				}
+				else if (was == ULong)
+				{
+					if ((unsigned long)u.l > (unsigned long)INT32_MAX)
+						break;
+					u.i = (int)u.l;
+				}
+				else
+				{
+					if ((unsigned long long)u.ll > (unsigned long long)INT32_MAX)
+						break;
+					u.i = (int)u.ll;
+				}
+				_type = new_type;
+				return;
 			}
 			switch (old_type)
 			{
-			case Integer:	return; // Already handled
 			case Long:	if (u.l != (int)u.l) break;	// Fail if it would truncate
-					u.i = (int)u.l; return;
+					u.i = (int)u.l;
+					_type = new_type;
+					return;
 			case LongLong:	if (u.ll != (int)u.ll) break;	// Fail if it would truncate
-					u.i = (int)u.ll; return;
+					u.i = (int)u.ll;
+					_type = new_type;
+					return;
 			case String:	i32 = StrVal(u.str).asInt32(&e, 0);
-					if (!e)				// Some error in conversion
+					if (e)				// Some error in conversion
 						break;
 					u.i = i32;
 					_type = new_type;
 					return;
-			case None:		// FALL THROUGH
-			case StrArray:		// FALL THROUGH
-			case VarArray:		// FALL THROUGH
-			case StrVarMap:		// FALL THROUGH
-			default:		// The unsigned types were mapped to their twins
+			default:		// An Integer source cannot arrive here
 					break;	// Cannot coerce
 			}
 			break;
 
 		case Long:
-			switch (was)
-			{			// ...which a long holds already on any target it is wider than
-			case UInteger:	u.l = (long)(unsigned)u.i; return;
-			case ULong:	if (u.l < 0) break;
-					return;
-			default:	break;
+			if (was != old_type)
+			{			// An unsigned source
+				if (was == UInteger)
+				{		// A long holds any unsigned int where it is wider
+					if (sizeof(unsigned long) > sizeof(unsigned))
+						u.l = (long)(unsigned)u.i;
+					else if ((unsigned)u.i > (unsigned)LONG_MAX)
+						break;
+				}
+				else if (was == ULong)
+				{
+					if ((unsigned long)u.l > (unsigned long)LONG_MAX)
+						break;
+					// The word already holds the value
+				}
+				else
+				{
+					if ((unsigned long long)u.ll > (unsigned long long)LONG_MAX)
+						break;
+					u.l = (long)(unsigned long long)u.ll;
+				}
+				_type = new_type;
+				return;
 			}
 			switch (old_type)
 			{
-			case Integer:	u.l = u.i; return;
-			case Long:	return; // Already handled
+			case Integer:	u.l = u.i;
+					_type = new_type;
+					return;
 			case LongLong:	if (u.ll != (long)u.ll) break;	// Fail if it would truncate
-					u.l = (long)u.ll; return;
+					u.l = (long)u.ll;
+					_type = new_type;
+					return;
 			case String:	i32 = StrVal(u.str).asInt32(&e, 0);	// REVISIT: int32 only, or it fails
-					if (!e)				// Some error in conversion
+					if (e)				// Some error in conversion
 						break;
 					u.l = i32;
 					_type = new_type;
 					return;
-			case None:		// FALL THROUGH
-			case StrArray:		// FALL THROUGH
-			case VarArray:		// FALL THROUGH
-			case StrVarMap:		// FALL THROUGH
-			default:		// The unsigned types were mapped to their twins
+			default:		// A Long source cannot arrive here
 					break;	// Cannot coerce
 			}
 			break;
 
 		case LongLong:
-			switch (was)
-			{			// ...and a long long holds any of them that it is wider than
-			case UInteger:	u.ll = (long long)(unsigned)u.i; return;
-			case ULong:	if (sizeof(unsigned long) < sizeof(long long))
+			if (was != old_type)
+			{			// An unsigned source
+				if (was == UInteger)
+				{		// A long long is wider than an int on every target
+					u.ll = (long long)(unsigned)u.i;
+				}
+				else if (was == ULong)
+				{
+					if (sizeof(unsigned long long) > sizeof(unsigned long))
 						u.ll = (long long)(unsigned long)u.l;
-					else if (u.l < 0)
-						break;	// No more room than the value needs
-					return;
-			case ULongLong:	if (u.ll < 0) break;
-					return;
-			default:	break;
+					else if ((unsigned long)u.l > (unsigned long)LLONG_MAX)
+						break;	// No wider than the value needs
+				}
+				else
+				{
+					if ((unsigned long long)u.ll > (unsigned long long)LLONG_MAX)
+						break;
+					// The word already holds the value
+				}
+				_type = new_type;
+				return;
 			}
 			switch (old_type)
 			{
-			case Integer:	u.ll = u.i; return;	// The long long word, not the long one
-			case Long:	u.ll = u.l; return;
-			case LongLong:	return; // Already handled
+			case Integer:	u.ll = u.i;	// The long long word, not the long one
+					_type = new_type;
+					return;
+			case Long:	u.ll = u.l;
+					_type = new_type;
+					return;
 			case String:	i32 = StrVal(u.str).asInt32(&e, 0);	// REVISIT: int32 only, or it fails
 					if (e)				// Some error in conversion
 						break;
 					u.ll = i32;
 					_type = new_type;
 					return;
-			case None:		// FALL THROUGH
-			case StrArray:		// FALL THROUGH
-			case VarArray:		// FALL THROUGH
-			case StrVarMap:		// FALL THROUGH
-			default:		// The unsigned types were mapped to their twins
+			default:		// A LongLong source cannot arrive here
 					break;	// Cannot coerce
 			}
 			break;
@@ -479,6 +626,17 @@ protected:
 		case StrArray:		break;	// REVISIT: No coercion implemented
 		case VarArray:		break;	// REVISIT: No coercion implemented
 		case StrVarMap:		break;	// REVISIT: No coercion implemented
+		}
+
+		/*
+		 * Every refusal arrives here. A number that the target type cannot
+		 * hold is a different complaint from two types that do not convert at
+		 * all, and it names the value, which the second cannot.
+		 */
+		if (is_number(was) && is_number(new_type))
+		{
+			cannot_convert(new_type);
+			return;
 		}
 		must_be(new_type);		// Report impossible coercion
 	}

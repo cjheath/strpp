@@ -1,11 +1,117 @@
 #include	"memory_monitor.h"
 #include	<variant.h>
+#include	<errbuf.h>		// The child reads its own error buffer
 
 #include	<cassert>
+#include	<csignal>
+#include	<fcntl.h>
+#include	<unistd.h>
+#include	<sys/wait.h>
 
 void variant_array_tests();
 void variant_tests();
 void unsigned_tests();
+
+// The pipe a dying child's error buffer is written into
+static int	report_fd = -1;
+
+/*
+ * The report is made before the assertion kills the process, so the only way to
+ * read it is from inside the dying child. abort() raises SIGABRT, so a handler
+ * for it can drain the buffer into the pipe first and then let abort finish.
+ *
+ * Each Message holds a slice of the buffer's parameter array, and delivered()
+ * refuses while any slice is outstanding, so the Message must be gone before it
+ * is called - hence the inner scope, as in strassert.cpp.
+ */
+static void
+dump_error_buffer(int sig)
+{
+	ErrBuf*	buf = error_buffer().peek();
+	if (buf && report_fd >= 0)
+		for (ErrBuf::MsgIndex i = 0; i < buf->count(); i++)
+		{
+			StrVal	line;
+			{
+				ErrBuf::Message	msg = buf->message(i);
+				line = StrVal::fromInt32((int32_t)msg.error, 'X')+": "
+					+ StrVal::format(msg.default_text, msg.parameters)+"\n";
+			}
+			(void)!write(report_fd, line.asUTF8(), line.numBytes());
+			buf->delivered();
+		}
+	signal(sig, SIG_DFL);		// Return, and abort() finishes the job
+}
+
+/*
+ * A coercion that must fail kills the process, so it is run in a child and
+ * judged by how the child died and what it had reported - the same way
+ * assert_test.cpp tests a failure of StrppAssert. What the child says on
+ * standard error is sent nowhere, so the output stays clean.
+ */
+static bool
+coercion_aborts(bool (*body)(), StrVal& report)
+{
+	int	fds[2];
+	if (pipe(fds) != 0)
+		return false;
+
+	pid_t	child = fork();
+	if (child == 0)
+	{
+		close(fds[0]);
+		int	devnull = open("/dev/null", O_WRONLY);
+		if (devnull >= 0)
+			dup2(devnull, 2);
+		report_fd = fds[1];
+		signal(SIGABRT, dump_error_buffer);
+		body();				// Expected to die, not to return
+		_exit(0);
+	}
+
+	close(fds[1]);
+	char	buf[512];
+	int	got = 0;
+	int	n;
+	while (got < 511 && (n = (int)read(fds[0], buf+got, 511-got)) > 0)
+		got += n;
+	buf[got] = '\0';
+	close(fds[0]);
+	report = StrVal(buf);
+
+	int	status = 0;
+	waitpid(child, &status, 0);
+	return WIFSIGNALED(status) && WTERMSIG(status) == SIGABRT;
+}
+
+// Beyond what a signed int holds, so reading it as one would change the number
+static bool	uint_does_not_fit_int()
+{
+	Variant	too_big(4000000000u);
+	int	overflowed = too_big.as_int();
+	(void)overflowed;
+	return true;
+}
+
+// The same one width up: an unsigned long beyond LONG_MAX read as a long
+static bool	ulong_does_not_fit_long()
+{
+	Variant	too_big(18000000000000000000ul);
+	long	overflowed = too_big.as_long();
+	(void)overflowed;
+	return true;
+}
+
+// Beyond LONG_MAX as well, so no signed type holds it and as_signed() has none
+// to choose. On a target where a long is as wide as a long long, the test above
+// is already this case; it is written out anyway so that it is tested wherever.
+static bool	ullong_does_not_fit_signed()
+{
+	Variant	too_big(18446744073709551615ull);
+	long long	overflowed = too_big.as_signed();
+	(void)overflowed;
+	return true;
+}
 
 int
 main(int argc, const char** argv)
@@ -121,9 +227,47 @@ void unsigned_tests()
 	assert(Variant(ull).as_json() == "18446744073709551615");
 
 	// A copy carries the type and the value, and coerces as its signed twin
-	// does, only read differently afterwards: the mutable accessors coerce
+	// does. Widening goes by value, not by bits, and the type follows: after
+	// the coercion it is a LongLong and reads as one.
 	Variant	back(u);
 	assert(back.as_longlong() == 4000000000LL);
+	assert(back.type() == Variant::LongLong);
+
+	// as_signed() answers the value in the closest signed type that holds it,
+	// which is the read that does not have to be told the width
+	{
+		Variant	a(5u);
+		assert(a.as_signed() == 5 && a.type() == Variant::Integer);
+		Variant	b(u);				// 4000000000, beyond INT_MAX
+		assert(b.as_signed() == 4000000000LL && b.type() == Variant::Long);
+		Variant	c(5ul);
+		assert(c.as_signed() == 5 && c.type() == Variant::Long);
+		Variant	d(5ull);
+		assert(d.as_signed() == 5 && d.type() == Variant::LongLong);
+		Variant	e(47L);				// Already signed: answered as it stands
+		assert(e.as_signed() == 47 && e.type() == Variant::Long);
+		Variant	f("42");
+		assert(f.as_signed() == 42 && f.type() == Variant::Integer);
+		printf("as_signed: 5u as Integer, 4000000000u as Long, \"42\" as Integer\n");
+	}
+
+	// A signed type of the same width cannot hold those values, so the coercion
+	// is refused rather than reinterpreting the bits. Each of these dies, so
+	// each is run in a child, which reports through the error buffer before it
+	// goes. as_signed() dies for the last two as well: no signed type holds
+	// them, so there is none for it to choose.
+	StrVal	report;
+	assert(coercion_aborts(uint_does_not_fit_int, report));
+	assert(report == "A0000802: Cannot convert to a `Integer` because the value"
+			 " 4000000000 does not fit\n");
+	assert(coercion_aborts(ulong_does_not_fit_long, report));
+	assert(report == "A0000802: Cannot convert to a `Long` because the value"
+			 " 18000000000000000000 does not fit\n");
+	assert(coercion_aborts(ullong_does_not_fit_signed, report));
+	assert(report == "A0000802: Cannot convert to a `LongLong` because the value"
+			 " 18446744073709551615 does not fit\n");
+	printf("refused: a UInteger beyond INT_MAX, a ULong beyond LONG_MAX\n");
+	printf("...each naming the value it could not hold\n");
 }
 
 void variant_tests()

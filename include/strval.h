@@ -829,12 +829,40 @@ public:
 			}
 
 	/*
+	 * An integer as text, in the representation `repr` names: one of
+	 * b, o, d, x or X, or 0, which is decimal. No base carries a prefix -
+	 * a text that wants 0x writes it itself, so that a translated text
+	 * keeps the prefix where its own language wants it.
+	 *
+	 * Decimal renders the sign; the most negative value of a type has no
+	 * positive counterpart, so its digits are built from its unsigned
+	 * form. Every other base renders the bit pattern of the value at the
+	 * width of its own type, which is what a base is for: an int of -1 is
+	 * ffffffff, and no sign is involved.
+	 *
+	 * There is one function per type rather than one taking the widest,
+	 * because the width is what a non-decimal base renders. A long is not
+	 * the same width on every target, so the function that matches the
+	 * type in hand is the one that writes the width that type has.
+	 *
+	 * These are the inverse of asInt32 below, and are what strval_render
+	 * in strformat.h renders an integer parameter with - see
+	 * doc/strval.md, "Integers as text".
+	 */
+	static StrVal	fromInt32(int32_t n, char repr = 0);
+	static StrVal	fromUInt32(uint32_t n, char repr = 0);
+	static StrVal	fromLong(long n, char repr = 0);
+	static StrVal	fromULong(unsigned long n, char repr = 0);
+	static StrVal	fromInt64(int64_t n, char repr = 0);
+	static StrVal	fromUInt64(uint64_t n, char repr = 0);
+
+	/*
 	 * Convert a string to an integer, using radix (0 means use C rules)
 	 *
 	 * Leading and trailing spaces are scanned and ignored. Other than
 	 * that, non-numeric characters or digits after trailing spaces are
-	 * flagged as an error. 
-	 *			
+	 * flagged as an error.
+	 *
 	 * The radix value may be 0 or in the range 2-36. Radices beyond 10
 	 * use the ASCII alphabet for digits above 9, upper or lower case.
 	 * Radix 2 allows 0b... or 0B..., and radix 16 allows 0x... or
@@ -847,15 +875,6 @@ public:
 	 * @retval STRERR_NUMBER_OVERFLOW The number doesn't fit in the requested type
 	 * @retval STRERR_NOT_NUMBER The first non-blank character was non-numeric
 	 */
-
-	// Conversion from integer types, in the representation given - b, o, d, x or X, or 0 for decimal.
-	static StrVal	fromInt32(int32_t n, char repr = 0);
-	static StrVal	fromUInt32(uint32_t n, char repr = 0);
-	static StrVal	fromLong(long n, char repr = 0);
-	static StrVal	fromULong(unsigned long n, char repr = 0);
-	static StrVal	fromInt64(int64_t n, char repr = 0);
-	static StrVal	fromUInt64(uint64_t n, char repr = 0);
-
 	int32_t		asInt32(
 				ErrNum*	err_return = 0, // error return
 				int	radix = 0,	// base for conversion
@@ -1185,11 +1204,20 @@ int32_t StrValI<Index>::asInt32(
 	if (scanned)
 		*scanned = i;
 
-	if (l > (unsigned long)LONG_MAX+(negative ? 1 : 0))
+	/*
+	 * The answer is an int32_t, so the bound is that of an int32_t and not of
+	 * a long. The two were the same width where this was written, and on a
+	 * 64-bit target they are not: a long's bound lets four billion through to
+	 * be wrapped into a negative number. INT32_MIN has no positive
+	 * counterpart, so a negative number is allowed one more than a positive.
+	 */
+	if (l > (unsigned long)INT32_MAX+(negative ? 1 : 0))
 	{
 		if (err_return)
 			*err_return = ErrNum(STRERR_SET, STRERR_NUMBER_OVERFLOW);
-		// Try anyway, they might have wanted unsigned!
+		// The low word is answered anyway, as a number with trailing text is:
+		// a caller reading a 32-bit bit pattern wants it, and the error is
+		// what says these digits do not spell the number it is.
 	}
 
 	/*

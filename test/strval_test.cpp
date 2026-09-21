@@ -756,12 +756,20 @@ int_conversion_tests()
 	StrVal("99999999999999999999999999").asInt32(&err, 10, &scanned);
 	expect_eq_err("huge decimal overflow err", err, ErrNum(STRERR_SET, STRERR_NUMBER_OVERFLOW));
 
-	test_group("asInt32: error - overflow (exceeds signed range, unsigned still fits)");
-	// LONG_MAX + 1: fits an unsigned long, but not a signed one
-	char	buf[32];
-	snprintf(buf, sizeof(buf), "%lu", (unsigned long)LONG_MAX + 1);
-	StrVal(buf).asInt32(&err, 10, &scanned);
-	expect_eq_err("LONG_MAX+1 overflow err", err, ErrNum(STRERR_SET, STRERR_NUMBER_OVERFLOW));
+	test_group("asInt32: the bounds are an int32_t's, not a long's");
+	expect_eq_int("INT32_MAX fits", (long)StrVal("2147483647").asInt32(&err, 10), 2147483647);
+	expect_eq_err("...with no error", err, ErrNum(0));
+	expect_eq_int("INT32_MIN fits", (long)StrVal("-2147483648").asInt32(&err, 10), (long)INT32_MIN);
+	expect_eq_err("...with no error", err, ErrNum(0));
+
+	StrVal("2147483648").asInt32(&err, 10);
+	expect_eq_err("INT32_MAX+1 overflow err", err, ErrNum(STRERR_SET, STRERR_NUMBER_OVERFLOW));
+	StrVal("-2147483649").asInt32(&err, 10);
+	expect_eq_err("INT32_MIN-1 overflow err", err, ErrNum(STRERR_SET, STRERR_NUMBER_OVERFLOW));
+	// Four billion fits a long on a 64-bit target, and an int32_t on no target:
+	// the bound was a long's where the answer was an int32_t's
+	StrVal("4000000000").asInt32(&err, 10);
+	expect_eq_err("4000000000 overflow err", err, ErrNum(STRERR_SET, STRERR_NUMBER_OVERFLOW));
 }
 
 /*
