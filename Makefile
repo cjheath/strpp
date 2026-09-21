@@ -179,6 +179,9 @@ commit-docs:
 	@test -d build/gh-pages || { echo "nothing staged: run 'make doc' first"; exit 1; }
 	cd build/gh-pages && git commit
 
+publish-docs: doc commit-docs
+	cd build/gh-pages && git push
+
 px:
 	cd ../px; $(MAKE)
 

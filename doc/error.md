@@ -158,8 +158,7 @@ Defined in [errbuf.h](https://github.com/cjheath/strpp/blob/main/include/errbuf.
 Three free functions are there so that a caller need not reach through the
 slot at all, which is what almost every caller wants:
 
-- `ErrBuffer()` - this thread's buffer, made on first use.
-- `ErrBuffer()` - this thread's buffer as a `ErrBuf*`.
+- `ErrBuffer()` - this thread's buffer as a `ErrBuf*`, made on first use.
 - `ErrCheckpoint()` - the same as `ErrBuffer()->checkpoint()`: keep what it
   answers, and roll back to it.
 - `ErrRollback(MsgSequence to)` - the same as `ErrBuffer()->rollback(to)`:
