@@ -458,6 +458,14 @@ protected:
 public:
 	using Base::length;
 	using Base::numBytes;
+
+protected:
+	// A number's digits, and the loop that produces them
+	template<typename U> static char*	reprDigits(U u, int base, const char* digits, char* end);
+	template<typename N> static StrVal	reprInt(N n, char repr);
+	template<typename N> static StrVal	reprUInt(N u, char repr);
+
+public:
 	typedef enum {
 		CompareRaw,		// No processing, just the characters
 		CompareCI,		// Case independent
@@ -839,6 +847,15 @@ public:
 	 * @retval STRERR_NUMBER_OVERFLOW The number doesn't fit in the requested type
 	 * @retval STRERR_NOT_NUMBER The first non-blank character was non-numeric
 	 */
+
+	// Conversion from integer types, in the representation given - b, o, d, x or X, or 0 for decimal.
+	static StrVal	fromInt32(int32_t n, char repr = 0);
+	static StrVal	fromUInt32(uint32_t n, char repr = 0);
+	static StrVal	fromLong(long n, char repr = 0);
+	static StrVal	fromULong(unsigned long n, char repr = 0);
+	static StrVal	fromInt64(int64_t n, char repr = 0);
+	static StrVal	fromUInt64(uint64_t n, char repr = 0);
+
 	int32_t		asInt32(
 				ErrNum*	err_return = 0, // error return
 				int	radix = 0,	// base for conversion
@@ -1281,6 +1298,22 @@ StrBodyI<Index>::toJSON()
 	);
 }
 
+// Generate the digits of an unsigned value, pushed backwards to the end of a buffer.
+template<typename Index> template<typename U> char*
+StrValI<Index>::reprDigits(U u, int base, const char* digits, char* end)
+{
+	char*	cp = end;
+
+	do
+	{
+		*--cp = digits[u % base];
+		u /= base;
+	}
+	while (u != 0);
+
+	return cp;
+}
+
 /*
  * An integer as text in the named representation: decimal unless it is b, o, x
  * or X, in which case it is that base. No base carries a prefix: a text that
@@ -1290,14 +1323,42 @@ StrBodyI<Index>::toJSON()
  * digits of the most negative value, which has no positive counterpart, are
  * built from its unsigned form. The other bases render the bit pattern of the
  * value at the width of its own type, which is what a non-decimal base is for:
- * an int of -1 is eight f's, not a minus sign and one f. `bits` is that width,
- * 32 or 64.
+ * an int of -1 is eight F's, not a minus sign and one F.
  *
  * The digits are placed here rather than by printf, since a library that
  * formats its own text must not need it.
  */
-inline StrVal
-strval_repr_int(long long n, char repr, int bits = 64)
+template<typename Index> template<typename N> StrVal
+StrValI<Index>::reprInt(N n, char repr)
+{
+	typedef typename std::make_unsigned<N>::type	U;
+	int		base = 10;
+	const char*	digits = "0123456789abcdef";
+
+	switch (repr)
+	{
+	case 'b':	base = 2; break;
+	case 'o':	base = 8; break;
+	case 'x':	base = 16; break;
+	case 'X':	base = 16; digits = "0123456789ABCDEF"; break;
+	}
+
+	bool	negative = n < 0 && base == 10;
+	U	u = base == 10 && n < 0 ? 0-(U)n : (U)n;
+
+	char	buf[72];			// Sixty-four bits of binary, a sign, and room to spare
+	char*	end = buf + sizeof(buf);
+	char*	cp = reprDigits(u, base, digits, end);	// In the width of the value's own type
+
+	if (negative)
+		*--cp = '-';
+
+	return StrVal(cp, (StrValIndex)(end-cp));
+}
+
+// An unsigned integer type as text, in the requested representation
+template<typename Index> template<typename N> StrVal
+StrValI<Index>::reprUInt(N u, char repr)
 {
 	int		base = 10;
 	const char*	digits = "0123456789abcdef";
@@ -1310,28 +1371,9 @@ strval_repr_int(long long n, char repr, int bits = 64)
 	case 'X':	base = 16; digits = "0123456789ABCDEF"; break;
 	}
 
-	char	buf[72];			// Sixty-four bits of binary, a sign, and room to spare
+	char	buf[72];			// Sixty-four bits of binary, and room to spare
 	char*	end = buf + sizeof(buf);
-	char*	cp = end;
-	bool	negative = n < 0 && base == 10;
-	unsigned long long	u;
-
-	if (base == 10)
-		u = n < 0 ? 0-(unsigned long long)n : (unsigned long long)n;
-	else if (bits > 0 && bits < 64)
-		u = (unsigned long long)n & ((1ULL<<bits)-1);	// The width is the type's, not the value's
-	else
-		u = (unsigned long long)n;
-
-	do
-	{
-		*--cp = digits[u % base];
-		u /= base;
-	}
-	while (u != 0);
-
-	if (negative)
-		*--cp = '-';
+	char*	cp = reprDigits(u, base, digits, end);	// In the width of the value's own type
 
 	return StrVal(cp, (StrValIndex)(end-cp));
 }
@@ -1394,6 +1436,19 @@ protected:
 	StringArray(Body* body, Index offs, Index len)	// offs/len not bounds-checked!
 			: Base(body, offs, len) {}
 };
+
+template<typename Index> inline StrVal
+StrValI<Index>::fromInt32(int32_t n, char repr)			{ return reprInt(n, repr); }
+template<typename Index> inline StrVal
+StrValI<Index>::fromUInt32(uint32_t n, char repr)		{ return reprUInt(n, repr); }
+template<typename Index> inline StrVal
+StrValI<Index>::fromLong(long n, char repr)			{ return reprInt(n, repr); }
+template<typename Index> inline StrVal
+StrValI<Index>::fromULong(unsigned long n, char repr)		{ return reprUInt(n, repr); }
+template<typename Index> inline StrVal
+StrValI<Index>::fromInt64(int64_t n, char repr)			{ return reprInt(n, repr); }
+template<typename Index> inline StrVal
+StrValI<Index>::fromUInt64(uint64_t n, char repr)		{ return reprUInt(n, repr); }
 
 #include <unistd.h>
 inline void p(StrVal s) { char const*cp = s.asUTF8(); write(1, "\"", 1); write(1, cp, strlen(cp)); write(1, "\"\n", 2); }

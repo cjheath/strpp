@@ -68,7 +68,7 @@ void		long_string_bookmark_tests();
 void		mixed_encoding_tests();
 void		bool_cast_tests();
 void		index_limit_tests();
-void		index_limit_tests();
+void		from_int_tests();
 
 int
 main(int argc, const char** argv)
@@ -99,6 +99,7 @@ main(int argc, const char** argv)
 	mixed_encoding_tests();
 	bool_cast_tests();
 	index_limit_tests();
+	from_int_tests();
 
 	printf("Completed %d tests with %d failures\n", test_count, failure_count);
 	return failure_count == 0 ? 0 : 1;
@@ -819,6 +820,30 @@ namespace {
  * StrRefs compared as "equal" regardless of content. Fixed by giving
  * StrRefI its own content-based compare()/operator==/etc.
  */
+/*
+ * The from family: a number as text, mirroring asInt32 and its siblings. Each
+ * renders the bits of its own width, so a negative value is its bit pattern in
+ * a base and its sign in decimal, exactly as the formatting language has it.
+ */
+void
+from_int_tests()
+{
+	test_group("StrVal: a number as text");
+
+	expect_eq_str("a positive int32 in decimal", StrVal::fromInt32(42), "42");
+	expect_eq_str("...and in hexadecimal", StrVal::fromInt32(255, 'x'), "ff");
+	expect_eq_str("...and upper case", StrVal::fromInt32(255, 'X'), "FF");
+	expect_eq_str("a negative int32 keeps its sign in decimal", StrVal::fromInt32(-255), "-255");
+	expect_eq_str("...but is a bit pattern in a base", StrVal::fromInt32(-255, 'X'), "FFFFFF01");
+
+	expect_eq_str("an unsigned int32 keeps its value", StrVal::fromUInt32(4000000000u), "4000000000");
+	expect_eq_str("...which a signed one could not", StrVal::fromInt32((int32_t)4000000000u), "-294967296");
+
+	expect_eq_str("an int64 is as wide as it says", StrVal::fromInt64(-1, 'x'), "ffffffffffffffff");
+	expect_eq_str("...and an unsigned one is its own value",
+		StrVal::fromUInt64(18446744073709551615ull), "18446744073709551615");
+}
+
 /*
  * The string limit follows from the width of the index. What is checked here
  * is the arithmetic around it; the panic itself is checked in assert_test.cpp,

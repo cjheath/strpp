@@ -66,7 +66,7 @@ report(const char* when, bool passed, const char* detail)
 			write_report(StrVal(new_group)+":\n");
 			new_group = 0;
 		}
-		write_report(strval_repr_int(test_count, 0)+":\t"+when+": FAIL"
+		write_report(StrVal::fromInt32(test_count, 0)+":\t"+when+": FAIL"
 				+(detail ? StrVal(" ")+detail : StrVal())+"\n");
 		failure_count++;
 	}
@@ -77,7 +77,7 @@ report(const char* when, bool passed, const char* detail)
 			write_report(StrVal(new_group)+":\n");
 			new_group = 0;
 		}
-		write_report(strval_repr_int(test_count, 0)+":\t"+when+": PASS\n");
+		write_report(StrVal::fromInt32(test_count, 0)+":\t"+when+": PASS\n");
 	}
 }
 
@@ -93,7 +93,7 @@ expect_eq_int(const char* when, long got, long want)
 	bool	ok = got == want;
 	StrVal	detail;
 	if (!ok)
-		detail = StrVal("(wanted ")+strval_repr_int(want, 0)+" got "+strval_repr_int(got, 0)+")";
+		detail = StrVal("(wanted ")+StrVal::fromInt32(want, 0)+" got "+StrVal::fromInt32(got, 0)+")";
 	report(when, ok, ok ? 0 : detail.asUTF8());
 }
 
@@ -255,6 +255,14 @@ representation_tests()
 		StrVal::format("0x{1:X}", VariantArray() << 255), "0xFF");
 	expect_eq_str("...so the text places the prefix where it wants",
 		StrVal::format("{1} is 0b{2:b}", VariantArray() << 5 << 5), "5 is 0b101");
+	// The unsigned types render their own digits, which a signed reading of the
+	// same bits would not give
+	expect_eq_str("an unsigned parameter renders its own digits",
+		StrVal::format("{1}", VariantArray() << 4000000000u), "4000000000");
+	expect_eq_str("...including one no signed type could hold",
+		StrVal::format("{1}", VariantArray() << 18446744073709551615ull), "18446744073709551615");
+	expect_eq_str("...and a non-decimal base renders its bit pattern",
+		StrVal::format("{1:X}", VariantArray() << 4294967295u), "FFFFFFFF");
 	expect_eq_str("a representation leaves a string alone",
 		StrVal::format("{1:x}", VariantArray() << Variant("named")), "named");
 }
@@ -552,7 +560,7 @@ main(int argc, const char** argv)
 	long_string_tests();
 	bad_specification_tests();
 
-	write_report(StrVal("Completed ")+strval_repr_int(test_count, 0)+" tests with "
-			+strval_repr_int(failure_count, 0)+" failures\n");
+	write_report(StrVal("Completed ")+StrVal::fromInt32(test_count, 0)+" tests with "
+			+StrVal::fromInt32(failure_count, 0)+" failures\n");
 	return failure_count == 0 ? 0 : 1;
 }

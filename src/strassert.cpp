@@ -62,7 +62,7 @@ strpp_assert_failed(const char* file, int line, const char* condition)
 				// are both gone before delivered() is called
 				ErrBuf::Message	msg = buf->message(i);
 				written = StrVal("error ")
-					+ strval_repr_int((long long)(int32_t)msg.error, 'X', 32)
+					+ StrVal::fromInt32((int32_t)msg.error, 'X')
 					+ ": "
 					+ StrVal::format(msg.default_text, msg.parameters)
 					+ "\n";

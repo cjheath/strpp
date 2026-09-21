@@ -10,6 +10,9 @@ const char*	Variant::type_names[] = {
 	"Integer",
 	"Long",
 	"LongLong",
+	"UInteger",
+	"ULong",
+	"ULongLong",
 	// , "BigNum", "Float", "Double"
 	"String",
 	"StrArray",

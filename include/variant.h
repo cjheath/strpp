@@ -47,6 +47,10 @@ public:
 		Integer,
 		Long,
 		LongLong,
+		// The same three, but unsigned. Stored in the same union word as its signed twin
+		UInteger,
+		ULong,
+		ULongLong,
 		// , BigNum, Float, Double
 		String,
 		StrArray,
@@ -77,6 +81,12 @@ public:
 	{ _type = Long; u.l = _l; }
 	Variant(long long _ll)						// LongLong
 	{ _type = LongLong; u.ll = _ll; }
+	Variant(unsigned _u)						// UInteger
+	{ _type = UInteger; u.i = (int)_u; }
+	Variant(unsigned long _ul)					// ULong
+	{ _type = ULong; u.l = (long)_ul; }
+	Variant(unsigned long long _ull)				// ULongLong
+	{ _type = ULongLong; u.ll = (long long)_ull; }
 	Variant(StrVal v)						// StrRef
 	{ _type = String; new(&u.str) StrRef(v); }
 	Variant(const char* s)						// StrRef
@@ -129,6 +139,9 @@ public:
 		case Integer:		u.i = v.as_int(); break;
 		case Long:		u.l = v.as_long(); break;
 		case LongLong:		u.ll = v.as_longlong(); break;
+		case UInteger:		u.i = (int)v.as_uint(); break;
+		case ULong:		u.l = (long)v.as_ulong(); break;
+		case ULongLong:		u.ll = (long long)v.as_ulonglong(); break;
 		case String:		new(&u.str) StrRef(v.as_strval()); break;
 		case StrArray:		new(&u.str_arr) StringArray(v.as_string_array()); break;
 		case VarArray:		new(&u.var_arr) VariantArray(v.as_variant_array()); break;
@@ -147,6 +160,9 @@ public:
 		case Integer:		u.i = v.as_int(); break;
 		case Long:		u.l = v.as_long(); break;
 		case LongLong:		u.ll = v.as_longlong(); break;
+		case UInteger:		u.i = (int)v.as_uint(); break;
+		case ULong:		u.l = (long)v.as_ulong(); break;
+		case ULongLong:		u.ll = (long long)v.as_ulonglong(); break;
 		case String:		new(&u.str) StrRef(v.as_strval()); break;
 		case StrArray:		new(&u.str_arr) StringArray(v.as_string_array()); break;
 		case VarArray:		new(&u.var_arr) VariantArray(v.as_variant_array()); break;
@@ -161,6 +177,10 @@ public:
 	const int&		as_int() const { must_be(Integer); return u.i; }
 	const long&		as_long() const { must_be(Long); return u.l; }
 	const long long&	as_longlong() const { must_be(LongLong); return u.ll; }
+
+	unsigned		as_uint() const { must_be(UInteger); return (unsigned)u.i; }
+	unsigned long		as_ulong() const { must_be(ULong); return (unsigned long)u.l; }
+	unsigned long long	as_ulonglong() const { must_be(ULongLong); return (unsigned long long)u.ll; }
 	const StrVal		as_strval() const { must_be(String); return u.str; }
 	const StringArray		as_string_array() const { must_be(StrArray); return u.str_arr; }
 	const VariantArray	as_variant_array() const { must_be(VarArray); return u.var_arr; }
@@ -213,13 +233,17 @@ public:
 			return "null";
 
 		case Integer:		// FALL THROUGH
-			return strval_repr_int(u.i, 0);
+			return StrVal::fromInt32(u.i, 0);
 
 		case Long:		
-			return strval_repr_int(u.l, 0);
+			return StrVal::fromLong(u.l, 0);
 
 		case LongLong:		
-			return strval_repr_int(u.ll, 0);
+			return StrVal::fromInt64(u.ll, 0);
+
+		case UInteger:		return StrVal::fromUInt32((unsigned)u.i, 0);
+		case ULong:		return StrVal::fromULong((unsigned long)u.l, 0);
+		case ULongLong:		return StrVal::fromUInt64((unsigned long long)u.ll, 0);
 
 		case String:
 			return StrVal("\"")+StrVal(u.str).asJSON()+"\"";
@@ -276,6 +300,9 @@ protected:
 		case Integer:		// FALL THROUGH
 		case Long:		
 		case LongLong:		
+		case UInteger:		// FALL THROUGH
+		case ULong:		// FALL THROUGH
+		case ULongLong:		// FALL THROUGH
 			break;		// Nothing to do
 
 		case String:		u.str.~StrRef(); break;
@@ -287,12 +314,36 @@ protected:
 		u.zero();
 	}
 
+	// Reading an unsigned value of this Variant, whatever word it is in: used
+	// where a coercion widens, and the value rather than the bits is wanted
+	unsigned		v_unsigned() const		{ return (unsigned)u.i; }
+	unsigned long		v_unsigned_long() const		{ return (unsigned long)u.l; }
+	unsigned long long	v_unsigned_longlong() const	{ return (unsigned long long)u.ll; }
+
+	// The signed type sharing storage with this one, which coerces the same
+	static VariantType	signed_twin(VariantType t)
+	{
+		switch (t)
+		{
+		case UInteger:		return Integer;
+		case ULong:		return Long;
+		case ULongLong:		return LongLong;
+		default:		return t;
+		}
+	}
+
 	void	coerce(VariantType new_type)
 	{
 		VariantType	old_type = _type;
 
 		if (old_type == new_type)
 			return;		// Nothing to do
+
+		// An unsigned type coerces exactly as its signed twin does.
+		// To a String is the exception: the digits of 4000000000 are not what that reads as signed.
+		VariantType	was = old_type;
+		old_type = signed_twin(old_type);
+		new_type = signed_twin(new_type);
 
 		// printf("coercing %s to %s\n", type_names[old_type], type_names[new_type]);
 
@@ -306,6 +357,12 @@ protected:
 			return;
 
 		case Integer:
+			switch (was)
+			{			// An unsigned value widens by value, where the sign bit is clear
+			case UInteger:	if (u.i < 0) break;	// The same width, so that is the test
+					return;
+			default:	break;
+			}
 			switch (old_type)
 			{
 			case Integer:	return; // Already handled
@@ -323,11 +380,19 @@ protected:
 			case StrArray:		// FALL THROUGH
 			case VarArray:		// FALL THROUGH
 			case StrVarMap:		// FALL THROUGH
+			default:		// The unsigned types were mapped to their twins
 					break;	// Cannot coerce
 			}
 			break;
 
 		case Long:
+			switch (was)
+			{			// ...which a long holds already on any target it is wider than
+			case UInteger:	u.l = (long)(unsigned)u.i; return;
+			case ULong:	if (u.l < 0) break;
+					return;
+			default:	break;
+			}
 			switch (old_type)
 			{
 			case Integer:	u.l = u.i; return;
@@ -344,14 +409,27 @@ protected:
 			case StrArray:		// FALL THROUGH
 			case VarArray:		// FALL THROUGH
 			case StrVarMap:		// FALL THROUGH
+			default:		// The unsigned types were mapped to their twins
 					break;	// Cannot coerce
 			}
 			break;
 
 		case LongLong:
+			switch (was)
+			{			// ...and a long long holds any of them that it is wider than
+			case UInteger:	u.ll = (long long)(unsigned)u.i; return;
+			case ULong:	if (sizeof(unsigned long) < sizeof(long long))
+						u.ll = (long long)(unsigned long)u.l;
+					else if (u.l < 0)
+						break;	// No more room than the value needs
+					return;
+			case ULongLong:	if (u.ll < 0) break;
+					return;
+			default:	break;
+			}
 			switch (old_type)
 			{
-			case Integer:	u.l = u.i; return;
+			case Integer:	u.ll = u.i; return;	// The long long word, not the long one
 			case Long:	u.ll = u.l; return;
 			case LongLong:	return; // Already handled
 			case String:	i32 = StrVal(u.str).asInt32(&e, 0);	// REVISIT: int32 only, or it fails
@@ -364,24 +442,36 @@ protected:
 			case StrArray:		// FALL THROUGH
 			case VarArray:		// FALL THROUGH
 			case StrVarMap:		// FALL THROUGH
+			default:		// The unsigned types were mapped to their twins
 					break;	// Cannot coerce
 			}
 			break;
 
 		case String:
+			switch (was)
+			{			// An unsigned value is rendered unsigned
+			case UInteger:	*this = StrVal::fromUInt32((unsigned)u.i, 0);
+					return;
+			case ULong:	*this = StrVal::fromULong((unsigned long)u.l, 0);
+					return;
+			case ULongLong:	*this = StrVal::fromUInt64((unsigned long long)u.ll, 0);
+					return;
+			default:	break;	// Every other type is rendered below
+			}
 			switch (old_type)
 			{
-			case Integer:	*this = strval_repr_int(u.i, 0);
+			case Integer:	*this = StrVal::fromInt32(u.i, 0);
 					return;
-			case Long:	*this = strval_repr_int(u.l, 0);
+			case Long:	*this = StrVal::fromLong(u.l, 0);
 					return;
-			case LongLong:	*this = strval_repr_int(u.ll, 0);
+			case LongLong:	*this = StrVal::fromInt64(u.ll, 0);
 					return;
 			case String:	return; // Already handled
 			case None:		// FALL THROUGH
 			case StrArray:		// FALL THROUGH
 			case VarArray:		// FALL THROUGH
 			case StrVarMap:		// FALL THROUGH
+			default:		// The unsigned types were mapped to their twins
 					break;	// Cannot coerce
 			}
 			break;

@@ -1,8 +1,11 @@
 #include	"memory_monitor.h"
 #include	<variant.h>
 
+#include	<cassert>
+
 void variant_array_tests();
 void variant_tests();
+void unsigned_tests();
 
 int
 main(int argc, const char** argv)
@@ -20,6 +23,7 @@ main(int argc, const char** argv)
 
 	variant_array_tests();
 	variant_tests();
+	unsigned_tests();
 
 #if defined(MEMCHECK)
 	if (allocation_growth_count() > 0)	// No allocation should remain unfreed
@@ -76,6 +80,50 @@ void variant_array_tests()
 	variant_array_from_param(VariantArray() << "bah" << 47);	// this too
 	variant_array_from_param("bah" << Variant(53));			// So does this
 	variant_array_from_param(Variant(29));
+}
+
+/*
+ * The unsigned types. Each shares its signed twin's storage, so what is worth
+ * checking is that the value is neither lost nor reinterpreted, including where
+ * a signed reading of those bits would have to be a different number.
+ */
+void unsigned_tests()
+{
+	// Const, so that the accessors used below are the ones that only read: the
+	// mutable as_strval() coerces, and would leave these as Strings
+	const Variant	u(4000000000u);			// Beyond what a signed int holds
+	const Variant	ul(18000000000000000000ul);	// And beyond a signed long
+	const Variant	ull(18446744073709551615ull);	// The largest there is
+
+	printf("unsigned types: %s, %s, %s\n", u.type_name(), ul.type_name(), ull.type_name());
+	assert(u.type() == Variant::UInteger);
+	assert(ul.type() == Variant::ULong);
+	assert(ull.type() == Variant::ULongLong);
+
+	assert(u.as_uint() == 4000000000u);
+	assert(ul.as_ulong() == 18000000000000000000ul);
+	assert(ull.as_ulonglong() == 18446744073709551615ull);
+
+	// A signed reading of the same bits is a different number: these are the
+	// digits of the unsigned value, which is what the types are for
+	// A copy, because the const accessors only assert: it is the mutable ones
+	// that coerce, and the coercion is what renders the unsigned digits
+	Variant	mu(u), mul(ul), mull(ull);
+	StrVal	us = mu.as_strval();
+	StrVal	uls = mul.as_strval();
+	StrVal	ulls = mull.as_strval();
+	assert(us == "4000000000");
+	assert(uls == "18000000000000000000");
+	assert(ulls == "18446744073709551615");
+	printf("as text: %s, %s, %s\n", us.asUTF8(), uls.asUTF8(), ulls.asUTF8());
+
+	assert(Variant(u).as_json() == "4000000000");
+	assert(Variant(ull).as_json() == "18446744073709551615");
+
+	// A copy carries the type and the value, and coerces as its signed twin
+	// does, only read differently afterwards: the mutable accessors coerce
+	Variant	back(u);
+	assert(back.as_longlong() == 4000000000LL);
 }
 
 void variant_tests()

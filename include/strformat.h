@@ -106,8 +106,8 @@ struct StrFormatSpec
 };
 
 /*
- * The digits of an integer are placed by strval_repr_int in strval.h, since
- * the JSON emitter in variant.h needs them too.
+ * The digits of an integer are placed by StrVal's own from* family in
+ * strval.h, which the JSON emitter in variant.h needs too.
  */
 
 /*
@@ -145,9 +145,13 @@ strval_render(Variant v, const StrFormatSpec& spec, int depth)
 
 	// The width of the value's own type, so that a base that renders the bit
 	// pattern renders it at that width
-	case Variant::Integer:	text = strval_repr_int(v.as_int(), spec.repr, (int)sizeof(int)*8); break;
-	case Variant::Long:	text = strval_repr_int(v.as_long(), spec.repr, (int)sizeof(long)*8); break;
-	case Variant::LongLong:	text = strval_repr_int(v.as_longlong(), spec.repr, (int)sizeof(long long)*8); break;
+	case Variant::Integer:	text = StrVal::fromInt32(v.as_int(), spec.repr); break;
+	case Variant::Long:	text = StrVal::fromLong(v.as_long(), spec.repr); break;
+	case Variant::LongLong:	text = StrVal::fromInt64(v.as_longlong(), spec.repr); break;
+
+	case Variant::UInteger:	text = StrVal::fromUInt32(v.as_uint(), spec.repr); break;
+	case Variant::ULong:	text = StrVal::fromULong(v.as_ulong(), spec.repr); break;
+	case Variant::ULongLong: text = StrVal::fromUInt64(v.as_ulonglong(), spec.repr); break;
 	case Variant::String:	text = v.as_strval(); break;
 
 	case Variant::StrArray:				// Strings, in brackets
@@ -249,6 +253,9 @@ strval_size(Variant v, const StrFormatSpec& spec)
 	case Variant::Integer:
 	case Variant::Long:
 	case Variant::LongLong:
+	case Variant::UInteger:
+	case Variant::ULong:
+	case Variant::ULongLong:
 		switch (spec.repr)
 		{
 		case 'b':		room = 65; break;	// Sixty-four bits and a sign
