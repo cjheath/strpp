@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-bc8812aa.js";
+            window.path_to_searchindex_js = "searchindex-fe0f3ee0.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-58dc7aeb.js"></script>
@@ -315,8 +315,7 @@ act.</li>
 <p>Three free functions are there so that a caller need not reach through the
 slot at all, which is what almost every caller wants:</p>
 <ul>
-<li><code>ErrBuffer()</code> - this thread’s buffer, made on first use.</li>
-<li><code>ErrBuffer()</code> - this thread’s buffer as a <code>ErrBuf*</code>.</li>
+<li><code>ErrBuffer()</code> - this thread’s buffer as a <code>ErrBuf*</code>, made on first use.</li>
 <li><code>ErrCheckpoint()</code> - the same as <code>ErrBuffer()-&gt;checkpoint()</code>: keep what it
 answers, and roll back to it.</li>
 <li><code>ErrRollback(MsgSequence to)</code> - the same as <code>ErrBuffer()-&gt;rollback(to)</code>:
