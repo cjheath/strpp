@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-45b4b769.js";
+            window.path_to_searchindex_js = "searchindex-99bebd1a.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-58dc7aeb.js"></script>
@@ -271,6 +271,11 @@ reporting what it could not use.</li>
 render. See “Substituting parameters into a text” below.</li>
 <li><code>StringArray::join(StrVal joiner)</code> - the elements of a <code>StringArray</code>,
 concatenated with <code>joiner</code> between them.</li>
+<li><code>fromInt32(int32_t n, char repr = 0)</code>, and <code>fromUInt32</code>, <code>fromLong</code>,
+<code>fromULong</code>, <code>fromInt64</code>, <code>fromUInt64</code> - the number written out as text, in
+the representation <code>repr</code> names. These are the inverse of <code>asInt32</code>, and are
+what a format marker for a number is rendered with. See “Integers as text”
+below.</li>
 </ul>
 <p><code>Index</code> is <code>StrValIndex</code>, 32 bits unless the build says otherwise. The
 <code>INDEXBITS</code> option in the Makefile sets it to any width from 8 bits up to the
@@ -377,6 +382,39 @@ losing the text around it. A brace that is meant literally is doubled, as it is
 in Python and .NET: <code>{{</code> is a <code>{</code>, and <code>}}</code> is a <code>}</code>. Nothing else needs
 escaping, so a text may carry a regular expression, a path or a backslash as it
 stands.</p>
+<h3 id="integers-as-text"><a class="header" href="#integers-as-text">Integers as text</a></h3>
+<p><code>asInt32</code> answers the number a text reads as, and the six <code>from*</code> functions
+answer the text a number writes as. Both take a representation, and it is the
+same one a format marker names:</p>
+<pre><code>StrVal::fromInt32(255, 'x')		// ff
+StrVal::fromInt32(-255)			// -255
+StrVal::fromInt32(-255, 'X')		// FFFFFF01
+StrVal::fromUInt32(4000000000u)		// 4000000000
+StrVal::fromInt64(-1, 'x')		// ffffffffffffffff
+StrVal::fromUInt64(18446744073709551615ull)
+					// 18446744073709551615
+</code></pre>
+<p><code>asInt32</code> reads in any radix from 2 to 36, or in the radix the text’s own
+prefix says when it is given 0; the <code>from*</code> functions write in 2, 8, 10 or 16,
+which is what a representation names. Neither direction adds a prefix: a text
+that wants <code>0x</code> writes it itself, so that a translated text keeps the prefix
+where its own language wants it.</p>
+<p>The representation is one character - <code>b</code> binary, <code>o</code> octal, <code>d</code> decimal, <code>x</code>
+and <code>X</code> hexadecimal for the two cases of the alphabet - or 0, which is
+decimal. Decimal renders the sign, and the most negative value of a type is
+written from its unsigned form, since that value has no positive counterpart
+to negate. Any other base renders the bit pattern of the value at the width of
+its own type, which is what a base is for: an <code>int</code> of -1 is <code>ffffffff</code>, eight
+F’s and no sign.</p>
+<p>This is why there are six functions rather than one taking a <code>long long</code>: an
+<code>int</code> and a <code>long long</code> that hold the same value render differently in a base,
+and a <code>long</code> is not the same width on every target. The one matching the type
+in hand is the one that writes the width that type has, which is what makes
+the <code>X</code> line above eight characters and the <code>x</code> line sixteen.</p>
+<p>Nothing here uses the <code>printf</code> family, which a library that formats its own
+text cannot have: the digits are placed by the library itself. That is the
+same code that <code>format()</code> renders a number parameter with, and that
+<a href="variant.html">Variant</a> renders a number into JSON with.</p>
 <h3 id="sharing-slices-and-nul-termination"><a class="header" href="#sharing-slices-and-nul-termination">Sharing, slices and NUL termination</a></h3>
 <p>A StrVal holds a reference to a reference-counted body, and a substring is a
 slice of that body - it does not copy the characters. Two consequences worth

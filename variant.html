@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-45b4b769.js";
+            window.path_to_searchindex_js = "searchindex-99bebd1a.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-58dc7aeb.js"></script>
@@ -189,6 +189,9 @@ using as_json().</p>
 Integer,
 Long,
 LongLong,
+UInteger,
+ULong,
+ULongLong,
 String (a StrRef),
 StrArray,
 VarArray,
@@ -197,6 +200,13 @@ StrVarMap
 <p>String means a compact StrRef rather than a StrVal: it does not need the
 bookmark that makes StrVal’s scanning and indexing fast, and does not pay
 for it.</p>
+<p>The three unsigned types are worth having because a Variant must be able to
+hold what the program has: a count, a hash, an address, a bit pattern from a
+register. Read as a signed type, half of those values are negative, and one
+that must not be read any other way has nowhere to go. They cost nothing to
+carry - each is stored in the same union word as the signed type of its width,
+so the three of them add no size at all to a Variant, which is the same 24
+bytes it was.</p>
 <p>This header also provides <code>VariantArray</code>, which is just <code>Array&lt;Variant&gt;</code>,
 and <code>StrVariantMap</code>, which is a <code>CowMap&lt;StrVal, Variant&gt;</code> used by StrVarMap.
 The three container types are reference-counted and copy-on-write, like
@@ -226,7 +236,14 @@ printf, handed the wrong argument, reinterprets its bytes.</p>
 <p>Making one:</p>
 <ul>
 <li><code>Variant()</code> - nothing at all, of type <code>None</code>.</li>
-<li><code>Variant(int)</code>, <code>Variant(long)</code>, <code>Variant(long long)</code> - a number.</li>
+<li><code>Variant(int)</code>, <code>Variant(long)</code>, <code>Variant(long long)</code> - a signed number.</li>
+<li><code>Variant(unsigned)</code>, <code>Variant(unsigned long)</code>, <code>Variant(unsigned long long)</code>
+<ul>
+<li>an unsigned one, held as <code>UInteger</code>, <code>ULong</code> or <code>ULongLong</code>. An integer
+literal that is too large for the signed type beside it picks one of these
+on its own, and so does any value of an unsigned type.</li>
+</ul>
+</li>
 <li><code>Variant(StrVal)</code>, <code>Variant(const char*)</code> - a string.</li>
 <li><code>Variant(StringArray)</code>, <code>Variant(StrVal* v, StringArray::Index count)</code> - an
 array of strings.</li>
@@ -234,7 +251,10 @@ array of strings.</li>
 an array of Variants.</li>
 <li><code>Variant(StrVal* keys, Variant* values, StringArray::Index count)</code>,
 <code>Variant(StrVariantMap)</code> - a string-keyed map to Variant.</li>
-<li><code>Variant(VariantType t)</code> - an empty Variant of the given type.</li>
+<li><code>Variant(VariantType t)</code> - an empty Variant of the given type. A Variant of
+that type already made - <code>Variant v(0)</code> for an <code>Integer</code>, <code>Variant m(Variant::StrVarMap)</code> for a map - is usually the better way, because no
+coercion comes <em>from</em> <code>None</code>: <code>Variant v; v.as_int() = 5;</code> reports a
+mismatched type rather than becoming an <code>Integer</code>.</li>
 <li><code>Variant(const Variant&amp;)</code>, <code>operator=</code> - a copy, discarding what the target
 held before.</li>
 </ul>
@@ -246,14 +266,83 @@ held before.</li>
 <li><code>as_int()</code>, <code>as_long()</code>, <code>as_longlong()</code> - the number held. The mutable
 forms coerce to that type first, and report and then assert when the value
 cannot be read as it.</li>
+<li><code>as_uint()</code>, <code>as_ulong()</code>, <code>as_ulonglong()</code> - the same three, unsigned, for a
+Variant whose type is one of the unsigned ones. Unlike the three above they
+answer a value rather than a reference to the union word, which is signed: a
+reference to it read as unsigned would be an aliasing violation. There is
+therefore no mutable form of these three - nothing coerces <em>to</em> an unsigned
+type - so a Variant that holds a number signed must be asked for it that way.</li>
+<li><code>as_signed()</code> - the number held as a signed one, in the closest signed type
+that holds it, answering a <code>long long</code>. This is the read for a number of
+unknown origin, and the answer to an unsigned value too large for its own
+signed twin: a <code>UInteger</code> beyond <code>INT_MAX</code> becomes a <code>Long</code>, and one beyond
+<code>LONG_MAX</code> a <code>LongLong</code>. A value already signed is answered as it stands and
+not narrowed, since its width is what its holder chose; a string that reads
+as a number is converted; and an unsigned value no signed type can hold - a
+<code>ULongLong</code> beyond <code>LLONG_MAX</code>, and on a 64-bit target a <code>ULong</code> beyond
+<code>LONG_MAX</code> too - is refused like any other lossy coercion. It answers a value
+rather than a reference, the width of a reference being whatever the value
+turned out to need, so it is a read and not a way to write in.</li>
 <li><code>as_strval()</code>, <code>as_string_array()</code>, <code>as_variant_array()</code>, <code>as_variant_map()</code>
 <ul>
-<li>the string or container held.</li>
+<li>the string or container held. The mutable <code>as_strval()</code> coerces a number
+to a string, which is what renders an unsigned value unsigned. All four
+answer a handle to a body the Variant still shares, so writing through one -
+<code>v.as_strval() += "x"</code>, <code>v.as_variant_map().insert(k, v)</code> - copies the body
+and leaves the Variant as it was. A string or container is changed by taking
+it, changing that, and putting the result back.</li>
 </ul>
 </li>
 <li><code>as_json(int indent = -1)</code> - the value as JSON. <code>-1</code> adds single spaces,
 <code>-2</code> is maximally compact, and <code>n &gt;= 0</code> indents two spaces per level from
 <code>n</code>.</li>
+</ul>
+<h3 id="reading-and-coercing-an-unsigned-value"><a class="header" href="#reading-and-coercing-an-unsigned-value">Reading and coercing an unsigned value</a></h3>
+<p>The three unsigned types exist so that a value the program holds unsigned is
+not read as a negative number. What a Variant does with one follows from that:</p>
+<ul>
+<li>
+<p><strong>To the signed type of its own width, and no wider</strong>, an unsigned value
+coerces exactly as its signed twin does, so two Variants holding the same
+bits behave the same way however they were built: <code>UInteger</code> as <code>Integer</code>,
+<code>ULong</code> as <code>Long</code>, <code>ULongLong</code> as <code>LongLong</code>. A <code>UInteger</code> of 4000000000
+has the sign bit set in that width, so it does not coerce to an <code>Integer</code> at
+all: the coercion is refused, as it is for any value the target could not
+hold, rather than answering -294967296.</p>
+</li>
+<li>
+<p><strong>Widening one goes by value, not by bits</strong>, where the target is wide enough
+to hold it: a <code>UInteger</code> of 4000000000 read as a <code>LongLong</code> is 4000000000
+and not -294967296. That is the case the types exist for - a count that is
+large but not that large, and a type that can hold it.</p>
+</li>
+</ul>
+<p>A coercion that succeeds is a change of type and not only of reading: the
+Variant is of the type asked for afterwards, so the next read may take it as
+that type without coercing again.</p>
+<p>A coercion is never lossy: one that would change the number is refused instead.
+A refusal reports into the thread’s error buffer, naming the type that was
+asked for and the value that does not fit it:</p>
+<pre><code>Cannot convert to a `Integer` because the value 4000000000 does not fit
+</code></pre>
+<p>Where assertions are on, that report is followed by an assertion and the
+program stops, so a program under development cannot carry the wrong number
+forward. Where assertions are compiled out there is no one to stop for, and
+losing the value would be worse than a wrong answer: the Variant is left of the
+closest type that holds the value instead - a <code>UInteger</code> beyond <code>INT_MAX</code> is
+left a <code>Long</code> - so nothing is lost and any later read answers it correctly. The
+caller that asked for too narrow a type still gets what it asked for, and the
+buffer says why.</p>
+<p>That is what <code>as_signed()</code> is for where the width is not known: it asks for the
+closest signed type that holds the value rather than being told one, so a
+caller with a number of unknown origin has a single call that either answers
+the number or says that no signed type holds it.</p>
+<ul>
+<li><strong>Coercing one to a <code>String</code> renders it unsigned.</strong> The digits of 4000000000
+are not what that number reads as a signed one, so the string the value
+becomes is the unsigned one. <code>as_strval()</code>, <code>format()</code> and <code>as_json()</code> all
+arrive there, which is why a marker for an unsigned parameter needs no
+specification to print it right.</li>
 </ul>
 <p>Building:</p>
 <ul>
