@@ -36,7 +36,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-99bebd1a.js";
+            window.path_to_searchindex_js = "searchindex-bc8812aa.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-58dc7aeb.js"></script>
@@ -308,7 +308,9 @@ byte count.</li>
 <p>Cutting one up:</p>
 <ul>
 <li><code>substr(Index at, int len = -1)</code>, <code>head(n)</code>, <code>tail(n)</code>, <code>shorter(n)</code> - a
-slice, or everything but the last <code>n</code> characters. All are O(1).</li>
+slice, or everything but the last <code>n</code> characters. All are O(1), and all
+reduce to what there is: <code>shorter(n)</code> for more characters than the string
+has is the empty string, which is what removing all of them leaves.</li>
 <li><code>find</code>/<code>rfind(UCS4 ch, int after/before)</code> - where a character is, or -1.</li>
 <li><code>find</code>/<code>rfind(const StrVal&amp;, int after/before)</code> - where a substring is.</li>
 <li><code>findAny</code>/<code>rfindAny(const StrVal&amp; s, int after/before)</code> - where any of the
@@ -340,8 +342,9 @@ answers.</li>
 <li><code>asJSON()</code>, <code>toJSON()</code> - escaped for JSON; <code>toJSON</code> escapes in place and
 does not add the enclosing quotes.</li>
 <li><code>asInt32(ErrNum* err, int radix = 0, Index* scanned = 0)</code> - the number this
-string reads as, in any radix from 2 to 36 and auto-detected when 0,
-reporting what it could not use.</li>
+string reads as, in any radix from 2 to 36 and auto-detected when 0. A text
+it cannot read whole is reported into the thread’s error buffer as well as
+returned: see <a href="#error-management-1">Errors</a> and the <code>STR</code> set in <code>str_err.h</code>.</li>
 <li><code>static format(StrVal f, VariantArray args)</code> - the text <code>f</code> with each <code>{1}</code>,
 <code>{2}</code> and so on replaced by that parameter, which the marker may say how to
 render. See “Substituting parameters into a text” below.</li>
@@ -472,7 +475,9 @@ StrVal::fromUInt64(18446744073709551615ull)
 </code></pre>
 <p><code>asInt32</code> reads in any radix from 2 to 36, or in the radix the text’s own
 prefix says when it is given 0; the <code>from*</code> functions write in 2, 8, 10 or 16,
-which is what a representation names. Neither direction adds a prefix: a text
+which is what a representation names. A text <code>asInt32</code> cannot read whole is
+reported as well as answered - the text, the radix, and how far the parse got -
+so that a failure has a record even where nobody looked at the answer. Neither direction adds a prefix: a text
 that wants <code>0x</code> writes it itself, so that a translated text keeps the prefix
 where its own language wants it.</p>
 <p>The representation is one character - <code>b</code> binary, <code>o</code> octal, <code>d</code> decimal, <code>x</code>
@@ -1089,11 +1094,19 @@ default:
 	return e;		// Not ours to handle
 }
 </code></pre>
-<p>Set and message numbers are generated from a message set description: a
-set’s messages become <code>#define</code>s in a generated header, <code>&lt;Module&gt;_err.h</code>,
-one per message with the default text in a comment, so that code has names
-rather than numbers. There are 1024 messages to a set, and set numbers run
-to 262143.</p>
+<p>Set and message numbers come from a message set description: a set’s messages
+become <code>#define</code>s in a generated header, <code>&lt;Module&gt;_err.h</code>, one per message with
+the default text in a comment, so that code has names rather than numbers. Its
+companion, <code>&lt;Module&gt;_msg.h</code>, holds the reporting function of each - the pair is
+for the two things a message is for, and a translation is written against the
+texts the first half carries.</p>
+<p>One library has one message source file, however many sets are in it. This
+library’s is <a href="https://github.com/cjheath/strpp/blob/main/include/str_err.h">str_err.h</a>
+and <a href="https://github.com/cjheath/strpp/blob/main/include/str_msg.h">str_msg.h</a>,
+which hold the sets <code>STR</code>, for the strings, and <code>VAR</code>, for the Variant. A set
+carries what can go wrong within it and nothing else, which is why a message
+about reading a number from a text is in <code>STR</code> rather than beside the class it
+came from. There are 1024 messages to a set, and set numbers run to 262143.</p>
 <p>A number, once used, is never re-used, so a number written into a log, a
 manual or a customer’s report keeps its meaning over the life of the
 software.</p>
@@ -1146,9 +1159,29 @@ checkpoint, the parameters going with it.</li>
 free function the generated reporting functions call: it reports into this
 thread’s buffer and answers the number, so reporting and returning are one
 act.</li>
-<li><code>error_buffer()</code> - the free function that answers this thread’s buffer,
-making it on first use.</li>
 </ul>
+<p>Three free functions are there so that a caller need not reach through the
+slot at all, which is what almost every caller wants:</p>
+<ul>
+<li><code>ErrBuffer()</code> - this thread’s buffer, made on first use.</li>
+<li><code>ErrBuffer()</code> - this thread’s buffer as a <code>ErrBuf*</code>.</li>
+<li><code>ErrCheckpoint()</code> - the same as <code>ErrBuffer()-&gt;checkpoint()</code>: keep what it
+answers, and roll back to it.</li>
+<li><code>ErrRollback(MsgSequence to)</code> - the same as <code>ErrBuffer()-&gt;rollback(to)</code>:
+discard everything reported since that checkpoint, as a callee’s reports
+are dropped without the callee being party to it. It makes the buffer if
+this thread has none, so it is safe to call whether or not anything was
+reported.</li>
+</ul>
+<p>That last pair is what a caller that <em>expects</em> a failure uses, so that the
+report does not become noise:</p>
+<pre><code>ErrBuf::MsgSequence	at = ErrCheckpoint();
+...call something whose failure is one of the answers...
+if (the failure was the expected one)
+	ErrRollback(at);	// Not a mistake: take the report back
+</code></pre>
+<p><code>rx</code> and <code>px</code> both do exactly this around a parse that is expected to run out
+of digits, so that a normal run leaves the buffer empty.</p>
 <h4 id="reporting"><a class="header" href="#reporting">Reporting</a></h4>
 <p>Generated code calls <code>Error</code> through a function per message:</p>
 <pre><code>ErrNum	Error(ErrNum err, const char* default_text, VariantArray params);
