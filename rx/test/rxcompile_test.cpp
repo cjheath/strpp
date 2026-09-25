@@ -336,7 +336,7 @@ int automated_tests()
 		 * Any remaining message means a parse failed unexpectedly
 		 */
 		{
-			ErrBuf*	buf = error_buffer().peek();
+			ErrBuf*	buf = ErrBuffer();
 			int	left = buf ? (int)buf->count() : 0;
 			if (ct->expected_message == 0 && left != 0)
 			{
