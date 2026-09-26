@@ -23,89 +23,6 @@ static const Tick	Time_tAtEpoch = 946684800;
  * all three fromString()s share: none of them accepts anything but a number in
  * their own unit as text, so none needs a grammar of its own.
  */
-typedef struct DecimalScan
-{
-	bool		ok;			// A number, and nothing but a number
-	bool		negative;		// A leading - was read
-	uint64_t	whole;			// The digits before the radix
-	uint64_t	fraction;		// The digits after it, scaled to 10^-8 seconds
-} DecimalScan;
-
-static DecimalScan
-scanDecimal(StrVal text, bool allow_fraction)
-{
-	DecimalScan	answer;
-	StrValIndex	i = 0;
-	StrValIndex	len = text.length();
-
-	answer.ok = false;
-	answer.negative = false;
-	answer.whole = 0;
-	answer.fraction = 0;
-
-	while (i < len && UCS4IsWhite(text[i]))
-		i++;
-	if (i < len && (text[i] == '+' || text[i] == '-'))
-	{
-		answer.negative = text[i] == '-';
-		i++;
-	}
-	if (i >= len || UCS4Digit(text[i]) < 0)
-		return answer;			// No digits to read
-
-	while (i < len && UCS4Digit(text[i]) >= 0)
-	{
-		unsigned	d = (unsigned)UCS4Digit(text[i]);
-		if (answer.whole > (UINT64_MAX - d)/10)
-			return answer;		// More digits than any count here can hold
-		answer.whole = answer.whole*10 + d;
-		i++;
-	}
-
-	int		digits = 0;
-	if (allow_fraction && i < len && (text[i] == '.' || text[i] == ','))
-	{
-		i++;
-		while (i < len && UCS4Digit(text[i]) >= 0)
-		{
-			if (digits < 8)		// Past 10^-8 seconds is past our resolution
-			{
-				answer.fraction = answer.fraction*10 + (unsigned)UCS4Digit(text[i]);
-				digits++;
-			}
-			i++;
-		}
-	}
-	while (digits++ < 8)			// Scale the fraction to 10^-8 seconds
-		answer.fraction *= 10;
-
-	while (i < len && UCS4IsWhite(text[i]))
-		i++;
-	if (i != len)
-		return answer;			// Something after the number
-
-	answer.ok = true;
-	return answer;
-}
-
-/*
- * A whole number from a text, which is what Milliseconds and Seconds read. The
- * bound is the same either sign: one below the most negative time that exists
- * is the null tick, and a text cannot spell that out and mean a value.
- */
-static bool
-scanWhole(StrVal text, Tick* answer)
-{
-	DecimalScan	scan = scanDecimal(text, false);
-	uint64_t	limit = 0x7FFFFFFFFFFFFFFFULL;
-
-	if (!scan.ok || scan.whole > limit)
-		return false;
-
-	*answer = scan.negative ? (Tick)(0 - scan.whole) : (Tick)scan.whole;
-	return true;
-}
-
 /*
  * Whether a text says "null", which is what a null value is written as and so
  * what it reads back from. It is checked before the number scan in all four
@@ -308,34 +225,53 @@ Interval::toString() const
 Interval
 Interval::fromString(StrVal text, ErrNum* err_return)
 {
-	DecimalScan	scan;
-	uint64_t	limit;
-	uint64_t	ticks;
+	ErrNum			e = 0;
+	ErrBuf::MsgSequence	at;
+	StrValIndex		scanned = 0;
+	Tick			ticks;
 
 	if (err_return)
 		*err_return = 0;
 	if (scanNull(text))
 		return Interval(NullTick);	// "null" is a null, and not a failure
 
-	scan = scanDecimal(text, true);
-
 	/*
-	 * The largest count either sign can read. Not one more for the negative
-	 * side: one tick below the smallest time that exists is the null tick,
-	 * which means "no value", and a text that spells it out must not be read
-	 * as a value at all - a number that cannot be held is refused, not turned
-	 * into a null behind the caller's back.
+	 * Read at the resolution this layer keeps. Three answers can come back:
+	 *
+	 * - nothing, for a number this reader can read;
+	 * - an overflow, which is digits the type cannot hold: the number is not
+	 *   that number, and is refused below;
+	 * - trailing text, which means either that the text wrote places below
+	 *   10^-8 seconds, or that something followed the number. Only the first
+	 *   of those is a rounding, and it is the one this layer lives with: a
+	 *   digit standing where the reading stopped is what tells them apart,
+	 *   since a whole part that did not fit is an overflow and not this.
+	 *
+	 * The rollback makes the first of them silent, as this layer has always
+	 * been about precision finer than it keeps.
 	 */
-	limit = ((uint64_t)0x7FFFFFFFFFFFFFFFULL - scan.fraction)/TicksPerSecond;
-	if (!scan.ok || scan.whole > limit)
+	at = ErrCheckpoint();
+	ticks = text.asFixedPoint<Tick>(8, &e, 10, &scanned);
+	if (e == STRERR_TRAIL_TEXT
+	 && scanned < text.length() && UCS4Digit(text[scanned]) >= 0)
 	{
+		ErrRollback(at);
+		e = 0;		// More precision than is kept here, and not a mistake
+	}
+	/*
+	 * The reader will read the most negative tick there is, since a signed
+	 * type can hold it - but that value is this layer's null, which means "no
+	 * value", and a text that spells it out must not become one behind the
+	 * caller's back. It is refused with the rest.
+	 */
+	if (e || ticks == NullTick)
+	{
+		ErrRollback(at);
 		if (err_return)
 			*err_return = ErrorTIM_InvalidText(text);
 		return Interval(NullTick);	// A text that is not a time is no time
 	}
-
-	ticks = scan.whole*TicksPerSecond + scan.fraction;
-	return Interval(scan.negative ? (Tick)(0 - ticks) : (Tick)ticks);
+	return Interval(ticks);
 }
 
 /*
@@ -426,18 +362,29 @@ Milliseconds::toString() const
 Milliseconds
 Milliseconds::fromString(StrVal text, ErrNum* err_return)
 {
-	Tick		ms;
+	ErrNum			e = 0;
+	ErrBuf::MsgSequence	at;
+	Tick			ms;
 
 	if (err_return)
 		*err_return = 0;
 	if (scanNull(text))
 		return Milliseconds(NullTick);
 
-	if (!scanWhole(text, &ms))
+	/*
+	 * A whole number of milliseconds, and nothing else. A fraction here is a
+	 * unit smaller than the type holds, and one that the text named: unlike
+	 * the places past 10^-8 seconds, it is not precision being dropped below
+	 * a resolution the caller chose, so it is refused rather than rounded.
+	 */
+	at = ErrCheckpoint();
+	ms = text.asInteger<Tick>(&e, 10);
+	if (e)
 	{
+		ErrRollback(at);
 		if (err_return)
 			*err_return = ErrorTIM_InvalidText(text);
-		return Milliseconds(NullTick);	// A text that is not a time is no time
+		return Milliseconds(NullTick);
 	}
 	return Milliseconds(ms);
 }
@@ -528,18 +475,24 @@ Seconds::toString() const
 Seconds
 Seconds::fromString(StrVal text, ErrNum* err_return)
 {
-	Tick		sec;
+	ErrNum			e = 0;
+	ErrBuf::MsgSequence	at;
+	Tick			sec;
 
 	if (err_return)
 		*err_return = 0;
 	if (scanNull(text))
 		return Seconds(NullTick);
 
-	if (!scanWhole(text, &sec))
+	// A whole number of seconds, and nothing else: see Milliseconds above
+	at = ErrCheckpoint();
+	sec = text.asInteger<Tick>(&e, 10);
+	if (e)
 	{
+		ErrRollback(at);
 		if (err_return)
 			*err_return = ErrorTIM_InvalidText(text);
-		return Seconds(NullTick);	// A text that is not a time is no time
+		return Seconds(NullTick);
 	}
 	return Seconds(sec);
 }

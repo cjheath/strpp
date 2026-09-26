@@ -61,11 +61,11 @@ ErrorSTR_NoDigits(StrVal text, int radix)
 }
 
 inline ErrNum
-ErrorSTR_NumberOverflow(StrVal text, int radix, StrValIndex offset)
+ErrorSTR_NumberOverflow(StrVal text, int radix, StrValIndex offset, const char* type_name)
 {
 	return Error(STRERR_NUMBER_OVERFLOW,
-		"The number in `{1}` is too large to be read as an `int32_t` in radix {2}, overflowing at {3}",
-		VariantArray() << text << radix << offset);
+		"The number in `{1}` is too large to be read as `{4}` in radix {2}, overflowing at {3}",
+		VariantArray() << text << radix << offset << type_name);
 }
 
 inline ErrNum
@@ -74,6 +74,19 @@ ErrorSTR_NotNumber(StrVal text, int radix, StrVal character, StrValIndex offset)
 	return Error(STRERR_NOT_NUMBER,
 		"`{1}` is not a number in radix {2}: the character `{3}` at {4} is not a digit",
 		VariantArray() << text << radix << character << offset);
+}
+
+/*
+ * A number with a minus sign, read into a type that has no sign: the sign has
+ * no meaning there, so the number cannot be read at all. A bit pattern is asked
+ * for by reading it in a base - "0xffffffff" and not "-1".
+ */
+inline ErrNum
+ErrorSTR_NegativeUnsigned(StrVal text, int radix)
+{
+	return Error(STRERR_NEGATIVE_UNSIGNED,
+		"The number in `{1}` is negative, and cannot be read into an unsigned type in radix {2}",
+		VariantArray() << text << radix);
 }
 
 inline ErrNum

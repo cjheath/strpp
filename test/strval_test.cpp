@@ -71,6 +71,7 @@ void		mixed_encoding_tests();
 void		bool_cast_tests();
 void		index_limit_tests();
 void		from_int_tests();
+void		fixed_point_tests();
 
 int
 main(int argc, const char** argv)
@@ -102,6 +103,7 @@ main(int argc, const char** argv)
 	bool_cast_tests();
 	index_limit_tests();
 	from_int_tests();
+	fixed_point_tests();
 
 	printf("Completed %d tests with %d failures\n", test_count, failure_count);
 	return failure_count == 0 ? 0 : 1;
@@ -754,9 +756,30 @@ int_conversion_tests()
 	StrVal("123").asInt32(&err, -1, &scanned);
 	expect_eq_err("radix -1 err", err, ErrNum(STRERR_SET, STRERR_ILLEGAL_RADIX));
 
-	test_group("asInt32: error - overflow (exceeds unsigned long)");
-	StrVal("99999999999999999999999999").asInt32(&err, 10, &scanned);
-	expect_eq_err("huge decimal overflow err", err, ErrNum(STRERR_SET, STRERR_NUMBER_OVERFLOW));
+	/*
+	 * Digits the value cannot hold stop the number: nothing wraps, nothing is
+	 * rounded, and the digits after the last that fitted are reported as
+	 * trailing text. That is what lets a caller whose resolution is coarser
+	 * than the text roll the report back and keep what fitted - and what lets
+	 * a caller for whom one decimal place too many is a mistake leave it
+	 * standing. The value is answered either way.
+	 */
+	test_group("asInt32: error - too many digits for the type is an overflow");
+	expect_eq_int("a number too large for an int32_t answers the digits that fit",
+			(long)StrVal("99999999999999999999999999").asInt32(&err, 10, &scanned), 999999999);
+	expect_eq_err("...reporting an overflow, which is not a rounding", err,
+			ErrNum(STRERR_SET, STRERR_NUMBER_OVERFLOW));
+	expect_eq_int("...and ending where it stopped", (long)scanned, 9);
+
+	// The same number read at its own width fits, and reports nothing: this is
+	// the whole reason the readers are templates on the width
+	{
+		ErrNum	wide = 0;
+		long long	big = StrVal("4000000000").asInteger<long long>(&wide, 10);
+
+		expect_eq_int("...while four billion read as a long long fits", (long)big, 4000000000LL);
+		expect_eq_err("...and reports nothing", wide, ErrNum(0));
+	}
 
 	test_group("asInt32: the bounds are an int32_t's, not a long's");
 	expect_eq_int("INT32_MAX fits", (long)StrVal("2147483647").asInt32(&err, 10), 2147483647);
@@ -764,14 +787,17 @@ int_conversion_tests()
 	expect_eq_int("INT32_MIN fits", (long)StrVal("-2147483648").asInt32(&err, 10), (long)INT32_MIN);
 	expect_eq_err("...with no error", err, ErrNum(0));
 
-	StrVal("2147483648").asInt32(&err, 10);
-	expect_eq_err("INT32_MAX+1 overflow err", err, ErrNum(STRERR_SET, STRERR_NUMBER_OVERFLOW));
-	StrVal("-2147483649").asInt32(&err, 10);
-	expect_eq_err("INT32_MIN-1 overflow err", err, ErrNum(STRERR_SET, STRERR_NUMBER_OVERFLOW));
+	expect_eq_int("INT32_MAX+1 answers the digits that fit",
+			(long)StrVal("2147483648").asInt32(&err, 10, &scanned), 214748364);
+	expect_eq_err("...as an overflow", err, ErrNum(STRERR_SET, STRERR_NUMBER_OVERFLOW));
+	expect_eq_int("INT32_MIN-1 answers the digits that fit",
+			(long)StrVal("-2147483649").asInt32(&err, 10, &scanned), -214748364);
+	expect_eq_err("...as an overflow", err, ErrNum(STRERR_SET, STRERR_NUMBER_OVERFLOW));
 	// Four billion fits a long on a 64-bit target, and an int32_t on no target:
 	// the bound was a long's where the answer was an int32_t's
-	StrVal("4000000000").asInt32(&err, 10);
-	expect_eq_err("4000000000 overflow err", err, ErrNum(STRERR_SET, STRERR_NUMBER_OVERFLOW));
+	expect_eq_int("4000000000 answers the digits that fit",
+			(long)StrVal("4000000000").asInt32(&err, 10, &scanned), 400000000);
+	expect_eq_err("...as an overflow", err, ErrNum(STRERR_SET, STRERR_NUMBER_OVERFLOW));
 
 	int_conversion_report_tests();
 }
@@ -846,9 +872,10 @@ int_conversion_report_tests()
 
 	StrVal("4000000000").asInt32(&err, 10, &scanned);
 	said = reported(number);
-	expect_eq_err("too large is reported as NUMBER_OVERFLOW", number, STRERR_NUMBER_OVERFLOW);
-	expect_eq_str("...naming the text and the radix", said,
-		"The number in `4000000000` is too large to be read as an `int32_t` in radix 10, overflowing at 10");
+	expect_eq_err("too many digits for the type are reported as NUMBER_OVERFLOW", number,
+		STRERR_NUMBER_OVERFLOW);
+	expect_eq_str("...naming the width it was asked for, and where it stopped", said,
+		"The number in `4000000000` is too large to be read as `int32_t` in radix 10, overflowing at 9");
 
 	// A parse that succeeds reports nothing: the buffer must be untouched
 	StrVal("42").asInt32(&err, 10, &scanned);
@@ -1349,4 +1376,143 @@ mixed_encoding_tests()
 	expect_eq_int("toLower() must preserve the character count (2)", (long)lowered.length(), 2);
 	expect_eq_ch("lowered[0] is U+00E3 (a-tilde, lowercased)", lowered[0], (UCS4)0x00E3);
 	expect_eq_ch("lowered[1] is U+0089 (unchanged, no lowercase mapping)", lowered[1], (UCS4)0x0089);
+}
+
+/*
+ * Reading a number at a resolution the caller names: an exact integer instead of
+ * a rounding, which is what a value counted in hundredths - or in 10^-8 seconds
+ * - wants. The same text read at two resolutions is the same value counted in
+ * different units, and nothing is ever rounded.
+ */
+void
+fixed_point_tests()
+{
+	ErrNum	err = 0;
+	StrValIndex	scanned = 0;
+
+	test_group("asFixedPoint: a resolution the caller names");
+
+	expect_eq_int("1.5 at eight places",
+			(long)StrVal("1.5").asFixedPoint<int64_t>(8, &err, 10), 150000000);
+	expect_eq_err("...with no error", err, ErrNum(0));
+	expect_eq_int("1.5 at two places, the same value in hundredths",
+			(long)StrVal("1.5").asFixedPoint<int64_t>(2, &err, 10), 150);
+	expect_eq_err("...also with no error", err, ErrNum(0));
+	expect_eq_int("a whole number is scaled up",
+			(long)StrVal("12").asFixedPoint<int64_t>(2, &err, 10), 1200);
+	expect_eq_int("a negative fraction at eight places",
+			(long)StrVal("-0.00000001").asFixedPoint<int64_t>(8, &err, 10), -1);
+	expect_eq_int("a fraction with no whole part",
+			(long)StrVal(".5").asFixedPoint<int64_t>(2, &err, 10), 50);
+	expect_eq_err("...which reads cleanly", err, ErrNum(0));
+	expect_eq_int("...and so does its negative",
+			(long)StrVal("-.5").asFixedPoint<int64_t>(2, &err, 10), -50);
+	expect_eq_int("a comma is a radix point too",
+			(long)StrVal("1,5").asFixedPoint<int64_t>(1, &err, 10), 15);
+
+	// The radix is the caller's, and a point is a point in any radix: this one
+	// is a binary fixed-point read, hex 1.8 being one and a half, in sixteenths
+	expect_eq_int("1.8 in hex, one place, is 24 sixteenths",
+			(long)StrVal("0x1.8").asFixedPoint<int64_t>(1, &err, 0), 24);
+	expect_eq_err("...with the radix detected", err, ErrNum(0));
+
+	/*
+	 * More places than were asked for: the number stops and says so, and the
+	 * caller decides whether that is a rounding or a mistake. This is the
+	 * whole reason the reader reports instead of deciding.
+	 */
+	expect_eq_int("12.345 at two places answers 1234",
+			(long)StrVal("12.345").asFixedPoint<int64_t>(2, &err, 10, &scanned), 1234);
+	expect_eq_err("...reporting the third place as trailing text", err, ErrNum(STRERR_TRAIL_TEXT));
+	expect_eq_int("...ending where it stopped", (long)scanned, 5);
+
+	test_group("asFixedPoint and asInteger divide the work");
+
+	// The same text read as a whole number stops at the point: the two readers
+	// do not overlap, and neither of them rounds
+	expect_eq_int("1.5 as a whole number is 1",
+			(long)StrVal("1.5").asInteger<int64_t>(&err, 10), 1);
+	expect_eq_err("...with the fraction as trailing text", err, ErrNum(STRERR_TRAIL_TEXT));
+
+	err = 0;
+	StrVal(".5").asInteger<int64_t>(&err, 10);
+	expect_eq_err("a fraction alone is not a whole number", err, STRERR_NOT_NUMBER);
+	err = 0;
+	StrVal(".").asFixedPoint<int64_t>(2, &err, 10);
+	expect_eq_err("...nor is a point with no digits either side of it", err, STRERR_NOT_NUMBER);
+
+	test_group("asInteger: the width is the caller's");
+
+	expect_eq_int("a long long reads what an int32_t cannot",
+			(long long)StrVal("4000000000").asInteger<long long>(&err, 10), 4000000000LL);
+	expect_eq_err("...with no error", err, ErrNum(0));
+	expect_eq_int("an int16_t reads what fits it",
+			(long)StrVal("32767").asInteger<int16_t>(&err, 10), 32767);
+	expect_eq_err("...with no error", err, ErrNum(0));
+	expect_eq_int("...and stops at the last digit that fits",
+			(long)StrVal("32768").asInteger<int16_t>(&err, 10), 3276);
+	expect_eq_err("...reporting an overflow, not a rounding", err, ErrNum(STRERR_SET, STRERR_NUMBER_OVERFLOW));
+
+	/*
+	 * The two failures are different complaints, and the difference is what the
+	 * time layer needs of them: a resolution coarser than the text has lost
+	 * precision and may be lived with, while digits the type cannot hold mean
+	 * the number is not this number at all, and a caller should not carry on
+	 * with it. Both answer the digits that fitted; only the report differs.
+	 */
+	expect_eq_int("too many places is a rounding, and the value is answered",
+			(long)StrVal("1.234567890").asFixedPoint<int64_t>(8, &err, 10), 123456789);
+	expect_eq_err("...reported as trailing text", err, ErrNum(STRERR_SET, STRERR_TRAIL_TEXT));
+	expect_eq_int("too many digits is an overflow, and the value is answered too",
+			(long)StrVal("4000000000").asInt32(&err, 10), 400000000);
+	expect_eq_err("...reported as an overflow", err, ErrNum(STRERR_SET, STRERR_NUMBER_OVERFLOW));
+
+	expect_eq_int("a uint32_t reads a value no signed 32-bit type holds",
+			(long)StrVal("4000000000").asInteger<uint32_t>(&err, 10), 4000000000L);
+	expect_eq_err("...with no error", err, ErrNum(0));
+
+
+	test_group("asInteger: unsigned types");
+
+	/*
+	 * A prefix is stripped when the radix is 16 or 2, as C does, so that a bit
+	 * pattern can be read as what it is: 0xff in radix 16 is 255, and not 0
+	 * with "xff" trailing. For any other radix a prefix is not one, and x is
+	 * simply not a digit.
+	 */
+	expect_eq_int("0xff read in radix 16 is 255",
+			(long)StrVal("0xff").asInteger<uint8_t>(&err, 16), 255);
+	expect_eq_err("...with no error", err, ErrNum(0));
+	expect_eq_int("0b101 read in radix 2 is 5",
+			(long)StrVal("0b101").asInteger<uint8_t>(&err, 2), 5);
+	expect_eq_err("...with no error", err, ErrNum(0));
+	expect_eq_int("...and a prefix is not one in radix 10", 
+			(long)StrVal("0xff").asInteger<uint8_t>(&err, 10), 0);
+	expect_eq_err("...where it is 0 and trailing text", err, ErrNum(STRERR_SET, STRERR_TRAIL_TEXT));
+
+	{
+		ErrNum	drained = 0;
+
+		reported(drained);	// Clear what that assertion reported, for the next one
+	}
+
+	/*
+	 * A minus sign into a type with no sign has no meaning, so the number
+	 * cannot be read at all: refused rather than wrapped as C's strtoul wraps
+	 * it, a bit pattern being asked for by reading it in a base, as above.
+	 */
+	{
+		ErrNum	said_err = 0;
+
+		expect_eq_int("a negative read as unsigned answers nothing",
+				(long)StrVal("-5").asInteger<uint32_t>(&err, 10), 0);
+		expect_eq_err("...and says why", err, ErrNum(STRERR_SET, STRERR_NEGATIVE_UNSIGNED));
+		expect_eq_str("...naming the text and the radix", reported(said_err),
+			"The number in `-5` is negative, and cannot be read into an unsigned type in radix 10");
+		expect_eq_err("...reported as that number", said_err, ErrNum(STRERR_SET, STRERR_NEGATIVE_UNSIGNED));
+	}
+	expect_eq_int("...while a plus sign is just a sign",
+			(long)StrVal("+5").asInteger<uint32_t>(&err, 10), 5);
+	expect_eq_err("...with no error", err, ErrNum(0));
+
 }

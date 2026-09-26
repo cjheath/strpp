@@ -21,6 +21,7 @@
 #include	<cstdint>
 #include	<cstring>
 #include	<functional>
+#include	<limits>
 #include	<type_traits>
 
 #include	<error.h>
@@ -28,6 +29,7 @@
 #include	<array.h>
 #include	<refcount.h>
 #include	<char_encoding.h>
+#include	<strassert.h>			// A resolution a width cannot hold stops
 
 /*
  * The index type for string sizes, settable by the build as ArrayIndexBits is
@@ -906,29 +908,66 @@ public:
 	static StrVal	fromUInt64(uint64_t n, char repr = 0);
 
 	/*
-	 * Convert a string to an integer, using radix (0 means use C rules)
+	 * Convert a string to a number, of any width, at the caller's resolution.
 	 *
-	 * Leading and trailing spaces are scanned and ignored. Other than
-	 * that, non-numeric characters or digits after trailing spaces are
-	 * flagged as an error.
+	 * asInteger reads a whole number of type T. asFixedPoint reads a number
+	 * with a radix point as a count of `places` places after it: "1.5" read
+	 * in radix 10 with eight places is 150000000, and "1.8" read in radix 16
+	 * with one is 24. A caller whose values are counted in hundredths, or in
+	 * 10^-8 seconds, names that resolution and gets an exact integer rather
+	 * than a rounding.
 	 *
-	 * The radix value may be 0 or in the range 2-36. Radices beyond 10
-	 * use the ASCII alphabet for digits above 9, upper or lower case.
-	 * Radix 2 allows 0b... or 0B..., and radix 16 allows 0x... or
-	 * 0X..., and radix 0 recognises both forms and uses the appropriate
-	 * radix. Radix 0 also treats a number with a leading zero as octal.
+	 * Leading and trailing spaces are scanned and ignored; other non-numeric
+	 * characters are flagged as an error. The radix may be 0 or 2-36: beyond
+	 * 10 the ASCII alphabet is used for digits above 9, upper or lower case.
+	 * Radix 2 allows 0b..., radix 16 allows 0x..., and radix 0 recognises
+	 * both and treats a number with a leading zero as octal, as C does - so a
+	 * caller reading decimal text passes 10, and nothing is read as octal. A
+	 * radix point is a radix point in any radix.
+	 *
+	 * Digits the value cannot hold do not truncate and are not rounded: the
+	 * number stops at the last digit that fits its type and its resolution,
+	 * and the digits after it are reported as trailing text. A caller whose
+	 * resolution is coarser than the text rolls that report back and keeps
+	 * what fitted, which is what rx/rxcompile.cpp has always done with it; a
+	 * caller for whom a third decimal place is a mistake leaves the report
+	 * standing. Either way, a value is answered.
+	 *
+	 * These are templates so that no width is compiled unless a caller names
+	 * it: nothing instantiates either of them for any T, and asInt32 below is
+	 * asInteger<int32_t> and nothing more.
 	 *
 	 * @retval 0 no problems
 	 * @retval STRERR_TRAIL_TEXT There are non-blank characters after the number
 	 * @retval STRERR_NO_DIGITS Number string contains only blank characters
-	 * @retval STRERR_NUMBER_OVERFLOW The number doesn't fit in the requested type
 	 * @retval STRERR_NOT_NUMBER The first non-blank character was non-numeric
+	 * @retval STRERR_ILLEGAL_RADIX The radix is not one a number can be read in
 	 */
-	int32_t		asInt32(
+	template<typename T>
+	T		asInteger(
 				ErrNum*	err_return = 0, // error return
 				int	radix = 0,	// base for conversion
 				Index*	scanned = 0	// characters scanned
 			) const;
+
+	// The same, read as a count of `places` places after the radix point.
+	template<typename T>
+	T		asFixedPoint(
+				int	places,		// Digits after the radix point
+				ErrNum*	err_return = 0,
+				int	radix = 0,
+				Index*	scanned = 0
+			) const;
+
+	// The int32 case of asInteger, for a caller that knows its width. This
+	// library uses it itself, so it is compiled whether or not a program
+	// ever calls it.
+	int32_t		asInt32(
+				ErrNum*	err_return = 0, // error return
+				int	radix = 0,	// base for conversion
+				Index*	scanned = 0	// characters scanned
+			) const
+			{ return asInteger<int32_t>(err_return, radix, scanned); }
 
 	// Expand a text by interpolating the positional parameters of `args`:
 	// {1} is the first, {2} the second. An array or a map among them is
@@ -956,6 +995,49 @@ protected:
 
 private:
 	Bookmark	mark;
+
+	/*
+	 * Where a number is in a text, and what is wrong with it if it is not one.
+	 * It knows no width and no scale: it finds the sign, the run of digits
+	 * before the radix point and the run after it, and answers an ErrNum when
+	 * there is no number to be found. What the digits are worth - in a type of
+	 * some width, at some resolution - is the reader's business, and so is
+	 * everything the value cannot hold.
+	 */
+	typedef struct NumberScan
+	{
+		ErrNum	why;		// 0, or why no number was read
+		Index	at;		// Where the trouble is, for a report
+		int	radix;		// What a radix of 0 was resolved to
+		bool	negative;	// A leading minus was read
+		Index	digits;		// First digit of the whole part
+		Index	digits_end;	// One past the last of them
+		Index	fraction;	// First digit after the radix point, or digits_end
+		Index	fraction_end;	// One past the last of them
+		Index	end;		// One past the number, its 0x prefix included
+	} NumberScan;
+
+	static NumberScan	scanNumber(const StrValI& text, int radix);
+
+	/*
+	 * The digits a scan found, read into T at the caller's resolution. The
+	 * value grows only while it fits the type: a digit that would not is where
+	 * the number stops, and everything from there on is trailing text. So
+	 * nothing wraps and nothing is rounded, and a caller whose resolution is
+	 * coarser than the text rolls the report back and keeps what fitted.
+	 */
+	template<typename T>
+	T		readNumber(const NumberScan& scan, int places, ErrNum* err_return, Index* scanned) const;
+
+	/*
+	 * A failure that a reader cannot report from this header: Error() needs a
+	 * VariantArray, which needs variant.h, which needs this file. Defined in
+	 * src/strval.cpp, as asInt32 itself used to be. `at` says where the
+	 * trouble is and `stop` where the number stopped being read; a message
+	 * that names neither ignores them.
+	 */
+	static ErrNum	reportNumber(ErrNum why, const char* type_name, const StrValI& text,
+					int radix, Index at, Index stop);
 
 	UCS4		getChar(const char*& cp) const
 			{
@@ -1062,6 +1144,315 @@ int StrValI<Index>::compare(const StrValI& comparand, CompareStyle style) const
 template<typename Index = StrValIndex> StrValI<Index> operator+(const char* cp, const StrVal s)
 {
 	return StrValI<Index>(cp) + s;
+}
+
+/*
+ * What a width is called, for the one message that names it. The widths this
+ * library reads are named, and another answers "integer", which is vague and
+ * cannot be wrong. Free rather than a member, so that each width is one line
+ * and not a template of a template.
+ */
+template<typename T> inline const char* strval_integer_type_name()	{ return "integer"; }
+template<> inline const char* strval_integer_type_name<int8_t>()	{ return "int8_t"; }
+template<> inline const char* strval_integer_type_name<int16_t>()	{ return "int16_t"; }
+template<> inline const char* strval_integer_type_name<int32_t>()	{ return "int32_t"; }
+template<> inline const char* strval_integer_type_name<int64_t>()	{ return "int64_t"; }
+template<> inline const char* strval_integer_type_name<uint8_t>()	{ return "uint8_t"; }
+template<> inline const char* strval_integer_type_name<uint16_t>()	{ return "uint16_t"; }
+template<> inline const char* strval_integer_type_name<uint32_t>()	{ return "uint32_t"; }
+template<> inline const char* strval_integer_type_name<uint64_t>()	{ return "uint64_t"; }
+
+/*
+ * The number recogniser: where a number is in a text, and what is wrong with it
+ * if it is not one. Deliberately width-free - it says where the digits are, and
+ * not what they are worth - so that one scan serves every reader, and only the
+ * readers have to know a type.
+ */
+template<typename Index>
+typename StrValI<Index>::NumberScan
+StrValI<Index>::scanNumber(const StrValI<Index>& text, int radix)
+{
+	NumberScan	scan;
+	Index		len = text.length();
+	Index		i = 0;
+	UCS4		ch = 0;
+
+	scan.why = 0;
+	scan.at = 0;
+	scan.radix = radix;
+	scan.negative = false;
+	scan.digits = 0;
+	scan.digits_end = 0;
+	scan.fraction = 0;
+	scan.fraction_end = 0;
+
+	if (radix < 0 || radix > 36)
+	{
+		scan.why = STRERR_ILLEGAL_RADIX;
+		return scan;			// Nothing was read, so there is no offset to give
+	}
+
+	while (i < len && UCS4IsWhite(ch = text[i]))
+		i++;
+	if (i == len)
+	{
+		scan.why = STRERR_NO_DIGITS;
+		scan.at = i;
+		return scan;
+	}
+
+	if (ch == '+' || ch == '-')
+	{
+		scan.negative = ch == '-';
+		i++;
+		while (i < len && UCS4IsWhite(ch = text[i]))
+			i++;
+		if (i == len)
+		{
+			scan.why = STRERR_NO_DIGITS;
+			scan.at = i;
+			return scan;
+		}
+	}
+
+	/*
+	 * Detect the radix, as C does: a leading zero is octal, and 0b or 0x name
+	 * the radix themselves. A prefix is stripped when the radix was not given,
+	 * and also when a radix of 2 or 16 was given, which C allows as well - so
+	 * that "0xff" read in radix 16 is 255, and not 0 followed by "xff". For
+	 * any other radix a prefix is not one, and b or x is a digit if the radix
+	 * has such a digit.
+	 */
+	int	given = radix;			// What the caller asked for; 0 means detect it
+
+	if (given == 0)
+		radix = (UCS4Digit(ch) == 0 && i+1 < len) ? 8 : 10;
+
+	if (UCS4Digit(ch) == 0 && i+1 < len
+	 && ((text[i+1] == 'b' || text[i+1] == 'B') ? (given == 0 || given == 2)
+	  :  (text[i+1] == 'x' || text[i+1] == 'X') ? (given == 0 || given == 16)
+	  :  false))
+	{
+		radix = (text[i+1] == 'b' || text[i+1] == 'B') ? 2 : 16;
+		ch = text[i += 2];
+		if (i == len)
+		{
+			scan.why = STRERR_NO_DIGITS;
+			scan.at = i;
+			return scan;
+		}
+	}
+	scan.radix = radix;
+
+	if (Digit(ch, radix) < 0 && ch != '.' && ch != ',')
+	{
+		scan.why = STRERR_NOT_NUMBER;
+		scan.at = i;
+		return scan;
+	}
+
+	scan.digits = i;
+	while (i < len && Digit(text[i], radix) >= 0)
+		i++;
+	scan.digits_end = i;
+
+	// The radix point and the digits after it, if the text writes any. A text
+	// with a point and no digits before it is a fraction alone, which a reader
+	// that wants a fraction can read and one that wants a whole number cannot.
+	scan.fraction = i;
+	if (i < len && (text[i] == '.' || text[i] == ','))
+	{
+		i++;
+		scan.fraction = i;
+		while (i < len && Digit(text[i], radix) >= 0)
+			i++;
+	}
+	scan.fraction_end = i;
+
+	return scan;
+}
+
+/*
+ * The digits a scan found, read into T at the caller's resolution. The value
+ * grows only while it fits the type, so nothing wraps and nothing is rounded:
+ * a digit that would not fit is where the number stops, and everything from
+ * there on is trailing text, which is reported and then left to the caller.
+ *
+ * The caller decides what that report means, and it differs by domain: a place
+ * beyond the resolution of a time is a rounding, so the time layer rolls the
+ * report back and keeps what fitted; a place beyond cents is a mistake, so a
+ * caller reading money leaves it standing. Nothing is decided here.
+ */
+template<typename Index>
+template<typename T>
+T
+StrValI<Index>::readNumber(const NumberScan& scan, int places, ErrNum* err_return, Index* scanned) const
+{
+	uint64_t	limit;			// The largest magnitude this width holds
+	uint64_t	scale = 1;		// What one place after the point is worth
+	uint64_t	value = 0;
+	Index		len = length();
+	Index		i;
+	Index		stop;
+	Index		f;
+	bool		overflowed = false;	// Too many digits for the type
+	bool		trailed = false;	// Precision lost, or characters not consumed
+	ErrNum		why = 0;
+
+	if (err_return)
+		*err_return = 0;
+
+	if (scan.why)			// No number was recognised: say why, and answer 0
+	{
+		reportNumber(scan.why, strval_integer_type_name<T>(), *this, scan.radix, scan.at, scan.at);
+		if (err_return)
+			*err_return = scan.why;
+		if (scanned)
+			*scanned = scan.at;
+		return (T)0;
+	}
+
+	limit = (uint64_t)std::numeric_limits<T>::max();
+	if (scan.negative && std::numeric_limits<T>::is_signed)
+		limit++;		// The most negative value has no positive counterpart
+
+	{
+		/*
+		 * A resolution the type cannot hold at all is the caller's fault and
+		 * not the text's: no number, however small, could be read at it. It
+		 * is caught rather than answered, an answer being a wrong number.
+		 */
+		uint64_t	scale = 1;
+
+		for (int place = 0; place < places; place++)
+		{
+			StrppAssert(scale <= limit/(uint64_t)scan.radix);
+			scale *= scan.radix;
+		}
+	}
+
+	/*
+	 * A text with a point and no digits either side of it is not a number at
+	 * all. One with a point and no digits *before* it is a fraction, which a
+	 * reader that wants a fraction can read and one that wants a whole number
+	 * cannot - so that is this reader's complaint, and the fraction reader's
+	 * is nothing.
+	 */
+	if (scan.digits_end == scan.digits
+	 && (places == 0 || scan.fraction_end == scan.fraction))
+	{
+		reportNumber(STRERR_NOT_NUMBER, strval_integer_type_name<T>(), *this, scan.radix, scan.at, scan.at);
+		if (err_return)
+			*err_return = STRERR_NOT_NUMBER;
+		if (scanned)
+			*scanned = scan.at;
+		return (T)0;
+	}
+
+	/*
+	 * A number with a minus sign cannot be read into a type with no sign at
+	 * all: it is not that the value is too large for the width, it is that the
+	 * sign has no meaning there. Refused rather than wrapped as C's strtoul
+	 * wraps it, a bit pattern being asked for by reading it in a base.
+	 */
+	if (scan.negative && !std::numeric_limits<T>::is_signed)
+	{
+		reportNumber(STRERR_NEGATIVE_UNSIGNED, strval_integer_type_name<T>(), *this,
+				scan.radix, scan.digits, scan.digits);
+		if (err_return)
+			*err_return = STRERR_NEGATIVE_UNSIGNED;
+		if (scanned)
+			*scanned = 0;		// Nothing of the number was read
+		return (T)0;
+	}
+
+	// The whole part, a digit at a time, while it fits
+	stop = scan.digits;
+	for (i = scan.digits; i < scan.digits_end; i++)
+	{
+		unsigned	d = (unsigned)Digit((*this)[i], scan.radix);
+
+		if (value > (limit - d)/scan.radix)
+		{
+			overflowed = true;	// Too many digits for the type: a different number
+			break;
+		}
+		value = value*scan.radix + d;
+		stop = i+1;
+	}
+
+	// The places after the point, to the resolution asked for: a place the text
+	// did not write is a zero, and places it wrote beyond that are trailing text
+	if (!overflowed)
+	{
+		f = scan.fraction;
+		for (int place = 0; place < places; place++)
+		{
+			unsigned	d = 0;
+
+			if (f < scan.fraction_end)
+				d = (unsigned)Digit((*this)[f], scan.radix);
+			if (value > (limit - d)/scan.radix)
+			{
+				overflowed = true;	// The value, at this resolution, is too large
+				break;
+			}
+			value = value*scan.radix + d;
+			if (f < scan.fraction_end && ++f > stop)
+				stop = f;	// The number ends after this digit
+		}
+		if (!overflowed && f < scan.fraction_end)
+			trailed = true;		// More places were written than were asked for
+	}
+
+	// Anything after where the number stopped is trailing text, blank or not
+	i = stop;
+	while (i < len && UCS4IsWhite((*this)[i]))
+		i++;
+	if (!overflowed && !trailed && i != len)
+		trailed = true;
+
+	/*
+	 * Two failures, and they are not the same complaint. Digits the type cannot
+	 * hold are an overflow: the number is not this number, and a caller should
+	 * not carry on with it. Places beyond the resolution, or characters after
+	 * the number, are trailing text: precision was lost or something was not
+	 * consumed, which a caller whose resolution is coarser than the text may
+	 * well decide to live with. Either way a value is answered.
+	 */
+	if (overflowed)
+	{
+		why = STRERR_NUMBER_OVERFLOW;
+		reportNumber(why, strval_integer_type_name<T>(), *this, scan.radix, scan.at, stop);
+	}
+	else if (trailed)
+	{
+		why = STRERR_TRAIL_TEXT;
+		reportNumber(why, strval_integer_type_name<T>(), *this, scan.radix, scan.at, stop);
+	}
+	if (err_return)
+		*err_return = why;
+	if (scanned)
+		*scanned = i;
+
+	return scan.negative ? (T)(0 - value) : (T)value;
+}
+
+template<typename Index>
+template<typename T>
+T
+StrValI<Index>::asInteger(ErrNum* err_return, int radix, Index* scanned) const
+{
+	return readNumber<T>(scanNumber(*this, radix), 0, err_return, scanned);
+}
+
+template<typename Index>
+template<typename T>
+T
+StrValI<Index>::asFixedPoint(int places, ErrNum* err_return, int radix, Index* scanned) const
+{
+	StrppAssert(places >= 0);
+	return readNumber<T>(scanNumber(*this, radix), places, err_return, scanned);
 }
 
 template<typename Index>

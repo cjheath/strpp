@@ -126,10 +126,16 @@ Building one:
     answers.
 - `asJSON()`, `toJSON()` - escaped for JSON; `toJSON` escapes in place and
   does not add the enclosing quotes.
-- `asInt32(ErrNum* err, int radix = 0, Index* scanned = 0)` - the number this
-  string reads as, in any radix from 2 to 36 and auto-detected when 0. A text
-  it cannot read whole is reported into the thread's error buffer as well as
-  returned: see [Errors](error.md) and the `STR` set in `str_err.h`.
+- `asInteger<T>(ErrNum* err, int radix = 0, Index* scanned = 0)` - return
+  the text which represents this number, of any width `T`, in any radix from
+  2 to 36 and auto-detected when 0. `asInt32` is `asInteger<int32_t>` for a
+  caller that knows its width. If there are too many digits or the value
+  overflows, an error is reported and the caller should not use the value:
+  see "Integers as text" below.
+- `asFixedPoint<T>(int places, ErrNum* err, int radix = 0, Index* scanned = 0)`
+  - the same, read `places` digits after the radix point, so that a value
+    counted in hundredths, or in 10⁻⁸ seconds, is read exactly rather than
+    rounded. See "Integers as text" below.
 - `static format(StrVal f, VariantArray args)` - the text `f` with each `{1}`,
   `{2}` and so on replaced by that parameter, which the marker may say how to
   render. See "Substituting parameters into a text" below.
@@ -259,9 +265,10 @@ stands.
 
 ### Integers as text
 
-`asInt32` answers the number a text reads as, and the six `from*` functions
-answer the text a number writes as. Both take a representation, and it is the
-same one a format marker names:
+`asInteger<T>` answers the number a text reads as, `asFixedPoint<T>` answers it
+at a resolution the caller names, and the six `from*` functions answer the text
+a number writes as. The writers take a representation, and it is the same one a
+format marker names:
 
 	StrVal::fromInt32(255, 'x')		// ff
 	StrVal::fromInt32(-255)			// -255
@@ -271,13 +278,69 @@ same one a format marker names:
 	StrVal::fromUInt64(18446744073709551615ull)
 						// 18446744073709551615
 
-`asInt32` reads in any radix from 2 to 36, or in the radix the text's own
-prefix says when it is given 0; the `from*` functions write in 2, 8, 10 or 16,
-which is what a representation names. A text `asInt32` cannot read whole is
-reported as well as answered - the text, the radix, and how far the parse got -
-so that a failure has a record even where nobody looked at the answer. Neither direction adds a prefix: a text
-that wants `0x` writes it itself, so that a translated text keeps the prefix
-where its own language wants it.
+`asInteger` reads in any radix from 2 to 36, or in the radix the text's own
+prefix says when it is given 0. A prefix is stripped when the radix is 2 or 16
+as well, as C does, so `0xff` read in radix 16 is 255 and not 0 followed by
+`xff` - which is what makes a bit pattern readable as what it is. The `from*`
+functions write in 2, 8, 10 or 16, which is what a representation names.
+Neither direction adds a prefix: a text that wants `0x` writes it itself, so
+that a translated text keeps the prefix where its own language wants it.
+
+**A signed type reads a sign, and an unsigned one does not.** A number written
+with a minus sign cannot be read into an unsigned type at all: it is not that
+the value is too large for the width, it is that a sign has no meaning there,
+and it is refused with `STRERR_NEGATIVE_UNSIGNED` rather than wrapped as C's
+`strtoul` wraps it. A bit pattern is asked for by reading it in a base, which
+is what `0xff` in radix 16 above is for.
+
+**The integer width is the size of `T`, and the methods only get compiled when
+needed.** nothing instantiates either reader for any type (except int32
+which is needed by Variant) until a caller needs it. So a `long long` reads a
+number an `int32_t` cannot hold, and both answer correctly:
+
+	StrVal("4000000000").asInt32()			// 400000000
+	StrVal("4000000000").asInteger<long long>()	// 4000000000
+
+**Digits the value cannot hold stop the number.** Nothing wraps and nothing is
+rounded: the reading stops at the last digit that fits the type, and the digits
+that fitted are answered. What stopped it is reported, and the two reports are
+different complaints:
+
+- An **overflow** is too many digits for the type: the returned number is not
+  the number,ni the text and a caller should not carry on with it.
+- **Trailing text** is either lost precision - places beyond the resolution that
+  was needed - or characters after the number that were not consumed. A caller
+  whose resolution is coarser than the text may well decide to live with that.
+
+	StrVal("4000000000").asInt32(&err)		// 400000000, and err
+	// is NUMBER_OVERFLOW: too large to be read as `int32_t`, overflowing at 9
+	StrVal("1.234567890").asFixedPoint<int64_t>(8, &err, 10)	// 123456789,
+	// and err is TRAIL_TEXT: the number ends at 10 and `0` is not part of it
+
+Which of the two a caller cares about is the caller's business, and it differs
+by domain: the time layer lives with the lost precision below 10^-8 seconds -
+it takes a checkpoint, reads, and rolls that report back - while a place beyond
+cents is a mistake, so a caller reading money leaves it standing.
+`rx/rxcompile.cpp` has used the same idiom since before these readers existed.
+
+**`asFixedPoint` reads at a resolution the caller names**, as a count of places
+after the radix point. The text supplies digits, the caller says what the last
+place is worth, and the same text read at two resolutions is the same value
+counted in different units:
+
+	StrVal("1.5").asFixedPoint<int64_t>(8, &err, 10)	// 150000000
+	StrVal("1.5").asFixedPoint<int64_t>(2, &err, 10)	// 150
+	StrVal("-0.00000001").asFixedPoint<int64_t>(8, &err, 10)	// -1
+	StrVal("12.345").asFixedPoint<int64_t>(2, &err, 10)
+	// 1234, and the third place is reported as trailing text
+
+A place the text did not write is a zero, so `12` at two places is 1200, and a
+place it wrote beyond the resolution is trailing text, as above. A radix point
+is a point in any radix, so `0x1.8` at one place in radix 16 is 24 - and a
+caller reading decimal text passes radix 10, so that nothing is read as octal.
+Reading a fraction is what `asFixedPoint` is for: `asInteger` stops at the
+point and reports the fraction as trailing text, so the two divide the work
+between them and neither of them rounds.
 
 The representation is one character - `b` binary, `o` octal, `d` decimal, `x`
 and `X` hexadecimal for the two cases of the alphabet - or 0, which is

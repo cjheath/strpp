@@ -204,6 +204,15 @@ ticks. A `Milliseconds` or a `Seconds` is written as its own number: `1500`
 and `-90`. Neither carries its unit in the text, because the type is what says
 which unit it is.
 
+Reading a duration is reading a number at a resolution, which is what
+`StrVal::asFixedPoint` and `asInteger` do - see [strval.md](strval.md),
+"Integers as text". The resolution is 10⁻⁸ seconds: a text written with more
+places than that is read to eight and the rest dropped, quietly, because that
+is precision below what this layer keeps. A text whose *whole* part is too
+large for a count of ticks, or that is not a number at all, is a different
+matter and is reported as `TIMERR_INVALID_TEXT` rather than answered with a
+number that is not the one it named.
+
 An instant is written in ISO 8601, in the zone it is asked for:
 
 	DateTime::fromString("2002-01-03T11:12:13Z").toString()

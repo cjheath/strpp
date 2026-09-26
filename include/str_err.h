@@ -38,9 +38,10 @@
 
 #define	STRERR_TRAIL_TEXT		ErrNum(STRERR_SET, 2)	// Reading `{1}` in radix {2}: the number ends at {3} and `{4}` is not part of it
 #define	STRERR_NO_DIGITS		ErrNum(STRERR_SET, 3)	// There are no digits in `{1}` to read a number from, in radix {2}
-#define	STRERR_NUMBER_OVERFLOW		ErrNum(STRERR_SET, 4)	// The number in `{1}` is too large to be read as an `int32_t` in radix {2}, overflowing at {3}
+#define	STRERR_NUMBER_OVERFLOW		ErrNum(STRERR_SET, 4)	// The number in `{1}` is too large to be read as `{4}` in radix {2}, overflowing at {3}; {4} being the width that was asked for. An overflow, and not the trailing text that a lost precision or an unconsumed character gives: the number is not this number, so a caller should not carry on with it
 #define	STRERR_NOT_NUMBER		ErrNum(STRERR_SET, 5)	// `{1}` is not a number in radix {2}: the character `{3}` at {4} is not a digit
 #define	STRERR_ILLEGAL_RADIX		ErrNum(STRERR_SET, 6)	// The radix {1} is not one a number can be read in, so `{2}` was not read
+#define	STRERR_NEGATIVE_UNSIGNED	ErrNum(STRERR_SET, 7)	// The number in `{1}` is negative, and cannot be read into an unsigned type in radix {2}
 
 // A Variant's type, and a conversion that would lose the value:
 
