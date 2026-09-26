@@ -47,12 +47,16 @@ Date&Time
 	Done: Interval, Milliseconds, Seconds, UtcOffset, DateTime and Gregorian
 		(10^-8 second ticks from 2000-01-01, so 924 BC to 4922 AD)
 		Interval and DateTime are Variant types
-	Deferred, to follow up: unreported wrong answers in the time layer
-		(the full inventory is HANDOFF.md 12.11)
-		Unchecked int64 tick arithmetic wraps, and a wrap can land on the
-		null tick - the one value that means "no value" - so a valid
-		computation can quietly answer a null. Report it, or provide the
-		checked form. The author's call on which, deferred 2026-09-26.
+	Done: every operation that cannot answer correctly reports it, and
+		answers the type's "nothing" - never a wrapped number. See the
+		"When an operation cannot answer" section of doc/datetime.md, and
+		HANDOFF.md 12.11 for what each of the five was.
+	Decided 2026-09-26: the default texts are settled (extended ISO 8601,
+		bare seconds for an Interval, no fraction unless asked for); the
+		zones are numeric offsets with no database; Gregorian has no
+		ordering but for == and !=.
+	Deferred, with the rest of the format work: the StrVal::format marker
+		hook, so that a date can read its own representation letters
 	Zone database, for historical and DST-correct conversion?
 	TimeVal (struct timeval) conversion, if a caller needs select()
 	Timespec (struct timespec) conversion, if a caller needs nanosleep()

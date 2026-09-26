@@ -148,7 +148,7 @@ inline ErrNum
 ErrorTIM_NoClock()
 {
 	return Error(TIMERR_NO_CLOCK,
-		"This target has no clock, so the current time is not known",
+		"The current time is not known: this target has no clock, or reading it failed",
 		VariantArray());
 }
 
@@ -157,13 +157,43 @@ ErrorTIM_NoClock()
  * reading it as a number of seconds or as a date. Reported rather than
  * asserted, because a null is data - it comes from a field that was never
  * filled in, or a record that says "no time"- and not a fault in the program.
+ *
+ * The operation is named by a gerund, as it is in the message below, so that a
+ * call site needs one word and not two.
  */
 inline ErrNum
 ErrorTIM_NullValue(const char* type, const char* operation)
 {
 	return Error(TIMERR_NULL_VALUE,
-		"This `{1}` is null, so it has no value to {2}",
+		"This `{1}` is null, so there is no value for {2}",
 		VariantArray() << type << operation);
+}
+
+/*
+ * An operation whose result will not fit: a count of ticks that ran past the
+ * end of what a 64-bit count holds, or a date that ran past what the fields
+ * hold. The answer to it is a null or a value with no date - never a wrapped
+ * number that looks like a time, which is what this reports instead of.
+ */
+inline ErrNum
+ErrorTIM_ResultOverflow(const char* type, const char* operation)
+{
+	return Error(TIMERR_RESULT_OVERFLOW,
+		"The result of {2} is past the range of `{1}`",
+		VariantArray() << type << operation);
+}
+
+/*
+ * The host could not say how far its civil time is from UTC at that instant -
+ * its zone rules do not reach the date, or its clock failed. UTC is answered,
+ * and said out loud, since an offset cannot be null.
+ */
+inline ErrNum
+ErrorTIM_NoZone()
+{
+	return Error(TIMERR_NO_ZONE,
+		"The host's zone offset is not known at that instant, so UTC is answered",
+		VariantArray());
 }
 
 #endif	// STR_MSG_H

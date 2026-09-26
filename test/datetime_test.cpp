@@ -30,6 +30,7 @@ void		epoch_tests();
 void		range_tests();
 void		offset_tests();
 void		null_tests();
+void		overflow_tests();
 
 int
 main(int argc, const char** argv)
@@ -43,6 +44,7 @@ main(int argc, const char** argv)
 	range_tests();
 	offset_tests();
 	null_tests();
+	overflow_tests();
 
 	printf("Completed %d tests with %d failures\n", test_count, failure_count);
 	return failure_count == 0 ? 0 : 1;
@@ -540,4 +542,169 @@ null_tests()
 	expect("...and sorts before every real interval",
 			null_interval < Interval(DateTime::MinTicks));
 	expect("...and a null instant before every real one", null_datetime < DateTime());
+}
+
+/*
+ * The one thing reported since the buffer was last cleared, rendered from the
+ * default text and its parameters, and then cleared away. What was reported is
+ * the only way to tell an overflow from a null operand: both answer a null, and
+ * only the report says which it was.
+ */
+static StrVal
+reported_text()
+{
+	ErrBuf*	buf = ErrBuffer();
+	StrVal	said;
+
+	if (buf && buf->count() > 0)
+	{
+		{
+			ErrBuf::Message	msg = buf->message(0);
+			said = StrVal::format(msg.default_text, msg.parameters);
+		}
+		buf->clear();	// Only once the message has been let go
+	}
+	return said;
+}
+
+/*
+ * An operation whose result will not fit, which used to be answered with a
+ * wrapped count: a duration of the wrong sign, or an instant in the wrong
+ * century, with nothing about it to say so. Each of these now reports and
+ * answers a null, and the report is what says which of the two failures it was.
+ */
+void
+overflow_tests()
+{
+	test_group("A result that will not fit");
+
+	ErrBuffer()->clear();
+
+	// The smallest interval that exists, less one tick: that is the null tick
+	// exactly, so before this it quietly became "no value" with no report.
+	Interval	smallest(DateTime::MinTicks);
+	Interval	slipped = smallest - Interval(1);
+	expect("the smallest interval less one tick is a null", slipped.isNull());
+	expect_eq_str("...reported as a result past the range", reported_text(),
+			"The result of subtracting is past the range of `Interval`");
+
+	// Two ticks past it used to wrap to MaxTicks: an instant in 4922 AD
+	slipped = smallest - Interval(2);
+	expect("...and two ticks past it is a null too", slipped.isNull());
+	expect_eq_str("...reported, and not wrapped", reported_text(),
+			"The result of subtracting is past the range of `Interval`");
+
+	slipped = Interval(DateTime::MaxTicks) + Interval(1);
+	expect("the largest interval plus one tick is a null", slipped.isNull());
+	expect_eq_str("...reported", reported_text(),
+			"The result of adding is past the range of `Interval`");
+
+	// The other two units, in their own units
+	expect("seconds past their range are a null",
+			(Seconds(DateTime::MaxTicks) + Seconds(1)).isNull());
+	expect_eq_str("...reported in seconds", reported_text(),
+			"The result of adding is past the range of `Seconds`");
+	expect("...and milliseconds too",
+			(Milliseconds(DateTime::MinTicks) - Milliseconds(1)).isNull());
+	expect_eq_str("...reported in milliseconds", reported_text(),
+			"The result of subtracting is past the range of `Milliseconds`");
+
+	test_group("An instant moved past the ends of the range");
+
+	DateTime	earliest = DateTime::fromTicks(DateTime::MinTicks);
+	DateTime	latest = DateTime::fromTicks(DateTime::MaxTicks);
+
+	expect("the earliest instant less a tick is a null",
+			(earliest - Interval(1)).isNull());
+	expect_eq_str("...reported as an instant past the range", reported_text(),
+			"The result of subtracting is past the range of `DateTime`");
+	expect("...and the latest plus a tick", (latest + Interval(1)).isNull());
+	expect_eq_str("...reported", reported_text(),
+			"The result of adding is past the range of `DateTime`");
+
+	/*
+	 * The span of the whole range is more than a Tick holds - 5845 years
+	 * against 2922 either side - so the interval between its ends does not fit,
+	 * and used to come out negative: an interval that says "before" for a
+	 * subtraction that means "after".
+	 */
+	expect("the span of the whole range does not fit an interval",
+			(latest - earliest).isNull());
+	expect_eq_str("...reported", reported_text(),
+			"The result of subtracting is past the range of `Interval`");
+
+	test_group("A date read past the end of the range");
+
+	/*
+	 * The zone is applied to the tick count before the date is read, so an
+	 * instant within 18 hours of an end of the range, read in a zone that takes
+	 * it past, used to answer a date from the other end: a 924 BC instant
+	 * became 4922-10-08 with a zone designator on it, which is as plausible as
+	 * a wrong answer gets.
+	 */
+	expect("the latest instant read 18 hours east has no date",
+			!latest.asGregorian(UtcOffset::hours(18)).hasDate());
+	expect_eq_str("...reported as a date past the range", reported_text(),
+			"The result of reading a date in that zone is past the range of `DateTime`");
+	expect("the earliest instant read 18 hours west has no date",
+			!earliest.asGregorian(UtcOffset::hours(-18)).hasDate());
+	expect_eq_str("...reported", reported_text(),
+			"The result of reading a date in that zone is past the range of `DateTime`");
+
+	// ...and the time of day that the conversion could not answer is a null,
+	// and its text carries no zone, having no date to put in one
+	{
+		Interval	time_of_day;
+
+		latest.asGregorian(UtcOffset::hours(18), &time_of_day);
+		expect("...and its time of day is a null", time_of_day.isNull());
+		reported_text();
+		expect_eq_str("...and its text is a time with no zone on it",
+				latest.toString(UtcOffset::hours(18)), "00:00:00");
+		// Rendering it reports too: the failure is in the conversion, which
+		// toString() goes through, and not in the writing of the text
+		expect_eq_str("...having reported the conversion that failed", reported_text(),
+				"The result of reading a date in that zone is past the range of `DateTime`");
+	}
+
+	// An instant well inside the range reads in any zone, and reports nothing:
+	// it is only the ends that a zone can push past
+	expect("an instant well inside the range reads in any zone",
+			earliest.asGregorian(UtcOffset::hours(18)).hasDate());
+	expect_eq_str("...and reports nothing", reported_text(), "");
+
+	test_group("A conversion that would not fit");
+
+	expect("a count of seconds too large for an interval is a null",
+			Seconds(100000000000000LL).asInterval().isNull());
+	expect_eq_str("...reported as a conversion past the range", reported_text(),
+			"The result of converting from seconds is past the range of `Interval`");
+	expect("...and so is one constructed from it",
+			Interval(Seconds(100000000000000LL)).isNull());
+	expect_eq_str("...reported", reported_text(),
+			"The result of converting from seconds is past the range of `Interval`");
+
+	expect("a count of seconds too large for milliseconds is a null",
+			Seconds(40000000000000000LL).asMilliseconds().isNull());
+	expect_eq_str("...reported", reported_text(),
+			"The result of converting from seconds is past the range of `Milliseconds`");
+	expect("...and a count of milliseconds too large for an interval",
+			Milliseconds(100000000000000LL).asInterval().isNull());
+	expect_eq_str("...reported", reported_text(),
+			"The result of converting from milliseconds is past the range of `Interval`");
+
+	test_group("A time_t outside the range");
+
+	// A time_t from a corrupt file or a wrong-width field: a million million
+	// seconds answered 2033-06-30T17:10:05Z before this
+	expect("a time_t of a million million has no instant",
+			DateTime::fromTime_t(1000000000000000LL).isNull());
+	expect_eq_str("...reported", reported_text(),
+			"The result of reading a time_t is past the range of `DateTime`");
+
+	expect("a real time_t still converts", !DateTime::fromTime_t(1234567890).isNull());
+	expect_eq_str("...and reports nothing", reported_text(), "");
+	expect("the most negative time_t is refused rather than wrapped",
+			DateTime::fromTime_t((time_t)(-9223372036854775807LL - 1)).isNull());
+	reported_text();
 }

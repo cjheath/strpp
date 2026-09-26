@@ -129,16 +129,78 @@ scanNull(StrVal text)
 }
 
 /*
+ * The three operations, checked before they are done rather than after: a
+ * sum, a difference or a scaling that would run past the end of a Tick is
+ * refused, because a wrapped count of ticks is a duration or a time that never
+ * was, and nothing about it looks wrong. The check is on the operands, since
+ * signed overflow is undefined and there is nothing to inspect afterwards.
+ *
+ * The range is DateTime's, which is the range of a Tick: everything above the
+ * null tick is a time or a duration this library can hold.
+ */
+static bool
+addFits(Tick addend, Tick augend, Tick* answer)
+{
+	if (augend > 0 ? addend > DateTime::MaxTicks - augend
+		       : addend < DateTime::MinTicks - augend)
+		return false;
+	*answer = addend + augend;
+	return true;
+}
+
+static bool
+subFits(Tick minuend, Tick subtrahend, Tick* answer)
+{
+	if (subtrahend > 0 ? minuend < DateTime::MinTicks + subtrahend
+			   : minuend > DateTime::MaxTicks + subtrahend)
+		return false;
+	*answer = minuend - subtrahend;
+	return true;
+}
+
+static bool
+scaleFits(Tick value, Tick factor, Tick* answer)
+{
+	if (value > 0 ? value > DateTime::MaxTicks/factor
+		      : value < floorDiv(DateTime::MinTicks, factor))
+		return false;
+	*answer = value*factor;
+	return true;
+}
+
+/*
+ * A count of one unit as a count of another, which is what the unit conversions
+ * do. Reported when it will not fit, and answered with a null: a caller who
+ * asked for seconds as milliseconds is not handed a wrapped count instead.
+ */
+static Tick
+scaledTicks(Tick value, Tick factor, const char* type, const char* operation)
+{
+	Tick	answer;
+
+	if (!scaleFits(value, factor, &answer))
+	{
+		ErrorTIM_ResultOverflow(type, operation);
+		return NullTick;
+	}
+	return answer;
+}
+
+/*
  * Interval
  */
 Interval::Interval(const Milliseconds& ms)
-: ticks_(ms.isNull() ? NullTick : ms.ms()*100000)
+: ticks_(NullTick)
 {
+	if (!ms.isNull())
+		ticks_ = scaledTicks(ms.ms(), 100000, "Interval", "converting from milliseconds");
 }
 
 Interval::Interval(const Seconds& sec)
-: ticks_(sec.isNull() ? NullTick : sec.seconds()*TicksPerSecond)
+: ticks_(NullTick)
 {
+	if (!sec.isNull())
+		ticks_ = scaledTicks(sec.seconds(), TicksPerSecond, "Interval", "converting from seconds");
 }
 
 /*
@@ -153,6 +215,42 @@ Interval::nullOperand(const char* operation) const
 {
 	ErrorTIM_NullValue("Interval", operation);
 	return Interval(NullTick);
+}
+
+/*
+ * Adding and subtracting, checked. Each answers a null for a null operand or
+ * for a result that ran past the end of a Tick, and reports which of the two it
+ * was: the caller is never handed a wrapped count, and needs no report to know
+ * that a null is not a value.
+ */
+Interval
+Interval::sum(const Interval& addend) const
+{
+	Tick	answer;
+
+	if (isNull() || addend.isNull())
+		return nullOperand("adding");
+	if (!addFits(ticks_, addend.ticks_, &answer))
+	{
+		ErrorTIM_ResultOverflow("Interval", "adding");
+		return Interval(NullTick);
+	}
+	return Interval(answer);
+}
+
+Interval
+Interval::difference(const Interval& minuend) const
+{
+	Tick	answer;
+
+	if (isNull() || minuend.isNull())
+		return nullOperand("subtracting");
+	if (!subFits(ticks_, minuend.ticks_, &answer))
+	{
+		ErrorTIM_ResultOverflow("Interval", "subtracting");
+		return Interval(NullTick);
+	}
+	return Interval(answer);
 }
 
 time_t
@@ -249,8 +347,10 @@ Milliseconds::Milliseconds(const Interval& interval)
 }
 
 Milliseconds::Milliseconds(const Seconds& sec)
-: ms_(sec.isNull() ? NullTick : sec.seconds()*1000)
+: ms_(NullTick)
 {
+	if (!sec.isNull())
+		ms_ = scaledTicks(sec.seconds(), 1000, "Milliseconds", "converting from seconds");
 }
 
 Milliseconds
@@ -258,6 +358,36 @@ Milliseconds::nullOperand(const char* operation) const
 {
 	ErrorTIM_NullValue("Milliseconds", operation);
 	return Milliseconds(NullTick);
+}
+
+Milliseconds
+Milliseconds::sum(const Milliseconds& addend) const
+{
+	Tick	answer;
+
+	if (isNull() || addend.isNull())
+		return nullOperand("adding");
+	if (!addFits(ms_, addend.ms_, &answer))
+	{
+		ErrorTIM_ResultOverflow("Milliseconds", "adding");
+		return Milliseconds(NullTick);
+	}
+	return Milliseconds(answer);
+}
+
+Milliseconds
+Milliseconds::difference(const Milliseconds& minuend) const
+{
+	Tick	answer;
+
+	if (isNull() || minuend.isNull())
+		return nullOperand("subtracting");
+	if (!subFits(ms_, minuend.ms_, &answer))
+	{
+		ErrorTIM_ResultOverflow("Milliseconds", "subtracting");
+		return Milliseconds(NullTick);
+	}
+	return Milliseconds(answer);
 }
 
 time_t
@@ -276,7 +406,7 @@ Milliseconds::asInterval() const
 {
 	if (isNull())
 		return Interval(NullTick);
-	return Interval(ms_*100000);
+	return Interval(scaledTicks(ms_, 100000, "Interval", "converting from milliseconds"));
 }
 
 Seconds
@@ -332,6 +462,36 @@ Seconds::nullOperand(const char* operation) const
 	return Seconds(NullTick);
 }
 
+Seconds
+Seconds::sum(const Seconds& addend) const
+{
+	Tick	answer;
+
+	if (isNull() || addend.isNull())
+		return nullOperand("adding");
+	if (!addFits(sec_, addend.sec_, &answer))
+	{
+		ErrorTIM_ResultOverflow("Seconds", "adding");
+		return Seconds(NullTick);
+	}
+	return Seconds(answer);
+}
+
+Seconds
+Seconds::difference(const Seconds& minuend) const
+{
+	Tick	answer;
+
+	if (isNull() || minuend.isNull())
+		return nullOperand("subtracting");
+	if (!subFits(sec_, minuend.sec_, &answer))
+	{
+		ErrorTIM_ResultOverflow("Seconds", "subtracting");
+		return Seconds(NullTick);
+	}
+	return Seconds(answer);
+}
+
 time_t
 Seconds::asTime_t() const
 {
@@ -348,7 +508,7 @@ Seconds::asInterval() const
 {
 	if (isNull())
 		return Interval(NullTick);
-	return Interval(sec_*TicksPerSecond);
+	return Interval(scaledTicks(sec_, TicksPerSecond, "Interval", "converting from seconds"));
 }
 
 Milliseconds
@@ -356,7 +516,7 @@ Seconds::asMilliseconds() const
 {
 	if (isNull())
 		return Milliseconds(NullTick);
-	return Milliseconds(sec_*1000);
+	return Milliseconds(scaledTicks(sec_, 1000, "Milliseconds", "converting from seconds"));
 }
 
 StrVal
@@ -410,6 +570,54 @@ DateTime::nullOperand(const char* operation) const
 	return DateTime(NullTick);
 }
 
+DateTime
+DateTime::sum(const Interval& addend) const
+{
+	Tick	answer;
+
+	if (isNull() || addend.isNull())
+		return nullOperand("adding");
+	if (!addFits(ticks_, addend.ticks(), &answer))
+	{
+		ErrorTIM_ResultOverflow("DateTime", "adding");
+		return DateTime(NullTick);
+	}
+	return DateTime(answer);
+}
+
+DateTime
+DateTime::difference(const Interval& minuend) const
+{
+	Tick	answer;
+
+	if (isNull() || minuend.isNull())
+		return nullOperand("subtracting");
+	if (!subFits(ticks_, minuend.ticks(), &answer))
+	{
+		ErrorTIM_ResultOverflow("DateTime", "subtracting");
+		return DateTime(NullTick);
+	}
+	return DateTime(answer);
+}
+
+Interval
+DateTime::between(const DateTime& minuend) const
+{
+	Tick	answer;
+
+	if (isNull() || minuend.isNull())
+	{
+		(void)nullOperand("subtracting");
+		return Interval(NullTick);
+	}
+	if (!subFits(ticks_, minuend.ticks_, &answer))
+	{
+		ErrorTIM_ResultOverflow("Interval", "subtracting");
+		return Interval(NullTick);
+	}
+	return Interval(answer);
+}
+
 time_t
 DateTime::asTime_t() const
 {
@@ -421,10 +629,25 @@ DateTime::asTime_t() const
 	return (time_t)(ticks_/TicksPerSecond + Time_tAtEpoch);
 }
 
+/*
+ * A time_t is a count of seconds from 1970, and this is a count of ticks from
+ * 2000, so the bridge is a subtraction and a scaling - both of which a time_t
+ * from a corrupt file or a wrong-width field can take past the range. Reported
+ * when they do, and answered with a null rather than a date that never was.
+ */
 DateTime
 DateTime::fromTime_t(time_t t)
 {
-	return DateTime(((Tick)t - Time_tAtEpoch)*TicksPerSecond);
+	Tick	seconds;
+	Tick	ticks;
+
+	if (!subFits((Tick)t, Time_tAtEpoch, &seconds)
+	 || !scaleFits(seconds, TicksPerSecond, &ticks))
+	{
+		ErrorTIM_ResultOverflow("DateTime", "reading a time_t");
+		return DateTime(NullTick);
+	}
+	return DateTime(ticks);
 }
 
 /*
@@ -437,23 +660,36 @@ DateTime::now()
 {
 #if	defined(HAVE_NO_CLOCK)
 	ErrorTIM_NoClock();
-	return DateTime();
+	return DateTime(NullTick);		// No clock, so no instant: a null, said out loud
 #elif	defined(MSW)
 	FILETIME	filetime;
 	ULARGE_INTEGER	uli;
+	Tick		ticks;
 
 	GetSystemTimeAsFileTime(&filetime);
 	memcpy(&uli, &filetime, sizeof(uli));	// Avoid alignment problems
-	return DateTime::fromTicks((Tick)(uli.QuadPart - 125911584000000000ULL)*10);
+	// FILETIMEs count 100ns units from 1/1/1601; ours count 10ns from 1/1/2000
+	if (!scaleFits((Tick)(uli.QuadPart - 125911584000000000ULL), 10, &ticks))
+	{
+		ErrorTIM_NoClock();
+		return DateTime(NullTick);
+	}
+	return DateTime(ticks);
 #else
 	struct timeval	now;
+	DateTime	instant;
 
 	if (gettimeofday(&now, 0) != 0)
-		return DateTime();
-	return DateTime::fromTicks(
-			((Tick)now.tv_sec - Time_tAtEpoch)*TicksPerSecond
-			+ (Tick)now.tv_usec*100		// Microseconds to 10^-8 seconds
-		);
+	{
+		ErrorTIM_NoClock();
+		return DateTime(NullTick);	// No clock, so no instant: a null, said out loud
+	}
+
+	instant = DateTime::fromTime_t(now.tv_sec);	// Reports a clock past the range
+	if (instant.isNull())
+		return instant;
+	// Microseconds to 10^-8 seconds, and the same checked addition a caller gets
+	return instant + Interval((Tick)now.tv_usec*100);
 #endif
 }
 
@@ -463,11 +699,16 @@ DateTime::now()
  * are used, so a zone's summer time is accounted for and its history is not:
  * there is no zone database here, and a caller who needs one knows the offset
  * and passes it.
+ *
+ * A host that cannot answer is reported, and UTC is answered: an UtcOffset
+ * cannot be null, so the honest thing is to say that the offset is not known
+ * and answer the one the caller can trust to be a whole answer.
  */
 UtcOffset
 DateTime::localOffset(DateTime when)
 {
 #if	defined(HAVE_NO_CLOCK)
+	ErrorTIM_NoZone();
 	return UtcOffset();
 #else
 	time_t		at = when.asTime_t();
@@ -476,15 +717,24 @@ DateTime::localOffset(DateTime when)
 
 #if	defined(MSW)
 	if (gmtime_s(&utc, &at) != 0)
+	{
+		ErrorTIM_NoZone();
 		return UtcOffset();
+	}
 #else
 	if (!gmtime_r(&at, &utc))
+	{
+		ErrorTIM_NoZone();
 		return UtcOffset();
+	}
 #endif
 	utc.tm_isdst = -1;		// The UTC reading, taken as a civil one
 	as_local = mktime(&utc);
 	if (as_local == (time_t)-1)
+	{
+		ErrorTIM_NoZone();
 		return UtcOffset();
+	}
 	return UtcOffset::minutes((int)((at - as_local)/60));
 #endif
 }
@@ -493,10 +743,15 @@ DateTime
 DateTime::nowWithOffset(UtcOffset* offset)
 {
 	DateTime	utc = now();
-	UtcOffset	local = localOffset(utc);
 
+	if (utc.isNull())
+	{
+		if (offset)
+			*offset = UtcOffset();	// And no zone was read for it either
+		return utc;
+	}
 	if (offset)
-		*offset = local;
+		*offset = localOffset(utc);
 	return utc;			// The instant, and the offset to read it in
 }
 
@@ -510,6 +765,11 @@ DateTime::nowWithOffset(UtcOffset* offset)
  * it is reported and answered with the value that says "no date": a Gregorian
  * that is a time of day alone, at midnight. A caller who checks errors sees the
  * report; one who does not gets nothing rather than a date that never was.
+ *
+ * So is an instant within eighteen hours of either end of the range, read in a
+ * zone that would take it past the end: the shift is checked, and the answer is
+ * the same "no date" rather than a wrapped date from the other end of the
+ * range, which would read as a perfectly ordinary day and be wrong.
  */
 Gregorian
 DateTime::asGregorian(UtcOffset off, Interval* time_of_day) const
@@ -519,13 +779,19 @@ DateTime::asGregorian(UtcOffset off, Interval* time_of_day) const
 
 	if (isNull())
 	{
-		ErrorTIM_NullValue("DateTime", "read as a date");
+		ErrorTIM_NullValue("DateTime", "reading a date");
 		if (time_of_day)
 			*time_of_day = Interval(NullTick);
 		return Gregorian();
 	}
 
-	ticks = ticks_ + (Tick)off.asSeconds()*TicksPerSecond;
+	if (!addFits(ticks_, (Tick)off.asSeconds()*TicksPerSecond, &ticks))
+	{
+		ErrorTIM_ResultOverflow("DateTime", "reading a date in that zone");
+		if (time_of_day)
+			*time_of_day = Interval(NullTick);
+		return Gregorian();
+	}
 	within = floorMod(ticks, TicksPerDay);		// Since midnight, local
 
 	if (time_of_day)
@@ -540,17 +806,22 @@ DateTime::asGregorian(UtcOffset off, Interval* time_of_day) const
  * toString is on the path a *report* is rendered along - Variant::value_text
  * and as_json call it - and a report made while one is being rendered would be
  * made into the buffer that is being read.
+ *
+ * The zone is written only for a value that has a date: a time of day is not
+ * in any zone, and a conversion that could not answer has none to write.
  */
 StrVal
 DateTime::toString(UtcOffset off, int flags) const
 {
-	StrVal	text;
+	Gregorian	gregorian;
+	StrVal		text;
 
 	if (isNull())
 		return "null";
 
-	text = asGregorian(off).toString(flags);
-	if ((flags & (IsoNoZone|IsoDateOnly)) == 0)
+	gregorian = asGregorian(off);
+	text = gregorian.toString(flags);
+	if (gregorian.hasDate() && (flags & (IsoNoZone|IsoDateOnly)) == 0)
 		text += off.toString();
 	return text;
 }

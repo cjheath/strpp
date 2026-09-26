@@ -81,6 +81,50 @@ a time, and the text did not say zero.
 A `Gregorian` has no null - a civil date is a date, and a time of day with no
 date is what year 0 means - so only the four tick-counting types can be null.
 
+### When an operation cannot answer
+
+An operation that cannot answer correctly reports it, and answers the type's
+"nothing". It never answers a wrapped number: a count of ticks that ran past the
+end of its range is a duration of the wrong sign or an instant in the wrong
+century, and nothing about it looks wrong. Four reports cover every case, all in
+the `TIM` set:
+
+	This `Interval` is null, so there is no value for adding
+	The result of subtracting is past the range of `Interval`
+	The current time is not known: this target has no clock, or reading it failed
+	The host's zone offset is not known at that instant, so UTC is answered
+
+What the caller is given instead:
+
+| The operation | What it answers |
+|---|---|
+| Adding, subtracting or negating a null, or an instant moved by a null | another null, so that a null spreads rather than becoming a number |
+| A sum, difference or unit conversion that ran past the end of a Tick | a null of the result's type |
+| `DateTime::asGregorian()` for a null, or for an instant a zone would push past either end of the range | a `Gregorian` with no date: a time of day, at midnight |
+| `DateTime::fromTime_t()` for a count of seconds outside the range | a null instant |
+| `Gregorian::fromDayNumber()` for a day whose year will not fit the fields | a `Gregorian` with no date |
+| `now()` with no clock, or a clock that failed | a null instant |
+| `localOffset()` where the host cannot say | UTC, and the report says it |
+
+Two of those are the whole range rather than a corner of it: the span from the
+first instant to the last is more than a `Tick` holds - 5845 years against 2922
+either side - so the interval between the two ends of the range is refused. And
+an instant within eighteen hours of either end, read in a zone that would take
+it past, has no date, where before it answered a date from the *other* end of
+the range with a zone designator on it.
+
+Where the answer is a `Gregorian` with no date, that value is a time of day -
+midnight - and `hasDate()` is false. `isValid()` is true of it, a time of day
+being a valid value; the report and `hasDate()` are what say that a conversion
+failed rather than that the answer is a time.
+
+A caller who expects a value to be out of range and does not want the buffer
+filled by each one takes a checkpoint first and rolls back after:
+
+	ErrBuf::MsgSequence	at = ErrCheckpoint();
+	Interval		answer = a + b;
+	ErrRollback(at);	// ...and answer.isNull() says whether it was answered
+
 ### Zones are offsets, not names
 
 A `DateTime` knows no time zone. It is a count of ticks from the epoch, and

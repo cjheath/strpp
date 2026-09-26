@@ -108,7 +108,11 @@ Making one:
 - `Gregorian::fromYMD(...)` - the same fields, checked and reported as
   `TIMERR_INVALID_YMDHMS` when they are not a date that exists.
 - `Gregorian::fromDayNumber(day, within_day = 0)` - the date a day number
-  names, with that day's time of day.
+  names, with that day's time of day. A time of day past the end of its day is
+  folded into the day, so that a count of ticks means what it says; a day
+  number whose year will not fit the fields is reported as past the range and
+  answered with a value that has no date, rather than with a date that never
+  was.
 - `Gregorian::fromString(text, UtcOffset* offset = 0, ErrNum* err_return = 0)`
   - the ISO 8601 text of a date, a time, or both.
 

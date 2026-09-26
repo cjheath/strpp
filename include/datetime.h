@@ -148,41 +148,22 @@ public:
 
 	/*
 	 * Arithmetic on a null reports, and answers another null, so that a null
-	 * spreads through a computation instead of becoming a number: there is no
-	 * value to add to. A comparison is not arithmetic - it needs no value -
-	 * so a null is equal to a null, and before any real interval, since the
-	 * null tick is the lowest there is.
+	 * spreads through a computation instead of becoming a number. So does a
+	 * result that ran past the end of what a Tick can hold: that is a null too,
+	 * and never a wrapped number that looks like a time. A comparison is not
+	 * arithmetic - it needs no value - so a null is equal to a null, and before
+	 * every real interval, the null tick being the lowest there is.
 	 */
 	Interval	operator-() const
-			{ return isNull() ? nullOperand("negate") : Interval(-ticks_); }
+			{ return isNull() ? nullOperand("negating") : Interval(-ticks_); }
 	Interval	operator+(const Interval& addend) const
-			{
-				if (isNull() || addend.isNull())
-					return nullOperand("add");
-				return Interval(ticks_ + addend.ticks_);
-			}
+			{ return sum(addend); }
 	Interval	operator-(const Interval& minuend) const
-			{
-				if (isNull() || minuend.isNull())
-					return nullOperand("subtract");
-				return Interval(ticks_ - minuend.ticks_);
-			}
+			{ return difference(minuend); }
 	Interval&	operator+=(const Interval& addend)
-			{
-				if (isNull() || addend.isNull())
-					(void)nullOperand("add");
-				else
-					ticks_ += addend.ticks_;
-				return *this;
-			}
+			{ *this = sum(addend); return *this; }
 	Interval&	operator-=(const Interval& minuend)
-			{
-				if (isNull() || minuend.isNull())
-					(void)nullOperand("subtract");
-				else
-					ticks_ -= minuend.ticks_;
-				return *this;
-			}
+			{ *this = difference(minuend); return *this; }
 
 	bool		operator==(const Interval& other) const
 			{ return ticks_ == other.ticks_; }
@@ -206,6 +187,12 @@ protected:
 	 * where Error() is at hand, like every reporting member.
 	 */
 	Interval	nullOperand(const char* operation) const;
+
+	// The two operations, checked: a null operand or a result that ran past
+	// the end of a Tick is reported and answered with a null, and the caller
+	// gets neither a wrapped number nor a crash. Defined in src/datetime.cpp.
+	Interval	sum(const Interval& addend) const;
+	Interval	difference(const Interval& minuend) const;
 
 	Tick		ticks_;
 };
@@ -234,35 +221,15 @@ public:
 	static Milliseconds fromString(StrVal text, ErrNum* err_return = 0);
 
 	Milliseconds	operator-() const
-			{ return isNull() ? nullOperand("negate") : Milliseconds(-ms_); }
+			{ return isNull() ? nullOperand("negating") : Milliseconds(-ms_); }
 	Milliseconds	operator+(const Milliseconds& addend) const
-			{
-				if (isNull() || addend.isNull())
-					return nullOperand("add");
-				return Milliseconds(ms_ + addend.ms_);
-			}
+			{ return sum(addend); }
 	Milliseconds	operator-(const Milliseconds& minuend) const
-			{
-				if (isNull() || minuend.isNull())
-					return nullOperand("subtract");
-				return Milliseconds(ms_ - minuend.ms_);
-			}
+			{ return difference(minuend); }
 	Milliseconds&	operator+=(const Milliseconds& addend)
-			{
-				if (isNull() || addend.isNull())
-					(void)nullOperand("add");
-				else
-					ms_ += addend.ms_;
-				return *this;
-			}
+			{ *this = sum(addend); return *this; }
 	Milliseconds&	operator-=(const Milliseconds& minuend)
-			{
-				if (isNull() || minuend.isNull())
-					(void)nullOperand("subtract");
-				else
-					ms_ -= minuend.ms_;
-				return *this;
-			}
+			{ *this = difference(minuend); return *this; }
 
 	bool		operator==(const Milliseconds& other) const
 			{ return ms_ == other.ms_; }
@@ -279,6 +246,8 @@ public:
 
 protected:
 	Milliseconds	nullOperand(const char* operation) const;	// Reports, answers null
+	Milliseconds	sum(const Milliseconds& addend) const;		// The checked operations
+	Milliseconds	difference(const Milliseconds& minuend) const;
 
 	Tick		ms_;
 };
@@ -306,35 +275,15 @@ public:
 	static Seconds	fromString(StrVal text, ErrNum* err_return = 0);
 
 	Seconds		operator-() const
-			{ return isNull() ? nullOperand("negate") : Seconds(-sec_); }
+			{ return isNull() ? nullOperand("negating") : Seconds(-sec_); }
 	Seconds		operator+(const Seconds& addend) const
-			{
-				if (isNull() || addend.isNull())
-					return nullOperand("add");
-				return Seconds(sec_ + addend.sec_);
-			}
+			{ return sum(addend); }
 	Seconds		operator-(const Seconds& minuend) const
-			{
-				if (isNull() || minuend.isNull())
-					return nullOperand("subtract");
-				return Seconds(sec_ - minuend.sec_);
-			}
+			{ return difference(minuend); }
 	Seconds&	operator+=(const Seconds& addend)
-			{
-				if (isNull() || addend.isNull())
-					(void)nullOperand("add");
-				else
-					sec_ += addend.sec_;
-				return *this;
-			}
+			{ *this = sum(addend); return *this; }
 	Seconds&	operator-=(const Seconds& minuend)
-			{
-				if (isNull() || minuend.isNull())
-					(void)nullOperand("subtract");
-				else
-					sec_ -= minuend.sec_;
-				return *this;
-			}
+			{ *this = difference(minuend); return *this; }
 
 	bool		operator==(const Seconds& other) const
 			{ return sec_ == other.sec_; }
@@ -351,6 +300,8 @@ public:
 
 protected:
 	Seconds		nullOperand(const char* operation) const;	// Reports, answers null
+	Seconds		sum(const Seconds& addend) const;		// The checked operations
+	Seconds		difference(const Seconds& minuend) const;
 
 	Tick		sec_;
 };
@@ -439,48 +390,22 @@ public:
 
 	/*
 	 * Arithmetic on a null reports, and answers another null, so that a null
-	 * spreads through a computation instead of becoming an instant. A
-	 * comparison is not arithmetic - it needs no value - so a null is equal
-	 * to a null, and before any real instant, since the null tick is the
-	 * lowest there is.
+	 * spreads through a computation instead of becoming an instant. So does a
+	 * result that ran past either end of the range: that is a null too, and
+	 * never an instant that never was. A comparison is not arithmetic - it
+	 * needs no value - so a null is equal to a null, and before every real
+	 * instant, the null tick being the lowest there is.
 	 */
 	Interval	operator-(const DateTime& minuend) const
-			{
-				if (isNull() || minuend.isNull())
-				{
-					(void)nullOperand("subtract");
-					return Interval(NullTick);
-				}
-				return Interval(ticks_ - minuend.ticks_);
-			}
+			{ return between(minuend); }
 	DateTime	operator+(const Interval& addend) const
-			{
-				if (isNull() || addend.isNull())
-					return nullOperand("add");
-				return DateTime(ticks_ + addend.ticks());
-			}
+			{ return sum(addend); }
 	DateTime	operator-(const Interval& minuend) const
-			{
-				if (isNull() || minuend.isNull())
-					return nullOperand("subtract");
-				return DateTime(ticks_ - minuend.ticks());
-			}
+			{ return difference(minuend); }
 	DateTime&	operator+=(const Interval& addend)
-			{
-				if (isNull() || addend.isNull())
-					(void)nullOperand("add");
-				else
-					ticks_ += addend.ticks();
-				return *this;
-			}
+			{ *this = sum(addend); return *this; }
 	DateTime&	operator-=(const Interval& minuend)
-			{
-				if (isNull() || minuend.isNull())
-					(void)nullOperand("subtract");
-				else
-					ticks_ -= minuend.ticks();
-				return *this;
-			}
+			{ *this = difference(minuend); return *this; }
 
 	bool		operator==(const DateTime& other) const
 			{ return ticks_ == other.ticks_; }
@@ -513,6 +438,9 @@ public:
 
 protected:
 	DateTime	nullOperand(const char* operation) const;	// Reports, answers null
+	DateTime	sum(const Interval& addend) const;		// The checked operations
+	DateTime	difference(const Interval& minuend) const;
+	Interval	between(const DateTime& minuend) const;
 
 	Tick		ticks_;
 };

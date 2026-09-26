@@ -263,6 +263,18 @@ Gregorian::timeSinceMidnight() const
 	return Interval(((Tick)hour_*3600 + (Tick)minute_*60 + second_)*TicksPerSecond + fraction_);
 }
 
+/*
+ * The date a day number names. A day number outside the calendar's own reach is
+ * refused before ltodate() sees it - whose own arithmetic would overflow - and
+ * so is one whose year will not fit the fields the class holds. Both are
+ * reported and answered with the value that says "no date", rather than a date
+ * that never was: fromDayNumber(1e15) used to answer 32269-07-04, and isValid()
+ * said it was a valid date.
+ *
+ * A time of day past the end of its day is folded into the day, so that the
+ * count of ticks means what it says whoever passes it: five hours into the next
+ * day is five o'clock on that day.
+ */
 Gregorian
 Gregorian::fromDayNumber(Tick day, Tick within_day)
 {
@@ -270,7 +282,22 @@ Gregorian::fromDayNumber(Tick day, Tick within_day)
 	Tick	seconds;
 	Tick	fraction;
 
+	day += floorDiv(within_day, TicksPerDay);
+	within_day = floorMod(within_day, TicksPerDay);
+
+	if (day < -(Tick)20000000 || day > (Tick)20000000)
+	{
+		ErrorTIM_ResultOverflow("Gregorian", "converting a day number");
+		return Gregorian();
+	}
+
 	ltodate(day, ymd);
+	if (ymd[0] < -32767 || ymd[0] > 32767)
+	{
+		ErrorTIM_ResultOverflow("Gregorian", "converting a day number");
+		return Gregorian();
+	}
+
 	seconds = floorDiv(within_day, TicksPerSecond);
 	fraction = floorMod(within_day, TicksPerSecond);
 

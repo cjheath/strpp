@@ -54,7 +54,9 @@
 #define	TIMERR_INVALID_TEXT		ErrNum(TIMERR_SET, 2)	// `{1}` is not a time, a date or an interval this library can read
 #define	TIMERR_OUT_OF_RANGE		ErrNum(TIMERR_SET, 3)	// The date {1} is outside the range a DateTime can hold, which runs from {2} to {3}
 #define	TIMERR_NO_DATE			ErrNum(TIMERR_SET, 4)	// This value is a time of day with no date, so it does not name an instant
-#define	TIMERR_NO_CLOCK			ErrNum(TIMERR_SET, 5)	// This target has no clock, so the current time is not known
-#define	TIMERR_NULL_VALUE		ErrNum(TIMERR_SET, 6)	// This `{1}` is null, so it has no value to {2}
+#define	TIMERR_NO_CLOCK			ErrNum(TIMERR_SET, 5)	// The current time is not known: this target has no clock, or reading it failed
+#define	TIMERR_NULL_VALUE		ErrNum(TIMERR_SET, 6)	// This `{1}` is null, so there is no value for {2}
+#define	TIMERR_RESULT_OVERFLOW		ErrNum(TIMERR_SET, 7)	// The result of {2} is past the range of `{1}`
+#define	TIMERR_NO_ZONE			ErrNum(TIMERR_SET, 8)	// The host's zone offset is not known at that instant, so UTC is answered
 
 #endif	// STR_ERR_H

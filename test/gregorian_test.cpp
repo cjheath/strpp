@@ -27,6 +27,7 @@ void		era_tests();
 void		parse_tests();
 void		format_tests();
 void		order_tests();
+void		day_number_range_tests();
 
 
 int
@@ -41,6 +42,7 @@ main(int argc, const char** argv)
 	parse_tests();
 	format_tests();
 	order_tests();
+	day_number_range_tests();
 
 	printf("Completed %d tests with %d failures\n", test_count, failure_count);
 	return failure_count == 0 ? 0 : 1;
@@ -460,4 +462,76 @@ order_tests()
 	expect("...and the instant reads back as the same date",
 			instant.asGregorian().toString() == text_first);
 	expect("...and as a value equal to the one it came from", instant.asGregorian() == c);
+}
+
+/*
+ * The one thing reported since the buffer was last cleared, rendered and then
+ * cleared away - the only way to tell a conversion that could not answer from
+ * one that answered "no date" for another reason.
+ */
+static StrVal
+reported_text()
+{
+	ErrBuf*	buf = ErrBuffer();
+	StrVal	said;
+
+	if (buf && buf->count() > 0)
+	{
+		{
+			ErrBuf::Message	msg = buf->message(0);
+			said = StrVal::format(msg.default_text, msg.parameters);
+		}
+		buf->clear();	// Only once the message has been let go
+	}
+	return said;
+}
+
+/*
+ * A day number the calendar cannot name. This used to answer a date that never
+ * was - 32269-07-04 for a million million days - and isValid() said it was a
+ * valid one, so a caller who checked was told nothing was wrong.
+ */
+void
+day_number_range_tests()
+{
+	test_group("A day number outside the calendar");
+
+	ErrBuffer()->clear();
+
+	Gregorian	far_away = Gregorian::fromDayNumber(1000000000000000LL);
+	expect("a day number a million million days out has no date", !far_away.hasDate());
+	expect("...and is not a valid date that it could hide behind", far_away.isValid());
+	expect_eq_str("...reported as a result past the range", reported_text(),
+			"The result of converting a day number is past the range of `Gregorian`");
+
+	// A year that will not fit the fields, though the day number itself is one
+	// the calendar could count to
+	far_away = Gregorian::fromDayNumber(12000000);
+	expect("a year past what the fields hold has no date", !far_away.hasDate());
+	expect_eq_str("...reported", reported_text(),
+			"The result of converting a day number is past the range of `Gregorian`");
+
+	// A time of day past the end of its day is folded into it, so the count of
+	// ticks means what it says
+	Gregorian	next_day = Gregorian::fromDayNumber(730120, TicksPerDay + 5*3600*TicksPerSecond);
+	expect_eq_str("five hours into the next day is five o'clock on it",
+			next_day.toString(), "2000-01-02T05:00:00");
+	expect_eq_str("...and reports nothing", reported_text(), "");
+
+	// ...and the last day the fields can hold still reads: the boundary is where
+	// the year stops fitting a short, which the calendar itself can compute
+	{
+		Tick	last_day = Gregorian(32767,12,31).dayNumber();
+
+		expect("the last day the fields hold still reads",
+				Gregorian::fromDayNumber(last_day).hasDate());
+		expect_eq_int("...as the year it names",
+				(long)Gregorian::fromDayNumber(last_day).year(), 32767);
+		expect_eq_str("...and reports nothing", reported_text(), "");
+
+		expect("the day after it does not",
+				!Gregorian::fromDayNumber(last_day+1).hasDate());
+		expect_eq_str("...and says so", reported_text(),
+				"The result of converting a day number is past the range of `Gregorian`");
+	}
 }
