@@ -11,6 +11,7 @@
 void variant_array_tests();
 void variant_tests();
 void unsigned_tests();
+void time_variant_tests();
 
 // The pipe a dying child's error buffer is written into
 static int	report_fd = -1;
@@ -132,9 +133,18 @@ main(int argc, const char** argv)
 	printf("sizeof(VariantArray) == %ld\n", sizeof(VariantArray));
 	printf("sizeof(StrVariantMap) == %ld\n", sizeof(StrVariantMap));
 
+	/*
+	 * The two time types share the widest word the union already had, so a
+	 * Variant with a DateTime in it is no larger than one with a StrVal: 8
+	 * bytes of union and the type. If this ever fails, a type was added that
+	 * needed storage of its own.
+	 */
+	assert(sizeof(Variant) == 24);
+
 	variant_array_tests();
 	variant_tests();
 	unsigned_tests();
+	time_variant_tests();
 
 #if defined(MEMCHECK)
 	if (allocation_growth_count() > 0)	// No allocation should remain unfreed
@@ -295,6 +305,153 @@ void unsigned_tests()
 			 " 18446744073709551615 does not fit\n");
 	printf("refused: a UInteger beyond INT_MAX, a ULong beyond LONG_MAX\n");
 	printf("...each naming the value it could not hold\n");
+}
+
+/*
+ * The two time types in a Variant. Neither is a number, so is_number() must not
+ * be widened to take them in: a refusal of one is a type that does not convert,
+ * not a value that does not fit, since no other value of that type would have
+ * fared any better.
+ */
+static bool	interval_read_as_a_number()
+{
+	Variant	v(Interval(1));
+	int	n = v.as_int();		// Reports, and asserts
+	(void)n;
+	return true;
+}
+
+static bool	datetime_read_as_an_interval()
+{
+	DateTime	epoch;
+	Variant		v(epoch);
+	Interval	i = v.as_interval();
+	(void)i;
+	return true;
+}
+
+static bool	interval_read_as_a_datetime()
+{
+	Variant		v(Interval(1));
+	DateTime	d = v.as_datetime();
+	(void)d;
+	return true;
+}
+
+/*
+ * The arm of coerce() that handles a target type with no case of its own. No
+ * type Variant knows can reach it, since each has a case, so the test reaches
+ * it through a subclass, which may call the protected member - and with a value
+ * that is not a VariantType at all, which is what a type that was added and not
+ * implemented looks like from inside.
+ */
+struct CoercibleVariant : public Variant
+{
+	CoercibleVariant(Variant v) : Variant(v) {}
+	using Variant::coerce;			// Protected in Variant, public here
+};
+
+static bool	coercion_without_a_case()
+{
+	CoercibleVariant	v((Variant(Interval(1))));
+	v.coerce((Variant::VariantType)99);	// Reports, and asserts
+	return true;
+}
+
+void time_variant_tests()
+{
+	Variant	interval(Interval(-150000000));
+	Variant	datetime(DateTime::fromTicks(0));
+
+	assert(interval.type() == Variant::Interval);
+	assert(StrVal(interval.type_name()) == "Interval");
+	assert(interval.as_interval().ticks() == -150000000);
+
+	assert(datetime.type() == Variant::DateTime);
+	assert(StrVal(datetime.type_name()) == "DateTime");
+	assert(datetime.as_datetime().ticks() == 0);
+
+	// A copy carries the type and the value, as an assignment does
+	Variant	copied(interval);
+	assert(copied.type() == Variant::Interval);
+	assert(copied.as_interval().ticks() == -150000000);
+
+	Variant	assigned;
+	assigned = datetime;
+	assert(assigned.type() == Variant::DateTime);
+	assert(assigned.as_datetime().ticks() == 0);
+
+	// JSON has no time, so both are written as the text of one
+	assert(interval.as_json() == "\"-1.50000000\"");
+	assert(datetime.as_json() == "\"2000-01-01T00:00:00Z\"");
+
+	/*
+	 * A null time is not a time with a value, so it is JSON's own null and
+	 * not the text of one - and a Variant holding it reads back as a null
+	 * instead of as a date that never was.
+	 */
+	assert(Variant(Interval(NullTick)).as_json() == "null");
+	assert(Variant(DateTime::fromTicks(NullTick)).as_json() == "null");
+	assert(Variant(Interval(NullTick)).as_strval() == "null");
+	{
+		Variant	null_time((Interval(NullTick)));
+
+		assert(null_time.type() == Variant::Interval);
+		assert(null_time.as_interval().isNull());
+	}
+
+	// A text is the one thing either converts from, and a successful coercion
+	// changes the type, as it does for the numeric types
+	{
+		Variant	text("1.5");
+		assert(text.as_interval().ticks() == 150000000);
+		assert(text.type() == Variant::Interval);
+
+		Variant	when("2002-01-03T11:12:13Z");
+		assert(when.as_datetime().toString() == "2002-01-03T11:12:13Z");
+		assert(when.type() == Variant::DateTime);
+	}
+
+	// Reading one as text renders it, in a message and in StrVal::format
+	{
+		Variant	as_text(Interval(150000000));
+		assert(as_text.as_strval() == "1.50000000");
+		assert(as_text.type() == Variant::String);
+
+		assert(StrVal::format("{1} and {2}",
+				VariantArray() << Interval(150000000) << DateTime::fromTicks(0))
+			== "1.50000000 and 2000-01-01T00:00:00Z");
+	}
+
+	/*
+	 * Neither is a number and neither becomes the other: a length of time is
+	 * not a point in time, whatever both are counted in. Each of these dies,
+	 * so each is run in a child, which reports through the error buffer before
+	 * it goes.
+	 */
+	StrVal	report;
+	assert(coercion_aborts(interval_read_as_a_number, report));
+	assert(report == "A0000801: A `Integer` was expected, but this Variant is a `Interval`\n");
+
+	assert(coercion_aborts(datetime_read_as_an_interval, report));
+	assert(report == "A0000801: A `Interval` was expected, but this Variant is a `DateTime`\n");
+
+	assert(coercion_aborts(interval_read_as_a_datetime, report));
+	assert(report == "A0000801: A `DateTime` was expected, but this Variant is a `Interval`\n");
+
+	/*
+	 * And the one the data must not be lost to: a target type this library has
+	 * no coercion for. It is refused, naming both types, and the value is left
+	 * as it was. The half of that which only a build with assertions off can
+	 * show is in variant_ndebug_test.cpp.
+	 */
+	assert(coercion_aborts(coercion_without_a_case, report));
+	assert(report == "A0000803: A `Interval` cannot be converted to a `Corrupt type`:"
+			 " that conversion is not implemented, so the value is left as it is\n");
+
+	printf("a Variant holds an Interval or a DateTime, and neither is a number\n");
+	printf("refused: a time read as a number, and an interval as an instant\n");
+	printf("...and a coercion with no case reports it rather than discarding the value\n");
 }
 
 void variant_tests()

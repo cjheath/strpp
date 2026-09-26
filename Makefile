@@ -43,7 +43,9 @@ HDRS	=	\
 		condition.h		\
 		errbuf.h		\
 		cowmap.h		\
+		datetime.h		\
 		error.h			\
+		gregorian.h		\
 		char_ptr.h		\
 		utf8_ptr.h		\
 		peg.h			\
@@ -66,7 +68,9 @@ HDRS	=	\
 SRCS	=	\
 		char_encoding.cpp	\
 		condition.cpp		\
+		datetime.cpp		\
 		errbuf.cpp		\
+		gregorian.cpp		\
 		lockfree.cpp		\
 		strassert.cpp		\
 		strval.cpp		\
@@ -79,9 +83,11 @@ TESTS	=	\
 		assert_test		\
 		char_encoding_test	\
 		cowmap_test		\
+		datetime_test		\
 		err_test		\
 		errbuf_test		\
 		greeting_test		\
+		gregorian_test		\
 		medley_test		\
 		peg_test		\
 		pegexp_test		\

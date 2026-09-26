@@ -14,6 +14,8 @@ are built on.
 - [Red-black trees: the RbTree class](redblack.md)
 - [COWMap](cowmap.md)
 - [Variant data type](variant.md)
+- [Time and date: intervals and instants](datetime.md)
+- [Gregorian: civil dates and ISO 8601](gregorian.md)
 - [Error Management](error.md)
 - [Threads, locks and thread-local storage](threading.md)
 - [Pegexp](pegexp.md)

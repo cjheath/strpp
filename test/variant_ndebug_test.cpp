@@ -94,6 +94,69 @@ main()
 		}
 	}
 
+	/*
+	 * A time is not a number, and an interval is not an instant. Each refusal
+	 * must leave the value where it was, of the type it was: without that, a
+	 * program with assertions out would carry on with a Variant that had
+	 * quietly become something else.
+	 */
+	{
+		Variant		v(Interval(150000000));
+
+		(void)v.as_int();		// Must return, not die
+		expect("an Interval read as a number keeps its type", v.type() == Variant::Interval);
+		expect("...and its value", v.as_interval().ticks() == 150000000);
+
+		(void)v.as_datetime();		// Must return, not die
+		expect("...and reading it as an instant changes nothing either",
+			v.type() == Variant::Interval && v.as_interval().ticks() == 150000000);
+	}
+
+	{
+		Variant		v(DateTime::fromTicks(0));
+
+		(void)v.as_interval();		// Must return, not die
+		expect("a DateTime read as an interval keeps its type",
+			v.type() == Variant::DateTime && v.as_datetime().ticks() == 0);
+	}
+
+	/*
+	 * And the coercion that must never lose data: one to a type that coerce()
+	 * has no case for at all. It is reached through a subclass, which may call
+	 * the protected member, with a value that is not a VariantType - which is
+	 * what a type added and not implemented looks like from inside.
+	 */
+	{
+		struct CoercibleVariant : public Variant
+		{
+			CoercibleVariant(Variant v) : Variant(v) {}
+			using Variant::coerce;		// Protected in Variant, public here
+		};
+
+		CoercibleVariant	v((Variant(Interval(150000000))));
+		v.coerce((Variant::VariantType)99);	// Must return, not die
+
+		expect("a coercion with no case keeps the type", v.type() == Variant::Interval);
+		expect("...and the value", v.as_interval().ticks() == 150000000);
+
+		ErrBuf*	buf = ErrBuffer();
+		expect("...and reports the gap", buf && buf->count() > 0);
+
+		if (buf && buf->count() > 0)
+		{
+			StrVal	said;
+			{
+				ErrBuf::Message	msg = buf->message(buf->count()-1);
+				said = StrVal::format(msg.default_text, msg.parameters);
+			}
+			printf("the buffer says: %s\n", said.asUTF8());
+			expect("...naming both types, and that the value is left alone",
+				said == "A `Interval` cannot be converted to a `Corrupt type`:"
+					" that conversion is not implemented, so the value is left as it is");
+			buf->delivered();
+		}
+	}
+
 	printf("Completed %d tests with %d failures\n", test_count, failure_count);
 	return failure_count != 0;
 #endif

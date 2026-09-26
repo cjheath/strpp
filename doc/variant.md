@@ -17,6 +17,8 @@ A Variant is a type tag and a union holding one of
     UInteger,
     ULong,
     ULongLong,
+    Interval,
+    DateTime,
     String (a StrRef),
 	StrArray,
     VarArray,
@@ -25,6 +27,15 @@ A Variant is a type tag and a union holding one of
 String means a compact StrRef rather than a StrVal: it does not need the
 bookmark that makes StrVal's scanning and indexing fast, and does not pay
 for it.
+
+`Interval` is a length of time and `DateTime` is a point in time, both counted
+in ticks of 10⁻⁸ seconds; see [datetime.md](datetime.md). Neither is a number,
+so neither coerces to one and neither becomes the other: a length of time is
+not a point in time, whatever both are counted in. A `String` is the one thing
+either converts from, by being read as one, and the text of one is what either
+converts to - `null` if the value is null, which renders as JSON's own null
+rather than as the text of one. Both are held in the same 8-byte union word as
+a `long long`.
 
 The three unsigned types are worth having because a Variant must be able to
 hold what the program has: a count, a hash, an address, a bit pattern from a
@@ -81,6 +92,9 @@ Making one:
   an array of Variants.
 - `Variant(StrVal* keys, Variant* values, StringArray::Index count)`,
   `Variant(StrVariantMap)` - a string-keyed map to Variant.
+- `Variant(Interval)`, `Variant(DateTime)` - a length of time or a point in
+  time. Each is held as its count of ticks, so a Variant carrying one is no
+  larger than a Variant carrying a number.
 - `Variant(VariantType t)` - an empty Variant of the given type. A Variant of
   that type already made - `Variant v(0)` for an `Integer`, `Variant
   m(Variant::StrVarMap)` for a map - is usually the better way, because no
@@ -121,6 +135,11 @@ Reading:
   `v.as_strval() += "x"`, `v.as_variant_map().insert(k, v)` - copies the body
   and leaves the Variant as it was. A string or container is changed by taking
   it, changing that, and putting the result back.
+- `as_interval()`, `as_datetime()` - the time held, as an `Interval` or a
+  `DateTime`. Both answer a value rather than a reference, because what the
+  union holds is a count of ticks and not one of those objects: they are reads,
+  and a caller with a new time assigns it to the Variant instead.
+  `as_datetime()` renders as ISO 8601 in UTC.
 - `as_json(int indent = -1)` - the value as JSON. `-1` adds single spaces,
   `-2` is maximally compact, and `n >= 0` indents two spaces per level from
   `n`.
@@ -166,6 +185,14 @@ That is what `as_signed()` is for where the width is not known: it asks for the
 closest signed type that holds the value rather than being told one, so a
 caller with a number of unknown origin has a single call that either answers
 the number or says that no signed type holds it.
+
+A refusal of a *kind* rather than of a value is reported differently: a
+`DateTime` read as an `Interval`, or a time read as a number, names the type
+that was expected and the type that is held, because no value of the type held
+would have fared any better. And a coercion the library has no case for at all
+- a type added to the enum and not implemented - reports that, naming both
+types, and leaves the Variant exactly as it was: a refused coercion never
+discards the value, whatever the build.
 
 - **Coercing one to a `String` renders it unsigned.** The digits of 4000000000
   are not what that number reads as a signed one, so the string the value

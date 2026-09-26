@@ -102,4 +102,68 @@ ErrorVAR_DoesNotFit(const char* wanted, StrVal value)
 		VariantArray() << wanted << value);
 }
 
+inline ErrNum
+ErrorVAR_NoCoercion(const char* from, const char* to)
+{
+	return Error(VARERR_NO_COERCION,
+		"A `{1}` cannot be converted to a `{2}`: that conversion is not implemented, so the value is left as it is",
+		VariantArray() << from << to);
+}
+
+// The times and dates:
+
+inline ErrNum
+ErrorTIM_InvalidYMDHMS(int year, int month, int day, int hour, int minute, int second)
+{
+	return Error(TIMERR_INVALID_YMDHMS,
+		"The date and time {1}-{2}-{3} {4}:{5}:{6} is not a date that exists",
+		VariantArray() << year << month << day << hour << minute << second);
+}
+
+inline ErrNum
+ErrorTIM_InvalidText(StrVal text)
+{
+	return Error(TIMERR_INVALID_TEXT,
+		"`{1}` is not a time, a date or an interval this library can read",
+		VariantArray() << text);
+}
+
+inline ErrNum
+ErrorTIM_OutOfRange(StrVal when, StrVal first, StrVal last)
+{
+	return Error(TIMERR_OUT_OF_RANGE,
+		"The date {1} is outside the range a DateTime can hold, which runs from {2} to {3}",
+		VariantArray() << when << first << last);
+}
+
+inline ErrNum
+ErrorTIM_NoDate()
+{
+	return Error(TIMERR_NO_DATE,
+		"This value is a time of day with no date, so it does not name an instant",
+		VariantArray());
+}
+
+inline ErrNum
+ErrorTIM_NoClock()
+{
+	return Error(TIMERR_NO_CLOCK,
+		"This target has no clock, so the current time is not known",
+		VariantArray());
+}
+
+/*
+ * A time whose value is null, used where a value was needed: adding it, or
+ * reading it as a number of seconds or as a date. Reported rather than
+ * asserted, because a null is data - it comes from a field that was never
+ * filled in, or a record that says "no time"- and not a fault in the program.
+ */
+inline ErrNum
+ErrorTIM_NullValue(const char* type, const char* operation)
+{
+	return Error(TIMERR_NULL_VALUE,
+		"This `{1}` is null, so it has no value to {2}",
+		VariantArray() << type << operation);
+}
+
 #endif	// STR_MSG_H

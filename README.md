@@ -81,6 +81,18 @@ See [CowMap](doc/cowmap.md)
 
 See [Variant](doc/variant.md)
 
+### Time and date: intervals and instants
+
+#include	<[datetime.h](include/datetime.h)>
+
+See [Time and date](doc/datetime.md)
+
+### Gregorian: civil dates and ISO 8601
+
+#include	<[gregorian.h](include/gregorian.h)>
+
+See [Gregorian](doc/gregorian.md)
+
 ### Prefix Regular Expression pattern matching
 
 #include	<[pegexp.h](include/pegexp.h)>

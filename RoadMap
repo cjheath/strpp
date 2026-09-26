@@ -1,5 +1,10 @@
 Quality
         ASAN (Address Sanitiser)
+	No unreported wrong answers: an operation that cannot answer correctly
+		reports it, or fails, and never quietly answers something else.
+		The author's standing rule, stated 2026-09-26 while the time
+		layer was being finalised; it governs the deferred work listed
+		under Date&Time below and everything added after it.
 
 StrVal
 	Option to use 8-bit char instead of UTF8
@@ -15,7 +20,6 @@ Variant
 		Bool, Int16, Int32, Int64
 		Unsigned16, Unsigned32, Unsigned64
 		Real (64-bit IEEE double), UCS4, String
-		DateTime (64-bit in 10^-8 seconds since 0000-00-00)
 		ObjRef (void*), Decimal (digits with precision and scale)
 		Blob, Guid (localhost byte ordering)
 		ArgList (the older library also has sequence)
@@ -40,6 +44,20 @@ Error
 	Compiler/generator (from ADL? Using Px?)
 
 Date&Time
+	Done: Interval, Milliseconds, Seconds, UtcOffset, DateTime and Gregorian
+		(10^-8 second ticks from 2000-01-01, so 924 BC to 4922 AD)
+		Interval and DateTime are Variant types
+	Deferred, to follow up: unreported wrong answers in the time layer
+		(the full inventory is HANDOFF.md 12.11)
+		Unchecked int64 tick arithmetic wraps, and a wrap can land on the
+		null tick - the one value that means "no value" - so a valid
+		computation can quietly answer a null. Report it, or provide the
+		checked form. The author's call on which, deferred 2026-09-26.
+	Zone database, for historical and DST-correct conversion?
+	TimeVal (struct timeval) conversion, if a caller needs select()
+	Timespec (struct timespec) conversion, if a caller needs nanosleep()
+	Leap seconds?
+	Calendar arithmetic: adding a month or a year, which is not a fixed interval
 
 RefCount
 	High-concurrency version (non-atomic until referenced by 2nd thread)

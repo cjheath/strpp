@@ -9,8 +9,10 @@
 # (Thread/Latch/Condition, see include/thread.h, include/lockfree.h,
 # include/condition.h), the stand-alone char_encoding.cpp and variant.cpp,
 # errbuf.cpp - the error buffer (ErrBuf/Error, see include/errbuf.h) that every
-# reported message goes through, Variant's type assertion among them - and
-# strassert.cpp, the assertion that dumps that buffer before it dies.
+# reported message goes through, Variant's type assertion among them -
+# datetime.cpp/gregorian.cpp, the time and date layer (see include/datetime.h
+# and include/gregorian.h), and strassert.cpp, the assertion that dumps that
+# buffer before it dies.
 #
 # The error buffer holds a thread-local slot, as does anything else wanting one
 # per thread, so FreeRTOS's configNUM_THREAD_LOCAL_STORAGE_POINTERS
@@ -26,7 +28,9 @@ idf_component_register(
 	SRCS
 		"src/char_encoding.cpp"
 		"src/condition.cpp"
+		"src/datetime.cpp"
 		"src/errbuf.cpp"
+		"src/gregorian.cpp"
 		"src/lockfree.cpp"
 		"src/strassert.cpp"
 		"src/thread.cpp"

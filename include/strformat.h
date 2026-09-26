@@ -152,6 +152,15 @@ strval_render(Variant v, const StrFormatSpec& spec, int depth)
 	case Variant::UInteger:	text = StrVal::fromUInt32(v.as_uint(), spec.repr); break;
 	case Variant::ULong:	text = StrVal::fromULong(v.as_ulong(), spec.repr); break;
 	case Variant::ULongLong: text = StrVal::fromUInt64(v.as_ulonglong(), spec.repr); break;
+
+	/*
+	 * A time says itself, as its own toString does: the specification's
+	 * representation letter does not apply to it, and a caller who wants
+	 * another form of a date writes it with toString and passes the text.
+	 */
+	case Variant::Interval:	text = v.as_interval().toString(); break;
+	case Variant::DateTime:	text = v.as_datetime().toString(); break;
+
 	case Variant::String:	text = v.as_strval(); break;
 
 	case Variant::StrArray:				// Strings, in brackets
@@ -220,7 +229,13 @@ void	strval_push_parameter(Push& out, Variant v, const StrFormatSpec& spec, int 
 	int	pad = spec.min > written ? spec.min - written : 0;
 	UCS4	pad_char = spec.zero_pad ? '0' : ' ';
 
-	if (pad > 0 && sign_first)
+	/*
+	 * A sign detaches from the digits it belongs to, so that zero padding
+	 * goes behind it: -923 written in four places is -0923 and not 0-923.
+	 * It is put back whether or not anything was padded, or a value whose
+	 * sign takes it to exactly the minimum width would lose the sign.
+	 */
+	if (sign_first)
 		out.push((UCS4)text[0]);	// The sign stays outermost
 	for (int i = 0; i < pad; i++)
 		out.push(pad_char);
@@ -264,6 +279,16 @@ strval_size(Variant v, const StrFormatSpec& spec)
 		default:		room = 21; break;
 		}
 		break;
+	/*
+	 * The longest either time type can write: an interval is at most
+	 * "-92233720368.54775808", and a date at most "-0923-03-25T02:07:11" with
+	 * all eight fraction digits and a whole-hour zone. Counted generously, so
+	 * that the answer is built once: a value that writes more than this is
+	 * written into a second allocation.
+	 */
+	case Variant::Interval:	room = 21; break;
+	case Variant::DateTime:	room = 35; break;
+
 	case Variant::String:	room = v.as_strval().length(); break;
 	default:		break;		// The guess above: at worst, a reallocation
 	}

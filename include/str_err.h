@@ -7,9 +7,10 @@
  * these, and is what code that raises one includes.
  *
  * One library, one message source file, however many sets it holds: strpp has
- * two, and both are here. Set 1 is STR, the strings and what can go wrong in
- * reading one from a text; set 2 is VAR, the Variant type. They are written by
- * hand and shaped as a generator would emit them.
+ * three, and all are here. Set 1 is STR, the strings and what can go wrong in
+ * reading one from a text; set 2 is VAR, the Variant type; set 3 is TIM, the
+ * time and date layer. They are written by hand and shaped as a generator would
+ * emit them.
  *
  * A number holds a set number and a message number within that set. A number,
  * once used, is never re-used or re-numbered: it appears in logs, in the
@@ -27,6 +28,7 @@
 
 #define	STRERR_SET			1	// The message set allocated to the strings
 #define	VARERR_SET			2	// The message set allocated to the Variant
+#define	TIMERR_SET			3	// The message set allocated to the times and dates
 
 // The assertion, whose report is the one made on the way out:
 
@@ -44,5 +46,15 @@
 
 #define	VARERR_WRONG_TYPE		ErrNum(VARERR_SET, 1)	// A `{1}` was expected, but this Variant is a `{2}`
 #define	VARERR_DOES_NOT_FIT		ErrNum(VARERR_SET, 2)	// Cannot convert to a `{1}` because the value {2} does not fit
+#define	VARERR_NO_COERCION		ErrNum(VARERR_SET, 3)	// A `{1}` cannot be converted to a `{2}`: that conversion is not implemented, so the value is left as it is
+
+// The times and dates:
+
+#define	TIMERR_INVALID_YMDHMS		ErrNum(TIMERR_SET, 1)	// The date and time {1}-{2}-{3} {4}:{5}:{6} is not a date that exists
+#define	TIMERR_INVALID_TEXT		ErrNum(TIMERR_SET, 2)	// `{1}` is not a time, a date or an interval this library can read
+#define	TIMERR_OUT_OF_RANGE		ErrNum(TIMERR_SET, 3)	// The date {1} is outside the range a DateTime can hold, which runs from {2} to {3}
+#define	TIMERR_NO_DATE			ErrNum(TIMERR_SET, 4)	// This value is a time of day with no date, so it does not name an instant
+#define	TIMERR_NO_CLOCK			ErrNum(TIMERR_SET, 5)	// This target has no clock, so the current time is not known
+#define	TIMERR_NULL_VALUE		ErrNum(TIMERR_SET, 6)	// This `{1}` is null, so it has no value to {2}
 
 #endif	// STR_ERR_H

@@ -10,6 +10,7 @@
 #include	<str_err.h>			// The error numbers reported from src/variant.cpp
 #include	<array.h>
 #include	<cowmap.h>
+#include	<datetime.h>			// Interval and DateTime travel in a Variant
 
 /*
  * The most levels of array or map that rendering descends to, whether by
@@ -49,6 +50,9 @@ public:
 		UInteger,
 		ULong,
 		ULongLong,
+		// A length of time and a point in time
+		Interval,
+		DateTime,
 		// , BigNum, Float, Double
 		String,
 		StrArray,
@@ -60,11 +64,20 @@ public:
 	VariantType		type() const { return _type; }
 	bool			is_null() const { return _type == None; }
 	static const char*	type_names[];
+
+	/*
+	 * The name of a type, checked. Most callers know they hold a type; the
+	 * rejection of a coercion that is not implemented does not, since what it
+	 * rejects may not be a VariantType at all, and indexing the table with
+	 * that would read off the end of it.
+	 */
+	static const char*	type_name_at(int t)
+	{
+		return t >= None && t <= VariantTypeMax ? type_names[t] : "Corrupt type";
+	}
 	const char*		type_name() const
 	{
-		if (_type >= None && _type <= VariantTypeMax)
-			return type_names[_type];
-		return "Corrupt type";
+		return type_name_at(_type);
 	}
 
 	~Variant()
@@ -85,6 +98,10 @@ public:
 	{ _type = ULong; u.l = (long)_ul; }
 	Variant(unsigned long long _ull)				// ULongLong
 	{ _type = ULongLong; u.ll = (long long)_ull; }
+	Variant(::Interval i)						// Interval
+	{ _type = Interval; u.tt = i.ticks(); }
+	Variant(::DateTime d)						// DateTime
+	{ _type = DateTime; u.tt = d.ticks(); }
 	Variant(StrVal v)						// StrRef
 	{ _type = String; new(&u.str) StrRef(v); }
 	Variant(const char* s)						// StrRef
@@ -116,7 +133,9 @@ public:
 		case None:		// FALL THROUGH
 		case Integer:		// FALL THROUGH
 		case Long:		// FALL THROUGH
-		case LongLong:
+		case LongLong:		// FALL THROUGH
+		case Interval:		// FALL THROUGH
+		case DateTime:
 			return;		// The union u has been zeroed already
 
 		case String:		new(&u.str) StrRef(); break;
@@ -140,6 +159,8 @@ public:
 		case UInteger:		u.i = (int)v.as_uint(); break;
 		case ULong:		u.l = (long)v.as_ulong(); break;
 		case ULongLong:		u.ll = (long long)v.as_ulonglong(); break;
+		case Interval:		u.tt = v.as_interval().ticks(); break;
+		case DateTime:		u.tt = v.as_datetime().ticks(); break;
 		case String:		new(&u.str) StrRef(v.as_strval()); break;
 		case StrArray:		new(&u.str_arr) StringArray(v.as_string_array()); break;
 		case VarArray:		new(&u.var_arr) VariantArray(v.as_variant_array()); break;
@@ -161,6 +182,8 @@ public:
 		case UInteger:		u.i = (int)v.as_uint(); break;
 		case ULong:		u.l = (long)v.as_ulong(); break;
 		case ULongLong:		u.ll = (long long)v.as_ulonglong(); break;
+		case Interval:		u.tt = v.as_interval().ticks(); break;
+		case DateTime:		u.tt = v.as_datetime().ticks(); break;
 		case String:		new(&u.str) StrRef(v.as_strval()); break;
 		case StrArray:		new(&u.str_arr) StringArray(v.as_string_array()); break;
 		case VarArray:		new(&u.var_arr) VariantArray(v.as_variant_array()); break;
@@ -235,6 +258,16 @@ public:
 	const VariantArray	as_variant_array() const { must_be(VarArray); return u.var_arr; }
 	const StrVariantMap	as_variant_map() const { must_be(StrVarMap); return u.var_map; }
 
+	/*
+	 * The time types answer a value rather than a reference, because the
+	 * union holds a tick count and not an Interval or a DateTime: there is no
+	 * object of that type in the Variant to refer to. So these are reads, and
+	 * not a way to write into the Variant - a caller with a new time assigns
+	 * it to the Variant instead.
+	 */
+	::Interval		as_interval() const { must_be(Interval); return ::Interval(u.tt); }
+	::DateTime		as_datetime() const { must_be(DateTime); return ::DateTime::fromTicks(u.tt); }
+
 	int&			as_int() { coerce(Integer); return u.i; }
 	long&			as_long() { coerce(Long); return u.l; }
 	long long&		as_longlong() { coerce(LongLong); return u.ll; }
@@ -242,6 +275,8 @@ public:
 	StringArray		as_string_array() { coerce(StrArray); return u.str_arr; }
 	VariantArray		as_variant_array() { coerce(VarArray); return u.var_arr; }
 	StrVariantMap		as_variant_map() { coerce(StrVarMap); return u.var_map; }
+	::Interval		as_interval() { coerce(Interval); return ::Interval(u.tt); }
+	::DateTime		as_datetime() { coerce(DateTime); return ::DateTime::fromTicks(u.tt); }
 
 	// as_json(-1) emits single-line JSON with single spaces added for readability.
 	// as_json(-2) emits maximally compact JSON.
@@ -302,6 +337,30 @@ public:
 		case ULong:		return StrVal::fromULong((unsigned long)u.l, 0);
 		case ULongLong:		return StrVal::fromUInt64((unsigned long long)u.ll, 0);
 
+		/*
+		 * JSON has no time, so both are written as the text of a time: an
+		 * interval in seconds, and an instant in the ISO 8601 extended form.
+		 * A null one is JSON's own null, since a null is what it is and not
+		 * a time with a value. The default form carries no fraction, as the
+		 * default toString does not; a caller who wants the exact instant
+		 * writes it.
+		 */
+		case Interval:
+			{
+				::Interval	interval(u.tt);
+				return interval.isNull()
+					? StrVal("null")
+					: StrVal("\"")+interval.toString()+"\"";
+			}
+
+		case DateTime:
+			{
+				::DateTime	datetime = ::DateTime::fromTicks(u.tt);
+				return datetime.isNull()
+					? StrVal("null")
+					: StrVal("\"")+datetime.toString()+"\"";
+			}
+
 		case String:
 			return StrVal("\"")+StrVal(u.str).asJSON()+"\"";
 
@@ -360,6 +419,8 @@ protected:
 		case UInteger:		// FALL THROUGH
 		case ULong:		// FALL THROUGH
 		case ULongLong:		// FALL THROUGH
+		case Interval:		// FALL THROUGH
+		case DateTime:		// FALL THROUGH
 			break;		// Nothing to do
 
 		case String:		u.str.~StrRef(); break;
@@ -402,6 +463,14 @@ protected:
 		case UInteger:	return StrVal::fromUInt32((unsigned)u.i, 0);
 		case ULong:	return StrVal::fromULong((unsigned long)u.l, 0);
 		case ULongLong: return StrVal::fromUInt64((unsigned long long)u.ll, 0);
+		/*
+		 * Rendered from the word, and never by coercing this Variant to a
+		 * String: value_text is called from the reporting path, and a
+		 * coercion there could report again, and recurse until the stack is
+		 * gone - at the one moment a program is already in trouble.
+		 */
+		case Interval:	return ::Interval(u.tt).toString();
+		case DateTime:	return ::DateTime::fromTicks(u.tt).toString();
 		default:	break;
 		}
 		return StrVal("<")+type_name()+">";
@@ -452,9 +521,22 @@ protected:
 		int32_t		i32;
 		switch (new_type)
 		{
-		default:		// FALL THROUGH
-		case None:		// FALL THROUGH
+		/*
+		 * Discarding a value is asked for by name, as None is: that is what
+		 * coerce_none does, and what assignment and destruction use.
+		 */
+		case None:
 			coerce_none();
+			return;
+
+		/*
+		 * Any other target type without a case of its own is a type that was
+		 * added and not implemented here. The value is left exactly as it was
+		 * - a refused coercion must not lose data by falling into the arm
+		 * above - and the gap is reported, so that it cannot pass unnoticed.
+		 */
+		default:
+			no_coercion(new_type);
 			return;
 
 		/*
@@ -618,6 +700,10 @@ protected:
 					return;
 			case LongLong:	*this = StrVal::fromInt64(u.ll, 0);
 					return;
+			case Interval:	*this = ::Interval(u.tt).toString();
+					return;
+			case DateTime:	*this = ::DateTime::fromTicks(u.tt).toString();
+					return;
 			case String:	return; // Already handled
 			case None:		// FALL THROUGH
 			case StrArray:		// FALL THROUGH
@@ -625,6 +711,38 @@ protected:
 			case StrVarMap:		// FALL THROUGH
 			default:		// The unsigned types were mapped to their twins
 					break;	// Cannot coerce
+			}
+			break;
+
+		/*
+		 * A time, from the text of one. A String is the only source that
+		 * becomes either of these, and neither becomes the other: a length of
+		 * time is not a point in time, whatever both are counted in. A text
+		 * that cannot be read has already reported itself; breaking here lets
+		 * the refusal below say which two types were asked to convert, as a
+		 * text that is not a number does for the numeric types.
+		 */
+		case Interval:
+			if (was == String)
+			{
+				::Interval	interval = ::Interval::fromString(u.str, &e);
+				if (e)			// The parse has reported for itself
+					break;
+				u.tt = interval.ticks();
+				_type = new_type;
+				return;
+			}
+			break;
+
+		case DateTime:
+			if (was == String)
+			{
+				::DateTime	datetime = ::DateTime::fromString(u.str, 0, &e);
+				if (e)
+					break;
+				u.tt = datetime.ticks();
+				_type = new_type;
+				return;
 			}
 			break;
 
@@ -652,12 +770,22 @@ protected:
 	// where Error() is at hand.
 	void	must_be(VariantType t) const;
 
+	/*
+	 * A coercion to a type that coerce() below has no case for, which is a
+	 * type added and not implemented. It names this Variant's type and the
+	 * one it was asked for, reports, and asserts; where assertions are off it
+	 * returns, and the value is left as it was. Defined in src/variant.cpp
+	 * for the same reason as must_be.
+	 */
+	void	no_coercion(VariantType t) const;
+
 	VariantType		_type;
 	union u
 	{
 		int		i;
 		long		l;
 		long long	ll;
+		Tick		tt;		// An Interval or a DateTime: see VariantType
 		StrRef		str;
 		StringArray	str_arr;
 		VariantArray	var_arr;

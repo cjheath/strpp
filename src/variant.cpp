@@ -14,6 +14,8 @@ const char*	Variant::type_names[] = {
 	"UInteger",
 	"ULong",
 	"ULongLong",
+	"Interval",
+	"DateTime",
 	// , "BigNum", "Float", "Double"
 	"String",
 	"StrArray",
@@ -34,6 +36,20 @@ Variant::must_be(VariantType t) const
 
 	ErrorVAR_WrongType(type_names[t], type_names[_type]);
 	assert(!"Mismatched type");
+}
+
+/*
+ * A coercion to a type that coerce() has no case for. Every type Variant knows
+ * has one, so this is a type that was added to the enum and not implemented:
+ * the value is kept, and the gap is reported rather than passed over. Where
+ * assertions are on this does not return, and the coercion that was asked for
+ * is plainly the thing to fix.
+ */
+void
+Variant::no_coercion(VariantType t) const
+{
+	ErrorVAR_NoCoercion(type_name_at(_type), type_name_at(t));
+	assert(!"Coercion not implemented");
 }
 
 /*
