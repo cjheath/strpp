@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Threads, locks and thread-local storage - strpp</title>
+        <title>Gregorian: civil dates and ISO 8601 - strpp</title>
 
 
         <!-- Custom HTML head -->
@@ -177,126 +177,138 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h2 id="threads-locks-and-thread-local-storage"><a class="header" href="#threads-locks-and-thread-local-storage">Threads, locks and thread-local storage</a></h2>
-<p>This is a cross-platform thread API, allowing multi-threaded code to be
-written once for Posix Threads, Windows, or FreeRTOS systems, with efficient
-synchronisation primitives and thread-local storage.</p>
-<p><code>#include	&lt;thread.h&gt;</code>, which brings in <code>lockfree.h</code> (the Latch),
-<code>condition.h</code> (the Condition) and <code>thread_local.h</code> (ThreadSlot, ThreadLocal).</p>
-<h3 id="locks"><a class="header" href="#locks">Locks</a></h3>
-<p>A <code>Latch</code> is a lock, held by one thread at a time. <code>enter()</code> waits for it,
-<code>probe()</code> takes it only if it is free, <code>holding()</code> asks whether this thread
-has it, and <code>leave()</code> releases it. Under <code>NO_THREAD</code> there is one thread, so
-all of these are no-ops and <code>holding()</code> is always true.</p>
-<p>A <code>Condition</code> lets a thread wait until another signals it, with an optional
-timeout. Under <code>NO_THREAD</code> nothing waits, so every method is a no-op.</p>
-<h3 id="public-methods"><a class="header" href="#public-methods">Public methods</a></h3>
-<p><code>Thread</code> and <code>ThreadParams</code>, in
-<a href="https://github.com/cjheath/strpp/blob/main/include/thread.h">thread.h</a>:</p>
-<ul>
-<li><code>Thread(const ThreadParams* params = 0)</code> - a thread object, not yet started.
-<code>ThreadParams::stackBytes</code> asks for a stack size, 0 taking the platform’s
-default.</li>
-<li><code>run()</code> - virtual, and yours to override. The thread’s body, whose return
-value is its exit code.</li>
-<li><code>resume()</code>, <code>suspend()</code> - start the thread, and suspend or resume it.</li>
-<li><code>join()</code> - wait for the thread to end. Not from the thread itself.</li>
-<li><code>id()</code> - this thread’s platform identifier.</li>
-<li><code>exit(int)</code> - end the current thread.</li>
-<li><code>static yield(unsigned long milliseconds = 0)</code> - give up the CPU, sleeping
-for that long where the platform can.</li>
-<li><code>static joinAny()</code> - wait until one of the registered threads has ended, and
-answer it; 0 if there are none.</li>
-<li><code>static currentId()</code>, <code>static current()</code> - the calling thread, by identifier
-or by pointer.</li>
-<li><code>static currentProcessId()</code> - the process the calling thread is in, or 0
-where the platform has no such notion.</li>
-<li><code>static main()</code> - the main thread.</li>
-</ul>
-<p><code>Latch</code>, in
-<a href="https://github.com/cjheath/strpp/blob/main/include/lockfree.h">lockfree.h</a>:</p>
-<ul>
-<li><code>enter()</code> - wait for the latch, then hold it.</li>
-<li><code>probe()</code> - take the latch if it is free, without waiting.</li>
-<li><code>holding()</code> - whether the calling thread holds it.</li>
-<li><code>leave()</code> - release it.</li>
-</ul>
-<p><code>Condition</code>, in
-<a href="https://github.com/cjheath/strpp/blob/main/include/condition.h">condition.h</a>:</p>
-<ul>
-<li><code>wait(Latch* = 0)</code> - sleep until signalled, releasing the latch while it
-waits if one is given.</li>
-<li><code>wait(long&amp; delay_ms, Latch* = 0)</code> - the same, giving up after that many
-milliseconds.</li>
-<li><code>signal()</code>, <code>broadcast()</code> - wake one thread that is waiting, or all of them.</li>
-<li><code>ok()</code> - whether the underlying primitive was made.</li>
-<li><code>waiters()</code>, where the model offers it - how many threads are waiting.</li>
-</ul>
-<p><code>ThreadLocal&lt;T&gt;</code> and <code>ThreadSlot</code>, in
-<a href="https://github.com/cjheath/strpp/blob/main/include/thread_local.h">thread_local.h</a>:</p>
-<ul>
-<li><code>ThreadLocal&lt;T&gt;::get()</code> - this thread’s object, made on first use.</li>
-<li><code>ThreadLocal&lt;T&gt;::peek()</code> - this thread’s object, if it already has one, and
-null otherwise.</li>
-<li><code>ThreadLocal&lt;T&gt;::clear()</code> - destroy this thread’s object, if it has one.</li>
-<li><code>ThreadSlot::get()</code>, <code>ThreadSlot::set(void*)</code> - this thread’s one <code>void*</code> in
-the slot.</li>
-</ul>
-<h3 id="choosing-a-threading-model"><a class="header" href="#choosing-a-threading-model">Choosing a threading model</a></h3>
-<p>Exactly one must be defined, or the build stops with a single error in
-<code>thread.h</code>:</p>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>define</th><th></th></tr>
-</thead>
-<tbody>
-<tr><td><code>HAVE_PTHREADS</code></td><td>POSIX threads</td></tr>
-<tr><td><code>HAVE_FREERTOS</code></td><td>FreeRTOS</td></tr>
-<tr><td><code>MSW</code></td><td>Windows</td></tr>
-<tr><td><code>NO_THREAD</code></td><td>No threading: one thread, and locks that never block</td></tr>
-</tbody>
-</table>
-</div>
-<p>The models satisfy the same declarations with <em>different implementations</em>,
-so <strong>whatever model the library was built with, a program using it must be
-compiled with</strong>. Two translation units built with different selections agree
-on the declarations but not on the objects, and the mismatch then shows up
-as unexplained behaviour at run time rather than as an error - which is why
-selecting none, or more than one, is refused at compile time.</p>
-<p><code>make COPT=-DNO_THREAD lib</code> builds the library without threads. The object
-files are shared between models, so a <code>make clean</code> is needed when switching.</p>
-<h3 id="thread-local-storage"><a class="header" href="#thread-local-storage">Thread-local storage</a></h3>
-<p><code>ThreadSlot</code> holds one <code>void*</code> per thread. <code>ThreadLocal&lt;T&gt;</code> holds one object
-of type T per thread, made on first use:</p>
-<pre><code>static ThreadLocal&lt;VariantArray&gt;	scratch;
-
-VariantArray&amp;	params = *scratch.get();	// This thread's, made if new
+                        <h2 id="gregorian-civil-dates-and-iso-8601"><a class="header" href="#gregorian-civil-dates-and-iso-8601">Gregorian: civil dates and ISO 8601</a></h2>
+<p><code>#include	&lt;gregorian.h&gt;</code></p>
+<p>A <code>Gregorian</code> holds the fields as written on a wall: a year, a month, a day, an
+hour, a minute, a second, and a fraction of a second as a count of 10⁻⁸ second
+ticks. It knows no time zone, and it is not a point in time - it is what a
+clock and a calendar say, which is a different thing in every zone.</p>
+<p>To get an instant, tell it the zone: <code>asDateTime(off)</code> answers the <code>DateTime</code>
+that a civil time names in that zone, and <code>DateTime::asGregorian(off)</code> answers
+the civil time of an instant. That is the whole of the conversion between them,
+and nothing here caches an answer.</p>
+<h3 id="the-years-before-1-ad"><a class="header" href="#the-years-before-1-ad">The years before 1 AD</a></h3>
+<p>The year is the count the calendar uses, in which 1 AD is year 1 and the year
+before it is 1 BC, so the years before 1 AD count downwards: -1 is 1 BC, -2 is
+2 BC. There is no year 0 in that reckoning, and this class uses the year that
+never existed to mean something it does need: <strong>a time of day with no date</strong>. So
+<code>year()</code> answers 0 for a value that is a time alone, <code>hasDate()</code> says which kind
+it is, and <code>"12:34"</code> reads as a time rather than as a century.</p>
+<p>ISO 8601, for its part, counts years as the astronomers do, inserting the year
+0 that the calendar has not got: 1 BC is written <code>0000</code>, and 2 BC as <code>-0001</code>.
+Both the reader and the writer shift by the one year, so the two counts never
+meet except here and in the tests.</p>
+<p>A day number counts days from <code>0/0/0000</code>, so that 1/1/0001 is day 1 and the day
+before it is day 0. Those are the day numbers the library this replaces used,
+and they are kept so that a date and a day number still mean the same thing
+across the two.</p>
+<h3 id="reading-iso-8601"><a class="header" href="#reading-iso-8601">Reading ISO 8601</a></h3>
+<p>The forms accepted are the ones the standard allows without a zone database:</p>
+<pre><code>[sign]YYYY[-MM[-DD]]		a date, 4 or more digits, punctuated
+YYYYMMDD[hhmmss]		a date, and a time if all 14 are there
+hh[:mm[:ss]]			a time of day, punctuated
+hhmmss				a time of day, unpunctuated
+[.ffffff]			a fraction of a second, after the seconds
+Z, [+-]hh[:mm], [+-]hhmm	the zone, when one is given
 </code></pre>
-<p>Slots are process-wide and few, because every backend offers only a small
-pool of them - a pthread key, a TLS index, or a compile-time index into a
-fixed array of pointers per task. Claim them early and rarely: one per
-subsystem that needs one, not one per object.</p>
-<p>There are deliberately <strong>no thread-exit destructors</strong>. A pthread key can run
-one, but <code>TlsAlloc</code> and FreeRTOS task-local storage cannot, and behaviour
-that differs by backend is worse than uniformly not having it. So whatever a
-thread puts in a slot is released by the process, or by whoever owns the
-thread, or by <code>ThreadLocal::clear()</code> - not by the slot.</p>
-<p>This is not a compiler <code>thread_local</code>: that works on pthreads and Windows
-but not on FreeRTOS, where it needs toolchain support, so it could not cover
-every model this library builds for.</p>
-<p>Under FreeRTOS, <code>configNUM_THREAD_LOCAL_STORAGE_POINTERS</code> must be raised
-from its default of 0 to at least <code>THREAD_LOCAL_MAX_SLOTS</code>.</p>
+<p>A date and a time are separated by <code>T</code> or a space. A bare run of four digits is
+refused rather than read, since it could be a year or an hour and a minute, and
+a caller who meant either can punctuate it.</p>
+<p>Reading a text with no zone designator does not assume local time: it is read
+as UTC, because an answer that depends on where it is read is not an answer.
+The zone that was read is handed back through an out-pointer, so a text read
+and written again keeps the zone it came in.</p>
+<p>A text that is not a date or a time at all, and a field set that is not a date
+that exists - the 31st of February, or an hour of 24 - are reported as
+<code>TIMERR_INVALID_TEXT</code>. <code>fromYMD()</code> reports a field set of its own as
+<code>TIMERR_INVALID_YMDHMS</code>, and answers the value it was given, so that <code>isValid()</code>
+can be asked about it.</p>
+<h3 id="writing-iso-8601"><a class="header" href="#writing-iso-8601">Writing ISO 8601</a></h3>
+<p><code>toString(flags)</code> writes the extended (punctuated) form by default, and the
+flags choose another:</p>
+<pre><code>IsoPunctuate		the - and : of the extended form
+IsoDateOnly		the date, without the time
+IsoSpaceForT		a space where ISO 8601 has its T
+IsoNoZone		leave the zone designator off
+IsoFractionDigits	the low nibble: how many digits of a second, 0 to 8
+</code></pre>
+<p>A civil time has no zone, so <code>Gregorian::toString</code> writes none; an instant’s
+text belongs to <code>DateTime::toString</code>, which writes the offset it was rendered
+in. The fraction is written to the number of digits asked for, and no more:
+the default is none, so a caller who wants a text that reads back as the same
+value to the tick asks for all eight.</p>
+<pre><code>Gregorian(2002,1,3,11,12,13).toString()
+// 2002-01-03T11:12:13
+
+Gregorian(2002,1,3,11,12,13).toString(IsoPunctuate|IsoSpaceForT)
+// 2002-01-03 11:12:13
+
+Gregorian(-1,1,1).toString(IsoPunctuate|IsoDateOnly)
+// 0000-01-01
+</code></pre>
+<h3 id="the-range"><a class="header" href="#the-range">The range</a></h3>
+<p>A civil date can be any the fields can hold, but a <code>DateTime</code> counts ticks from
+2000-01-01, and so can only name 924 BC to 4922 AD. A date outside that is
+refused and reported as <code>TIMERR_OUT_OF_RANGE</code>, naming the date and both ends of
+the range - never wrapped, and never silently a different date. That is the one
+place in this layer where a valid calendar date has no instant to be.</p>
+<p><code>isValid()</code> checks the fields without converting anything, and <code>dayOfWeek()</code>
+answers -1 for a value with no date. Both are safe to call in any order and any
+number of times: there is one representation, and no cache to fall out of step
+with it.</p>
+<h3 id="public-methods"><a class="header" href="#public-methods">Public methods</a></h3>
+<p>Defined in <a href="https://github.com/cjheath/strpp/blob/main/include/gregorian.h">gregorian.h</a>.</p>
+<p>Making one:</p>
+<ul>
+<li><code>Gregorian()</code>, <code>Gregorian(year, month, day, hour = 0, minute = 0, second = 0, fraction = 0)</code> - a civil date and time. A year of 0 is a time of day with no
+date.</li>
+<li><code>Gregorian::fromYMD(...)</code> - the same fields, checked and reported as
+<code>TIMERR_INVALID_YMDHMS</code> when they are not a date that exists.</li>
+<li><code>Gregorian::fromDayNumber(day, within_day = 0)</code> - the date a day number
+names, with that day’s time of day. A time of day past the end of its day is
+folded into the day, so that a count of ticks means what it says; a day
+number whose year will not fit the fields is reported as past the range and
+answered with a value that has no date, rather than with a date that never
+was.</li>
+<li><code>Gregorian::fromString(text, UtcOffset* offset = 0, ErrNum* err_return = 0)</code>
+<ul>
+<li>the ISO 8601 text of a date, a time, or both.</li>
+</ul>
+</li>
+</ul>
+<p>Reading:</p>
+<ul>
+<li><code>year()</code>, <code>month()</code>, <code>day()</code>, <code>hour()</code>, <code>minute()</code>, <code>second()</code>,
+<code>fraction()</code> - the fields. 0 is not a month or a day.</li>
+<li><code>hasDate()</code> - false for a time of day, which is the year 0.</li>
+<li><code>isValid()</code> - whether the fields are a date and time that exist.</li>
+<li><code>dayOfWeek()</code> - 0 for Sunday to 6 for Saturday, or -1 with no date.</li>
+<li><code>dayOfYear()</code> - 1 to 366, or 0 with no date.</li>
+<li><code>dayNumber()</code> - the day, counted from 0/0/0000, or 0 with no date.</li>
+<li><code>timeSinceMidnight()</code> - an <code>Interval</code>, which for a time of day is the whole
+value.</li>
+<li><code>Gregorian::isLeapYear(year)</code>, <code>Gregorian::daysInMonth(year, month)</code> - the
+calendar’s own questions, answered for the count this class uses.</li>
+<li><code>asDateTime(off = UtcOffset(), ErrNum* err_return = 0)</code> - the instant this
+civil time names in that zone. Reported as <code>TIMERR_NO_DATE</code> for a time of
+day, <code>TIMERR_INVALID_YMDHMS</code> for a field set that is not a date that exists,
+and <code>TIMERR_OUT_OF_RANGE</code> beyond either end of what a <code>DateTime</code> can hold.</li>
+<li><code>toString(flags = IsoPunctuate)</code> - the ISO 8601 text.</li>
+<li><code>operator==</code>, <code>operator!=</code> - whether two values are the same fields.
+Ordering is not offered: two civil times in different zones have no order,
+and an instant is where that question belongs.</li>
+</ul>
+<p>See <a href="error.html">Errors</a> and the <code>TIM</code> set in <code>str_err.h</code>.</p>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="error.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="datetime.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="pegexp.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="error.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -306,11 +318,11 @@ from its default of 0 to at least <code>THREAD_LOCAL_MAX_SLOTS</code>.</p>
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="error.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="datetime.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="pegexp.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="error.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

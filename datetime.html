@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Threads, locks and thread-local storage - strpp</title>
+        <title>Time and date: intervals and instants - strpp</title>
 
 
         <!-- Custom HTML head -->
@@ -177,126 +177,214 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h2 id="threads-locks-and-thread-local-storage"><a class="header" href="#threads-locks-and-thread-local-storage">Threads, locks and thread-local storage</a></h2>
-<p>This is a cross-platform thread API, allowing multi-threaded code to be
-written once for Posix Threads, Windows, or FreeRTOS systems, with efficient
-synchronisation primitives and thread-local storage.</p>
-<p><code>#include	&lt;thread.h&gt;</code>, which brings in <code>lockfree.h</code> (the Latch),
-<code>condition.h</code> (the Condition) and <code>thread_local.h</code> (ThreadSlot, ThreadLocal).</p>
-<h3 id="locks"><a class="header" href="#locks">Locks</a></h3>
-<p>A <code>Latch</code> is a lock, held by one thread at a time. <code>enter()</code> waits for it,
-<code>probe()</code> takes it only if it is free, <code>holding()</code> asks whether this thread
-has it, and <code>leave()</code> releases it. Under <code>NO_THREAD</code> there is one thread, so
-all of these are no-ops and <code>holding()</code> is always true.</p>
-<p>A <code>Condition</code> lets a thread wait until another signals it, with an optional
-timeout. Under <code>NO_THREAD</code> nothing waits, so every method is a no-op.</p>
-<h3 id="public-methods"><a class="header" href="#public-methods">Public methods</a></h3>
-<p><code>Thread</code> and <code>ThreadParams</code>, in
-<a href="https://github.com/cjheath/strpp/blob/main/include/thread.h">thread.h</a>:</p>
+                        <h2 id="time-and-date-intervals-and-instants"><a class="header" href="#time-and-date-intervals-and-instants">Time and date: intervals and instants</a></h2>
+<p><code>#include	&lt;datetime.h&gt;</code></p>
+<p>Time comes in two kinds that are forever being confused with each other, so
+this header has two types. An <code>Interval</code> is a duration, the answer to
+“how long”; a <code>DateTime</code> is a point in time, the answer to “when”. Both count
+the same tick, so an interval adds to an instant with no conversion, and one
+instant less another is an interval.</p>
+<p><code>Milliseconds</code> and <code>Seconds</code> are lengths of time counted in their own units, so
+that a call wanting milliseconds is given the number the caller wrote. They
+convert to and from <code>Interval</code>, and each other, truncating towards zero when
+the unit is coarser, so nothing is rounded behind the caller’s back.</p>
+<p><code>UtcOffset</code> is how far a civil time is from UTC, in minutes east of Greenwich.</p>
+<p>The calendar - a year, a month, a day, an hour, a minute, a second - is in
+<a href="gregorian.html">gregorian.md</a>.</p>
+<h3 id="the-tick"><a class="header" href="#the-tick">The tick</a></h3>
+<p>Times are counted in ticks of 10⁻⁸ seconds, in a 64-bit signed integer. That is
+exactly the unit of a Windows FILETIME, so one converts without rounding, and
+it is fine enough for anything that does not need nanoseconds.</p>
+<p>A count of ticks spans 5845 years: 2922 either side of the epoch, which is
+2000-01-01T00:00:00Z - tick zero. The range therefore runs from 924 BC to
+4922 AD, and a date outside it is <em>refused</em> and reported when it is asked to
+become a <code>DateTime</code>, never wrapped or truncated. See
+<a href="gregorian.html">gregorian.md</a> for which dates can be named at all.</p>
+<p>Leap seconds are not represented: a minute here has 60 seconds, always. What
+that buys is that the count agrees with POSIX time, and with every other count
+of seconds from an epoch, so a <code>time_t</code>, a stored file time and this library all
+mean the same thing by the same number.</p>
+<p>What it costs is worth stating plainly, because no value shows it: the civil
+readings of a tick are always right, and a <em>difference</em> of two instants is a
+count of UTC seconds, which is not the physical time between them. Five leap
+seconds have been inserted since 2000-01-01, so the interval between an instant
+before the first of them and one after the last is five seconds short of the
+time that actually elapsed - a span that began then and ended now was five
+seconds longer than the difference says. Which differences are affected cannot
+be told from the values; it needs a table of leap seconds, and this library has
+none. A duration that must be physical - a timeout, an elapsed time - belongs to
+a monotonic clock, which no leap second touches. A <code>DateTime</code> answers <em>when</em>,
+and an <code>Interval</code> between two of them is a count of UTC seconds.</p>
+<h3 id="null-times"><a class="header" href="#null-times">Null times</a></h3>
+<p>A time can be null, which is not a time at all: a value that was never set, or a
+record that says “no time”. Null is <code>NullTick</code>, the lowest tick there is - the
+one value with no positive equivalent, so no real time can be turned into a null
+by being negated - and <code>isNull()</code> says whether a value is one. It is not zero,
+and not the epoch: both of those are real times.</p>
+<p>A null used where a value is needed reports <code>TIMERR_NULL_VALUE</code>:</p>
 <ul>
-<li><code>Thread(const ThreadParams* params = 0)</code> - a thread object, not yet started.
-<code>ThreadParams::stackBytes</code> asks for a stack size, 0 taking the platform’s
-default.</li>
-<li><code>run()</code> - virtual, and yours to override. The thread’s body, whose return
-value is its exit code.</li>
-<li><code>resume()</code>, <code>suspend()</code> - start the thread, and suspend or resume it.</li>
-<li><code>join()</code> - wait for the thread to end. Not from the thread itself.</li>
-<li><code>id()</code> - this thread’s platform identifier.</li>
-<li><code>exit(int)</code> - end the current thread.</li>
-<li><code>static yield(unsigned long milliseconds = 0)</code> - give up the CPU, sleeping
-for that long where the platform can.</li>
-<li><code>static joinAny()</code> - wait until one of the registered threads has ended, and
-answer it; 0 if there are none.</li>
-<li><code>static currentId()</code>, <code>static current()</code> - the calling thread, by identifier
-or by pointer.</li>
-<li><code>static currentProcessId()</code> - the process the calling thread is in, or 0
-where the platform has no such notion.</li>
-<li><code>static main()</code> - the main thread.</li>
+<li><strong>Arithmetic</strong> on a null - adding, subtracting or negating - reports, and
+answers another null, so that a null spreads through a computation instead of
+becoming a number part-way along it. This includes <code>DateTime</code> arithmetic, and
+the difference of two instants when either is null.</li>
+<li><strong>Reading one as a value</strong> reports and answers the least misleading thing it
+can: <code>asTime_t()</code> answers 0, and <code>asGregorian()</code> answers a value with no date,
+rather than a date that never was.</li>
 </ul>
-<p><code>Latch</code>, in
-<a href="https://github.com/cjheath/strpp/blob/main/include/lockfree.h">lockfree.h</a>:</p>
-<ul>
-<li><code>enter()</code> - wait for the latch, then hold it.</li>
-<li><code>probe()</code> - take the latch if it is free, without waiting.</li>
-<li><code>holding()</code> - whether the calling thread holds it.</li>
-<li><code>leave()</code> - release it.</li>
-</ul>
-<p><code>Condition</code>, in
-<a href="https://github.com/cjheath/strpp/blob/main/include/condition.h">condition.h</a>:</p>
-<ul>
-<li><code>wait(Latch* = 0)</code> - sleep until signalled, releasing the latch while it
-waits if one is given.</li>
-<li><code>wait(long&amp; delay_ms, Latch* = 0)</code> - the same, giving up after that many
-milliseconds.</li>
-<li><code>signal()</code>, <code>broadcast()</code> - wake one thread that is waiting, or all of them.</li>
-<li><code>ok()</code> - whether the underlying primitive was made.</li>
-<li><code>waiters()</code>, where the model offers it - how many threads are waiting.</li>
-</ul>
-<p><code>ThreadLocal&lt;T&gt;</code> and <code>ThreadSlot</code>, in
-<a href="https://github.com/cjheath/strpp/blob/main/include/thread_local.h">thread_local.h</a>:</p>
-<ul>
-<li><code>ThreadLocal&lt;T&gt;::get()</code> - this thread’s object, made on first use.</li>
-<li><code>ThreadLocal&lt;T&gt;::peek()</code> - this thread’s object, if it already has one, and
-null otherwise.</li>
-<li><code>ThreadLocal&lt;T&gt;::clear()</code> - destroy this thread’s object, if it has one.</li>
-<li><code>ThreadSlot::get()</code>, <code>ThreadSlot::set(void*)</code> - this thread’s one <code>void*</code> in
-the slot.</li>
-</ul>
-<h3 id="choosing-a-threading-model"><a class="header" href="#choosing-a-threading-model">Choosing a threading model</a></h3>
-<p>Exactly one must be defined, or the build stops with a single error in
-<code>thread.h</code>:</p>
+<p>Two things are deliberately silent. A null that <em>stays</em> null - a unit
+conversion, <code>asMilliseconds()</code> of a null interval - invents no value, so it is
+not reported. And a comparison is not arithmetic: it needs no value, so a null
+equals a null, and sorts before every real time, the null tick being the lowest
+there is.</p>
+<p>As text a null is <code>null</code>, which is also what it reads back from:
+<code>Interval::fromString("null")</code> is a null interval, and a null <code>DateTime</code> or
+<code>Interval</code> in a Variant renders as JSON’s own <code>null</code> rather than as the text of
+one. A number that would <em>be</em> the null tick is refused as a text, and a text
+that is not a time at all is answered with a null rather than with zero: zero is
+a time, and the text did not say zero.</p>
+<p>A <code>Gregorian</code> has no null - a civil date is a date, and a time of day with no
+date is what year 0 means - so only the four tick-counting types can be null.</p>
+<h3 id="when-an-operation-cannot-answer"><a class="header" href="#when-an-operation-cannot-answer">When an operation cannot answer</a></h3>
+<p>An operation that cannot answer correctly reports it, and answers the type’s
+“nothing”. It never answers a wrapped number: a count of ticks that ran past the
+end of its range is a duration of the wrong sign or an instant in the wrong
+century, and nothing about it looks wrong. Four reports cover every case, all in
+the <code>TIM</code> set:</p>
+<pre><code>This `Interval` is null, so there is no value for adding
+The result of subtracting is past the range of `Interval`
+The current time is not known: this target has no clock, or reading it failed
+The host's zone offset is not known at that instant, so UTC is answered
+</code></pre>
+<p>What the caller is given instead:</p>
 <div class="table-wrapper">
 <table>
 <thead>
-<tr><th>define</th><th></th></tr>
+<tr><th>The operation</th><th>What it answers</th></tr>
 </thead>
 <tbody>
-<tr><td><code>HAVE_PTHREADS</code></td><td>POSIX threads</td></tr>
-<tr><td><code>HAVE_FREERTOS</code></td><td>FreeRTOS</td></tr>
-<tr><td><code>MSW</code></td><td>Windows</td></tr>
-<tr><td><code>NO_THREAD</code></td><td>No threading: one thread, and locks that never block</td></tr>
+<tr><td>Adding, subtracting or negating a null, or an instant moved by a null</td><td>another null, so that a null spreads rather than becoming a number</td></tr>
+<tr><td>A sum, difference or unit conversion that ran past the end of a Tick</td><td>a null of the result’s type</td></tr>
+<tr><td><code>DateTime::asGregorian()</code> for a null, or for an instant a zone would push past either end of the range</td><td>a <code>Gregorian</code> with no date: a time of day, at midnight</td></tr>
+<tr><td><code>DateTime::fromTime_t()</code> for a count of seconds outside the range</td><td>a null instant</td></tr>
+<tr><td><code>Gregorian::fromDayNumber()</code> for a day whose year will not fit the fields</td><td>a <code>Gregorian</code> with no date</td></tr>
+<tr><td><code>now()</code> with no clock, or a clock that failed</td><td>a null instant</td></tr>
+<tr><td><code>localOffset()</code> where the host cannot say</td><td>UTC, and the report says it</td></tr>
 </tbody>
 </table>
 </div>
-<p>The models satisfy the same declarations with <em>different implementations</em>,
-so <strong>whatever model the library was built with, a program using it must be
-compiled with</strong>. Two translation units built with different selections agree
-on the declarations but not on the objects, and the mismatch then shows up
-as unexplained behaviour at run time rather than as an error - which is why
-selecting none, or more than one, is refused at compile time.</p>
-<p><code>make COPT=-DNO_THREAD lib</code> builds the library without threads. The object
-files are shared between models, so a <code>make clean</code> is needed when switching.</p>
-<h3 id="thread-local-storage"><a class="header" href="#thread-local-storage">Thread-local storage</a></h3>
-<p><code>ThreadSlot</code> holds one <code>void*</code> per thread. <code>ThreadLocal&lt;T&gt;</code> holds one object
-of type T per thread, made on first use:</p>
-<pre><code>static ThreadLocal&lt;VariantArray&gt;	scratch;
-
-VariantArray&amp;	params = *scratch.get();	// This thread's, made if new
+<p>Two of those are the whole range rather than a corner of it: the span from the
+first instant to the last is more than a <code>Tick</code> holds - 5845 years against 2922
+either side - so the interval between the two ends of the range is refused. And
+an instant within eighteen hours of either end, read in a zone that would take
+it past, has no date, where before it answered a date from the <em>other</em> end of
+the range with a zone designator on it.</p>
+<p>Where the answer is a <code>Gregorian</code> with no date, that value is a time of day -
+midnight - and <code>hasDate()</code> is false. <code>isValid()</code> is true of it, a time of day
+being a valid value; the report and <code>hasDate()</code> are what say that a conversion
+failed rather than that the answer is a time.</p>
+<p>A caller who expects a value to be out of range and does not want the buffer
+filled by each one takes a checkpoint first and rolls back after:</p>
+<pre><code>ErrBuf::MsgSequence	at = ErrCheckpoint();
+Interval		answer = a + b;
+ErrRollback(at);	// ...and answer.isNull() says whether it was answered
 </code></pre>
-<p>Slots are process-wide and few, because every backend offers only a small
-pool of them - a pthread key, a TLS index, or a compile-time index into a
-fixed array of pointers per task. Claim them early and rarely: one per
-subsystem that needs one, not one per object.</p>
-<p>There are deliberately <strong>no thread-exit destructors</strong>. A pthread key can run
-one, but <code>TlsAlloc</code> and FreeRTOS task-local storage cannot, and behaviour
-that differs by backend is worse than uniformly not having it. So whatever a
-thread puts in a slot is released by the process, or by whoever owns the
-thread, or by <code>ThreadLocal::clear()</code> - not by the slot.</p>
-<p>This is not a compiler <code>thread_local</code>: that works on pthreads and Windows
-but not on FreeRTOS, where it needs toolchain support, so it could not cover
-every model this library builds for.</p>
-<p>Under FreeRTOS, <code>configNUM_THREAD_LOCAL_STORAGE_POINTERS</code> must be raised
-from its default of 0 to at least <code>THREAD_LOCAL_MAX_SLOTS</code>.</p>
+<h3 id="zones-are-offsets-not-names"><a class="header" href="#zones-are-offsets-not-names">Zones are offsets, not names</a></h3>
+<p>A <code>DateTime</code> knows no time zone. It is a count of ticks from the epoch, and
+that is all; the zone is a parameter of each operation that needs one. So there
+is no local/UTC flag that can fall out of step with the value it describes, and
+no adjustment that can be applied twice or left applied by accident.</p>
+<p>An offset is a number of minutes - east positive, zero being UTC - so a local
+reading is the UTC reading plus the offset. There is no zone database here: a
+zone this library cannot name is one the caller can still write as a number.
+Two things do ask the host what time it is: <code>now()</code> reads the clock, and
+<code>localOffset()</code> asks for the offset in force at an instant, so that <code>now()</code> in
+local time needs no arguments. A target with no clock at all defines
+<code>HAVE_NO_CLOCK</code>, and its <code>now()</code> reports that rather than failing to build.</p>
+<h3 id="public-methods"><a class="header" href="#public-methods">Public methods</a></h3>
+<p>Defined in <a href="https://github.com/cjheath/strpp/blob/main/include/datetime.h">datetime.h</a>.</p>
+<p>Making one:</p>
+<ul>
+<li><code>Interval()</code>, <code>Interval(Tick ticks)</code> - an interval of that many 10⁻⁸ second
+ticks, or zero.</li>
+<li><code>Interval(Milliseconds)</code>, <code>Interval(Seconds)</code> - the same length, converted.
+<code>Milliseconds(Tick ms)</code>, <code>Milliseconds(const Interval&amp;)</code>,
+<code>Milliseconds(const Seconds&amp;)</code> and the <code>Seconds</code> forms are the same for those
+two, each counted in its own unit.</li>
+<li><code>UtcOffset()</code>, <code>UtcOffset::hours(h)</code>, <code>UtcOffset::minutes(m)</code> - an offset
+east of Greenwich. Zero minutes is UTC.</li>
+<li><code>DateTime()</code> - the epoch, 2000-01-01T00:00:00Z.</li>
+<li><code>DateTime::fromTicks(Tick)</code>, <code>DateTime(Tick)</code> - an instant that many ticks
+from the epoch.</li>
+<li><code>DateTime::fromTime_t(time_t)</code>, <code>DateTime::fromString(...)</code> - the same
+instant, given another way.</li>
+</ul>
+<p>Reading:</p>
+<ul>
+<li><code>ticks()</code> - the count of 10⁻⁸ second ticks. The one read all of these answer.</li>
+<li><code>isNull()</code> - whether the value is null: a time that was never set. See “Null
+times” below.</li>
+<li><code>ms()</code>, <code>seconds()</code> - a <code>Milliseconds</code> or a <code>Seconds</code> as its own number.</li>
+<li><code>asMinutes()</code>, <code>asSeconds()</code> - an offset. <code>isUTC()</code> says whether it is zero.</li>
+<li><code>asMilliseconds()</code>, <code>asSeconds()</code>, <code>asInterval()</code> - the same length in
+another unit, truncating towards zero.</li>
+<li><code>asTime_t()</code> - a count of seconds, as <code>time_t</code>, truncated.</li>
+<li><code>asGregorian(off = UtcOffset(), Interval* time_of_day = 0)</code> - the date and
+time of this instant in a zone. The zone is applied here and nowhere else,
+and the time since midnight can be asked for separately through the
+out-pointer, which defaults to null.</li>
+<li><code>toString(off = UtcOffset(), flags = IsoPunctuate)</code> - the instant as ISO 8601
+text in that zone, written with <code>Z</code> for UTC and <code>+hh:mm</code> otherwise. The
+default is the punctuated form the standard prefers; <code>flags = 0</code> is the basic
+form. The zone is left off when <code>IsoNoZone</code> is set, and the fraction of a
+second is written to however many digits the flags ask for, 0 to 8 - the
+default is none, so a text that must read back as the same instant asks for
+eight.</li>
+<li><code>now()</code> - the current instant, from the host’s clock.</li>
+<li><code>localOffset(when)</code> - the host’s offset at that instant, which is the one in
+force then and not the one in force now.</li>
+<li><code>nowWithOffset(UtcOffset* offset = 0)</code> - <code>now()</code>, and the offset to read it
+in, from one reading of the clock.</li>
+</ul>
+<p>Building:</p>
+<ul>
+<li><code>operator+</code>, <code>operator-</code>, <code>+=</code>, <code>-=</code> - an interval added to or taken from
+another, or from an instant; one instant less another is an <code>Interval</code>.</li>
+<li><code>operator==</code>, <code>!=</code>, <code>&lt;</code>, <code>&lt;=</code>, <code>&gt;</code>, <code>&gt;=</code> - two of a kind compared.</li>
+<li><code>Interval::fromString(text, ErrNum* err_return = 0)</code> and the same for
+<code>Milliseconds</code> and <code>Seconds</code> - a number in the type’s own unit, and nothing
+else. A text that is not one is reported as <code>TIMERR_INVALID_TEXT</code>.</li>
+</ul>
+<h3 id="times-as-text"><a class="header" href="#times-as-text">Times as text</a></h3>
+<p>An interval is written in seconds with eight digits of a fraction, so
+<code>Interval(-150000000)</code> writes <code>-1.50000000</code> and reads back as the same count of
+ticks. A <code>Milliseconds</code> or a <code>Seconds</code> is written as its own number: <code>1500</code>
+and <code>-90</code>. Neither carries its unit in the text, because the type is what says
+which unit it is.</p>
+<p>An instant is written in ISO 8601, in the zone it is asked for:</p>
+<pre><code>DateTime::fromString("2002-01-03T11:12:13Z").toString()
+// 2002-01-03T11:12:13Z
+
+DateTime::fromString("2002-01-03T11:12:13Z").toString(UtcOffset::hours(10))
+// 2002-01-03T21:12:13+10:00
+</code></pre>
+<p><code>DateTime::fromString</code> reads the zone from the text as well as the time, and
+hands it back through the out-pointer, so a text can be read and written again
+in the zone it came in. A text with no zone designator is read as <strong>UTC</strong> and
+never as local time: an answer that depends on where it is read is not an
+answer. Reading an instant from a text that names a time of day but no date is
+reported as <code>TIMERR_NO_DATE</code>, and one whose date is outside the range as
+<code>TIMERR_OUT_OF_RANGE</code>.</p>
+<p>See <a href="error.html">Errors</a> and the <code>TIM</code> set in <code>str_err.h</code>.</p>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="error.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="variant.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="pegexp.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="gregorian.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -306,11 +394,11 @@ from its default of 0 to at least <code>THREAD_LOCAL_MAX_SLOTS</code>.</p>
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="error.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="variant.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="pegexp.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="gregorian.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

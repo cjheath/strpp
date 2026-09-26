@@ -36,10 +36,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-010e1bc3.js";
+            window.path_to_searchindex_js = "searchindex-a96ee6c3.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-58dc7aeb.js"></script>
+        <script src="toc-e643466d.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -931,6 +931,8 @@ LongLong,
 UInteger,
 ULong,
 ULongLong,
+Interval,
+DateTime,
 String (a StrRef),
 StrArray,
 VarArray,
@@ -939,6 +941,14 @@ StrVarMap
 <p>String means a compact StrRef rather than a StrVal: it does not need the
 bookmark that makes StrVal’s scanning and indexing fast, and does not pay
 for it.</p>
+<p><code>Interval</code> is a length of time and <code>DateTime</code> is a point in time, both counted
+in ticks of 10⁻⁸ seconds; see <a href="#time-and-date-intervals-and-instants-1">datetime.md</a>. Neither is a number,
+so neither coerces to one and neither becomes the other: a length of time is
+not a point in time, whatever both are counted in. A <code>String</code> is the one thing
+either converts from, by being read as one, and the text of one is what either
+converts to - <code>null</code> if the value is null, which renders as JSON’s own null
+rather than as the text of one. Both are held in the same 8-byte union word as
+a <code>long long</code>.</p>
 <p>The three unsigned types are worth having because a Variant must be able to
 hold what the program has: a count, a hash, an address, a bit pattern from a
 register. Read as a signed type, half of those values are negative, and one
@@ -990,6 +1000,9 @@ array of strings.</li>
 an array of Variants.</li>
 <li><code>Variant(StrVal* keys, Variant* values, StringArray::Index count)</code>,
 <code>Variant(StrVariantMap)</code> - a string-keyed map to Variant.</li>
+<li><code>Variant(Interval)</code>, <code>Variant(DateTime)</code> - a length of time or a point in
+time. Each is held as its count of ticks, so a Variant carrying one is no
+larger than a Variant carrying a number.</li>
 <li><code>Variant(VariantType t)</code> - an empty Variant of the given type. A Variant of
 that type already made - <code>Variant v(0)</code> for an <code>Integer</code>, <code>Variant m(Variant::StrVarMap)</code> for a map - is usually the better way, because no
 coercion comes <em>from</em> <code>None</code>: <code>Variant v; v.as_int() = 5;</code> reports a
@@ -1032,6 +1045,11 @@ and leaves the Variant as it was. A string or container is changed by taking
 it, changing that, and putting the result back.</li>
 </ul>
 </li>
+<li><code>as_interval()</code>, <code>as_datetime()</code> - the time held, as an <code>Interval</code> or a
+<code>DateTime</code>. Both answer a value rather than a reference, because what the
+union holds is a count of ticks and not one of those objects: they are reads,
+and a caller with a new time assigns it to the Variant instead.
+<code>as_datetime()</code> renders as ISO 8601 in UTC.</li>
 <li><code>as_json(int indent = -1)</code> - the value as JSON. <code>-1</code> adds single spaces,
 <code>-2</code> is maximally compact, and <code>n &gt;= 0</code> indents two spaces per level from
 <code>n</code>.</li>
@@ -1076,18 +1094,353 @@ buffer says why.</p>
 closest signed type that holds the value rather than being told one, so a
 caller with a number of unknown origin has a single call that either answers
 the number or says that no signed type holds it.</p>
+<p>A refusal of a <em>kind</em> rather than of a value is reported differently: a
+<code>DateTime</code> read as an <code>Interval</code>, or a time read as a number, names the type
+that was expected and the type that is held, because no value of the type held
+would have fared any better. And a coercion the library has no case for at all</p>
 <ul>
-<li><strong>Coercing one to a <code>String</code> renders it unsigned.</strong> The digits of 4000000000
+<li>
+<p>a type added to the enum and not implemented - reports that, naming both
+types, and leaves the Variant exactly as it was: a refused coercion never
+discards the value, whatever the build.</p>
+</li>
+<li>
+<p><strong>Coercing one to a <code>String</code> renders it unsigned.</strong> The digits of 4000000000
 are not what that number reads as a signed one, so the string the value
 becomes is the unsigned one. <code>as_strval()</code>, <code>format()</code> and <code>as_json()</code> all
 arrive there, which is why a marker for an unsigned parameter needs no
-specification to print it right.</li>
+specification to print it right.</p>
+</li>
 </ul>
 <p>Building:</p>
 <ul>
 <li><code>operator&lt;&lt;(const Variant&amp; n)</code> - a new <code>VariantArray</code> of this Variant
 followed by <code>n</code>, so arrays can be built by chaining.</li>
 </ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="time-and-date-intervals-and-instants-1"><a href="#time-and-date-intervals-and-instants-1" class="header">Time and date: intervals and instants</a></h1>
+<h2 id="time-and-date-intervals-and-instants"><a class="header" href="#time-and-date-intervals-and-instants">Time and date: intervals and instants</a></h2>
+<p><code>#include	&lt;datetime.h&gt;</code></p>
+<p>Time comes in two kinds that are forever being confused with each other, so
+this header has two types. An <code>Interval</code> is a duration, the answer to
+“how long”; a <code>DateTime</code> is a point in time, the answer to “when”. Both count
+the same tick, so an interval adds to an instant with no conversion, and one
+instant less another is an interval.</p>
+<p><code>Milliseconds</code> and <code>Seconds</code> are lengths of time counted in their own units, so
+that a call wanting milliseconds is given the number the caller wrote. They
+convert to and from <code>Interval</code>, and each other, truncating towards zero when
+the unit is coarser, so nothing is rounded behind the caller’s back.</p>
+<p><code>UtcOffset</code> is how far a civil time is from UTC, in minutes east of Greenwich.</p>
+<p>The calendar - a year, a month, a day, an hour, a minute, a second - is in
+<a href="#gregorian-civil-dates-and-iso-8601-1">gregorian.md</a>.</p>
+<h3 id="the-tick"><a class="header" href="#the-tick">The tick</a></h3>
+<p>Times are counted in ticks of 10⁻⁸ seconds, in a 64-bit signed integer. That is
+exactly the unit of a Windows FILETIME, so one converts without rounding, and
+it is fine enough for anything that does not need nanoseconds.</p>
+<p>A count of ticks spans 5845 years: 2922 either side of the epoch, which is
+2000-01-01T00:00:00Z - tick zero. The range therefore runs from 924 BC to
+4922 AD, and a date outside it is <em>refused</em> and reported when it is asked to
+become a <code>DateTime</code>, never wrapped or truncated. See
+<a href="#gregorian-civil-dates-and-iso-8601-1">gregorian.md</a> for which dates can be named at all.</p>
+<p>Leap seconds are not represented: a minute here has 60 seconds, always. What
+that buys is that the count agrees with POSIX time, and with every other count
+of seconds from an epoch, so a <code>time_t</code>, a stored file time and this library all
+mean the same thing by the same number.</p>
+<p>What it costs is worth stating plainly, because no value shows it: the civil
+readings of a tick are always right, and a <em>difference</em> of two instants is a
+count of UTC seconds, which is not the physical time between them. Five leap
+seconds have been inserted since 2000-01-01, so the interval between an instant
+before the first of them and one after the last is five seconds short of the
+time that actually elapsed - a span that began then and ended now was five
+seconds longer than the difference says. Which differences are affected cannot
+be told from the values; it needs a table of leap seconds, and this library has
+none. A duration that must be physical - a timeout, an elapsed time - belongs to
+a monotonic clock, which no leap second touches. A <code>DateTime</code> answers <em>when</em>,
+and an <code>Interval</code> between two of them is a count of UTC seconds.</p>
+<h3 id="null-times"><a class="header" href="#null-times">Null times</a></h3>
+<p>A time can be null, which is not a time at all: a value that was never set, or a
+record that says “no time”. Null is <code>NullTick</code>, the lowest tick there is - the
+one value with no positive equivalent, so no real time can be turned into a null
+by being negated - and <code>isNull()</code> says whether a value is one. It is not zero,
+and not the epoch: both of those are real times.</p>
+<p>A null used where a value is needed reports <code>TIMERR_NULL_VALUE</code>:</p>
+<ul>
+<li><strong>Arithmetic</strong> on a null - adding, subtracting or negating - reports, and
+answers another null, so that a null spreads through a computation instead of
+becoming a number part-way along it. This includes <code>DateTime</code> arithmetic, and
+the difference of two instants when either is null.</li>
+<li><strong>Reading one as a value</strong> reports and answers the least misleading thing it
+can: <code>asTime_t()</code> answers 0, and <code>asGregorian()</code> answers a value with no date,
+rather than a date that never was.</li>
+</ul>
+<p>Two things are deliberately silent. A null that <em>stays</em> null - a unit
+conversion, <code>asMilliseconds()</code> of a null interval - invents no value, so it is
+not reported. And a comparison is not arithmetic: it needs no value, so a null
+equals a null, and sorts before every real time, the null tick being the lowest
+there is.</p>
+<p>As text a null is <code>null</code>, which is also what it reads back from:
+<code>Interval::fromString("null")</code> is a null interval, and a null <code>DateTime</code> or
+<code>Interval</code> in a Variant renders as JSON’s own <code>null</code> rather than as the text of
+one. A number that would <em>be</em> the null tick is refused as a text, and a text
+that is not a time at all is answered with a null rather than with zero: zero is
+a time, and the text did not say zero.</p>
+<p>A <code>Gregorian</code> has no null - a civil date is a date, and a time of day with no
+date is what year 0 means - so only the four tick-counting types can be null.</p>
+<h3 id="when-an-operation-cannot-answer"><a class="header" href="#when-an-operation-cannot-answer">When an operation cannot answer</a></h3>
+<p>An operation that cannot answer correctly reports it, and answers the type’s
+“nothing”. It never answers a wrapped number: a count of ticks that ran past the
+end of its range is a duration of the wrong sign or an instant in the wrong
+century, and nothing about it looks wrong. Four reports cover every case, all in
+the <code>TIM</code> set:</p>
+<pre><code>This `Interval` is null, so there is no value for adding
+The result of subtracting is past the range of `Interval`
+The current time is not known: this target has no clock, or reading it failed
+The host's zone offset is not known at that instant, so UTC is answered
+</code></pre>
+<p>What the caller is given instead:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>The operation</th><th>What it answers</th></tr>
+</thead>
+<tbody>
+<tr><td>Adding, subtracting or negating a null, or an instant moved by a null</td><td>another null, so that a null spreads rather than becoming a number</td></tr>
+<tr><td>A sum, difference or unit conversion that ran past the end of a Tick</td><td>a null of the result’s type</td></tr>
+<tr><td><code>DateTime::asGregorian()</code> for a null, or for an instant a zone would push past either end of the range</td><td>a <code>Gregorian</code> with no date: a time of day, at midnight</td></tr>
+<tr><td><code>DateTime::fromTime_t()</code> for a count of seconds outside the range</td><td>a null instant</td></tr>
+<tr><td><code>Gregorian::fromDayNumber()</code> for a day whose year will not fit the fields</td><td>a <code>Gregorian</code> with no date</td></tr>
+<tr><td><code>now()</code> with no clock, or a clock that failed</td><td>a null instant</td></tr>
+<tr><td><code>localOffset()</code> where the host cannot say</td><td>UTC, and the report says it</td></tr>
+</tbody>
+</table>
+</div>
+<p>Two of those are the whole range rather than a corner of it: the span from the
+first instant to the last is more than a <code>Tick</code> holds - 5845 years against 2922
+either side - so the interval between the two ends of the range is refused. And
+an instant within eighteen hours of either end, read in a zone that would take
+it past, has no date, where before it answered a date from the <em>other</em> end of
+the range with a zone designator on it.</p>
+<p>Where the answer is a <code>Gregorian</code> with no date, that value is a time of day -
+midnight - and <code>hasDate()</code> is false. <code>isValid()</code> is true of it, a time of day
+being a valid value; the report and <code>hasDate()</code> are what say that a conversion
+failed rather than that the answer is a time.</p>
+<p>A caller who expects a value to be out of range and does not want the buffer
+filled by each one takes a checkpoint first and rolls back after:</p>
+<pre><code>ErrBuf::MsgSequence	at = ErrCheckpoint();
+Interval		answer = a + b;
+ErrRollback(at);	// ...and answer.isNull() says whether it was answered
+</code></pre>
+<h3 id="zones-are-offsets-not-names"><a class="header" href="#zones-are-offsets-not-names">Zones are offsets, not names</a></h3>
+<p>A <code>DateTime</code> knows no time zone. It is a count of ticks from the epoch, and
+that is all; the zone is a parameter of each operation that needs one. So there
+is no local/UTC flag that can fall out of step with the value it describes, and
+no adjustment that can be applied twice or left applied by accident.</p>
+<p>An offset is a number of minutes - east positive, zero being UTC - so a local
+reading is the UTC reading plus the offset. There is no zone database here: a
+zone this library cannot name is one the caller can still write as a number.
+Two things do ask the host what time it is: <code>now()</code> reads the clock, and
+<code>localOffset()</code> asks for the offset in force at an instant, so that <code>now()</code> in
+local time needs no arguments. A target with no clock at all defines
+<code>HAVE_NO_CLOCK</code>, and its <code>now()</code> reports that rather than failing to build.</p>
+<h3 id="public-methods-5"><a class="header" href="#public-methods-5">Public methods</a></h3>
+<p>Defined in <a href="https://github.com/cjheath/strpp/blob/main/include/datetime.h">datetime.h</a>.</p>
+<p>Making one:</p>
+<ul>
+<li><code>Interval()</code>, <code>Interval(Tick ticks)</code> - an interval of that many 10⁻⁸ second
+ticks, or zero.</li>
+<li><code>Interval(Milliseconds)</code>, <code>Interval(Seconds)</code> - the same length, converted.
+<code>Milliseconds(Tick ms)</code>, <code>Milliseconds(const Interval&amp;)</code>,
+<code>Milliseconds(const Seconds&amp;)</code> and the <code>Seconds</code> forms are the same for those
+two, each counted in its own unit.</li>
+<li><code>UtcOffset()</code>, <code>UtcOffset::hours(h)</code>, <code>UtcOffset::minutes(m)</code> - an offset
+east of Greenwich. Zero minutes is UTC.</li>
+<li><code>DateTime()</code> - the epoch, 2000-01-01T00:00:00Z.</li>
+<li><code>DateTime::fromTicks(Tick)</code>, <code>DateTime(Tick)</code> - an instant that many ticks
+from the epoch.</li>
+<li><code>DateTime::fromTime_t(time_t)</code>, <code>DateTime::fromString(...)</code> - the same
+instant, given another way.</li>
+</ul>
+<p>Reading:</p>
+<ul>
+<li><code>ticks()</code> - the count of 10⁻⁸ second ticks. The one read all of these answer.</li>
+<li><code>isNull()</code> - whether the value is null: a time that was never set. See “Null
+times” below.</li>
+<li><code>ms()</code>, <code>seconds()</code> - a <code>Milliseconds</code> or a <code>Seconds</code> as its own number.</li>
+<li><code>asMinutes()</code>, <code>asSeconds()</code> - an offset. <code>isUTC()</code> says whether it is zero.</li>
+<li><code>asMilliseconds()</code>, <code>asSeconds()</code>, <code>asInterval()</code> - the same length in
+another unit, truncating towards zero.</li>
+<li><code>asTime_t()</code> - a count of seconds, as <code>time_t</code>, truncated.</li>
+<li><code>asGregorian(off = UtcOffset(), Interval* time_of_day = 0)</code> - the date and
+time of this instant in a zone. The zone is applied here and nowhere else,
+and the time since midnight can be asked for separately through the
+out-pointer, which defaults to null.</li>
+<li><code>toString(off = UtcOffset(), flags = IsoPunctuate)</code> - the instant as ISO 8601
+text in that zone, written with <code>Z</code> for UTC and <code>+hh:mm</code> otherwise. The
+default is the punctuated form the standard prefers; <code>flags = 0</code> is the basic
+form. The zone is left off when <code>IsoNoZone</code> is set, and the fraction of a
+second is written to however many digits the flags ask for, 0 to 8 - the
+default is none, so a text that must read back as the same instant asks for
+eight.</li>
+<li><code>now()</code> - the current instant, from the host’s clock.</li>
+<li><code>localOffset(when)</code> - the host’s offset at that instant, which is the one in
+force then and not the one in force now.</li>
+<li><code>nowWithOffset(UtcOffset* offset = 0)</code> - <code>now()</code>, and the offset to read it
+in, from one reading of the clock.</li>
+</ul>
+<p>Building:</p>
+<ul>
+<li><code>operator+</code>, <code>operator-</code>, <code>+=</code>, <code>-=</code> - an interval added to or taken from
+another, or from an instant; one instant less another is an <code>Interval</code>.</li>
+<li><code>operator==</code>, <code>!=</code>, <code>&lt;</code>, <code>&lt;=</code>, <code>&gt;</code>, <code>&gt;=</code> - two of a kind compared.</li>
+<li><code>Interval::fromString(text, ErrNum* err_return = 0)</code> and the same for
+<code>Milliseconds</code> and <code>Seconds</code> - a number in the type’s own unit, and nothing
+else. A text that is not one is reported as <code>TIMERR_INVALID_TEXT</code>.</li>
+</ul>
+<h3 id="times-as-text"><a class="header" href="#times-as-text">Times as text</a></h3>
+<p>An interval is written in seconds with eight digits of a fraction, so
+<code>Interval(-150000000)</code> writes <code>-1.50000000</code> and reads back as the same count of
+ticks. A <code>Milliseconds</code> or a <code>Seconds</code> is written as its own number: <code>1500</code>
+and <code>-90</code>. Neither carries its unit in the text, because the type is what says
+which unit it is.</p>
+<p>An instant is written in ISO 8601, in the zone it is asked for:</p>
+<pre><code>DateTime::fromString("2002-01-03T11:12:13Z").toString()
+// 2002-01-03T11:12:13Z
+
+DateTime::fromString("2002-01-03T11:12:13Z").toString(UtcOffset::hours(10))
+// 2002-01-03T21:12:13+10:00
+</code></pre>
+<p><code>DateTime::fromString</code> reads the zone from the text as well as the time, and
+hands it back through the out-pointer, so a text can be read and written again
+in the zone it came in. A text with no zone designator is read as <strong>UTC</strong> and
+never as local time: an answer that depends on where it is read is not an
+answer. Reading an instant from a text that names a time of day but no date is
+reported as <code>TIMERR_NO_DATE</code>, and one whose date is outside the range as
+<code>TIMERR_OUT_OF_RANGE</code>.</p>
+<p>See <a href="#error-management-1">Errors</a> and the <code>TIM</code> set in <code>str_err.h</code>.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="gregorian-civil-dates-and-iso-8601-1"><a href="#gregorian-civil-dates-and-iso-8601-1" class="header">Gregorian: civil dates and ISO 8601</a></h1>
+<h2 id="gregorian-civil-dates-and-iso-8601"><a class="header" href="#gregorian-civil-dates-and-iso-8601">Gregorian: civil dates and ISO 8601</a></h2>
+<p><code>#include	&lt;gregorian.h&gt;</code></p>
+<p>A <code>Gregorian</code> holds the fields as written on a wall: a year, a month, a day, an
+hour, a minute, a second, and a fraction of a second as a count of 10⁻⁸ second
+ticks. It knows no time zone, and it is not a point in time - it is what a
+clock and a calendar say, which is a different thing in every zone.</p>
+<p>To get an instant, tell it the zone: <code>asDateTime(off)</code> answers the <code>DateTime</code>
+that a civil time names in that zone, and <code>DateTime::asGregorian(off)</code> answers
+the civil time of an instant. That is the whole of the conversion between them,
+and nothing here caches an answer.</p>
+<h3 id="the-years-before-1-ad"><a class="header" href="#the-years-before-1-ad">The years before 1 AD</a></h3>
+<p>The year is the count the calendar uses, in which 1 AD is year 1 and the year
+before it is 1 BC, so the years before 1 AD count downwards: -1 is 1 BC, -2 is
+2 BC. There is no year 0 in that reckoning, and this class uses the year that
+never existed to mean something it does need: <strong>a time of day with no date</strong>. So
+<code>year()</code> answers 0 for a value that is a time alone, <code>hasDate()</code> says which kind
+it is, and <code>"12:34"</code> reads as a time rather than as a century.</p>
+<p>ISO 8601, for its part, counts years as the astronomers do, inserting the year
+0 that the calendar has not got: 1 BC is written <code>0000</code>, and 2 BC as <code>-0001</code>.
+Both the reader and the writer shift by the one year, so the two counts never
+meet except here and in the tests.</p>
+<p>A day number counts days from <code>0/0/0000</code>, so that 1/1/0001 is day 1 and the day
+before it is day 0. Those are the day numbers the library this replaces used,
+and they are kept so that a date and a day number still mean the same thing
+across the two.</p>
+<h3 id="reading-iso-8601"><a class="header" href="#reading-iso-8601">Reading ISO 8601</a></h3>
+<p>The forms accepted are the ones the standard allows without a zone database:</p>
+<pre><code>[sign]YYYY[-MM[-DD]]		a date, 4 or more digits, punctuated
+YYYYMMDD[hhmmss]		a date, and a time if all 14 are there
+hh[:mm[:ss]]			a time of day, punctuated
+hhmmss				a time of day, unpunctuated
+[.ffffff]			a fraction of a second, after the seconds
+Z, [+-]hh[:mm], [+-]hhmm	the zone, when one is given
+</code></pre>
+<p>A date and a time are separated by <code>T</code> or a space. A bare run of four digits is
+refused rather than read, since it could be a year or an hour and a minute, and
+a caller who meant either can punctuate it.</p>
+<p>Reading a text with no zone designator does not assume local time: it is read
+as UTC, because an answer that depends on where it is read is not an answer.
+The zone that was read is handed back through an out-pointer, so a text read
+and written again keeps the zone it came in.</p>
+<p>A text that is not a date or a time at all, and a field set that is not a date
+that exists - the 31st of February, or an hour of 24 - are reported as
+<code>TIMERR_INVALID_TEXT</code>. <code>fromYMD()</code> reports a field set of its own as
+<code>TIMERR_INVALID_YMDHMS</code>, and answers the value it was given, so that <code>isValid()</code>
+can be asked about it.</p>
+<h3 id="writing-iso-8601"><a class="header" href="#writing-iso-8601">Writing ISO 8601</a></h3>
+<p><code>toString(flags)</code> writes the extended (punctuated) form by default, and the
+flags choose another:</p>
+<pre><code>IsoPunctuate		the - and : of the extended form
+IsoDateOnly		the date, without the time
+IsoSpaceForT		a space where ISO 8601 has its T
+IsoNoZone		leave the zone designator off
+IsoFractionDigits	the low nibble: how many digits of a second, 0 to 8
+</code></pre>
+<p>A civil time has no zone, so <code>Gregorian::toString</code> writes none; an instant’s
+text belongs to <code>DateTime::toString</code>, which writes the offset it was rendered
+in. The fraction is written to the number of digits asked for, and no more:
+the default is none, so a caller who wants a text that reads back as the same
+value to the tick asks for all eight.</p>
+<pre><code>Gregorian(2002,1,3,11,12,13).toString()
+// 2002-01-03T11:12:13
+
+Gregorian(2002,1,3,11,12,13).toString(IsoPunctuate|IsoSpaceForT)
+// 2002-01-03 11:12:13
+
+Gregorian(-1,1,1).toString(IsoPunctuate|IsoDateOnly)
+// 0000-01-01
+</code></pre>
+<h3 id="the-range"><a class="header" href="#the-range">The range</a></h3>
+<p>A civil date can be any the fields can hold, but a <code>DateTime</code> counts ticks from
+2000-01-01, and so can only name 924 BC to 4922 AD. A date outside that is
+refused and reported as <code>TIMERR_OUT_OF_RANGE</code>, naming the date and both ends of
+the range - never wrapped, and never silently a different date. That is the one
+place in this layer where a valid calendar date has no instant to be.</p>
+<p><code>isValid()</code> checks the fields without converting anything, and <code>dayOfWeek()</code>
+answers -1 for a value with no date. Both are safe to call in any order and any
+number of times: there is one representation, and no cache to fall out of step
+with it.</p>
+<h3 id="public-methods-6"><a class="header" href="#public-methods-6">Public methods</a></h3>
+<p>Defined in <a href="https://github.com/cjheath/strpp/blob/main/include/gregorian.h">gregorian.h</a>.</p>
+<p>Making one:</p>
+<ul>
+<li><code>Gregorian()</code>, <code>Gregorian(year, month, day, hour = 0, minute = 0, second = 0, fraction = 0)</code> - a civil date and time. A year of 0 is a time of day with no
+date.</li>
+<li><code>Gregorian::fromYMD(...)</code> - the same fields, checked and reported as
+<code>TIMERR_INVALID_YMDHMS</code> when they are not a date that exists.</li>
+<li><code>Gregorian::fromDayNumber(day, within_day = 0)</code> - the date a day number
+names, with that day’s time of day. A time of day past the end of its day is
+folded into the day, so that a count of ticks means what it says; a day
+number whose year will not fit the fields is reported as past the range and
+answered with a value that has no date, rather than with a date that never
+was.</li>
+<li><code>Gregorian::fromString(text, UtcOffset* offset = 0, ErrNum* err_return = 0)</code>
+<ul>
+<li>the ISO 8601 text of a date, a time, or both.</li>
+</ul>
+</li>
+</ul>
+<p>Reading:</p>
+<ul>
+<li><code>year()</code>, <code>month()</code>, <code>day()</code>, <code>hour()</code>, <code>minute()</code>, <code>second()</code>,
+<code>fraction()</code> - the fields. 0 is not a month or a day.</li>
+<li><code>hasDate()</code> - false for a time of day, which is the year 0.</li>
+<li><code>isValid()</code> - whether the fields are a date and time that exist.</li>
+<li><code>dayOfWeek()</code> - 0 for Sunday to 6 for Saturday, or -1 with no date.</li>
+<li><code>dayOfYear()</code> - 1 to 366, or 0 with no date.</li>
+<li><code>dayNumber()</code> - the day, counted from 0/0/0000, or 0 with no date.</li>
+<li><code>timeSinceMidnight()</code> - an <code>Interval</code>, which for a time of day is the whole
+value.</li>
+<li><code>Gregorian::isLeapYear(year)</code>, <code>Gregorian::daysInMonth(year, month)</code> - the
+calendar’s own questions, answered for the count this class uses.</li>
+<li><code>asDateTime(off = UtcOffset(), ErrNum* err_return = 0)</code> - the instant this
+civil time names in that zone. Reported as <code>TIMERR_NO_DATE</code> for a time of
+day, <code>TIMERR_INVALID_YMDHMS</code> for a field set that is not a date that exists,
+and <code>TIMERR_OUT_OF_RANGE</code> beyond either end of what a <code>DateTime</code> can hold.</li>
+<li><code>toString(flags = IsoPunctuate)</code> - the ISO 8601 text.</li>
+<li><code>operator==</code>, <code>operator!=</code> - whether two values are the same fields.
+Ordering is not offered: two civil times in different zones have no order,
+and an instant is where that question belongs.</li>
+</ul>
+<p>See <a href="#error-management-1">Errors</a> and the <code>TIM</code> set in <code>str_err.h</code>.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="error-management-1"><a href="#error-management-1" class="header">Error Management</a></h1>
 <h2 id="error-management"><a class="header" href="#error-management">Error Management</a></h2>
@@ -1177,7 +1530,7 @@ manual or a customer’s report keeps its meaning over the life of the
 software.</p>
 <p><code>is_failure</code> and <code>is_info</code> are the intended API but their names are not yet
 settled.</p>
-<h4 id="public-methods-5"><a class="header" href="#public-methods-5">Public methods</a></h4>
+<h4 id="public-methods-7"><a class="header" href="#public-methods-7">Public methods</a></h4>
 <p>Defined in <a href="https://github.com/cjheath/strpp/blob/main/include/error.h">error.h</a>.</p>
 <ul>
 <li><code>ErrNum()</code> - the zero value, which is success.</li>
@@ -1368,7 +1721,7 @@ has it, and <code>leave()</code> releases it. Under <code>NO_THREAD</code> there
 all of these are no-ops and <code>holding()</code> is always true.</p>
 <p>A <code>Condition</code> lets a thread wait until another signals it, with an optional
 timeout. Under <code>NO_THREAD</code> nothing waits, so every method is a no-op.</p>
-<h3 id="public-methods-6"><a class="header" href="#public-methods-6">Public methods</a></h3>
+<h3 id="public-methods-8"><a class="header" href="#public-methods-8">Public methods</a></h3>
 <p><code>Thread</code> and <code>ThreadParams</code>, in
 <a href="https://github.com/cjheath/strpp/blob/main/include/thread.h">thread.h</a>:</p>
 <ul>
@@ -1559,7 +1912,7 @@ processing required is that when any copy of a Source is made, it must be
 possible to proceed from that position in the stream. When a Source is
 deleted, no further access will be required to data from that position
 unless an older copy still exists.</p>
-<h3 id="public-methods-7"><a class="header" href="#public-methods-7">Public methods</a></h3>
+<h3 id="public-methods-9"><a class="header" href="#public-methods-9">Public methods</a></h3>
 <p>Defined in <a href="https://github.com/cjheath/strpp/blob/main/include/pegexp.h">pegexp.h</a>.</p>
 <p><code>Pegexp</code>:</p>
 <ul>
@@ -1633,7 +1986,7 @@ refined where necessary.</p>
 <p>The <a href="https://github.com/cjheath/strpp/blob/main/test/peg_test.cpp">Peg parser</a>
 for <a href="https://github.com/cjheath/px">Px</a> shows how to generate an AST from
 captures.</p>
-<h3 id="public-methods-8"><a class="header" href="#public-methods-8">Public methods</a></h3>
+<h3 id="public-methods-10"><a class="header" href="#public-methods-10">Public methods</a></h3>
 <p><code>Peg</code> and the no-capture Context it comes with are defined in
 <a href="https://github.com/cjheath/strpp/blob/main/include/peg.h">peg.h</a>:</p>
 <ul>
