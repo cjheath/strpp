@@ -36,7 +36,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-a96ee6c3.js";
+            window.path_to_searchindex_js = "searchindex-a1b0bf4d.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-e643466d.js"></script>
@@ -385,10 +385,19 @@ answers.</li>
 </li>
 <li><code>asJSON()</code>, <code>toJSON()</code> - escaped for JSON; <code>toJSON</code> escapes in place and
 does not add the enclosing quotes.</li>
-<li><code>asInt32(ErrNum* err, int radix = 0, Index* scanned = 0)</code> - the number this
-string reads as, in any radix from 2 to 36 and auto-detected when 0. A text
-it cannot read whole is reported into the thread’s error buffer as well as
-returned: see <a href="#error-management-1">Errors</a> and the <code>STR</code> set in <code>str_err.h</code>.</li>
+<li><code>asInteger&lt;T&gt;(ErrNum* err, int radix = 0, Index* scanned = 0)</code> - return
+the text which represents this number, of any width <code>T</code>, in any radix from
+2 to 36 and auto-detected when 0. <code>asInt32</code> is <code>asInteger&lt;int32_t&gt;</code> for a
+caller that knows its width. If there are too many digits or the value
+overflows, an error is reported and the caller should not use the value:
+see “Integers as text” below.</li>
+<li><code>asFixedPoint&lt;T&gt;(int places, ErrNum* err, int radix = 0, Index* scanned = 0)</code>
+<ul>
+<li>the same, read <code>places</code> digits after the radix point, so that a value
+counted in hundredths, or in 10⁻⁸ seconds, is read exactly rather than
+rounded. See “Integers as text” below.</li>
+</ul>
+</li>
 <li><code>static format(StrVal f, VariantArray args)</code> - the text <code>f</code> with each <code>{1}</code>,
 <code>{2}</code> and so on replaced by that parameter, which the marker may say how to
 render. See “Substituting parameters into a text” below.</li>
@@ -506,9 +515,10 @@ in Python and .NET: <code>{{</code> is a <code>{</code>, and <code>}}</code> is 
 escaping, so a text may carry a regular expression, a path or a backslash as it
 stands.</p>
 <h3 id="integers-as-text"><a class="header" href="#integers-as-text">Integers as text</a></h3>
-<p><code>asInt32</code> answers the number a text reads as, and the six <code>from*</code> functions
-answer the text a number writes as. Both take a representation, and it is the
-same one a format marker names:</p>
+<p><code>asInteger&lt;T&gt;</code> answers the number a text reads as, <code>asFixedPoint&lt;T&gt;</code> answers it
+at a resolution the caller names, and the six <code>from*</code> functions answer the text
+a number writes as. The writers take a representation, and it is the same one a
+format marker names:</p>
 <pre><code>StrVal::fromInt32(255, 'x')		// ff
 StrVal::fromInt32(-255)			// -255
 StrVal::fromInt32(-255, 'X')		// FFFFFF01
@@ -517,13 +527,67 @@ StrVal::fromInt64(-1, 'x')		// ffffffffffffffff
 StrVal::fromUInt64(18446744073709551615ull)
 					// 18446744073709551615
 </code></pre>
-<p><code>asInt32</code> reads in any radix from 2 to 36, or in the radix the text’s own
-prefix says when it is given 0; the <code>from*</code> functions write in 2, 8, 10 or 16,
-which is what a representation names. A text <code>asInt32</code> cannot read whole is
-reported as well as answered - the text, the radix, and how far the parse got -
-so that a failure has a record even where nobody looked at the answer. Neither direction adds a prefix: a text
-that wants <code>0x</code> writes it itself, so that a translated text keeps the prefix
-where its own language wants it.</p>
+<p><code>asInteger</code> reads in any radix from 2 to 36, or in the radix the text’s own
+prefix says when it is given 0. A prefix is stripped when the radix is 2 or 16
+as well, as C does, so <code>0xff</code> read in radix 16 is 255 and not 0 followed by
+<code>xff</code> - which is what makes a bit pattern readable as what it is. The <code>from*</code>
+functions write in 2, 8, 10 or 16, which is what a representation names.
+Neither direction adds a prefix: a text that wants <code>0x</code> writes it itself, so
+that a translated text keeps the prefix where its own language wants it.</p>
+<p><strong>A signed type reads a sign, and an unsigned one does not.</strong> A number written
+with a minus sign cannot be read into an unsigned type at all: it is not that
+the value is too large for the width, it is that a sign has no meaning there,
+and it is refused with <code>STRERR_NEGATIVE_UNSIGNED</code> rather than wrapped as C’s
+<code>strtoul</code> wraps it. A bit pattern is asked for by reading it in a base, which
+is what <code>0xff</code> in radix 16 above is for.</p>
+<p><strong>The integer width is the size of <code>T</code>, and the methods only get compiled when
+needed.</strong> nothing instantiates either reader for any type (except int32
+which is needed by Variant) until a caller needs it. So a <code>long long</code> reads a
+number an <code>int32_t</code> cannot hold, and both answer correctly:</p>
+<pre><code>StrVal("4000000000").asInt32()			// 400000000
+StrVal("4000000000").asInteger&lt;long long&gt;()	// 4000000000
+</code></pre>
+<p><strong>Digits the value cannot hold stop the number.</strong> Nothing wraps and nothing is
+rounded: the reading stops at the last digit that fits the type, and the digits
+that fitted are answered. What stopped it is reported, and the two reports are
+different complaints:</p>
+<ul>
+<li>
+<p>An <strong>overflow</strong> is too many digits for the type: the returned number is not
+the number,ni the text and a caller should not carry on with it.</p>
+</li>
+<li>
+<p><strong>Trailing text</strong> is either lost precision - places beyond the resolution that
+was needed - or characters after the number that were not consumed. A caller
+whose resolution is coarser than the text may well decide to live with that.</p>
+<p>StrVal(“4000000000”).asInt32(&amp;err)		// 400000000, and err
+// is NUMBER_OVERFLOW: too large to be read as <code>int32_t</code>, overflowing at 9
+StrVal(“1.234567890”).asFixedPoint&lt;int64_t&gt;(8, &amp;err, 10)	// 123456789,
+// and err is TRAIL_TEXT: the number ends at 10 and <code>0</code> is not part of it</p>
+</li>
+</ul>
+<p>Which of the two a caller cares about is the caller’s business, and it differs
+by domain: the time layer lives with the lost precision below 10^-8 seconds -
+it takes a checkpoint, reads, and rolls that report back - while a place beyond
+cents is a mistake, so a caller reading money leaves it standing.
+<code>rx/rxcompile.cpp</code> has used the same idiom since before these readers existed.</p>
+<p><strong><code>asFixedPoint</code> reads at a resolution the caller names</strong>, as a count of places
+after the radix point. The text supplies digits, the caller says what the last
+place is worth, and the same text read at two resolutions is the same value
+counted in different units:</p>
+<pre><code>StrVal("1.5").asFixedPoint&lt;int64_t&gt;(8, &amp;err, 10)	// 150000000
+StrVal("1.5").asFixedPoint&lt;int64_t&gt;(2, &amp;err, 10)	// 150
+StrVal("-0.00000001").asFixedPoint&lt;int64_t&gt;(8, &amp;err, 10)	// -1
+StrVal("12.345").asFixedPoint&lt;int64_t&gt;(2, &amp;err, 10)
+// 1234, and the third place is reported as trailing text
+</code></pre>
+<p>A place the text did not write is a zero, so <code>12</code> at two places is 1200, and a
+place it wrote beyond the resolution is trailing text, as above. A radix point
+is a point in any radix, so <code>0x1.8</code> at one place in radix 16 is 24 - and a
+caller reading decimal text passes radix 10, so that nothing is read as octal.
+Reading a fraction is what <code>asFixedPoint</code> is for: <code>asInteger</code> stops at the
+point and reports the fraction as trailing text, so the two divide the work
+between them and neither of them rounds.</p>
 <p>The representation is one character - <code>b</code> binary, <code>o</code> octal, <code>d</code> decimal, <code>x</code>
 and <code>X</code> hexadecimal for the two cases of the alphabet - or 0, which is
 decimal. Decimal renders the sign, and the most negative value of a type is
@@ -1302,6 +1366,14 @@ else. A text that is not one is reported as <code>TIMERR_INVALID_TEXT</code>.</l
 ticks. A <code>Milliseconds</code> or a <code>Seconds</code> is written as its own number: <code>1500</code>
 and <code>-90</code>. Neither carries its unit in the text, because the type is what says
 which unit it is.</p>
+<p>Reading a duration is reading a number at a resolution, which is what
+<code>StrVal::asFixedPoint</code> and <code>asInteger</code> do - see <a href="#unicode-strings-the-strval-class-1">strval.md</a>,
+“Integers as text”. The resolution is 10⁻⁸ seconds: a text written with more
+places than that is read to eight and the rest dropped, quietly, because that
+is precision below what this layer keeps. A text whose <em>whole</em> part is too
+large for a count of ticks, or that is not a number at all, is a different
+matter and is reported as <code>TIMERR_INVALID_TEXT</code> rather than answered with a
+number that is not the one it named.</p>
 <p>An instant is written in ISO 8601, in the zone it is asked for:</p>
 <pre><code>DateTime::fromString("2002-01-03T11:12:13Z").toString()
 // 2002-01-03T11:12:13Z

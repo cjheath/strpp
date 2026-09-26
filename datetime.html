@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-a96ee6c3.js";
+            window.path_to_searchindex_js = "searchindex-a1b0bf4d.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-e643466d.js"></script>
@@ -360,6 +360,14 @@ else. A text that is not one is reported as <code>TIMERR_INVALID_TEXT</code>.</l
 ticks. A <code>Milliseconds</code> or a <code>Seconds</code> is written as its own number: <code>1500</code>
 and <code>-90</code>. Neither carries its unit in the text, because the type is what says
 which unit it is.</p>
+<p>Reading a duration is reading a number at a resolution, which is what
+<code>StrVal::asFixedPoint</code> and <code>asInteger</code> do - see <a href="strval.html">strval.md</a>,
+“Integers as text”. The resolution is 10⁻⁸ seconds: a text written with more
+places than that is read to eight and the rest dropped, quietly, because that
+is precision below what this layer keeps. A text whose <em>whole</em> part is too
+large for a count of ticks, or that is not a number at all, is a different
+matter and is reported as <code>TIMERR_INVALID_TEXT</code> rather than answered with a
+number that is not the one it named.</p>
 <p>An instant is written in ISO 8601, in the zone it is asked for:</p>
 <pre><code>DateTime::fromString("2002-01-03T11:12:13Z").toString()
 // 2002-01-03T11:12:13Z
