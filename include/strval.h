@@ -48,6 +48,7 @@ const	StrValIndex	StrValIndexRawBinaryMarker = ((StrValIndex)-1);	// Marker num_
 const	StrValIndex	StrValIndexMaxChars = ((StrValIndex)-2);	// Most characters a string may hold
 typedef enum {
 	StrStatic,		// UTF-8 data that's not owned by the Body, may not be NUL-terminated and will not alter
+	StrTakeOver,		// UTF-8 data in a caller's new[]'d, NUL-terminated buffer, whose ownership passes to the Body
 	StrUTF8,		// UTF-8 data that is allocated internally
 	StrRawBinary,		// Normal character-per-byte data in the locale's 8-bit encoding
 } StrDataType;
@@ -98,6 +99,15 @@ public:
 					start = (char*)data;		// Cast const away; we will not alter it
 					num_elements = length+1;	// Counting the NUL the caller wrote
 					Body::AddRef();			// Cannot be deleted or resized
+				}
+				else if (dt == StrTakeOver)
+				{					// Borrowed no longer: the caller's new[]'d,
+									// NUL-terminated buffer becomes this Body's own
+									// allocation, freed (delete[]) exactly as if we
+									// had allocated it ourselves - no copy is made.
+					start = (char*)data;		// Cast const away; it's ours now
+					num_elements = length+1;	// Counting the NUL the caller wrote
+					num_alloc = length+1;		// Marks it as ours to resize or free
 				}
 				else
 				{
@@ -343,24 +353,26 @@ public:
 			}
 
 	StrRefI(const char* data, StrDataType dt = StrUTF8)	// construct by copying NUL-terminated data
-			: body(data == 0 || data[0] == '\0' ? &Body::nullBody : new Body(data, dt))
+			: body(data == 0 || (dt != StrTakeOver && data[0] == '\0') ? &Body::nullBody : new Body(data, dt))
 			, offset(0)
 			, num_chars(body->numChars())
 			{
 			}
 	// `allocate` is how many elements the body is to hold, the terminating NUL
 	// included, so a caller building a string of n characters passes n+1
-	StrRefI(const char* data, Index length, size_t allocate = 0) // construct from length-terminated char data
+	StrRefI(const char* data, Index length, size_t allocate = 0, StrDataType dt = StrUTF8) // construct from length-terminated char data
 			: body(0)
 			, offset(0)
 			, num_chars(0)
 			{
 				if (allocate <= length)
 					allocate = 0;
-				if (length == 0 && (allocate == 0 || data == 0))
+				// Even an empty StrTakeOver buffer is a real allocation we must
+				// own and free, so it must never take the nullBody shortcut.
+				if (dt != StrTakeOver && length == 0 && (allocate == 0 || data == 0))
 					body = &Body::nullBody;	// Don't use strlen!
 				else
-					body = new Body(data, StrUTF8, length, allocate);	// Room to grow is a body of its own
+					body = new Body(data, dt, length, allocate);	// Room to grow is a body of its own
 				num_chars = body->numChars();
 			}
 	StrRefI(UCS4 character)		// construct from single-character string
@@ -489,8 +501,8 @@ public:
 			: Base(data, dt)
 			{
 			}
-	StrValI(const char* data, Index length, size_t allocate = 0) // construct from length-terminated char data
-			: Base(data, length, allocate)
+	StrValI(const char* data, Index length, size_t allocate = 0, StrDataType dt = StrUTF8) // construct from length-terminated char data
+			: Base(data, length, allocate, dt)
 			, mark()
 			{
 			}
@@ -498,6 +510,36 @@ public:
 			: Base(character)
 			{}
 	StrValI(Body* s1) : Base(s1) {}	// New reference to same string body; used for static strings
+
+	StrValI& operator=(const StrValI& s1) // Assignment operator
+			{
+				body = s1.body;
+				offset = s1.offset;
+				num_chars = s1.num_chars;
+				mark = s1.mark;
+				if (s1.copyNeedsUnshare())	// Must not copy a reference to a non-allocated body
+					Unshare();
+				return *this;
+			}
+	// As above, but from a StrRef, which carries no Bookmark of its own to
+	// copy - and skips constructing a temporary StrValI to assign from, which
+	// operator=(const StrValI&) alone would otherwise need via the converting
+	// constructor above.
+	StrValI& operator=(const StrRefI<Index>& s1)
+			{
+				Base::operator=(s1);		// StrRefI's own operator=: body, offset, num_chars
+				mark = Bookmark();
+				if (s1.copyNeedsUnshare())	// Must not copy a reference to a non-allocated body
+					Unshare();
+				return *this;
+			}
+	// Without this, "str = literal" is ambiguous: StrValI and StrRefI each
+	// have their own non-explicit converting constructor from a const char*,
+	// so the two operator='s above are equally good (one user-defined
+	// conversion each) for that argument. A const char* binds to this one
+	// with no conversion at all, which wins outright and settles it.
+	StrValI& operator=(const char* cp)
+			{ return *this = StrValI(cp); }
 
 	// numBytes() is inherited from StrRefI
 

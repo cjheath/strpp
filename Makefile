@@ -96,7 +96,7 @@ TESTS	=	\
 		variant_test		\
 		variant_ndebug_test
 
-SUBDIRS	=	rx
+SUBDIRS	=	rx tools
 
 OBJS	=	$(patsubst %,build/%,$(SRCS:.cpp=.o))
 
