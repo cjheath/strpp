@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-fe0f3ee0.js";
+            window.path_to_searchindex_js = "searchindex-010e1bc3.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-58dc7aeb.js"></script>
@@ -203,19 +203,63 @@ shared data</li>
 <p>Making one:</p>
 <ul>
 <li><code>StrVal()</code> - the empty string. Every empty string shares one static body.</li>
-<li><code>StrVal(const char* data, StrDataType dt = StrUTF8)</code> - copies NUL-terminated
+<li><code>StrVal(const char* data)</code> - the common case: copies NUL-terminated UTF-8
 data.</li>
-<li><code>StrVal(const char* data, Index length, size_t allocate = 0)</code> - copies a
-run of bytes of known length, preallocating if the length will grow. The run
-need not be NUL-terminated: none of it past the length is read, and the
-string’s own terminator is added. <code>allocate</code> counts the terminator with the
+<li><code>StrVal(const char* data, ArrayOwnership ownership, StrDataType encoding = StrUTF8)</code>
+<ul>
+<li>as above, but acquired the way <code>ownership</code> says and interpreted the way
+<code>encoding</code> says (see “Ownership and encoding” below). <code>ownership</code> has no
+default - a call giving only <code>data</code> must reach the plain constructor
+above instead, rather than this one with both filled in behind the
+scenes on every call.</li>
+</ul>
+</li>
+<li><code>StrVal(const char* data, Index length, size_t allocate = 0, ArrayOwnership ownership = ArrayCopy, StrDataType encoding = StrUTF8)</code>
+<ul>
+<li>a run of bytes of known length, acquired and interpreted the same way.
+The run need not be NUL-terminated when <code>ownership</code> is <code>ArrayCopy</code> (the
+default): none of it past the length is read, and the string’s own
+terminator is added. <code>allocate</code> counts the terminator with the
 characters, so a string that will grow to n characters asks for n+1.</li>
+</ul>
+</li>
 <li><code>StrVal(UCS4 character)</code> - one character, encoded to UTF-8.</li>
 <li><code>StrVal(const StrRef&amp;)</code> - from the body reference a Variant carries.</li>
 <li><code>StrVal(Body*)</code> - a reference to a body that already exists, for statics.</li>
-<li><code>StrVal(const StrVal&amp;)</code>, <code>operator=</code> - both share the body, and the next
-write to either copies it.</li>
+<li><code>StrVal(const StrVal&amp;)</code>, <code>operator=(const StrVal&amp;)</code>, <code>operator=(const StrRef&amp;)</code>,
+<code>operator=(const char*)</code> - all share the body (the last two without
+building an intermediate <code>StrVal</code> first), and the next write to any of
+them copies it. A body that is itself unsafe to keep sharing - the
+caller’s own static data ending short of where it says, or a Body that
+gets repointed for reuse, such as <code>transform()</code>’s internal one - is
+copied immediately instead, on construction or assignment alike.</li>
 </ul>
+<h4 id="ownership-and-encoding"><a class="header" href="#ownership-and-encoding">Ownership and encoding</a></h4>
+<p>Every constructor above that takes raw data answers two independent
+questions, each its own enum:</p>
+<ul>
+<li><strong>Ownership</strong> - <code>ownership</code>, an <a href="array.html"><code>ArrayOwnership</code></a> (<code>array.h</code>,
+shared with <code>Array&lt;T&gt;</code> - a StrVal’s Body is one): how the Body acquires
+<code>data</code>.
+<ul>
+<li><code>ArrayCopy</code> (what the plain, ownership-less constructor always means) -
+allocate, and copy <code>data</code> in.</li>
+<li><code>ArrayBorrow</code> - borrowed; the caller keeps <code>data</code> alive, and it may not
+be NUL-terminated at the length given (see NUL termination, below).</li>
+<li><code>ArrayTakeOver</code> - the caller’s own <code>new[]</code>’d, NUL-terminated buffer; its
+ownership passes to the Body, which frees it (<code>delete[]</code>) exactly as if
+it had allocated it itself. No copy is made.</li>
+</ul>
+</li>
+<li><strong>Encoding</strong> - <code>encoding</code>, a <code>StrDataType</code> (<code>strval.h</code>): whether characters
+are decoded as UTF-8 (<code>StrUTF8</code>, the default) or taken one byte per
+character in the locale’s 8-bit encoding (<code>StrRawBinary</code>).</li>
+</ul>
+<p>The two are independent - any ownership with either encoding, e.g. a
+taken-over raw-binary buffer is <code>StrVal(data, length, 0, ArrayTakeOver, StrRawBinary)</code> - and neither costs a stored field of its own: ownership
+already follows from whether the Body owns an allocation, and encoding from
+a marker value already held in its character count. This is only about how
+a constructor is called, not about the size of what it builds.</p>
 <p>Reading:</p>
 <ul>
 <li><code>length()</code> - the number of characters, not bytes.</li>
@@ -438,6 +482,13 @@ and it will not copy the string to add a terminator. Where the bytes go to
 something that expects a C string, use the first form.</p>
 </li>
 </ul>
+<p>The copy <code>asUTF8()</code> may make is needed only when a StrVal’s own extent
+stops short of where its body ends - a slice taken from the middle of a
+larger string. A StrVal that always extends to its body’s end (the whole
+of a freshly-built string, or any suffix reached by trimming only from the
+front) never needs that copy, however many times <code>asUTF8()</code> is called on
+it, since the terminator that ends the body already sits exactly where the
+StrVal itself ends.</p>
 <p>The empty string is the same for everyone: every <code>StrVal("")</code> refers to one
 static empty body, which is why they can be built and copied freely.</p>
 

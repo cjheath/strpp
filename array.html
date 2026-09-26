@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-fe0f3ee0.js";
+            window.path_to_searchindex_js = "searchindex-010e1bc3.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-58dc7aeb.js"></script>
@@ -192,6 +192,20 @@ accessible as a constant, and a new Array may be created over a static body.</p>
 <li><code>Array(const Element data)</code> - an array holding that one element.</li>
 <li><code>Array(const Element* data, Index size, Index allocate = 0)</code> - copies <code>size</code>
 elements, with room for <code>allocate</code> more before it must grow.</li>
+<li><code>Array(const Element* data, Index size, Index allocate, ArrayOwnership ownership)</code>
+<ul>
+<li>as above, but <code>ownership</code> says how <code>data</code> was provided, so this need not
+copy it: <code>ArrayCopy</code> copies as the constructor above does; <code>ArrayBorrow</code>
+keeps <code>data</code> as the caller’s, never copying or freeing it (the caller
+must keep it alive for as long as any Array or slice of it exists);
+<code>ArrayTakeOver</code> takes over a <code>new[]</code>’d buffer of the caller’s, freeing it
+(<code>delete[]</code>) exactly as if this Array had allocated it itself. <code>allocate</code>
+is how many elements the caller’s buffer actually holds, if more than
+<code>size</code> - the room this Array can grow into before it must reallocate.
+<code>ArrayOwnership</code> is defined here but not specific to <code>Array&lt;T&gt;</code>: <a href="strval.html">StrVal</a>’s
+Body is one of these too, and takes the same enum for the same reason.</li>
+</ul>
+</li>
 <li><code>Array(const Array&amp;)</code>, <code>operator=</code> - share the body, so both are cheap.</li>
 <li><code>Array(Body*)</code> - a reference to a body that already exists, for statics.</li>
 </ul>
