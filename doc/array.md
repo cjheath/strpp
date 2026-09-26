@@ -18,6 +18,17 @@ Making one:
 - `Array(const Element data)` - an array holding that one element.
 - `Array(const Element* data, Index size, Index allocate = 0)` - copies `size`
   elements, with room for `allocate` more before it must grow.
+- `Array(const Element* data, Index size, Index allocate, ArrayOwnership ownership)`
+  - as above, but `ownership` says how `data` was provided, so this need not
+    copy it: `ArrayCopy` copies as the constructor above does; `ArrayBorrow`
+    keeps `data` as the caller's, never copying or freeing it (the caller
+    must keep it alive for as long as any Array or slice of it exists);
+    `ArrayTakeOver` takes over a `new[]`'d buffer of the caller's, freeing it
+    (`delete[]`) exactly as if this Array had allocated it itself. `allocate`
+    is how many elements the caller's buffer actually holds, if more than
+    `size` - the room this Array can grow into before it must reallocate.
+    `ArrayOwnership` is defined here but not specific to `Array<T>`: [StrVal](strval.md)'s
+    Body is one of these too, and takes the same enum for the same reason.
 - `Array(const Array&)`, `operator=` - share the body, so both are cheap.
 - `Array(Body*)` - a reference to a body that already exists, for statics.
 

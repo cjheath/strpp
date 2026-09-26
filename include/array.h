@@ -40,6 +40,13 @@ static_assert(ArrayIndexBits >= 8 && ArrayIndexBits <= sizeof(void*)*8,
 template<typename E, typename I = ArrayIndex>	class	ArrayBody;
 template<typename E, typename I, typename Self, typename Body>	class	ArrayR;
 
+// How an ArrayBody's data was provided, and so how (or whether) it must be freed:
+typedef enum {
+	ArrayCopy,		// The data is copied into storage this Body allocates and owns
+	ArrayBorrow,		// The data is the caller's; this Body neither copies nor frees it
+	ArrayTakeOver,		// The data is the caller's own new[]'d buffer; its ownership passes to this Body
+} ArrayOwnership;
+
 template<typename E, typename I, typename Self, typename B>
 class	ArrayR
 {
@@ -49,24 +56,28 @@ public:
 	using	Body = B;
 
 	~ArrayR() {}			// Destructor
-	ArrayR()				// Empty array
+	ArrayR()			// Empty array
 			: body(0), offset(0), num_elements(0) {}
-	ArrayR(const ArrayR& s1)		// Normal copy constructor
+	ArrayR(const ArrayR& s1)	// Normal copy constructor
 			: body(s1.body), offset(s1.offset), num_elements(s1.num_elements) {}
 	ArrayR(const Element* data, Index size, Index allocate = 0)	// construct by copying data
 			: body(0), offset(0), num_elements(size)
 			{
 				if (allocate < size)
 					allocate = size;
-				body = new Body(data, true, size, allocate);
+				body = new Body(data, ArrayCopy, size, allocate);
 				num_elements = size;
 			}
+					// We can borrow or take over the caller's data, no copy either way
+	ArrayR(const Element* data, Index size, Index allocate, ArrayOwnership ownership)
+			: body(new Body(data, ownership, size, allocate)), offset(0), num_elements(size)
+			{}
 	ArrayR(Body* _body)		// New reference to same Body; used for static strings
 			: body(_body), offset(0), num_elements(_body->length()) {}
 	ArrayR& operator=(const ArrayR& s1) // Assignment operator
 			{ body = s1.body; offset = s1.offset; num_elements = s1.num_elements; return *this; }
 	ArrayR(const Element data)	// construct array of one element only
-			: body(new Body(&data, true, 1)), offset(0), num_elements(1)
+			: body(new Body(&data, ArrayCopy, 1)), offset(0), num_elements(1)
 			{}
 
 	Index		length() const
@@ -499,7 +510,7 @@ private:
 					return;
 
 				// Copy only this slice of the body's data, and reset our offset to zero
-				body = new Body(asElements(), true, num_elements, num_elements+extra);
+				body = new Body(asElements(), ArrayCopy, num_elements, num_elements+extra);
 				offset = 0;
 			}
 };
@@ -516,6 +527,8 @@ public:
 	: Base(s1) {}
 	Array(const Element* data, Index size, Index allocate = 0)	// construct by copying data
 	: Base(data, size, allocate) {}
+	Array(const Element* data, Index size, Index allocate, ArrayOwnership ownership) // borrow, or take ownership of, `data`
+	: Base(data, size, allocate, ownership) {}
 	Array(const Base& s1)
 	: Base(s1) {}
 	Array(Body* _body)		// New reference to same Body; used for static strings
@@ -549,12 +562,12 @@ public:
 			}
 	ArrayBody()
 			: start(0), num_elements(0), num_alloc(0) { }
-	ArrayBody(const Element* data, bool copy, Index length, Index allocate = 0)
+	ArrayBody(const Element* data, ArrayOwnership ownership, Index length, Index allocate = 0)
 			: start(0)
 			, num_elements(0)
 			, num_alloc(0)
 			{
-				if (copy)
+				if (ownership == ArrayCopy)
 				{
 					if (allocate < length)
 						allocate = length;
@@ -566,9 +579,12 @@ public:
 				}
 				else
 				{
-					start = (Element*)data;	// Cast const away; copy==false implies no change will occur
+					start = (Element*)data;	// Cast const away
 					num_elements = length;
-					AddRef();		// Cannot be deleted or resized
+					if (ownership == ArrayBorrow)
+						AddRef();		// Cannot be deleted or resized
+					else				// ArrayTakeOver: ours to free (or resize) like any allocation
+						num_alloc = allocate > length ? allocate : length;
 				}
 			}
 

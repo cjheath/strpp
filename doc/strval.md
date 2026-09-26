@@ -29,18 +29,56 @@ Defined in [strval.h](https://github.com/cjheath/strpp/blob/main/include/strval.
 Making one:
 
 - `StrVal()` - the empty string. Every empty string shares one static body.
-- `StrVal(const char* data, StrDataType dt = StrUTF8)` - copies NUL-terminated
+- `StrVal(const char* data)` - the common case: copies NUL-terminated UTF-8
   data.
-- `StrVal(const char* data, Index length, size_t allocate = 0)` - copies a
-  run of bytes of known length, preallocating if the length will grow. The run
-  need not be NUL-terminated: none of it past the length is read, and the
-  string's own terminator is added. `allocate` counts the terminator with the
-  characters, so a string that will grow to n characters asks for n+1.
+- `StrVal(const char* data, ArrayOwnership ownership, StrDataType encoding = StrUTF8)`
+  - as above, but acquired the way `ownership` says and interpreted the way
+    `encoding` says (see "Ownership and encoding" below). `ownership` has no
+    default - a call giving only `data` must reach the plain constructor
+    above instead, rather than this one with both filled in behind the
+    scenes on every call.
+- `StrVal(const char* data, Index length, size_t allocate = 0, ArrayOwnership ownership = ArrayCopy, StrDataType encoding = StrUTF8)`
+  - a run of bytes of known length, acquired and interpreted the same way.
+    The run need not be NUL-terminated when `ownership` is `ArrayCopy` (the
+    default): none of it past the length is read, and the string's own
+    terminator is added. `allocate` counts the terminator with the
+    characters, so a string that will grow to n characters asks for n+1.
 - `StrVal(UCS4 character)` - one character, encoded to UTF-8.
 - `StrVal(const StrRef&)` - from the body reference a Variant carries.
 - `StrVal(Body*)` - a reference to a body that already exists, for statics.
-- `StrVal(const StrVal&)`, `operator=` - both share the body, and the next
-  write to either copies it.
+- `StrVal(const StrVal&)`, `operator=(const StrVal&)`, `operator=(const StrRef&)`,
+  `operator=(const char*)` - all share the body (the last two without
+  building an intermediate `StrVal` first), and the next write to any of
+  them copies it. A body that is itself unsafe to keep sharing - the
+  caller's own static data ending short of where it says, or a Body that
+  gets repointed for reuse, such as `transform()`'s internal one - is
+  copied immediately instead, on construction or assignment alike.
+
+#### Ownership and encoding
+
+Every constructor above that takes raw data answers two independent
+questions, each its own enum:
+
+- **Ownership** - `ownership`, an [`ArrayOwnership`](array.md) (`array.h`,
+  shared with `Array<T>` - a StrVal's Body is one): how the Body acquires
+  `data`.
+  - `ArrayCopy` (what the plain, ownership-less constructor always means) -
+    allocate, and copy `data` in.
+  - `ArrayBorrow` - borrowed; the caller keeps `data` alive, and it may not
+    be NUL-terminated at the length given (see NUL termination, below).
+  - `ArrayTakeOver` - the caller's own `new[]`'d, NUL-terminated buffer; its
+    ownership passes to the Body, which frees it (`delete[]`) exactly as if
+    it had allocated it itself. No copy is made.
+- **Encoding** - `encoding`, a `StrDataType` (`strval.h`): whether characters
+  are decoded as UTF-8 (`StrUTF8`, the default) or taken one byte per
+  character in the locale's 8-bit encoding (`StrRawBinary`).
+
+The two are independent - any ownership with either encoding, e.g. a
+taken-over raw-binary buffer is `StrVal(data, length, 0, ArrayTakeOver,
+StrRawBinary)` - and neither costs a stored field of its own: ownership
+already follows from whether the Body owns an allocation, and encoding from
+a marker value already held in its character count. This is only about how
+a constructor is called, not about the size of what it builds.
 
 Reading:
 
@@ -275,6 +313,14 @@ knowing:
   not.** The second form is for a byte range you already have a length for,
   and it will not copy the string to add a terminator. Where the bytes go to
   something that expects a C string, use the first form.
+
+The copy `asUTF8()` may make is needed only when a StrVal's own extent
+stops short of where its body ends - a slice taken from the middle of a
+larger string. A StrVal that always extends to its body's end (the whole
+of a freshly-built string, or any suffix reached by trimming only from the
+front) never needs that copy, however many times `asUTF8()` is called on
+it, since the terminator that ends the body already sits exactly where the
+StrVal itself ends.
 
 The empty string is the same for everyone: every `StrVal("")` refers to one
 static empty body, which is why they can be built and copied freely.

@@ -1037,7 +1037,7 @@ void
 raw_binary_tests()
 {
 	test_group("RawBinary: one byte == one char (ASCII-range content)");
-	StrVal	raw("hi\x7F" "bye", StrRawBinary);
+	StrVal	raw("hi\x7F" "bye", ArrayCopy, StrRawBinary);
 	expect_eq_int("raw length == byte count", (long)raw.length(), 6);
 	expect_eq_int("raw numBytes == byte count", (long)raw.numBytes(), 6);
 	expect_eq_ch("raw[2] is 0x7F", raw[2], (UCS4)0x7F);
@@ -1288,7 +1288,7 @@ void
 mixed_encoding_tests()
 {
 	test_group("RawBinary fundamentals: operator[] must return the raw byte value (0-255)");
-	StrVal	highByte("\xE9", StrRawBinary);		// Latin-1 'e' with acute accent = U+00E9
+	StrVal	highByte("\xE9", ArrayCopy, StrRawBinary);		// Latin-1 'e' with acute accent = U+00E9
 	expect_eq_ch("high raw byte value must be U+00E9, not sign-extended", highByte[0], (UCS4)0x00E9);
 
 	test_group("Mixed: RawBinary + UTF8 concatenation must convert the RawBinary side to proper UTF-8");
@@ -1302,7 +1302,7 @@ mixed_encoding_tests()
 	test_group("Mixed: prepending a RawBinary fragment onto a UTF8 string");
 	StrVal	cafeBase("caf\xC3\xA9");			// café, proper UTF8
 	StrVal	prepended = cafeBase;
-	prepended.prepend(StrVal("\xE9", StrRawBinary));	// prepend raw e-acute
+	prepended.prepend(StrVal("\xE9", ArrayCopy, StrRawBinary));	// prepend raw e-acute
 	expect_eq_int("prepended length is 5 characters", (long)prepended.length(), 5);
 	expect_eq_ch("prepended[0] is the correct Latin-1 codepoint U+00E9",
 			prepended[0], (UCS4)0x00E9);
@@ -1310,7 +1310,7 @@ mixed_encoding_tests()
 			prepended, "\xC3\xA9" "caf\xC3\xA9");
 
 	test_group("Mixed: appending proper UTF8 (multi-byte) content onto a RawBinary receiver");
-	StrVal	rawAscii("num=", StrRawBinary);		// 4 ASCII bytes, RawBinary-tagged
+	StrVal	rawAscii("num=", ArrayCopy, StrRawBinary);		// 4 ASCII bytes, RawBinary-tagged
 	StrVal	cafe("caf\xC3\xA9");			// café: 4 chars, 5 bytes, proper UTF8
 	StrVal	appended = rawAscii;
 	appended.append(cafe);
@@ -1323,17 +1323,17 @@ mixed_encoding_tests()
 
 	test_group("Mixed: find(StrVal) must find a character across differing encodings of the same text");
 	StrVal	haystackUtf8("caf\xC3\xA9 shop");		// UTF8 "café shop"
-	StrVal	needleRaw("\xE9", StrRawBinary);		// same character, RawBinary
+	StrVal	needleRaw("\xE9", ArrayCopy, StrRawBinary);		// same character, RawBinary
 	expect_eq_int("UTF8 haystack finds a RawBinary needle representing the same character",
 			(long)haystackUtf8.find(needleRaw), 3);
 
-	StrVal	haystackRaw("caf\xE9 shop", StrRawBinary);	// same text, entirely RawBinary
+	StrVal	haystackRaw("caf\xE9 shop", ArrayCopy, StrRawBinary);	// same text, entirely RawBinary
 	StrVal	needleUtf8("\xC3\xA9");			// same character, proper UTF8
 	expect_eq_int("RawBinary haystack finds a UTF8 needle representing the same character",
 			(long)haystackRaw.find(needleUtf8), 3);
 
 	test_group("Mixed: operator==/compare() must treat logically identical text as equal across encodings");
-	StrVal	rawE("\xE9", StrRawBinary);			// U+00E9, one raw byte
+	StrVal	rawE("\xE9", ArrayCopy, StrRawBinary);			// U+00E9, one raw byte
 	StrVal	utf8E("\xC3\xA9");				// U+00E9, proper UTF8
 	expect("RawBinary 'e-acute' == UTF8 'e-acute' (same logical character)", rawE == utf8E);
 
@@ -1342,7 +1342,7 @@ mixed_encoding_tests()
 	// Byte 0xC3 looks like a UTF-8 2-byte lead, and 0x89 looks like a valid UTF-8
 	// continuation byte, which is exactly the pattern that trips up transform()'s
 	// UTF8Len()-based pointer stepping when the source is really RawBinary.
-	StrVal	rawTwoChars("\xC3\x89", StrRawBinary);
+	StrVal	rawTwoChars("\xC3\x89", ArrayCopy, StrRawBinary);
 	expect_eq_int("rawTwoChars starts with 2 characters", (long)rawTwoChars.length(), 2);
 	StrVal	lowered = rawTwoChars;
 	lowered.toLower();

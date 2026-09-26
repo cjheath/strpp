@@ -47,10 +47,8 @@ static_assert(StrValIndexBits >= 8 && StrValIndexBits <= sizeof(void*)*8,
 const	StrValIndex	StrValIndexRawBinaryMarker = ((StrValIndex)-1);	// Marker num_chars for non-UTF8 data
 const	StrValIndex	StrValIndexMaxChars = ((StrValIndex)-2);	// Most characters a string may hold
 typedef enum {
-	StrStatic,		// UTF-8 data that's not owned by the Body, may not be NUL-terminated and will not alter
-	StrTakeOver,		// UTF-8 data in a caller's new[]'d, NUL-terminated buffer, whose ownership passes to the Body
-	StrUTF8,		// UTF-8 data that is allocated internally
-	StrRawBinary,		// Normal character-per-byte data in the locale's 8-bit encoding
+	StrUTF8,		// Characters are decoded as UTF-8 (the default)
+	StrRawBinary,		// One byte is one character, in the locale's 8-bit encoding
 } StrDataType;
 
 template<typename Index = StrValIndex> class StrRefI;
@@ -86,7 +84,7 @@ public:
 
 	~StrBodyI()	{}
 	StrBodyI()	: num_chars(0) {}
-	StrBodyI(const char* data, StrDataType dt, Index length = 0, Index allocate = 0)
+	StrBodyI(const char* data, ArrayOwnership ownership, Index length = 0, Index allocate = 0, StrDataType encoding = StrUTF8)
 			: num_chars(0)
 			{
 				// REVISIT: Need a Panic() function when a string passes the allowed maximum size
@@ -94,13 +92,13 @@ public:
 				if (length == 0)
 					length = strlen(data);		// The caller offered no length, so the NUL is the length
 
-				if (dt == StrStatic)
+				if (ownership == ArrayBorrow)
 				{					// Borrowed data, which the caller keeps
 					start = (char*)data;		// Cast const away; we will not alter it
 					num_elements = length+1;	// Counting the NUL the caller wrote
 					Body::AddRef();			// Cannot be deleted or resized
 				}
-				else if (dt == StrTakeOver)
+				else if (ownership == ArrayTakeOver)
 				{					// Borrowed no longer: the caller's new[]'d,
 									// NUL-terminated buffer becomes this Body's own
 									// allocation, freed (delete[]) exactly as if we
@@ -110,7 +108,7 @@ public:
 					num_alloc = length+1;		// Marks it as ours to resize or free
 				}
 				else
-				{
+				{					// ArrayCopy
 					if (allocate < length+1)
 						allocate = length+1;
 					Body::resize(allocate);
@@ -119,7 +117,7 @@ public:
 					num_elements = length+1;
 				}
 
-				if (dt == StrRawBinary)
+				if (encoding == StrRawBinary)
 					num_chars = StrValIndexRawBinaryMarker;	// one byte = one char, don't count them
 			}
 
@@ -235,7 +233,7 @@ public:	void		insertBytes(Index pos, const char* addend, Index len)
 						UTF8Put(op, ch);
 						*op = '\0';
 						// Assign this to the body in our closure
-						temp_body = StrBodyI(one_char, StrStatic, op-one_char);
+						temp_body = StrBodyI(one_char, ArrayBorrow, op-one_char);
 						return Val(&temp_body);
 					}
 				);
@@ -258,7 +256,7 @@ public:	void		insertBytes(Index pos, const char* addend, Index len)
 						*op = '\0';
 
 						// Assign this to the body in our closure
-						temp_body = StrBodyI(one_char, StrStatic, op-one_char);
+						temp_body = StrBodyI(one_char, ArrayBorrow, op-one_char);
 						return Val(&temp_body);
 					}
 				);
@@ -322,7 +320,7 @@ protected:
 			}
 };
 
-template<typename Index> class StrBodyI<Index> StrBodyI<Index>::nullBody("", StrStatic, 0, 0);
+template<typename Index> class StrBodyI<Index> StrBodyI<Index>::nullBody("", ArrayBorrow, 0, 0);
 
 // A StrVal defined by number of bits in the index:
 template<unsigned int IndexBits = StrValIndexBits>
@@ -352,27 +350,33 @@ public:
 			{
 			}
 
-	StrRefI(const char* data, StrDataType dt = StrUTF8)	// construct by copying NUL-terminated data
-			: body(data == 0 || (dt != StrTakeOver && data[0] == '\0') ? &Body::nullBody : new Body(data, dt))
+	StrRefI(const char* data)	// The common case: copy NUL-terminated UTF-8 data
+			: body(data == 0 || data[0] == '\0' ? &Body::nullBody : new Body(data, ArrayCopy))
 			, offset(0)
 			, num_chars(body->numChars())
 			{
 			}
-	// `allocate` is how many elements the body is to hold, the terminating NUL
-	// included, so a caller building a string of n characters passes n+1
-	StrRefI(const char* data, Index length, size_t allocate = 0, StrDataType dt = StrUTF8) // construct from length-terminated char data
+	// Construct with specified ownership and/or encoding
+	StrRefI(const char* data, ArrayOwnership ownership, StrDataType encoding = StrUTF8)
+			: body(data == 0 || (ownership != ArrayTakeOver && data[0] == '\0') ? &Body::nullBody : new Body(data, ownership, 0, 0, encoding))
+			, offset(0)
+			, num_chars(body->numChars())
+			{
+			}
+	// `allocate` is how many elements the body is to hold, including the terminating NUL
+	StrRefI(const char* data, Index length, size_t allocate = 0, ArrayOwnership ownership = ArrayCopy, StrDataType encoding = StrUTF8) // construct from length-terminated char data
 			: body(0)
 			, offset(0)
 			, num_chars(0)
 			{
 				if (allocate <= length)
 					allocate = 0;
-				// Even an empty StrTakeOver buffer is a real allocation we must
+				// Even an empty ArrayTakeOver buffer is a real allocation we must
 				// own and free, so it must never take the nullBody shortcut.
-				if (dt != StrTakeOver && length == 0 && (allocate == 0 || data == 0))
+				if (ownership != ArrayTakeOver && length == 0 && (allocate == 0 || data == 0))
 					body = &Body::nullBody;	// Don't use strlen!
 				else
-					body = new Body(data, dt, length, allocate);	// Room to grow is a body of its own
+					body = new Body(data, ownership, length, allocate, encoding);	// Room to grow is a body of its own
 				num_chars = body->numChars();
 			}
 	StrRefI(UCS4 character)		// construct from single-character string
@@ -383,7 +387,7 @@ public:
 				char*	op = one_char;		// Pack it into our local buffer
 				UTF8Put(op, character);
 				*op = '\0';
-				body = new Body(one_char, StrUTF8, op-one_char);
+				body = new Body(one_char, ArrayCopy, op-one_char);
 				num_chars = 1;
 			}
 	StrRefI(Body* s1)		// New reference to same string body; used for static strings
@@ -497,12 +501,17 @@ public:
 					Unshare();
 			}
 
-	StrValI(const char* data, StrDataType dt = StrUTF8)	// construct by copying NUL-terminated data
-			: Base(data, dt)
+	StrValI(const char* data)	// The common case: copy NUL-terminated UTF-8 data
+			: Base(data)
 			{
 			}
-	StrValI(const char* data, Index length, size_t allocate = 0, StrDataType dt = StrUTF8) // construct from length-terminated char data
-			: Base(data, length, allocate, dt)
+	// Construct with specified ownership and/or encoding
+	StrValI(const char* data, ArrayOwnership ownership, StrDataType encoding = StrUTF8)
+			: Base(data, ownership, encoding)
+			{
+			}
+	StrValI(const char* data, Index length, size_t allocate = 0, ArrayOwnership ownership = ArrayCopy, StrDataType encoding = StrUTF8) // construct from length-terminated char data
+			: Base(data, length, allocate, ownership, encoding)
 			, mark()
 			{
 			}
@@ -751,7 +760,7 @@ public:
 	StrValI		operator+(const char* addend) const
 			{	// Borrowed while the result is built rather than copied first:
 				// what is added is read once, into the new string
-				StrBody	body(addend, StrStatic);
+				StrBody	body(addend, ArrayBorrow);
 				return *this + StrValI(&body);
 			}
 	StrValI		operator+(const StrValI& addend) const
@@ -777,7 +786,7 @@ public:
 				char*	cp = buf;
 				UTF8Put(cp, addend);
 				*cp = '\0';
-				Body	body(buf, StrStatic, cp-buf, 1);
+				Body	body(buf, ArrayBorrow, cp-buf, 1);
 
 				return operator+(StrValI(&body));
 			}
@@ -799,7 +808,7 @@ public:
 				char*	cp = buf;
 				UTF8Put(cp, addend);
 				*cp = '\0';
-				Body	body(buf, StrStatic, cp-buf, 1);
+				Body	body(buf, ArrayBorrow, cp-buf, 1);
 
 				operator+=(StrValI(&body));
 				return *this;
@@ -962,7 +971,7 @@ private:
 				const char*	ep = nthChar(length());		// end of this substring
 				Index		prefix_bytes = cp - body->nthChar(0, mark); // How many leading bytes of the body we are eliding
 
-				body = new Body(cp, body->isRawBinary() ? StrRawBinary : StrUTF8, ep-cp);
+				body = new Body(cp, ArrayCopy, ep-cp, 0, body->isRawBinary() ? StrRawBinary : StrUTF8);
 				mark.char_num = savemark.char_num - offset;	// Restore the bookmark
 				mark.byte_num = savemark.byte_num - prefix_bytes;
 				offset = 0;
@@ -1212,7 +1221,7 @@ StrBodyI<Index>::toJSON()
 			*op = '\0';
 
 			// Assign this to the body in our closure
-			temp_body = StrBodyI(one_char, StrStatic, op-one_char);
+			temp_body = StrBodyI(one_char, ArrayBorrow, op-one_char);
 			return Val(&temp_body);
 		}
 	);
