@@ -73,5 +73,19 @@ or `NO_THREAD`, and a FreeRTOS build also sets `THREAD_DEFAULT_STACK_BYTES`,
 thread-local storage](threading.md), and `include/thread_local.h` for the pool
 of thread-local slots that a FreeRTOS build must make room for.
 
+A program that does not use every part of the library need not carry every
+part of it. The library is an archive of one object file per source, so a
+function is linked in only if something reaches it - and for the functions
+that only one caller could reach, such as a string's `compareNatural`, a
+linker told to drop what is not called will leave them out altogether:
+
+	gcc  ... -ffunction-sections -fdata-sections   # when building the library
+	g++  ... -Wl,--gc-sections                     # when linking the program
+
+On macOS, `-Wl,-dead_strip` does it without rebuilding the library that way.
+Either way, what *is* called is kept: measured on a program that never
+compares naturally, the natural comparison's code is absent from the
+executable, and on one that does call it, present and correct.
+
 An ESP-IDF build registers the library with `CMakeLists.txt` and sets the
 thread settings from `Kconfig` rather than from this Makefile.

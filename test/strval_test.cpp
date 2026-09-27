@@ -955,6 +955,120 @@ comparison_tests()
 	StrVal	beta("\xCE\xB2");	// U+03B2
 	expect("alpha < beta (byte-order matches codepoint order)", alpha < beta);
 	expect("alpha == alpha", alpha == StrVal("\xCE\xB1"));
+
+	/*
+	 * Natural order: a run of decimal digits is compared as the number it
+	 * spells, so "a10" sorts after "a9". A run with a leading zero is not a
+	 * number but text; equal numbers carry on along the string.
+	 */
+	test_group("Comparisons: natural ordering, digits by value");
+	expect("\"a10\" > \"a9\"", StrVal("a10").compareNatural(StrVal("a9")) > 0);
+	expect("\"a9\" < \"a10\"", StrVal("a9").compareNatural(StrVal("a10")) < 0);
+	expect("\"x9y\" < \"x10y\"", StrVal("x9y").compareNatural(StrVal("x10y")) < 0);
+	expect("\"10\" > \"9\" (a whole string of digits is a number too)",
+		StrVal("10").compareNatural(StrVal("9")) > 0);
+	expect("\"100\" > \"99\" (more digits: the bigger number)",
+		StrVal("100").compareNatural(StrVal("99")) > 0);
+	expect("\"19\" < \"23\" (same length: decide by the digits)",
+		StrVal("19").compareNatural(StrVal("23")) < 0);
+	expect("\"a1b\" < \"a1c\" (the same number: carry on along the string)",
+		StrVal("a1b").compareNatural(StrVal("a1c")) < 0);
+	expect("\"a10b2\" < \"a10b10\"", StrVal("a10b2").compareNatural(StrVal("a10b10")) < 0);
+	expect("\"a1b\" > \"a1\" (a longer string is still the greater)",
+		StrVal("a1b").compareNatural(StrVal("a1")) > 0);
+	expect("\"a10\" < \"a10b\"", StrVal("a10").compareNatural(StrVal("a10b")) < 0);
+	expect("\"abc\" == \"abc\"", StrVal("abc").compareNatural(StrVal("abc")) == 0);
+	expect("\"a10\" == \"a10\"", StrVal("a10").compareNatural(StrVal("a10")) == 0);
+	expect("digits past a multibyte character too",
+		StrVal("\xCE\xB1" "2").compareNatural(StrVal("\xCE\xB1" "10")) < 0);
+
+	test_group("Comparisons: natural ordering, a leading zero is text");
+	expect("\"a007\" < \"a5\" (007 is text, so '0' < '5')",
+		StrVal("a007").compareNatural(StrVal("a5")) < 0);
+	expect("\"1\" > \"01\" (01 is text, so '1' > '0')",
+		StrVal("1").compareNatural(StrVal("01")) > 0);
+
+	/*
+	 * The two digit sets that did not suit UCS4Digit's table - the Ideographic
+	 * zero and the Hangzhou numerals - are digits, so the readers take them.
+	 */
+	test_group("Reads: the digit sets the table did not hold");
+	expect_eq_int("Hangzhou \xE3\x80\xA1\xE3\x80\xA5 (one five) reads as 15",
+		(long)StrVal("\xE3\x80\xA1\xE3\x80\xA5").asInt32(), 15);
+	expect_eq_int("the Ideographic zero reads as 0",
+		(long)StrVal("\xE3\x80\x87").asInt32(), 0);
+	expect_eq_int("Ideographic zero then Hangzhou seven reads as 7",
+		(long)StrVal("\xE3\x80\x87\xE3\x80\xA7").asInt32(), 7);
+	expect_eq_int("a width's digits may be mixed with that set's: fullwidth 1 + Hangzhou 5",
+		(long)StrVal("\xEF\xBC\x91\xE3\x80\xA5").asInt32(), 15);
+	expect("the same 5 written as a Hangzhou numeral sorts after \"5\"",
+		StrVal("5").compareNatural(StrVal("\xE3\x80\xA5")) < 0);
+
+	test_group("Comparisons: natural ordering across encodings");
+	StrVal	rawTen("10", ArrayCopy, StrRawBinary);
+	expect("a raw-binary \"10\" is still greater than a UTF-8 \"9\"",
+		rawTen.compareNatural(StrVal("9")) > 0);
+	expect("...and a UTF-8 \"9\" is less than it",
+		StrVal("9").compareNatural(rawTen) < 0);
+	/* The same character in two encodings is the same character: U+00E9 is one
+	 * raw byte, two as UTF-8. A multi-byte string's raw-binary *copy* is a
+	 * different character sequence (each byte is its own code point), and is
+	 * compared as one - which is why this is asserted on the character, not on
+	 * the byte string. */
+	StrVal	rawEAcute("\xE9", ArrayCopy, StrRawBinary), utf8EAcute("\xC3\xA9");
+	expect("raw U+00E9 == UTF-8 U+00E9, naturally",
+		rawEAcute.compareNatural(utf8EAcute) == 0);
+	expect("...in either direction",
+		utf8EAcute.compareNatural(rawEAcute) == 0);
+
+	/*
+	 * A digit's value is its value in any script (UCS4Digit), so a number is
+	 * compared as a number however it is written - and when two runs spell the
+	 * same number, only then do the characters they are written with decide.
+	 */
+	test_group("Comparisons: natural ordering, digits of any script");
+	StrVal	arabicTen("\xD9\xA1\xD9\xA0");	// U+0661 U+0660, Arabic-Indic 10
+	StrVal	arabicNine("\xD9\xA9");	// U+0669, Arabic-Indic 9
+	StrVal	arabicFive("\xD9\xA5");	// U+0665, Arabic-Indic 5
+	StrVal	arabicZeroSeven("\xD9\xA0\xD9\xA7");	// U+0660 U+0667: starts with a zero, so it is text
+	StrVal	devanagariFive("\xE0\xA5\xAB");	// U+096B, Devanagari 5
+	StrVal	thaiTen("\xE0\xB9\x91\xE0\xB9\x90");	// U+0E51 U+0E50, Thai 10
+	StrVal	thaiNine("\xE0\xB9\x99");	// U+0E59, Thai 9
+	StrVal	fullwidthFive("\xEF\xBC\x95");	// U+FF15, fullwidth 5
+	expect("Arabic-Indic 10 > 9, though its bytes are fewer",
+		arabicTen.compareNatural(arabicNine) > 0);
+	expect("Thai 10 > Thai 9, whose bytes would say the opposite",
+		thaiTen.compareNatural(thaiNine) > 0);
+	expect("fullwidth 5 < \"9\" by value, though its bytes are greater",
+		fullwidthFive.compareNatural(StrVal("9")) < 0);
+	expect("Arabic-Indic 9 < \"10\" (a number is a number across scripts)",
+		arabicNine.compareNatural(StrVal("10")) < 0);
+	expect("a run may mix scripts: \"1\" + Arabic-Indic 5 is fifteen",
+		StrVal("1\xD9\xA5").compareNatural(StrVal("9")) > 0);
+	expect("...which is still less than sixteen",
+		StrVal("1\xD9\xA5").compareNatural(StrVal("16")) < 0);
+
+	test_group("Comparisons: natural ordering, the same number written differently");
+	expect("the same number, written differently: the bytes decide",
+		StrVal("5").compareNatural(arabicFive) < 0);
+	expect("...and the same the other way round",
+		arabicFive.compareNatural(StrVal("5")) > 0);
+	expect("Devanagari 5 > \"5\" (0xE0 > 0x35)",
+		devanagariFive.compareNatural(StrVal("5")) > 0);
+	expect("...and \"1\" + Arabic-Indic 5 is 15 written another way, so the bytes decide again",
+		StrVal("1\xD9\xA5").compareNatural(StrVal("15")) > 0);
+	expect("a zero in another script still means text, not a number",
+		arabicZeroSeven.compareNatural(arabicFive) < 0);
+	/* The tie-break compares the *sets of digits* the two numbers are written
+	 * with - one script's numerals against another's - not their encoded
+	 * bytes. It is noted as the runs are walked, so it costs no second pass. */
+	StrVal	fullwidthFiveForOrder("\xEF\xBC\x95");	// U+FF15, fullwidth 5
+	expect("the same 5 written in two scripts: the scripts decide, in table order",
+		arabicFive.compareNatural(fullwidthFiveForOrder) < 0);
+	expect("...and the ASCII 5 comes before both",
+		StrVal("5").compareNatural(arabicFive) < 0);
+	expect("the same 15 written differently: decided where the writings first differ",
+		StrVal("1\xD9\xA5").compareNatural(StrVal("\xD9\xA1\xD9\xA5")) < 0);
 }
 
 namespace {

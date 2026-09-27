@@ -387,6 +387,35 @@ utf8_numeric()
 	ch = 0xFF19;
 	expect("UCS4Digit(0xFF19) == 9", UCS4Digit(ch), 9);
 	expect("UCS4Digit(0xFF1A) == -1", UCS4Digit(ch+1), -1);
+
+	/*
+	 * The two sets that did not suit the table: the Ideographic zero, and the
+	 * Hangzhou numerals that write one to nine above it. They are digits too,
+	 * and a reader of numbers accepts them as such.
+	 */
+	NumericScript	script = ScriptNone;
+	ch = 0x3007;
+	expect("UCS4Digit(0x3006) == -1", UCS4Digit(ch-1), -1);
+	expect("UCS4Digit(0x3007) == 0", UCS4Digit(ch, script), 0);
+	expect("...in the Ideographic zero set", (uint32_t)script, (uint32_t)ScriptIdeographicZero);
+	expect("UCS4Digit(0x3008) == -1", UCS4Digit(ch+1), -1);
+	ch = 0x3021;
+	expect("UCS4Digit(0x3020) == -1", UCS4Digit(ch-1), -1);
+	expect("UCS4Digit(0x3021) == 1", UCS4Digit(ch, script), 1);
+	expect("...in the Hangzhou set", (uint32_t)script, (uint32_t)ScriptHangzhou);
+	ch = 0x3029;
+	expect("UCS4Digit(0x3029) == 9", UCS4Digit(ch, script), 9);
+	expect("UCS4Digit(0x302A) == -1", UCS4Digit(ch+1), -1);
+
+	// The set a digit comes from, named: the same value written in two scripts
+	expect("UCS4Digit('5') == 5", UCS4Digit('5', script), 5);
+	expect("...in ScriptASCII", (uint32_t)script, (uint32_t)ScriptASCII);
+	expect("UCS4Digit(0x0665) == 5", UCS4Digit(0x0665, script), 5);
+	expect("...the same 5, in ScriptArabicIndic", (uint32_t)script, (uint32_t)ScriptArabicIndic);
+	expect("UCS4Digit(0xFF15) == 5", UCS4Digit(0xFF15, script), 5);
+	expect("...the same 5, in ScriptFullwidth", (uint32_t)script, (uint32_t)ScriptFullwidth);
+	expect("a character that is not a digit == -1", UCS4Digit('A', script), -1);
+	expect("...has ScriptNone", (uint32_t)script, (uint32_t)ScriptNone);
 }
 
 void

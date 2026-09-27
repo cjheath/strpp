@@ -422,7 +422,8 @@ public:
 				return ep-nthChar(0);
 			}
 
-	// Comparisons: raw byte-wise only. StrValI adds CompareStyle-parameterised compare().
+	// Comparisons: raw byte-wise only. StrValI adds a compare() of its own, which
+	// compares characters when the two encodings differ, and compareNatural().
 	int		compare(const StrRefI& comparand) const
 			{
 				/*
@@ -510,14 +511,6 @@ protected:
 	template<typename N> static StrVal	reprUInt(N u, char repr);
 
 public:
-	typedef enum {
-		CompareRaw,		// No processing, just the characters
-		CompareCI,		// Case independent
-		// REVISIT: Language-sensitive collation must consider 2-1 and 1-2 digraphs for each locale
-		// Then there's the issue of Unicode normalization (de/composition), which should use transform()
-		CompareNatural		// Natural comparison, with numeric strings by value
-	} CompareStyle;
-
 	static const StrValI	null;
 
 	~StrValI() {}			// Destructor
@@ -611,8 +604,11 @@ public:
 				return cp;
 			}
 
-	// Comparisons:
-	int		compare(const StrValI&, CompareStyle = CompareRaw) const;
+	// Comparisons, raw characters, and natural (comparing digit strings numerically).
+	// We don't attempt language-sensitive collation (1-2 & 2-1 mappings) or normalization
+	int		compare(const StrValI&) const;
+	int		compareNatural(const StrValI&) const;
+
 	inline bool	operator==(const StrValI& comparand) const {
 				return length() == comparand.length() && compare(comparand) == 0;
 			}
@@ -621,20 +617,13 @@ public:
 	inline bool	operator<=(const StrValI& comparand) const { return compare(comparand) <= 0; }
 	inline bool	operator>=(const StrValI& comparand) const { return compare(comparand) >= 0; }
 	inline bool	operator>(const StrValI& comparand) const { return compare(comparand) > 0; }
-	bool		equalCI(const StrValI& s) const		// Case independent equality
-			{ return compare(s, CompareCI) == 0; }
 
-	// Ensure StrVal meets the requirements for a std::map:
+	// Minimum requirements for using a StrVal with std::map:
 	static bool	compare(const StrValI& c1, const StrValI& c2);
 	static bool	equiv(const StrValI& c1, const StrValI& c2);
 
 	// Extract substrings:
-	/*
-	 * Asking for more characters than there are is a clamp, not a loss: the
-	 * substring holds what there was, and nothing is reported. An *index* past
-	 * the end is the caller's error, and is reported - the same rule an Array's
-	 * slices follow.
-	 */
+	// A request overlapping a boundary is clamped. Step right outside,that's an error.
 	StrValI		substr(Index at, int len = -1) const
 			{
 				// Quick check for a null substring:
@@ -1184,52 +1173,185 @@ private:
 
 };
 
+extern template int StrValI<StrValIndex>::compareNatural(const StrValI<StrValIndex>&) const;
+
 template<typename Index>
 const class StrValI<Index>	StrValI<Index>::null;
 
 template<typename Index>
 bool StrValI<Index>::compare(const StrValI& c1, const StrValI& c2)
 {
-	return c1.compare(c2, CompareRaw) > 0;
+	return c1.compare(c2) > 0;
 }
 
 template<typename Index>
 bool StrValI<Index>::equiv(const StrValI& c1, const StrValI& c2)
 {
-	return c1.compare(c2, CompareRaw) == 0;
+	return c1.compare(c2) == 0;
 }
 
+/*
+ * The raw comparison: the characters, with nothing done to them. Two strings
+ * of different encodings cannot be compared byte-wise - a raw-binary byte is
+ * the code point of its own value, so the same text is one byte on one side
+ * and several on the other - and are compared as characters instead, which
+ * StrRefI::compare does.
+ */
 template<typename Index>
-int StrValI<Index>::compare(const StrValI& comparand, CompareStyle style) const
+int StrValI<Index>::compare(const StrValI& comparand) const
 {
-	int	cmp;
-	switch (style)
+	if (body->isRawBinary() != comparand.body->isRawBinary())
+		return StrRefI<Index>::compare(comparand);	// Different encodings: by character
+
+	// Only compare the overlapping prefix - comparing numBytes() of
+	// *this* against a shorter comparand read past the end of its
+	// buffer (a real heap-buffer-overflow, caught by ASan while
+	// testing StrVal-keyed CowMap/RbTree usage: "nonexistent" (11
+	// bytes) compared against a 1-byte key read 10 bytes past it).
+	Index	shorter = numBytes() < comparand.numBytes() ? numBytes() : comparand.numBytes();
+	int	cmp = memcmp(nthChar(0), comparand.nthChar(0), shorter);
+	if (cmp == 0)
+		cmp = numBytes() - comparand.numBytes();
+	return cmp;
+}
+
+/*
+ * The natural comparison: text order, except that a run of decimal digits is
+ * compared as the number it spells, so "a10" sorts after "a9". What a digit is
+ * worth is UCS4Digit's business, so this is any script's digits, not just the
+ * ASCII ones - and a number may therefore be written more than one way.
+ *
+ * A run of digits that starts with a zero is not a number: "007" is text, and
+ * is ordered as text.
+ *
+ * Two numbers of different length are ordered by length (neither leads with a
+ * zero to pad it); of the same length, by their digits' values; and if they are
+ * the same number, by the *sets* of digits they are written with, which is what
+ * tells one script's numerals from another's. Only when they are written with
+ * the same digits as well is there no difference at all, and the comparison
+ * carries on along the string - which is what makes "a1b" sort before "a1c".
+ * Both differences are noted as the two runs are walked, so the tie-break costs
+ * no second pass.
+ *
+ * One consequence, which a caller must know before using this as a comparator:
+ * text mixing digits from more than one script is not totally ordered by it, and
+ * cannot be while a digit's value and its position in the character set
+ * disagree. "9" < "a" < the Arabic-Indic five, but 9 > 5, so the three are not
+ * in a line. Text whose digits are all from one script - including plain ASCII -
+ * is ordered strictly and consistently, which was checked exhaustively over
+ * small alphabets. Nothing in this library compares with it: compare() is what
+ * the containers use, and it never reaches this.
+ *
+ * The characters are read through the class's own accessors. This method is
+ * const, so the bookmark the string keeps for its own repeated accesses is not
+ * this walk's to move; a local pair does the same job for a walk that only goes
+ * forwards.
+ */
+template<typename Index>
+int StrValI<Index>::compareNatural(const StrValI& comparand) const
+{
+	if (body->isRawBinary() != comparand.body->isRawBinary())
+		return asText().compareNatural(comparand.asText());	// One encoding or the other
+
+	Index		len1 = length();
+	Index		len2 = comparand.length();
+	Bookmark	mark1, mark2;
+	const char*	cp1 = body->nthChar(offset, mark1);
+	const char*	cp2 = comparand.body->nthChar(comparand.offset, mark2);
+	const char*	ep1 = body->nthChar(offset+len1, mark1);
+	const char*	ep2 = comparand.body->nthChar(comparand.offset+len2, mark2);
+	while (cp1 < ep1 && cp2 < ep2)
 	{
-	case CompareRaw:
-		if (body->isRawBinary() != comparand.body->isRawBinary())
-			return StrRefI<Index>::compare(comparand);	// Different encodings: by character
+		UCS4		ch1 = getChar(cp1);	// The character, and past it
+		UCS4		ch2 = comparand.getChar(cp2);
+		NumericScript	set1 = ScriptNone;	// The script each was written in
+		NumericScript	set2 = ScriptNone;
+		int		d1 = UCS4Digit(ch1, set1);
+		int		d2 = UCS4Digit(ch2, set2);
+
+		if (d1 > 0 && d2 > 0)			// Two numbers, neither of them starting with a zero
 		{
-			// Only compare the overlapping prefix - comparing numBytes() of
-			// *this* against a shorter comparand read past the end of its
-			// buffer (a real heap-buffer-overflow, caught by ASan while
-			// testing StrVal-keyed CowMap/RbTree usage: "nonexistent" (11
-			// bytes) compared against a 1-byte key read 10 bytes past it).
-			Index	shorter = numBytes() < comparand.numBytes() ? numBytes() : comparand.numBytes();
-			cmp = memcmp(nthChar(0), comparand.nthChar(0), shorter);
-			if (cmp == 0)
-				cmp = numBytes() - comparand.numBytes();
-			return cmp;
+			/*
+			 * Walk both numbers in step, counting their digits and noting the
+			 * first place they differ - by a digit's value, or by the set of
+			 * digits it is written with. Both are wanted only if the numbers
+			 * turn out to be equal, but finding them here costs no second pass.
+			 */
+			const char*	p1 = cp1;	// Past each run's first digit
+			const char*	p2 = cp2;
+			Index		n1 = 1;		// Digits counted, with the first
+			Index		n2 = 1;
+			int		value_diff = d1 != d2 ? d1-d2 : 0;
+			int		set_diff = set1 != set2 ? (int)set1-(int)set2 : 0;
+			bool		go1 = true;
+			bool		go2 = true;
+			while (go1 || go2)
+			{
+				int		v1 = 0, v2 = 0;
+				NumericScript	s1 = ScriptNone, s2 = ScriptNone;
+				bool		read1 = false;
+				bool		read2 = false;
+
+				if (go1)
+				{
+					const char*	next = p1;
+					if (p1 < ep1 && (v1 = UCS4Digit(getChar(next), s1)) >= 0)
+					{
+						p1 = next;	// The run goes on
+						n1++;
+						read1 = true;
+					}
+					else
+						go1 = false;	// The run ends here
+				}
+				if (go2)
+				{
+					const char*	next = p2;
+					if (p2 < ep2 && (v2 = UCS4Digit(comparand.getChar(next), s2)) >= 0)
+					{
+						p2 = next;
+						n2++;
+						read2 = true;
+					}
+					else
+						go2 = false;
+				}
+
+				if (read1 && read2)	// These two digits are the same position
+				{
+					if (value_diff == 0 && v1 != v2)
+						value_diff = v1-v2;
+					if (set_diff == 0 && s1 != s2)
+						set_diff = s1-s2;
+				}
+			}
+
+			if (n1 != n2)			// Neither leads with a zero, so the longer run is the bigger number
+				return n1 < n2 ? -1 : 1;
+			if (value_diff != 0)		// As many digits: their values decide
+				return value_diff < 0 ? -1 : 1;
+			if (set_diff != 0)		// The same number, written with different digits: the sets decide
+				return set_diff < 0 ? -1 : 1;
+
+			cp1 = p1;			// The same number, written the same way: carry on
+			cp2 = p2;
+			continue;
 		}
 
-	case CompareCI:
-		assert(!"REVISIT: Case-independent comparison is not implemented");
-
-	case CompareNatural:
-		assert(!"REVISIT: Natural comparison is not implemented");
-
-	default:
-		return 0;
+		/*
+		 * Not both of them numbers - one is not a digit at all, or starts with
+		 * a zero, so it is text - and then the characters themselves decide.
+		 * As characters, not as UTF-8 bytes: for one encoding that is the same
+		 * order, and for a raw-binary byte it is the code point it stands for.
+		 */
+		if (ch1 != ch2)
+			return ch1 < ch2 ? -1 : 1;
 	}
+	if (cp1 < ep1)
+		return 1;				// This one has characters left over
+	if (cp2 < ep2)
+		return -1;
+	return 0;
 }
 
 // Allow ("str" + StrVal):
@@ -1238,12 +1360,7 @@ template<typename Index = StrValIndex> StrValI<Index> operator+(const char* cp, 
 	return StrValI<Index>(cp) + s;
 }
 
-/*
- * What a width is called, for the one message that names it. The widths this
- * library reads are named, and another returns "integer", which is vague and
- * cannot be wrong. Free rather than a member, so that each width is one line
- * and not a template of a template.
- */
+// Names of the integer widths for use in messages.
 template<typename T> inline const char* strval_integer_type_name()	{ return "integer"; }
 template<> inline const char* strval_integer_type_name<int8_t>()	{ return "int8_t"; }
 template<> inline const char* strval_integer_type_name<int16_t>()	{ return "int16_t"; }

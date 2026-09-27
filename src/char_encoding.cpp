@@ -95,9 +95,26 @@ static const struct digit_range
 };
 #define	UCS4NumDigitRanges	(sizeof(UCS4_DigitRanges)/sizeof(struct digit_range))
 
+/*
+ * The enum NumericScript names the table's ranges in their own order, and the
+ * two sets that did not suit the table after them. This holds the two lists
+ * together: add a range to the table without adding its script, or in the
+ * wrong place, and the build stops here.
+ */
+static_assert(ScriptFullwidth == UCS4NumDigitRanges-1 && (int)ScriptHangzhou == UCS4NumDigitRanges+1,
+	"NumericScript must name the digit ranges in the order of UCS4_DigitRanges");
+
 // Digit value 0-9, -1 if not digit
 int
 UCS4Digit(UCS4 ch)
+{
+	NumericScript	script;
+	return UCS4Digit(ch, script);
+}
+
+// Digit value 0-9, -1 if not digit, but return the script
+int
+UCS4Digit(UCS4 ch, NumericScript& script)
 {
 	// Adjacent digits will often be from the same set. Memoize that set.
 	// This memo is thread- and SMP-safe as long as we read it only once:
@@ -106,7 +123,10 @@ UCS4Digit(UCS4 ch)
 
 	const struct digit_range* rp = UCS4_DigitRanges+last;
 	if (ch >= rp->low && ch <= rp->high)
+	{
+		script = (NumericScript)last;
 		return 9-(rp->high - ch);
+	}
 
 	for (		// Not worth setting up binary search
 		rp = UCS4_DigitRanges;
@@ -115,18 +135,31 @@ UCS4Digit(UCS4 ch)
 	)
 	{
 		if (ch < rp->low)
-			return -1;		/* Short circuit */
+			break;			/* Short circuit: past every range it could be in */
 		if (ch <= rp->high)
 		{
-			last_memo = rp-UCS4_DigitRanges;
+			last_memo = (int)(rp-UCS4_DigitRanges);
+			script = (NumericScript)last_memo.load();
 			return 9-(rp->high - ch);
 		}
 	}
-	/* Special cases that didn't suit the table: */
-	if (ch == 0x3007)
-		return 0;			/* Ideographic number zero */
-	if (ch >= 0x3021 && ch <= 0x3029)	/* HANGZHOU numerals */
+
+	/*
+	 * The two sets that didn't suit the table. The loop breaks rather than
+	 * returns, so that these are reached - they lie below the last range's
+	 * start, where the short circuit used to end every search.
+	 */
+	if (ch == 0x3007)			/* Ideographic number zero */
+	{
+		script = ScriptIdeographicZero;
+		return 0;
+	}
+	if (ch >= 0x3021 && ch <= 0x3029)	/* HANGZHOU numerals, one to nine */
+	{
+		script = ScriptHangzhou;
 		return ch-0x3020;
+	}
+	script = ScriptNone;
 	return -1;
 }
 

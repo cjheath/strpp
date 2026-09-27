@@ -59,6 +59,44 @@ inline int	ASCIIDigit(UCS4 ch)		// ASCII Digit value 0-9 or -1 if not digit
 		{ return ch < '0' || ch > '9' ? -1 : ch-'0'; }
 bool		UCS4IsAlphabetic(UCS4 ch);	// Letters used to form words
 int		UCS4Digit(UCS4 ch);		// Digit value 0-9 or -1 if not digit
+
+/*
+ * The sets of decimal digits that reader knows: one member for each range of
+ * the table it searches, in the same order, and then the two sets that did not
+ * suit the table - the Ideographic zero, and the Hangzhou numerals that write
+ * the numbers above it. Two digits of the same value in different sets are the
+ * same number, written in different scripts; a caller that needs to tell two
+ * such writings apart compares their scripts, and a reader of numbers is the
+ * only one that ever does.
+ */
+enum NumericScript
+{
+	ScriptNone = -1,		// Not a digit at all
+	ScriptASCII,			// 0030..0039
+	ScriptArabicIndic,		// 0660..0669
+	ScriptExtendedArabicIndic,	// 06F0..06F9
+	ScriptDevanagari,		// 0966..096F
+	ScriptBengali,			// 09E6..09EF
+	ScriptGurmukhi,			// 0A66..0A6F
+	ScriptGujarati,			// 0AE7..0AEF: only 1..9
+	ScriptOriya,			// 0B66..0B6F
+	ScriptTamil,			// 0BE6..0BEF
+	ScriptTelugu,			// 0C66..0C6F
+	ScriptKannada,			// 0CE6..0CEF
+	ScriptMalayalam,		// 0D66..0D6F
+	ScriptThai,			// 0E50..0E59
+	ScriptLao,			// 0ED0..0ED9
+	ScriptTibetan,			// 0F20..0F29
+	ScriptMyanmar,			// 1040..1049
+	ScriptEthiopic,			// 1369..1371: only 1..9
+	ScriptKhmer,			// 17E0..17E9
+	ScriptMongolian,		// 1810..1819
+	ScriptFullwidth,		// FF10..FF19
+	ScriptIdeographicZero,		// 3007: the zero the Hangzhou numerals need
+	ScriptHangzhou			// 3021..3029: one to nine, with the zero above
+};
+
+int		UCS4Digit(UCS4 ch, NumericScript& script);	// The digit's value, and the script it is written in
 inline bool	UCS4IsDecimal(UCS4 ch)		// Decimal digits only
 		{ return UCS4Digit(ch) != -1; }
 int		UCS4HexDigit(UCS4 ch);		// Digit value 0-9, a-f/A-F or -1 if not digit
