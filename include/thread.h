@@ -21,6 +21,7 @@
 #include	<threadid.h>
 #include	<lockfree.h>
 #include	<thread_local.h>
+#include	<datetime.h>			// Milliseconds, the unit yield() waits in without being told which
 
 #if	defined(HAVE_FREERTOS)
 #include	<array.h>
@@ -77,20 +78,20 @@ public:
 	typedef enum { New, Started, Ended } State;
 
 	inline virtual		~Thread();
-	inline			Thread(const ThreadParams* params = 0);
+				Thread(const ThreadParams* params = 0);
 	virtual int		run() = 0;	// Override this
 
 	ThreadId		id() const { return thread_id; }
 	inline void		suspend();	// All threads start suspended
-	inline void		resume();	// Constructor should resume()
-	void			join();		// Wait for this thread to end
+	void			resume();	// Constructor should resume()
+	int			join();		// Wait for this thread to end; its exit code
 
-	static	inline void		yield(unsigned long milliseconds = 0);
+	static	void			yield(Milliseconds milliseconds = 0);
 	static	Thread*			joinAny();
 	static	inline ThreadId		currentId();	// current thread id, fast
 	static	inline ProcessId	currentProcessId();
 	static	inline Thread*		current();	// current thread, slower
-	inline void			exit(int);	// exit the current thread
+	void				exit(int);	// exit the current thread
 	static	inline Thread*		main();		// main thread. REVISIT: needed?
 
 	// REVISIT: Iterate over all live threads
@@ -100,6 +101,14 @@ protected:
 	ThreadId		thread_id;
 	State			state;
 	size_t			stack_bytes;	// From ThreadParams, or 0 (platform default)
+	/*
+	 * What run() returned, stored by ThreadProc before the thread is marked
+	 * Ended, or what exit() was given. The library carries it rather than the
+	 * platform, so every model returns it the same way - and join() returns 0
+	 * for a thread that never ran, which is the only case it cannot tell from
+	 * a thread that ended with 0.
+	 */
+	int			exit_code;
 
 	static	Thread*		main_thread;
 	static	Latch		thread_latch;		// control access to threads registry
@@ -167,43 +176,22 @@ public:
  * to detect "has the scheduler started yet" here, so this is a usage
  * requirement, not something this class can enforce.
  */
-Thread::Thread(const ThreadParams* params)
-: thread_id(0)
-, state(New)
-, stack_bytes(params ? params->stackBytes : 0)
-{
-#if	defined(HAVE_PTHREADS) || defined(HAVE_FREERTOS)
-	// Thread creation starts the thread immediately, before subclass construction has finished,
-	// so don't do it here. The subclass should call resume() to start it.
-#elif	defined(MSW)
-	thread_handle = CreateThread(
-				(SECURITY_ATTRIBUTES*)0,
-				stack_bytes,	// 0 = default stack size (currently 1Mb)
-				(LPTHREAD_START_ROUTINE)&Thread::ThreadProc,
-				(void*)this,
-				CREATE_SUSPENDED,// CreationFlags
-				&thread_id
-			);
-	// if (!thread_handle) { Error(ERR_THREAD_CREATE, ...); }	// REVISIT:
-
-	thread_id = tid;
-	thread_latch.enter();
-	registerThread(this);
-	thread_latch.leave();
-	if (thread_handle)
-		ResumeThread(thread_handle);
-#else
-	// NO_THREAD: there is one thread, and it is already running
-#endif
-}
+/*
+ * Thread's constructor, resume(), yield() and exit() are defined in
+ * src/thread.cpp: they report what the host refused, and a report cannot be
+ * made from this header - nothing here may include the error buffer, whose
+ * message set sits above this layer's own headers.
+ */
 
 Thread::~Thread()
 {
 	if (this == main_thread)
 		return;
-#if	defined(HAVE_PTHREADS) || defined(HAVE_FREERTOS)
-	assert(state == Ended);
+	// A thread that never started (its creation was reported) is not a bug:
+	// there is nothing of it to have ended.
+	StrppAssert(state == Ended || thread_id == 0);
 
+#if	defined(HAVE_PTHREADS) || defined(HAVE_FREERTOS)
 	/*
 	 * REVISIT: FreeRTOS can force-terminate another task via vTaskDelete(), similar to
 	 * Windows' TerminateThread below, but with the same hazards (can leave latches held
@@ -237,46 +225,6 @@ Thread::suspend()
 		SuspendThread(thread_handle);	// suspend the thread
 #else
 	// NO_THREAD: there is no other thread to suspend
-#endif
-}
-
-void
-Thread::resume()
-{
-#if	defined(HAVE_PTHREADS)
-	pthread_attr_t	attr;
-	pthread_attr_init(&attr);
-	if (stack_bytes)
-		pthread_attr_setstacksize(&attr, stack_bytes);
-
-	thread_latch.enter();
-	void	*(*proc)(void *) = (void *(*)(void *))Thread::ThreadProc;	// pthread procs return void*
-	int	code = pthread_create(&thread_id, &attr, proc, this);
-	// if (!code) { Error(ERR_THREAD_CREATE, ...); }		// REVISIT: Report failure to start thread
-	pthread_attr_destroy(&attr);
-
-	registerThread(this);
-	thread_latch.leave();
-#elif	defined(HAVE_FREERTOS)
-	thread_latch.enter();
-	size_t		bytes = stack_bytes ? stack_bytes : THREAD_DEFAULT_STACK_BYTES;
-	BaseType_t	ok = xTaskCreate(
-				(TaskFunction_t)Thread::ThreadProc,
-				"Thread",			// REVISIT: allow a name to be supplied?
-				bytes / sizeof(StackType_t),
-				this,
-				THREAD_DEFAULT_PRIORITY,
-				&thread_id
-			);
-	// if (ok != pdPASS) { Error(ERR_THREAD_CREATE, ...); }	// REVISIT: Report failure to start thread
-	(void)ok;
-	registerThread(this);
-	thread_latch.leave();
-#elif	defined(MSW)
-	if (thread_handle)
-		ResumeThread(thread_handle);	// (re)start the thread
-#else
-	assert(!"No threads can be started when there is no threading model");
 #endif
 }
 
@@ -325,7 +273,9 @@ void
 Thread::remove_ended()
 {
 	thread_latch.enter();
-	if (Thread::find(thread_id))
+	// An id of 0 is a thread that never started, which was never registered -
+	// and looking it up would find whichever other thread shares that id
+	if (thread_id && Thread::find(thread_id))
 	{
 		if (state == Ended)
 			ended_count--;
@@ -358,28 +308,6 @@ ProcessId Thread::currentProcessId()
 	return GetCurrentProcessId();
 #else
 	return 0;	// NO_THREAD has no notion of a process either
-#endif
-}
-
-void Thread::yield(unsigned long milliseconds)
-{
-#if	defined(HAVE_PTHREADS)
-	struct timespec request, remaining;
-	request.tv_sec = (unsigned long)milliseconds/1000;
-	request.tv_nsec = (unsigned long)milliseconds%1000*1000000;
-	while (nanosleep(&request, &remaining) == -1 && errno == EINTR)
-		request = remaining;
-#elif	defined(HAVE_FREERTOS)
-	if (milliseconds == 0)
-		taskYIELD();
-	else
-		vTaskDelay(pdMS_TO_TICKS(milliseconds));
-#elif	defined(MSW)
-	if (milliseconds == 0)
-		milliseconds = 1;
-	Sleep(milliseconds);
-#else
-	(void)milliseconds;	// NO_THREAD: there is no other thread to yield to
 #endif
 }
 

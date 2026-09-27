@@ -6,9 +6,11 @@
  * continued, any thread that tries to signal it again will block.
  */
 #include	<unistd.h>
+#include	<time.h>
 
 #include	<thread.h>
 #include	<condition.h>
+#include	<str_msg.h>			// A condition that was never created says so
 
 /*
  * With one thread - NO_THREAD, or no model selected at all, which thread.h
@@ -42,9 +44,15 @@ Condition::~Condition()
 #endif
 }
 
+/*
+ * The failure is recorded rather than reported: this may be constructed during
+ * static initialisation (the library's own ended_threads_condition is), where
+ * the error buffer is not to be relied on. ok() tells the truth about it, and
+ * the first wait or signal that finds it reports it.
+ */
 Condition::Condition()
 #if	defined(HAVE_PTHREADS)
-	// Nothing to do here
+: init_error(0)
 #elif	defined(HAVE_FREERTOS)
 : waiters_count(0)
 , release_count(0)
@@ -58,13 +66,11 @@ Condition::Condition()
 #endif
 {
 #if	defined(HAVE_PTHREADS)
-	pthread_cond_init(&cond, (pthread_condattr_t*)0);
+	init_error = pthread_cond_init(&cond, (pthread_condattr_t*)0);
 #elif	defined(HAVE_FREERTOS)
 	eventGroup = xEventGroupCreate();
-	assert(eventGroup);
 #elif	defined(MSW)
 	hEvent = CreateEventW(NULL, TRUE, FALSE, 0);
-	assert(hEvent);
 #else
 #error	"Not implemented"
 #endif
@@ -74,15 +80,30 @@ bool
 Condition::ok() const
 {
 #if	defined(HAVE_PTHREADS)
-	return true;
+	return init_error == 0;
 #elif	defined(HAVE_FREERTOS)
 	return eventGroup != 0;
 #elif	defined(MSW)
 	return hEvent != 0;
 #else
 #error	"Not implemented"
-	return FALSE;
+	return false;
 #endif
+}
+
+/*
+ * A condition variable whose primitive was never made has nothing to wait on
+ * and nothing to signal, and calling the platform with it is undefined. Every
+ * use asks this first; the first one to find out says so, and returns with the
+ * safe nothing.
+ */
+bool
+Condition::usable(const char* operation) const
+{
+	if (ok())
+		return true;
+	ErrorTHR_NoCondition(operation);
+	return false;
 }
 
 void
@@ -90,8 +111,17 @@ Condition::wait(
 	Latch*		user_latch
 )
 {
+	// Waiting means giving up the latch while another thread changes the
+	// condition; with no latch there is nothing to give up, and the platform
+	// needs one to wait on
+	StrppAssert(user_latch);
+	if (!usable("wait on"))
+		return;
+
 #if	defined(HAVE_PTHREADS)
-	pthread_cond_wait(&cond, &user_latch->mutex);
+	int		retcode = pthread_cond_wait(&cond, &user_latch->mutex);
+	if (retcode)
+		ErrorTHR_WaitFailed("pthread_cond_wait", retcode);
 #elif	defined(HAVE_FREERTOS)
 	// Increment the count of waiters and grab the generation count:
 	latch.enter();
@@ -101,23 +131,24 @@ Condition::wait(
 
 	if (user_latch)
 		user_latch->leave();
-	bool	done = false;
+	bool	released = false;
 	do
 	{
 		(void) xEventGroupWaitBits(eventGroup, CONDITION_EVENT_BIT, pdFALSE, pdFALSE, portMAX_DELAY);
 		latch.enter();
-		done = release_count > 0
+		released = release_count > 0
 			&& my_generation != generation_count;
 		latch.leave();
-	} while (!done);
+	} while (!released);
 	if (user_latch)
 		user_latch->enter();
 
+	// Only a waiter that was released holds a ticket to hand back
 	latch.enter();
 	--waiters_count;
-	done = --release_count == 0;
+	bool	last = released && --release_count == 0;
 	latch.leave();
-	if (done)
+	if (last)
 		xEventGroupClearBits(eventGroup, CONDITION_EVENT_BIT);
 #elif	defined(MSW)
 	// Increment the count of waiters and grab the generation count:
@@ -129,23 +160,29 @@ Condition::wait(
 
 	if (user_latch)
 		user_latch->unlatch(tid);
-	bool	done = FALSE;
+	bool	released = false;
 	do
 	{
-		(void) WaitForSingleObject(hEvent, INFINITE);
+		DWORD	wait = WaitForSingleObject(hEvent, INFINITE);
+		if (wait == WAIT_FAILED)
+		{
+			ErrorTHR_WaitFailed("WaitForSingleObject", (int)GetLastError());
+			break;
+		}
 		latch.latch(tid);
-		done = release_count > 0
+		released = release_count > 0
 			&& my_generation != generation_count;
 		latch.unlatch(tid);
-	} while (!done);
+	} while (!released);
 	if (user_latch)
 		user_latch->latch(tid);
 
+	// Only a waiter that was released holds a ticket to hand back
 	latch.latch(tid);
 	--waiters_count;
-	done = --release_count == 0;
+	bool	last = released && --release_count == 0;
 	latch.unlatch(tid);
-	if (done)
+	if (last)
 		ResetEvent(hEvent);
 #else
 #error	"Not implemented"
@@ -156,7 +193,9 @@ void
 Condition::signal()
 {
 #if	defined(HAVE_PTHREADS)
-	pthread_cond_signal(&cond);
+	int		code = pthread_cond_signal(&cond);
+	if (code)	// EINVAL: a condition variable that was never made
+		ErrorTHR_NoCondition("signal");
 #elif	defined(HAVE_FREERTOS)
 	latch.enter();
 	if (waiters_count > release_count)
@@ -186,7 +225,9 @@ void
 Condition::broadcast()
 {
 #if	defined(HAVE_PTHREADS)
-	pthread_cond_broadcast(&cond);
+	int		code = pthread_cond_broadcast(&cond);
+	if (code)	// EINVAL: a condition variable that was never made
+		ErrorTHR_NoCondition("broadcast");
 #elif	defined(HAVE_FREERTOS)
 	latch.enter();
 	if (waiters_count > 0)
@@ -219,20 +260,41 @@ Condition::wait(		// Wait for a ticket
 )
 {
 #if	defined(HAVE_PTHREADS)
-	int		retcode;
-	struct timespec	ts;
-	ts.tv_sec = (unsigned long)timeout / 1000;
-	ts.tv_nsec = (unsigned long)timeout % 1000 * 1000000L;
-	retcode = pthread_cond_timedwait(&cond, &user_latch->mutex, &ts);
-	if (retcode == ETIMEDOUT)
+	/*
+	 * pthread_cond_timedwait wants an absolute deadline on the condition
+	 * variable's clock - CLOCK_REALTIME, unless its attributes say otherwise -
+	 * and not a duration. Handing it the duration makes every wait return at
+	 * once, since 1970 is long past.
+	 */
+	struct timespec	start, deadline;
+	clock_gettime(CLOCK_REALTIME, &start);
+	deadline.tv_sec = start.tv_sec + timeout/1000;
+	deadline.tv_nsec = start.tv_nsec + timeout%1000 * 1000000L;
+	if (deadline.tv_nsec >= 1000000000L)
 	{
-		timeout = 0;
+		deadline.tv_sec++;
+		deadline.tv_nsec -= 1000000000L;
+	}
+
+	int		retcode = pthread_cond_timedwait(&cond, &user_latch->mutex, &deadline);
+	if (retcode == 0)
+	{
+		// Signalled, so hand back the time that was not used
+		struct timespec	now;
+		clock_gettime(CLOCK_REALTIME, &now);
+		long	elapsed = (long)((now.tv_sec-start.tv_sec)*1000 + (now.tv_nsec-start.tv_nsec)/1000000L);
+		timeout = elapsed >= timeout ? 0 : timeout-elapsed;
 	}
 	else
 	{
-		// REVISIT: Subtract elapsed time from timeout
+		if (retcode != ETIMEDOUT)
+			ErrorTHR_WaitFailed("pthread_cond_timedwait", retcode);
+		timeout = 0;		// Timed out, or the wait failed: there is nothing left to wait for
 	}
 #elif	defined(HAVE_FREERTOS)
+	if (timeout == 0)
+		return;			// Nothing to wait for, and so no ticket taken
+
 	TickType_t	start = xTaskGetTickCount();
 
 	// Increment the count of waiters and grab the generation count:
@@ -243,8 +305,8 @@ Condition::wait(		// Wait for a ticket
 
 	if (user_latch)
 		user_latch->leave();
-	bool	done = false;
-	while (!done && (unsigned long)timeout > 0)
+	bool	released = false;
+	while (!released && (unsigned long)timeout > 0)
 	{
 		(void) xEventGroupWaitBits(eventGroup, CONDITION_EVENT_BIT, pdFALSE, pdFALSE, pdMS_TO_TICKS(timeout));
 
@@ -256,21 +318,25 @@ Condition::wait(		// Wait for a ticket
 
 		// Time to awake yet?
 		latch.enter();
-		done = release_count > 0
+		released = release_count > 0
 			&& my_generation != generation_count;
 		latch.leave();
 	}
 	if (user_latch)
 		user_latch->enter();
 
+	// Only a waiter that was released holds a ticket to hand back
 	latch.enter();
 	--waiters_count;
-	done = --release_count == 0;
+	bool	last = released && --release_count == 0;
 	latch.leave();
-	if (done)
+	if (last)
 		xEventGroupClearBits(eventGroup, CONDITION_EVENT_BIT);
 #elif	defined(MSW)
-	YMDTimeC	start = YMDTimeC::now();
+	if (timeout == 0)
+		return;			// Nothing to wait for, and so no ticket taken
+
+	DateTime	start = DateTime::now();
 
 	// Increment the count of waiters and grab the generation count:
 	ThreadId	tid = Thread::currentId();
@@ -281,31 +347,37 @@ Condition::wait(		// Wait for a ticket
 
 	if (user_latch)
 		user_latch->unlatch(tid);
-	bool	done = FALSE;
-	while (!done && (unsigned long)timeout > 0)
+	bool	released = false;
+	while (!released && (unsigned long)timeout > 0)
 	{
-		(void) WaitForSingleObject(hEvent, timeout);
+		DWORD	wait = WaitForSingleObject(hEvent, (DWORD)timeout);
+		if (wait == WAIT_FAILED)
+		{
+			ErrorTHR_WaitFailed("WaitForSingleObject", (int)GetLastError());
+			break;
+		}
 
 		// Update the remaining time-to-wait:
-		YMDTimeC	now = YMDTimeC::now();
-		MillisecondsC	elapsed = now-start;
+		DateTime	now = DateTime::now();
+		Milliseconds	elapsed(Interval(now - start));
 		start = now;
-		timeout = elapsed >= timeout ? 0 : timeout-elapsed; // Calculate remaining time
+		timeout = elapsed.ms() >= timeout ? 0 : timeout-(long)elapsed.ms(); // Calculate remaining time
 
 		// Time to awake yet?
 		latch.latch(tid);
-		done = release_count > 0
+		released = release_count > 0
 			&& my_generation != generation_count;
 		latch.unlatch(tid);
 	}
 	if (user_latch)
 		user_latch->latch(tid);
 
+	// Only a waiter that was released holds a ticket to hand back
 	latch.latch(tid);
 	--waiters_count;
-	done = --release_count == 0;
+	bool	last = released && --release_count == 0;
 	latch.unlatch(tid);
-	if (done)
+	if (last)
 		ResetEvent(hEvent);
 #else
 #error	"Not implemented"

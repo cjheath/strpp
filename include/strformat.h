@@ -302,7 +302,7 @@ strval_size(Variant v, const StrFormatSpec& spec)
 }
 
 /*
- * Parse a specification, just after its colon, and return where it ended:
+ * Parse a specification, from just after its colon, and return where it ended:
  * the first character that cannot belong to a specification, which is the '}'
  * that closes the marker when the whole of it was understood. What was not
  * understood is passed over by the walk, and the marker is closed at its own }.

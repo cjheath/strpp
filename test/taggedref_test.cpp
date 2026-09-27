@@ -14,9 +14,13 @@
  * (c) Copyright Clifford Heath 2026. See LICENSE file for usage rights.
  */
 #include	<taggedref.h>
+#include	<strassert.h>
 
 #include	<cstdio>
 #include	<cstring>
+#include	<unistd.h>
+#include	<sys/wait.h>
+#include	<signal.h>
 
 bool		show_passes = false;
 int		test_count;
@@ -85,6 +89,16 @@ struct TestNode : RefCounted
 };
 int	TestNode::live_count = 0;
 
+/*
+ * The tag width is a constant expression, so a caller's *constant* tag can be
+ * checked where it is written rather than where it is stored - which is the
+ * only way it can be caught at compile time at all, a function argument being
+ * no constant expression. This standing is what pins that ability: if TagMask()
+ * stops being constexpr, this stops compiling.
+ */
+static_assert((1 & ~TaggedRef<TestNode>::TagMask()) == 0,
+	"A one-bit tag must fit wherever a red-black node can hold one");
+
 // A second type with a larger explicit alignment, to confirm the tag
 // width tracks alignof(T) rather than being hard-coded.
 struct alignas(16) BigAlignNode : RefCounted
@@ -103,6 +117,88 @@ void		copy_and_assignment_tests();
 void		self_assignment_tests();
 void		alignment_scaling_tests();
 void		stress_tests();
+void		over_wide_tag_tests();
+
+/*
+ * A tag that needs bits the alignment has not left must stop the program, not
+ * be OR'd into the pointer: the reader would then get a live address inside
+ * the object instead of the object, and the tag it asks for back would be
+ * truncated - two wrong returns, neither of them obviously wrong.
+ *
+ * The forked-child idiom is test/assert_test.cpp's: the child's dump goes into
+ * the pipe, and the parent judges how it died.
+ */
+static int	dump_fd = -1;
+
+static void
+write_to_pipe(const char* data, int length)
+{
+	if (dump_fd >= 0)
+		(void)write(dump_fd, data, length);
+}
+
+static bool
+aborts(void (*body)(), char* out, int out_size)
+{
+	int	fds[2];
+
+	if (pipe(fds) != 0)
+		return false;
+
+	fflush(stdout);		// Or the child's abort flushes what it inherited, once per child
+
+	pid_t	child = fork();
+	if (child == 0)
+	{
+		close(fds[0]);
+		dump_fd = fds[1];
+		strpp_panic_write = write_to_pipe;
+		body();
+		_exit(0);			// Not reached: the body is expected to die
+	}
+
+	close(fds[1]);
+	int	got = 0;
+	int	n;
+	while (got < out_size-1 && (n = (int)read(fds[0], out+got, out_size-1-got)) > 0)
+		got += n;
+	out[got] = '\0';
+	close(fds[0]);
+
+	int	status = 0;
+	waitpid(child, &status, 0);
+	return WIFSIGNALED(status) && WTERMSIG(status) == SIGABRT;
+}
+
+static void
+set_tag_too_wide()
+{
+	TaggedRef<TestNode>	r(new TestNode(1));
+	r.SetTag(TaggedRef<TestNode>::TagMask()+1);	// One bit more than there is room for
+}
+
+static void
+construct_tag_too_wide()
+{
+	TaggedRef<TestNode>	r(new TestNode(1), TaggedRef<TestNode>::TagMask()+1);
+}
+
+void
+over_wide_tag_tests()
+{
+	test_group("A tag too wide for the alignment stops the program");
+	{
+		char	out[4000];
+
+		expect("SetTag with a tag too wide stops", aborts(set_tag_too_wide, out, sizeof out));
+		expect("...reporting that the tag must fit the spare bits",
+			strstr(out, "(tag & ~TagMask()) == 0") != 0);
+
+		expect("constructing with a tag too wide stops", aborts(construct_tag_too_wide, out, sizeof out));
+		expect("...reporting the same condition", strstr(out, "(tag & ~TagMask()) == 0") != 0);
+	}
+	expect_eq_int("...and neither child leaked a node", TestNode::live_count, 0);
+}
 
 int
 main(int argc, const char** argv)
@@ -116,6 +212,7 @@ main(int argc, const char** argv)
 	self_assignment_tests();
 	alignment_scaling_tests();
 	stress_tests();
+	over_wide_tag_tests();
 
 	printf("Completed %d tests with %d failures\n", test_count, failure_count);
 	return failure_count == 0 ? 0 : 1;

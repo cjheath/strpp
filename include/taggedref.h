@@ -25,6 +25,7 @@
 #include	<assert.h>
 
 #include	<refcount.h>
+#include	<strassert.h>			// A tag that will not fit stops the program
 
 template<class T>
 class	TaggedRef
@@ -43,9 +44,9 @@ public:
 	 * TaggedRef<RbNode<K,V>> before V (e.g. Variant, in variant.h) is
 	 * complete.
 	 */
-	static uintptr_t
+	static constexpr uintptr_t
 			TagMask() { return alignof(T) - 1; }
-	static uintptr_t
+	static constexpr uintptr_t
 			PtrMask() { return ~TagMask(); }
 
 	~TaggedRef()
@@ -90,7 +91,15 @@ public:
 	uintptr_t	Tag() const { return bits & TagMask(); }
 	void		SetTag(uintptr_t tag)		// Change only the tag; the pointee (and its refcount) is untouched
 			{
-				assert((tag & ~TagMask()) == 0);
+				/*
+				 * A tag too wide for the alignment is OR'd into the pointer's
+				 * own bits, which corrupts it: get() then returns an address
+				 * inside the object rather than the object, and Tag() returns a
+				 * truncated tag - two wrong results, neither of them obviously
+				 * wrong. There is no way to keep the reference intact and obey
+				 * the request, so this stops, with the reason reported.
+				 */
+				StrppAssert((tag & ~TagMask()) == 0);
 				bits = (bits & PtrMask()) | tag;
 			}
 	TaggedRef	WithTag(uintptr_t tag) const	// A new reference to the same pointee, with a different tag
@@ -114,8 +123,11 @@ private:
 	static uintptr_t
 			pack(T* o, uintptr_t tag)
 			{
-				assert((reinterpret_cast<uintptr_t>(o) & TagMask()) == 0);	// o must be properly aligned
-				assert((tag & ~TagMask()) == 0);					// tag must fit in the spare bits
+				// Neither of these may be worked around by masking: a masked
+				// pointer is a different object, and a masked tag is a
+				// different tag, and the caller asked for this one
+				StrppAssert((reinterpret_cast<uintptr_t>(o) & TagMask()) == 0);	// o must be properly aligned
+				StrppAssert((tag & ~TagMask()) == 0);				// tag must fit in the spare bits
 				return reinterpret_cast<uintptr_t>(o) | tag;
 			}
 };

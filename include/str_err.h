@@ -7,16 +7,16 @@
  * these, and is what code that raises one includes.
  *
  * One library, one message source file, however many sets it holds: strpp has
- * three, and all are here. Set 1 is STR, the strings and what can go wrong in
+ * four, and all are here. Set 1 is STR, the strings and what can go wrong in
  * reading one from a text; set 2 is VAR, the Variant type; set 3 is TIM, the
- * time and date layer. They are written by hand and shaped as a generator would
- * emit them.
+ * time and date layer; set 4 is THR, the threads and what waits on them. They
+ * are written by hand and shaped as a generator would emit them.
  *
  * A number holds a set number and a message number within that set. A number,
  * once used, is never re-used or re-numbered: it appears in logs, in the
  * product manual and in a customer's report, and it has to mean the same thing
- * years later. Neither set has been released, so both may still be renumbered;
- * once one is, no number in it changes again.
+ * years later. No set has been released, so any may still be renumbered; once
+ * one is, no number in it changes again.
  *
  * A message's default text names its parameters by position, {1} being the
  * first, because a translation may use them in another order or leave one out.
@@ -29,6 +29,7 @@
 #define	STRERR_SET			1	// The message set allocated to the strings
 #define	VARERR_SET			2	// The message set allocated to the Variant
 #define	TIMERR_SET			3	// The message set allocated to the times and dates
+#define	THRERR_SET			4	// The message set allocated to the threads, and what waits on them
 
 // The assertion, whose report is the one made on the way out:
 
@@ -63,6 +64,16 @@
 #define	TIMERR_NO_CLOCK			ErrNum(TIMERR_SET, 5)	// The current time is not known: this target has no clock, or reading it failed
 #define	TIMERR_NULL_VALUE		ErrNum(TIMERR_SET, 6)	// This `{1}` is null, so there is no value for {2}
 #define	TIMERR_RESULT_OVERFLOW		ErrNum(TIMERR_SET, 7)	// The result of {2} is past the range of `{1}`
-#define	TIMERR_NO_ZONE			ErrNum(TIMERR_SET, 8)	// The host's zone offset is not known at that instant, so UTC is answered
+#define	TIMERR_NO_ZONE			ErrNum(TIMERR_SET, 8)	// The host's zone offset is not known at that instant, so UTC is returned
+
+// The threads, the locks and the waits. `{2}`/`{3}` is what the host call
+// returned - an errno-style code, or a platform's own:
+
+#define	THRERR_CREATE_FAILED		ErrNum(THRERR_SET, 1)	// The thread was not created: `{1}` returned {2}, so it is not running
+#define	THRERR_STACK_REFUSED		ErrNum(THRERR_SET, 2)	// The host refused a stack of {1} bytes: `{2}` returned {3}, so the thread runs with the default
+#define	THRERR_JOIN_FAILED		ErrNum(THRERR_SET, 3)	// The thread could not be waited for: `{1}` returned {2}, so its exit code is not known
+#define	THRERR_NO_CONDITION		ErrNum(THRERR_SET, 4)	// This condition variable was not created, so there is nothing to {1}
+#define	THRERR_WAIT_FAILED		ErrNum(THRERR_SET, 5)	// The wait failed: `{1}` returned {2}
+#define	THRERR_DELAY_FAILED		ErrNum(THRERR_SET, 6)	// The delay was not performed: `{1}` returned {2}
 
 #endif	// STR_ERR_H

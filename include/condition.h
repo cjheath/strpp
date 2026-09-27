@@ -42,8 +42,17 @@ public:
 #endif
 
 private:
+	/*
+	 * Whether the underlying primitive was made, asked by ok() and by the
+	 * first wait or signal, which reports it if not. Defined in condition.cpp,
+	 * where the error buffer is at hand. Returns true, saying nothing when the
+	 * condition is sound.
+	 */
+	bool			usable(const char* operation) const;
+
 #if	defined(HAVE_PTHREADS)
 	pthread_cond_t		cond;
+	int			init_error;	// What pthread_cond_init returned; 0 for success
 #elif	defined(HAVE_FREERTOS)
 	/*
 	 * The same generation-count algorithm as the MSW implementation below (Schmidt's

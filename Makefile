@@ -94,6 +94,7 @@ TESTS	=	\
 		pegexp_test		\
 		reassembly_test		\
 		redblack_test		\
+		refcount_test		\
 		strformat_test		\
 		strval_test		\
 		taggedref_test		\

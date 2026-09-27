@@ -218,8 +218,87 @@ inline ErrNum
 ErrorTIM_NoZone()
 {
 	return Error(TIMERR_NO_ZONE,
-		"The host's zone offset is not known at that instant, so UTC is answered",
+		"The host's zone offset is not known at that instant, so UTC is returned",
 		VariantArray());
+}
+
+// The threads, the locks and the waits:
+
+/*
+ * A thread that the host would not create. It is not running, it is not in the
+ * registry, and `join` on it is a mistake - so the caller has to know, which is
+ * what this is for. `call` is the host call's own name and `code` what it
+ * returned, an errno-style code or the platform's own.
+ */
+inline ErrNum
+ErrorTHR_CreateFailed(const char* call, int code)
+{
+	return Error(THRERR_CREATE_FAILED,
+		"The thread was not created: `{1}` returned {2}, so it is not running",
+		VariantArray() << call << code);
+}
+
+/*
+ * The thread was created, but not with the stack the caller asked for: the
+ * platform refused the size, so the host's default applies.
+ */
+inline ErrNum
+ErrorTHR_StackRefused(unsigned long long bytes, const char* call, int code)
+{
+	return Error(THRERR_STACK_REFUSED,
+		"The host refused a stack of {1} bytes: `{2}` returned {3}, so the thread runs with the default",
+		VariantArray() << bytes << call << code);
+}
+
+/*
+ * Waiting for a thread failed, so whether it has ended - and its exit code -
+ * are not known. Its exit code is returned as 0, which a thread that ended with
+ * 0 also returns: this is what tells the two apart.
+ */
+inline ErrNum
+ErrorTHR_JoinFailed(const char* call, int code)
+{
+	return Error(THRERR_JOIN_FAILED,
+		"The thread could not be waited for: `{1}` returned {2}, so its exit code is not known",
+		VariantArray() << call << code);
+}
+
+/*
+ * A condition variable whose underlying primitive was never made - a failed
+ * pthread_cond_init, xEventGroupCreate or CreateEvent. Nothing waits on it, and
+ * every wait or signal is a no-op. `operation` is the verb: "wait on",
+ * "signal", "broadcast".
+ */
+inline ErrNum
+ErrorTHR_NoCondition(const char* operation)
+{
+	return Error(THRERR_NO_CONDITION,
+		"This condition variable was not created, so there is nothing to {1}",
+		VariantArray() << operation);
+}
+
+/*
+ * A wait that the host refused, or that failed while it was happening. The wait
+ * is over, and is treated as having timed out.
+ */
+inline ErrNum
+ErrorTHR_WaitFailed(const char* call, int code)
+{
+	return Error(THRERR_WAIT_FAILED,
+		"The wait failed: `{1}` returned {2}",
+		VariantArray() << call << code);
+}
+
+/*
+ * A delay that did not happen: the host refused the duration, so the thread
+ * carried on without waiting.
+ */
+inline ErrNum
+ErrorTHR_DelayFailed(const char* call, int code)
+{
+	return Error(THRERR_DELAY_FAILED,
+		"The delay was not performed: `{1}` returned {2}",
+		VariantArray() << call << code);
 }
 
 #endif	// STR_MSG_H

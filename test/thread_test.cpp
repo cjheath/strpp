@@ -1,9 +1,49 @@
+/*
+ * Threads: creation, joining, yield, and the condition variable.
+ *
+ * The fan-out exercises concurrent creation, the registry and joinAny(). The
+ * checks around it are what the threading layer had none of: join() returning
+ * a thread's exit code, exit() ending the running thread, yield() waiting the
+ * time it is given, and a timed condition wait giving up when nothing signals.
+ *
+ * (c) Copyright Clifford Heath 2025. See LICENSE file for usage rights.
+ */
 #include	<cstdio>
+#include	<cstring>
+#include	<time.h>
 
 #include	<lockfree.h>
 #include	<thread.h>
+#include	<condition.h>
 
 #define	FANOUT	25	// This many primary threads will each create this many again. total of N*(N+1)
+
+static int	fails = 0;
+
+static void
+expect(const char* what, bool ok)
+{
+	if (!ok)
+		fails++;
+	printf("  %-56s %s\n", what, ok ? "ok" : "FAIL");
+}
+
+static void
+expect_int(const char* what, long got, long want)
+{
+	expect(what, got == want);
+	if (got != want)
+		printf("      wanted %ld, got %ld\n", want, got);
+}
+
+// Milliseconds on the same clock the timed wait uses
+static long
+now_ms()
+{
+	struct timespec	ts;
+	clock_gettime(CLOCK_REALTIME, &ts);
+	return (long)(ts.tv_sec*1000 + ts.tv_nsec/1000000);
+}
 
 class	HelloThread
 	: public Thread
@@ -31,6 +71,120 @@ public:
 	}
 };
 
+// A thread whose exit code is the one it was given: join() returns it
+class	CodeThread
+	: public Thread
+{
+	int	code;
+public:
+	CodeThread(int a_code)
+	: code(a_code)
+	{ resume(); }
+
+	int	run() { return code; }
+};
+
+// A thread that ends itself from inside run(): everything after exit() must
+// not happen, and join() returns the code it was given
+class	ExitingThread
+	: public Thread
+{
+public:
+	ExitingThread() { resume(); }
+
+	int	run()
+	{
+		exit(7);
+		return 99;		// Must not be reached, and must not be the result
+	}
+};
+
+// Says the condition is signalled, after a delay
+class	Signaller
+	: public Thread
+{
+	Condition*	condition;
+	long		delay_ms;
+public:
+	Signaller(Condition* a_condition, long a_delay)
+	: condition(a_condition)
+	, delay_ms(a_delay)
+	{ resume(); }
+
+	int	run()
+	{
+		yield(Milliseconds(delay_ms));
+		condition->signal();
+		return 0;
+	}
+};
+
+static void
+join_tests()
+{
+	printf("\nThread::join returns the exit code\n");
+	{
+		CodeThread*	thread = new CodeThread(42);
+		expect_int("run()'s value is what join() returns", thread->join(), 42);
+		delete thread;
+	}
+	{
+		ExitingThread*	exiting = new ExitingThread();
+		expect_int("exit()'s code is what join() returns", exiting->join(), 7);
+		delete exiting;
+	}
+}
+
+static void
+yield_tests()
+{
+	printf("\nThread::yield\n");
+	long	start = now_ms();
+	Thread::yield(Milliseconds(50));
+	long	waited = now_ms()-start;
+	expect("yield(50ms) waits at least 40ms", waited >= 40);
+	expect("yield(50ms) does not wait far longer", waited < 1000);
+
+	start = now_ms();
+	Thread::yield();
+	waited = now_ms()-start;
+	expect("yield() does not wait", waited < 50);
+}
+
+static void
+condition_tests()
+{
+	printf("\nCondition\n");
+	Condition	condition;
+	expect("a condition variable was created", condition.ok());
+
+	Latch	latch;
+
+	// Nothing signals this one, so it must give up after its timeout
+	latch.enter();
+	long	timeout = 50;
+	long	start = now_ms();
+	condition.wait(timeout, &latch);
+	long	waited = now_ms()-start;
+	latch.leave();
+	expect_int("a wait that times out leaves no time to wait", timeout, 0);
+	expect("...and waited at least 40ms", waited >= 40);
+	expect("...and not far longer than it was asked to", waited < 1000);
+
+	// This one is signalled after 200ms, well inside a 5 second timeout, so it
+	// returns early and hands back the time it did not use
+	Signaller	signaller(&condition, 200);
+	latch.enter();
+	timeout = 5000;
+	start = now_ms();
+	condition.wait(timeout, &latch);
+	waited = now_ms()-start;
+	latch.leave();
+	signaller.join();
+	expect("a signalled wait returns before its timeout", waited < 4000);
+	expect("...and leaves the time it did not use", timeout > 0);
+}
+
 int
 main(int argc, const char** argv)
 {
@@ -43,6 +197,12 @@ main(int argc, const char** argv)
 		(long long)Thread::main()->id()
 	);
 
+	join_tests();
+	yield_tests();
+	condition_tests();
+
+	// The fan-out: FANOUT threads each create FANOUT more, and every one of
+	// them is drained through joinAny()
 	for (int i = 0; i < FANOUT; i++)
                 (void)new HelloThread(FANOUT);
 
@@ -54,6 +214,6 @@ main(int argc, const char** argv)
                 printf("Ended %p\n", ended);
         }
 
-	// REVISIT: Show any outstanding errors on the main program
-	return 0;
+	printf("\n%s\n", fails ? "FAILED" : "all thread checks passed");
+	return fails != 0;
 }
