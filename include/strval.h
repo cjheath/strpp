@@ -1215,38 +1215,8 @@ int StrValI<Index>::compare(const StrValI& comparand) const
 	return cmp;
 }
 
-/*
- * The natural comparison: text order, except that a run of decimal digits is
- * compared as the number it spells, so "a10" sorts after "a9". What a digit is
- * worth is UCS4Digit's business, so this is any script's digits, not just the
- * ASCII ones - and a number may therefore be written more than one way.
- *
- * A run of digits that starts with a zero is not a number: "007" is text, and
- * is ordered as text.
- *
- * Two numbers of different length are ordered by length (neither leads with a
- * zero to pad it); of the same length, by their digits' values; and if they are
- * the same number, by the *sets* of digits they are written with, which is what
- * tells one script's numerals from another's. Only when they are written with
- * the same digits as well is there no difference at all, and the comparison
- * carries on along the string - which is what makes "a1b" sort before "a1c".
- * Both differences are noted as the two runs are walked, so the tie-break costs
- * no second pass.
- *
- * One consequence, which a caller must know before using this as a comparator:
- * text mixing digits from more than one script is not totally ordered by it, and
- * cannot be while a digit's value and its position in the character set
- * disagree. "9" < "a" < the Arabic-Indic five, but 9 > 5, so the three are not
- * in a line. Text whose digits are all from one script - including plain ASCII -
- * is ordered strictly and consistently, which was checked exhaustively over
- * small alphabets. Nothing in this library compares with it: compare() is what
- * the containers use, and it never reaches this.
- *
- * The characters are read through the class's own accessors. This method is
- * const, so the bookmark the string keeps for its own repeated accesses is not
- * this walk's to move; a local pair does the same job for a walk that only goes
- * forwards.
- */
+// Text order, except that a run of decimal digits is compared by value. See
+// doc/strval.md, "Comparisons".
 template<typename Index>
 int StrValI<Index>::compareNatural(const StrValI& comparand) const
 {
@@ -1271,12 +1241,8 @@ int StrValI<Index>::compareNatural(const StrValI& comparand) const
 
 		if (d1 > 0 && d2 > 0)			// Two numbers, neither of them starting with a zero
 		{
-			/*
-			 * Walk both numbers in step, counting their digits and noting the
-			 * first place they differ - by a digit's value, or by the set of
-			 * digits it is written with. Both are wanted only if the numbers
-			 * turn out to be equal, but finding them here costs no second pass.
-			 */
+			// Walk both numbers in step, and note the first difference in
+			// digit value and in digit set
 			const char*	p1 = cp1;	// Past each run's first digit
 			const char*	p2 = cp2;
 			Index		n1 = 1;		// Digits counted, with the first
@@ -1338,12 +1304,7 @@ int StrValI<Index>::compareNatural(const StrValI& comparand) const
 			continue;
 		}
 
-		/*
-		 * Not both of them numbers - one is not a digit at all, or starts with
-		 * a zero, so it is text - and then the characters themselves decide.
-		 * As characters, not as UTF-8 bytes: for one encoding that is the same
-		 * order, and for a raw-binary byte it is the code point it stands for.
-		 */
+		// Not both numbers: the characters themselves decide
 		if (ch1 != ch2)
 			return ch1 < ch2 ? -1 : 1;
 	}

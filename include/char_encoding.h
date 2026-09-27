@@ -60,15 +60,7 @@ inline int	ASCIIDigit(UCS4 ch)		// ASCII Digit value 0-9 or -1 if not digit
 bool		UCS4IsAlphabetic(UCS4 ch);	// Letters used to form words
 int		UCS4Digit(UCS4 ch);		// Digit value 0-9 or -1 if not digit
 
-/*
- * The sets of decimal digits that reader knows: one member for each range of
- * the table it searches, in the same order, and then the two sets that did not
- * suit the table - the Ideographic zero, and the Hangzhou numerals that write
- * the numbers above it. Two digits of the same value in different sets are the
- * same number, written in different scripts; a caller that needs to tell two
- * such writings apart compares their scripts, and a reader of numbers is the
- * only one that ever does.
- */
+// The sets of decimal digits, in the order of the ranges UCS4Digit searches
 enum NumericScript
 {
 	ScriptNone = -1,		// Not a digit at all

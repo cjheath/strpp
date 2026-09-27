@@ -105,9 +105,9 @@ Cutting one up:
   characters in `s` is.
 - `findNot`/`rfindNot(const StrVal& s, int after/before)` - where a character
   not in `s` is.
-- `compare(const StrVal&, CompareStyle = CompareRaw)`, `equalCI`, and the
-  comparison operators - ordering, optionally case independent. `compare`
-  with a style other than `CompareRaw` is not implemented yet.
+- `compare(const StrVal&)`, and the comparison operators built on it -
+  ordering as characters. `compareNatural()` likewise, ordering the numbers in
+  a text as numbers. See "Comparisons" below.
 - `static compare(a, b)`, `static equiv(a, b)` - the ordering and equality
   predicates a std::map needs of its key.
 - `isStatic()` - true when the data is not owned by this string's body.
@@ -191,6 +191,48 @@ Example:
 
 		greet(hello);
 	}
+
+### Comparisons
+
+`compare()` compares two strings as characters. The same encoding on both sides
+is a byte comparison; where the two are encoded differently - a raw-binary string
+against a UTF-8 one - the characters are compared, a raw byte being the code
+point of its own value. An operator (`==`, `<`, and the rest) is `compare()`,
+and so is what the library's containers order their keys by.
+
+`compareNatural()` is a function of its own, never reached from `compare()`, and
+orders text with the numbers in it read as numbers:
+
+- A run of decimal digits is compared by the number it spells, in decimal, so
+  `a10` sorts after `a9`. A digit's value comes from `UCS4Digit`, so any script's
+  digits count: `a١٠` sorts after `a٩`, and a Thai `๑๐` after a Thai `๙`, though
+  their bytes say the opposite.
+- A run whose **first** digit is a zero is not a number but text: `a007` sorts
+  before `a5`, and `1` after `01`.
+- Numbers of different length are ordered by length - neither has a leading zero
+  to pad it - and of the same length by the digits' values. Two runs that spell
+  the **same** number are then ordered by the *sets* of digits they are written
+  with, which is what tells one script's numerals from another's (`5` before `٥`
+  before `５`); only when they are written with the same digits too is there no
+  difference at all, and the comparison carries on along the string, which is
+  what makes `a1b` sort before `a1c`.
+- The rule is applied to a whole string of digits as well as to an embedded run,
+  which is what makes `10` sort after `9`. Two strings of different encodings are
+  converted to text first, as `compare()` effectively does.
+
+**It is not a total order when scripts mix**, and cannot be while a digit's value
+and its position in the character set disagree: `9` < `a` < the Arabic-Indic
+five, but 9 > 5, so those three are not in a line. Text whose digits are all from
+one script - including plain ASCII - is ordered strictly and consistently. Use it
+for display and for sorting text of one script; a container keyed by it must not
+mix scripts.
+
+Case-independent comparison is **not implemented**: there are no complete
+case-conversion tables to do it with, so the library offers none at all rather
+than one that answers something wrong. Language-sensitive collation (the 1-2 and 2-1
+digraph mappings for each locale) and Unicode normalisation are likewise not
+implemented; each will be a comparison function of its own, as `compareNatural()`
+is.
 
 ### Substituting parameters into a text
 
