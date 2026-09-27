@@ -777,8 +777,9 @@ public:
 
 				const char*	cp = nthChar(0);
 				Index		len = numBytes();
-				// REVISIT: Handle StrRawBinary data in one string but not the other
-				StrValI		str(cp, len, len+addend.numBytes()+1);	// +1 counts the terminator
+				// Copy with the encoding this string has: appending converts if the two differ
+				StrValI		str(cp, len, len+addend.numBytes()+1, ArrayCopy,
+						body->isRawBinary() ? StrRawBinary : StrUTF8);	// +1 counts the terminator
 
 				str += addend;
 				return str;
@@ -841,9 +842,24 @@ public:
 					return *this;
 				}
 
+				/*
+				 * One body holds one encoding, and a raw-binary byte means the
+				 * code point of its own value, so text is the form that can
+				 * hold both: whichever side is raw is converted to it.
+				 */
+				if (body->isRawBinary() != addend.body->isRawBinary())
+				{
+					if (body->isRawBinary())
+						*this = asText();	// This receiver becomes text
+					else
+					{
+						StrValI	text = addend.asText();
+						return insert(pos, text);	// Insert in text form instead
+					}
+				}
+
 				Unshare();
 
-				// REVISIT: Handle StrRawBinary data
 				Index		addend_length;		// Get length in bytes
 				const char*	ap = addend.asUTF8(addend_length);
 				body->insertBytes(nthChar(pos)-nthChar(0), ap, addend_length);
@@ -1048,6 +1064,27 @@ private:
 					return (UCS4)(unsigned char)*cp++;
 				return UTF8Get(cp);
 			}
+	/*
+	 * These characters, encoded as UTF-8: a raw-binary byte is the code point
+	 * of its own value, which is what makes this total. A slice of this body
+	 * is returned when this is already text, so a caller need not care which
+	 * it was. Used where two strings of different encodings must become one.
+	 */
+	StrValI		asText() const
+			{
+				if (!body->isRawBinary())
+					return *this;
+
+				Index		len = numBytes();
+				char*		text = new char[len*2+1];	// A raw byte is at most two UTF-8 bytes
+				char*		op = text;
+				const char*	cp = nthChar(0);
+				for (Index i = 0; i < len; i++)
+					UTF8Put(op, (UCS4)(unsigned char)cp[i]);
+				*op = '\0';
+				return StrValI(text, op-text, 0, ArrayTakeOver);
+			}
+
 	void		copyBody()
 			{
 				// Copy only this slice of the body's data, and reset our offset to zero

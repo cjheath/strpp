@@ -1084,6 +1084,12 @@ raw_binary_tests()
 	expect_eq_int("...still two characters, one per byte", (long)transformed.length(), 2);
 	expect_eq_ch("...the first byte was lowercased on its own", transformed[0], (UCS4)0xE3);
 	expect_eq_ch("...and the second was left alone", transformed[1], (UCS4)0x89);
+
+	test_group("RawBinary: joining two raw-binary strings leaves them raw");
+	StrVal	twoBytes("\xC3\x89", ArrayCopy, StrRawBinary);	// Two bytes: one character as UTF-8
+	StrVal	joined = twoBytes + twoBytes;
+	expect_eq_int("...four bytes are four characters", (long)joined.length(), 4);
+	expect_eq_int("...and four bytes", (long)joined.numBytes(), 4);
 }
 
 /*
