@@ -895,6 +895,18 @@ public:
 					}
 				}
 
+				/*
+				 * The position is a character index, and nthChar() is how it
+				 * becomes a byte offset: an index it cannot find answers null,
+				 * and subtracting a null pointer makes a wild offset, not a
+				 * failed insert. So refuse first, and change nothing.
+				 */
+				if (pos > length())
+				{
+					array_index_error(pos, length(), "insert");	// Reports
+					return *this;
+				}
+
 				Unshare();
 
 				Index		addend_length;		// Get length in bytes

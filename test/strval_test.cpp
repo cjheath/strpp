@@ -60,6 +60,7 @@ void		case_conversion_tests();
 void		json_tests();
 void		int_conversion_tests();
 void		int_conversion_report_tests();
+void		insert_tests();
 void		comparison_tests();
 void		copy_on_write_tests();
 void		raw_binary_tests();
@@ -552,6 +553,7 @@ concatenation_tests()
 	StrVal	reassembled = hello + comma;
 	reassembled += world;
 	expect_eq_str("reassembled contiguous slices", reassembled, "Hello, world");
+
 }
 
 /*
@@ -799,6 +801,7 @@ int_conversion_tests()
 	expect_eq_err("...as an overflow", err, ErrNum(STRERR_SET, STRERR_NUMBER_OVERFLOW));
 
 	int_conversion_report_tests();
+	insert_tests();
 }
 
 /*
@@ -827,6 +830,26 @@ reported(ErrNum& number)	// What the buffer holds, its number; and empty it
 	}
 	buf->clear();			// Leaves nothing for the next case
 	return said;
+}
+
+/*
+ * A character index the string does not have must be refused, not used as a
+ * byte offset: nthChar() answers null for an index past the end, and
+ * subtracting that from the start of the text made a wild write.
+ */
+void
+insert_tests()
+{
+	test_group("Insert: an index past the end is refused, and changes nothing");
+	StrVal	three("abc");
+	three.insert(10, StrVal("X"));		// Past the end: nthChar() cannot find it
+	ErrNum	err = 0;
+	StrVal	said = reported(err);
+	expect_eq_err("...reports the out-of-range index", err, STRERR_INDEX_OUT_OF_RANGE);
+	expect_eq_str("...and the string is unchanged", three, "abc");
+
+	three.insert(3, StrVal("X"));		// At the end is an append, and is allowed
+	expect_eq_str("...while inserting at the end still works", three, "abcX");
 }
 
 void
@@ -1185,6 +1208,14 @@ malformed_utf8_tests()
 	expect_eq_ch("mix[3] illegal 0x80", mix[3], UTF8EncodeIllegal((UTF8)0x80));
 	expect_eq_ch("mix[4] illegal 0x81", mix[4], UTF8EncodeIllegal((UTF8)0x81));
 	expect_eq_ch("mix[5] 'c'", mix[5], (UCS4)'c');
+	test_group("Malformed UTF-8: a 0xFF lead is one invalid byte, never UCS4_NONE");
+	// 0xFF followed by five continuations is the one sequence that decoded to
+	// UCS4_NONE - the value that means "no character" - which stopped the
+	// character count there and left the rest of the string unindexable
+	StrVal	nones("\xFF\xBF\xBF\xBF\xBF\xBF" "abc");
+	expect_eq_int("...every byte is its own character", (long)nones.length(), 9);
+	expect_eq_int("...so bytes and characters agree", (long)nones.numBytes(), 9);
+	expect_eq_ch("...and the 0xFF is the invalid-byte character", nones[0], (UCS4)0x800000FF);
 }
 
 /*

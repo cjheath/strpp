@@ -150,16 +150,26 @@ UTF8CorrectLen(UTF8 c)
 	if ((unsigned char)c < 0xF8) return 4;		// 0b1111_0xxx (3 literal and 3x6 extension character = 21 bits)
 	if ((unsigned char)c < 0xFC) return 5;		// 0b1111_10xx (2 literal and 4x6 extension character = 26 bits)
 	// Some implementations only implement 1 literal bit for the six-byte form, so only generate 31 bits.
-	/*if (c < 0xFE)*/ return 6;	// 0b1111_11xx (2 literal and 5x6 extension character = 32 bits)
+	/*if (c < 0xFE)*/
+		return 6;	// 0b1111_11xx (2 literal and 5x6 extension character = 32 bits)
 }
 
 // Return the actual length of a correct UTF8 sequence, or its replacement if not correct
 inline int
 UTF8Len(const UTF8* cp)	// REVISIT: Add an error callback pointer here?
 {
-	switch (int len = UTF8CorrectLen(*cp))
+	int	len = UTF8CorrectLen(*cp);
+
+	switch (len)
 	{	// This reminds me of Duff's Device :)
-	case 6: if (UTF8Is1st(cp[5])) goto illegal;
+	case 6:
+		// 0xFF with five 0xBF continuations decodes as UCS4_NONE. Disallow it.
+		if ((unsigned char)cp[0] == 0xFF
+		 && (unsigned char)cp[1] == 0xBF && (unsigned char)cp[2] == 0xBF
+		 && (unsigned char)cp[3] == 0xBF && (unsigned char)cp[4] == 0xBF
+		 && (unsigned char)cp[5] == 0xBF)
+			goto illegal;
+		if (UTF8Is1st(cp[5])) goto illegal;
 		// Fall through
 	case 5: if (UTF8Is1st(cp[4])) goto illegal;
 		// Fall through
@@ -215,6 +225,8 @@ UTF8Get(const UTF8*& cp)	// REVISIT: Add an error callback pointer here?
 		ch = (ch << 6) | (*cp&0x3F);
 		// Fall through
 	case 1:	cp++;
+		if (ch == UCS4_NONE)		// Only the sequence above decodes to this
+			goto illegal;		// ...and "no character" cannot be a character
 		return ch;
 
 	case 0:
