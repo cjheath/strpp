@@ -310,7 +310,7 @@ protected:
 	UCS4		getChar(const char*& cp) const	// Return next character, next advancing cp
 			{
 				if (isRawBinary())
-					return *cp++;
+					return (UCS4)(unsigned char)*cp++;
 				return UTF8Get(cp);
 			}
 
@@ -562,7 +562,7 @@ public:
 				const char*	cp = nthChar(charNum);
 				if (!cp)
 					return UCS4_NONE;
-				return body->isRawBinary() ? *cp : UTF8Get(cp);
+				return body->isRawBinary() ? (UCS4)(unsigned char)*cp : UTF8Get(cp);
 			}
 	const char*	asUTF8()	// Null terminated. Must unshare data if it's a substring with elided suffix
 			{
@@ -1042,7 +1042,7 @@ private:
 	UCS4		getChar(const char*& cp) const
 			{
 				if (body->isRawBinary())
-					return *cp++;
+					return (UCS4)(unsigned char)*cp++;
 				return UTF8Get(cp);
 			}
 	void		copyBody()
