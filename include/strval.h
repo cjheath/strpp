@@ -425,6 +425,35 @@ public:
 	// Comparisons: raw byte-wise only. StrValI adds CompareStyle-parameterised compare().
 	int		compare(const StrRefI& comparand) const
 			{
+				/*
+				 * Bytes of two different encodings cannot be compared with each
+				 * other: a raw-binary byte is the code point of its own value,
+				 * so the same text is one byte on one side and several on the
+				 * other. Compare the characters instead, which is what a raw
+				 * byte already is. The common case, both sides alike, is still
+				 * a byte compare.
+				 */
+				if (body->isRawBinary() != comparand.body->isRawBinary())
+				{
+					const char*	cp1 = nthChar(0);
+					const char*	ep1 = cp1+numBytes();
+					const char*	cp2 = comparand.nthChar(0);
+					const char*	ep2 = cp2+comparand.numBytes();
+					while (cp1 < ep1 && cp2 < ep2)
+					{
+						// The same reading the bodies themselves do: a raw byte as itself, else UTF-8
+						UCS4	ch1 = body->isRawBinary() ? (UCS4)(unsigned char)*cp1++ : UTF8Get(cp1);
+						UCS4	ch2 = comparand.body->isRawBinary() ? (UCS4)(unsigned char)*cp2++ : UTF8Get(cp2);
+						if (ch1 != ch2)
+							return ch1 < ch2 ? -1 : 1;
+					}
+					if (cp1 < ep1)
+						return 1;		// This one has characters left over
+					if (cp2 < ep2)
+						return -1;
+					return 0;
+				}
+
 				// Only compare the overlapping prefix - comparing numBytes() of
 				// *this* against a shorter comparand would read past the end of
 				// its buffer.
@@ -664,6 +693,10 @@ public:
 	// Search for substrings:
 	int		find(const StrValI& s1, int after = -1) const
 			{
+				// Bytes of different encodings cannot be matched; the text forms can
+				if (body->isRawBinary() != s1.body->isRawBinary())
+					return asText().find(s1.asText(), after);
+
 				Index		n = after+1;		// First Index we'll look at
 				Index		last_start = length()-s1.length();	// Last possible start position
 				const char*	s1start = s1.nthChar(0);
@@ -679,6 +712,10 @@ public:
 			}
 	int		rfind(const StrValI& s1, int before = -1) const
 			{
+				// Bytes of different encodings cannot be matched; the text forms can
+				if (body->isRawBinary() != s1.body->isRawBinary())
+					return asText().rfind(s1.asText(), before);
+
 				Index		n = before == -1 ? length()-s1.length() : before-1;	// First Index we'll look at
 				if (n > length()-s1.length())
 					n = length()-s1.length();
@@ -1156,6 +1193,8 @@ int StrValI<Index>::compare(const StrValI& comparand, CompareStyle style) const
 	switch (style)
 	{
 	case CompareRaw:
+		if (body->isRawBinary() != comparand.body->isRawBinary())
+			return StrRefI<Index>::compare(comparand);	// Different encodings: by character
 		{
 			// Only compare the overlapping prefix - comparing numBytes() of
 			// *this* against a shorter comparand read past the end of its

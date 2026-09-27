@@ -1374,6 +1374,8 @@ mixed_encoding_tests()
 	StrVal	needleUtf8("\xC3\xA9");			// same character, proper UTF8
 	expect_eq_int("RawBinary haystack finds a UTF8 needle representing the same character",
 			(long)haystackRaw.find(needleUtf8), 3);
+	expect_eq_int("...and rfind finds it from the other end",
+			(long)haystackRaw.rfind(needleUtf8), 3);
 
 	test_group("Mixed: operator==/compare() must treat logically identical text as equal across encodings");
 	StrVal	rawE("\xE9", ArrayCopy, StrRawBinary);			// U+00E9, one raw byte
