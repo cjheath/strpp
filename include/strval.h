@@ -232,7 +232,7 @@ public:	void		insertBytes(Index pos, const char* addend, Index len)
 						ch = UCS4ToLower(ch);		// Transform it
 						nonASCII |= !UCS4IsASCII(ch);
 						char*	op = one_char;		// Pack it into our local buffer
-						UTF8Put(op, ch);
+						putChar(op, ch);		// As itself on a raw-binary body, else as UTF-8
 						*op = '\0';
 						// Assign this to the body in our closure
 						temp_body = StrBodyI(one_char, ArrayBorrow, op-one_char);
@@ -254,7 +254,7 @@ public:	void		insertBytes(Index pos, const char* addend, Index len)
 						ch = UCS4ToUpper(ch);		// Transform it
 						nonASCII |= !UCS4IsASCII(ch);
 						char*	op = one_char;		// Pack it into our local buffer
-						UTF8Put(op, ch);
+						putChar(op, ch);		// As itself on a raw-binary body, else as UTF-8
 						*op = '\0';
 
 						// Assign this to the body in our closure
@@ -317,7 +317,10 @@ protected:
 	void		putChar(char*& cp, UCS4 ch) const // Store a character, advancing cp
 			{
 				if (isRawBinary())
+				{
 					*cp++ = ch;	// REVISIT: Panic on oversized char
+					return;		// A raw byte is stored as itself, and only once
+				}
 				UTF8Put(cp, ch);
 			}
 };
@@ -1461,10 +1464,12 @@ void StrBodyI<Index>::transform(const std::function<Val(const char*& cp, const c
 	assert(ref_count <= 1);
 	char*		old_start = start;
 	size_t		old_num_elements = num_elements;
+	bool		raw = isRawBinary();		// What this body was, and still will be
 
 	// Allocate new data, preserving the old
 	start = 0;
-	num_chars = 0;
+	num_chars = raw ? StrValIndexRawBinaryMarker : 0;	// Held throughout: reading and writing a raw body is per byte
+	Index		counted = 0;			// Characters written, when this body is text
 	num_elements = 0;
 	num_alloc = 0;
 	ArrayBody<char, Index>::resize(old_num_elements+6);		// Start with same allocation plus one character space
@@ -1488,7 +1493,7 @@ void StrBodyI<Index>::transform(const std::function<Val(const char*& cp, const c
 			// Advance 'up' over the replaced characters
 			while (up < next)
 			{
-				up += UTF8Len(up);
+				up += raw ? 1 : UTF8Len(up);	// One byte to a character, or as UTF-8
 				processed_chars++;
 			}
 
@@ -1497,7 +1502,7 @@ void StrBodyI<Index>::transform(const std::function<Val(const char*& cp, const c
 			Index		replacement_bytes;
 			const char*	rp = replacement.asUTF8(replacement_bytes);
 			ArrayBody<char, Index>::insert(num_elements, rp, replacement_bytes);
-			num_chars += replacement.length();
+			counted += replacement.length();
 			op = start+num_elements;
 		}
 		else
@@ -1511,11 +1516,12 @@ void StrBodyI<Index>::transform(const std::function<Val(const char*& cp, const c
 			}
 			putChar(op, ch);
 			num_elements = op-start;
-			num_chars++;
+			counted++;
 		}
 	}
 	// Append the \0 to the array:
 	ArrayBody<char, Index>::insert(num_elements, "", 1);
+	num_chars = raw ? StrValIndexRawBinaryMarker : counted;	// Still one byte to a character
 	delete [] old_start;
 }
 

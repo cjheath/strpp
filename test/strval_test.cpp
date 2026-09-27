@@ -1074,6 +1074,16 @@ raw_binary_tests()
 
 	test_group("RawBinary: substr works per-byte");
 	expect_eq_str("raw substr", raw.substr(0, 2), "hi");
+
+	test_group("RawBinary: a transform leaves the body raw-binary");
+	// Two bytes that UTF-8 would read as one character: toLower() rewrites the
+	// body, and it must stay one byte to a character afterwards
+	StrVal	transformed("\xC3\x89", ArrayCopy, StrRawBinary);
+	transformed.toLower();
+	expect_eq_int("...two bytes are still two bytes", (long)transformed.numBytes(), 2);
+	expect_eq_int("...still two characters, one per byte", (long)transformed.length(), 2);
+	expect_eq_ch("...the first byte was lowercased on its own", transformed[0], (UCS4)0xE3);
+	expect_eq_ch("...and the second was left alone", transformed[1], (UCS4)0x89);
 }
 
 /*
