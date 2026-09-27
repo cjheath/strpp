@@ -1,0 +1,105 @@
+// Spanish contextual overlay for strpp.mcs
+
+// Every text here must land on a genuine extension of the real Message,
+// tagged with aspect = Languages.es and findable only from this context.
+//
+// Test it with:
+//
+//	cd adl/cpp && ./adlmem -a adl.adl -a ../../strpp/tools/mcs.adl \
+//		-a ../../strpp/messages/strpp.mcs -a ../../strpp/messages/strpp.es.mcs
+//
+// This file needs to explicitly reopen TOP
+// This file's own top-level statement is "Languages.es", which must be
+// outermost for Contextual Extension to tag things correctly
+TOP {
+Languages.es {
+	Message Catalog Source.Strpp {
+		StrVal {
+			ASSERT {
+				: Text = 'Aserción fallida: `{1}` en {2}:{3}';
+			}
+			TRAIL_TEXT {
+				: Text = 'Al leer `{1}` en base {2}: el número termina en {3} y `{4}` no forma parte de él';
+			}
+			NO_DIGITS {
+				: Text = 'No hay dígitos en `{1}` de los cuales leer un número, en base {2}';
+			}
+			NUMBER_OVERFLOW {
+				: Text = 'El número en `{1}` es demasiado grande para leerse como `{4}` en base {2}, desbordándose en {3}';
+			}
+			NOT_NUMBER {
+				: Text = '`{1}` no es un número en base {2}: el carácter `{3}` en {4} no es un dígito';
+			}
+			NEGATIVE_UNSIGNED {
+				: Text = 'El número en `{1}` es negativo y no puede leerse en un tipo sin signo, en base {2}';
+			}
+			ILLEGAL_RADIX {
+				: Text = 'La base {1} no es una en la que se pueda leer un número, así que no se leyó `{2}`';
+			}
+			INDEX_OUT_OF_RANGE {
+				: Text = 'Un índice de {1} está fuera de un arreglo de {2} elementos, así que no hay nada que {3}';
+			}
+		}
+
+		Variants {
+			WRONG_TYPE {
+				: Text = 'Se esperaba un `{1}`, pero este Variant es un `{2}`';
+			}
+			DOES_NOT_FIT {
+				: Text = 'No se puede convertir a `{1}` porque el valor {2} no cabe';
+			}
+			NO_COERCION {
+				: Text = 'Un `{1}` no se puede convertir a un `{2}`: esa conversión no está implementada, así que el valor se deja como está';
+			}
+		}
+
+		DataTime {
+			INVALID_YMDHMS {
+				: Text = 'La fecha y hora {1}-{2}-{3} {4}:{5}:{6} no es una fecha que exista';
+			}
+			INVALID_TEXT {
+				: Text = '`{1}` no es una hora, fecha o intervalo que esta biblioteca pueda leer';
+			}
+			OUT_OF_RANGE {
+				: Text = 'La fecha {1} está fuera del rango que un DateTime puede contener, que va de {2} a {3}';
+			}
+			NO_DATE {
+				: Text = 'Este valor es una hora del día sin fecha, así que no nombra un instante';
+			}
+			NO_CLOCK {
+				: Text = 'No se conoce la hora actual: este destino no tiene reloj, o su lectura falló';
+			}
+			NULL_VALUE {
+				: Text = 'Este `{1}` es nulo, así que no hay valor para {2}';
+			}
+			RESULT_OVERFLOW {
+				: Text = 'El resultado de {2} está fuera del rango de `{1}`';
+			}
+			NO_ZONE {
+				: Text = 'No se conoce el desplazamiento de zona del host en ese instante, así que se devuelve UTC';
+			}
+		}
+
+		Threads {
+			CREATE_FAILED {
+				: Text = 'El hilo no fue creado: `{1}` devolvió {2}, así que no está en ejecución';
+			}
+			STACK_REFUSED {
+				: Text = 'El host rechazó una pila de {1} bytes: `{2}` devolvió {3}, así que el hilo se ejecuta con el valor predeterminado';
+			}
+			JOIN_FAILED {
+				: Text = 'No se pudo esperar al hilo: `{1}` devolvió {2}, así que no se conoce su código de salida';
+			}
+			NO_CONDITION {
+				: Text = 'Esta variable de condición no fue creada, así que no hay nada que {1}';
+			}
+			WAIT_FAILED {
+				: Text = 'La espera falló: `{1}` devolvió {2}';
+			}
+			DELAY_FAILED {
+				: Text = 'La demora no se realizó: `{1}` devolvió {2}';
+			}
+		}
+	}
+}
+}

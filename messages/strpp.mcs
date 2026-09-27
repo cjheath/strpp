@@ -1,0 +1,216 @@
+// strpp's message catalog as a Message Catalog Source.
+//
+// This will be used to regenerate strpp_err.h and strpp_msg.h (downcased
+// from "Strpp" above, replacing the hand-written str_err.h/str_msg.h) once
+// the code generator is built.
+// Test it with:
+//
+//	cd adl/cpp && ./adlmem -a adl.adl -a ../../strpp/tools/mcs.adl -a ../../strpp/messages/strpp.mcs
+//
+// Text below is tentative (~=), not final (=) to allow contextual overlays.
+//
+// Parameter types are not yet declared here.
+//
+// strpp.es.mcs (a Spanish contextualisation of every message here)
+// applies a Contextual Extension to overlay Spanish text
+Strpp: Message Catalog Source {
+
+	// Set 1: STR - the StrVal messages, including reading numbers
+	StrVal: Set {
+		Prefix ~= 'STR';
+		Number ~= 1;
+		Language ~= Languages.en;
+
+		// condition, file, line - the assertion whose report is the
+		// one made on the way out.
+		ASSERT: Message {
+			Number = 1;
+			: Text ~= 'Assertion failed: `{1}` at {2}:{3}';
+		}
+
+		// text, radix, offset, trailing
+		TRAIL_TEXT: Message {
+			Number = 2;
+			: Text ~= 'Reading `{1}` in radix {2}: the number ends at {3} and `{4}` is not part of it';
+		}
+
+		// text, radix
+		NO_DIGITS: Message {
+			Number = 3;
+			: Text ~= 'There are no digits in `{1}` to read a number from, in radix {2}';
+		}
+
+		// text, radix, offset, type_name - an overflow, and not the
+		// trailing text that a lost precision or an unconsumed
+		// character gives: the number is not this number, so a
+		// caller should not carry on with it.
+		NUMBER_OVERFLOW: Message {
+			Number = 4;
+			: Text ~= 'The number in `{1}` is too large to be read as `{4}` in radix {2}, overflowing at {3}; {4} being the width that was asked for. An overflow, and not the trailing text that a lost precision or an unconsumed character gives: the number is not this number, so a caller should not carry on with it';
+		}
+
+		// text, radix, character, offset
+		NOT_NUMBER: Message {
+			Number = 5;
+			: Text ~= '`{1}` is not a number in radix {2}: the character `{3}` at {4} is not a digit';
+		}
+
+		// text, radix - a number with a minus sign, read into a type
+		// that has no sign: the sign has no meaning there, so the
+		// number cannot be read at all. A bit pattern is asked for by
+		// reading it in a base - "0xffffffff" and not "-1".
+		NEGATIVE_UNSIGNED: Message {
+			Number = 7;
+			: Text ~= 'The number in `{1}` is negative, and cannot be read into an unsigned type in radix {2}';
+		}
+
+		// radix, text
+		ILLEGAL_RADIX: Message {
+			Number = 6;
+			: Text ~= 'The radix {1} is not one a number can be read in, so `{2}` was not read';
+		}
+
+		// index, length, operation - an Array asked for an element it
+		// has not got: an index past the end, or a length that runs
+		// off it. operation is the plain verb that names what was
+		// wanted - "remove", "drop", "take", "slice" - so one message
+		// serves them all.
+		INDEX_OUT_OF_RANGE: Message {
+			Number = 8;
+			: Text ~= 'An index of {1} is outside an array of {2} elements, so there is nothing to {3}';
+		}
+	}
+
+	// Set 2: VAR - a Variant's type, and a conversion that would lose the value.
+	Variants: Set {
+		Prefix ~= 'VAR';
+		Number ~= 2;
+		Language ~= Languages.en;
+
+		// wanted, held
+		WRONG_TYPE: Message {
+			Number = 1;
+			: Text ~= 'A `{1}` was expected, but this Variant is a `{2}`';
+		}
+
+		// wanted, value
+		DOES_NOT_FIT: Message {
+			Number = 2;
+			: Text ~= 'Cannot convert to a `{1}` because the value {2} does not fit';
+		}
+
+		// from, to
+		NO_COERCION: Message {
+			Number = 3;
+			: Text ~= 'A `{1}` cannot be converted to a `{2}`: that conversion is not implemented, so the value is left as it is';
+		}
+	}
+
+	// Set 3: TIM - the times and dates.
+	DataTime: Set {
+		Prefix ~= 'TIM';
+		Number ~= 3;
+		Language ~= Languages.en;
+
+		// year, month, day, hour, minute, second
+		INVALID_YMDHMS: Message {
+			Number = 1;
+			: Text ~= 'The date and time {1}-{2}-{3} {4}:{5}:{6} is not a date that exists';
+		}
+
+		// text
+		INVALID_TEXT: Message {
+			Number = 2;
+			: Text ~= '`{1}` is not a time, a date or an interval this library can read';
+		}
+
+		// when, first, last
+		OUT_OF_RANGE: Message {
+			Number = 3;
+			: Text ~= 'The date {1} is outside the range a DateTime can hold, which runs from {2} to {3}';
+		}
+
+		// (no parameters)
+		NO_DATE: Message {
+			Number = 4;
+			: Text ~= 'This value is a time of day with no date, so it does not name an instant';
+		}
+
+		// (no parameters)
+		NO_CLOCK: Message {
+			Number = 5;
+			: Text ~= 'The current time is not known: this target has no clock, or reading it failed';
+		}
+
+		// type, operation - a time whose value is null, used where a
+		// value was needed: adding it, or reading it as a number of
+		// seconds or as a date. Reported rather than asserted, because
+		// a null is data, not a fault in the program. operation is a
+		// gerund, so a call site needs one word and not two.
+		NULL_VALUE: Message {
+			Number = 6;
+			: Text ~= 'This `{1}` is null, so there is no value for {2}';
+		}
+
+		// type, operation - an operation whose result will not fit: a
+		// count of ticks that ran past the end of what a 64-bit count
+		// holds, or a date that ran past what the fields hold.
+		RESULT_OVERFLOW: Message {
+			Number = 7;
+			: Text ~= 'The result of {2} is past the range of `{1}`';
+		}
+
+		// (no parameters) - the host could not say how far its civil
+		// time is from UTC at that instant. UTC is answered, and said
+		// out loud, since an offset cannot be null.
+		NO_ZONE: Message {
+			Number = 8;
+			: Text ~= 'The host\'s zone offset is not known at that instant, so UTC is returned';
+		}
+	}
+
+	// Set 4: THR - the threads, the locks and the waits.
+	// The second/third parameter of each is the host return value
+	// - an errno-style code, or the platform's own code.
+	Threads: Set {
+		Prefix ~= 'THR';
+		Number ~= 4;
+		Language ~= Languages.en;
+
+		// call, code
+		CREATE_FAILED: Message {
+			Number = 1;
+			: Text ~= 'The thread was not created: `{1}` returned {2}, so it is not running';
+		}
+
+		// bytes, call, code
+		STACK_REFUSED: Message {
+			Number = 2;
+			: Text ~= 'The host refused a stack of {1} bytes: `{2}` returned {3}, so the thread runs with the default';
+		}
+
+		// call, code
+		JOIN_FAILED: Message {
+			Number = 3;
+			: Text ~= 'The thread could not be waited for: `{1}` returned {2}, so its exit code is not known';
+		}
+
+		// operation - the verb: "wait on", "signal", "broadcast".
+		NO_CONDITION: Message {
+			Number = 4;
+			: Text ~= 'This condition variable was not created, so there is nothing to {1}';
+		}
+
+		// call, code
+		WAIT_FAILED: Message {
+			Number = 5;
+			: Text ~= 'The wait failed: `{1}` returned {2}';
+		}
+
+		// call, code
+		DELAY_FAILED: Message {
+			Number = 6;
+			: Text ~= 'The delay was not performed: `{1}` returned {2}';
+		}
+	}
+}
