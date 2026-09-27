@@ -97,6 +97,19 @@ ErrorSTR_IllegalRadix(int radix, StrVal text)
 		VariantArray() << radix << text);
 }
 
+/*
+ * An Array asked for an element it has not got: an index past the end, or a
+ * length that runs off it. `operation` is the plain verb that names what was
+ * wanted - "remove", "drop", "take", "slice" - so one message serves them all.
+ */
+inline ErrNum
+ErrorSTR_IndexOutOfRange(size_t index, size_t length, const char* operation)
+{
+	return Error(STRERR_INDEX_OUT_OF_RANGE,
+		"An index of {1} is outside an array of {2} elements, so there is nothing to {3}",
+		VariantArray() << (unsigned long long)index << (unsigned long long)length << operation);
+}
+
 // A Variant's type, and a conversion that would lose the value:
 
 inline ErrNum

@@ -26,6 +26,7 @@
 # that other components including these headers see the same macro.
 idf_component_register(
 	SRCS
+		"src/array.cpp"
 		"src/char_encoding.cpp"
 		"src/condition.cpp"
 		"src/datetime.cpp"
@@ -33,6 +34,7 @@ idf_component_register(
 		"src/gregorian.cpp"
 		"src/lockfree.cpp"
 		"src/strassert.cpp"
+		"src/strval.cpp"
 		"src/thread.cpp"
 		"src/variant.cpp"
 	INCLUDE_DIRS

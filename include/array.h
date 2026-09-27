@@ -17,8 +17,22 @@
 #include	<new>
 #include	<type_traits>
 
+#include	<error.h>			// An Array that cannot answer reports; see below
 #include	<refcount.h>
 #include	<strassert.h>			// A body that cannot hold what it is asked to stops
+
+/*
+ * A caller asked for an element the array has not got: an index past the end,
+ * or a length that runs off it. Reported, and then the request is refused -
+ * nothing the caller did not name is removed, and a slice is answered empty.
+ *
+ * Defined in src/array.cpp, where Error() is at hand: this header is below the
+ * strval.h -> variant.h -> errbuf.h cycle and cannot report for itself, and a
+ * template member cannot be defined out of line for every Element there is.
+ * `operation` is the verb naming what was wanted: "remove", "take", "drop",
+ * "slice".
+ */
+ErrNum	array_index_error(size_t index, size_t length, const char* operation);
 
 /*
  * The index type for array sizes. A build may set ArrayIndexBits to any width
@@ -54,6 +68,10 @@ public:
 	using	Element = E;
 	using	Index = I;
 	using	Body = B;
+
+	// The largest count an Index can hold, and so the only length that can mean
+	// "to the end": -1 converts to it, which is what a length of -1 always did.
+	static const Index	IndexMax = (Index)-1;
 
 	~ArrayR() {}			// Destructor
 	ArrayR()			// Empty array
@@ -142,7 +160,9 @@ public:
 						return 1;
 				}
 				if (i < comparand.length())
-					return -1;
+					return -1;		// Comparand is longer: it sorts after us
+				if (i < num_elements)
+					return 1;		// We are longer: we sort after it
 				return 0;
 			}
 	inline bool	operator==(const ArrayR& comparand) const {
@@ -156,29 +176,30 @@ public:
 			}
 	inline bool	operator!=(const ArrayR& comparand) const { return !(*this == comparand); }
 
-	// Extract sub-slices:
-	Self		slice(Index at, int len = -1) const
+	// Extract sub-slices. Requests overlapping bounds are clamped, not errors.
+	// Requests entirely outside the bounds are errors and get an empty response.
+	Self		slice(Index at, Index len = IndexMax) const
 			{
-				assert(len >= -1);
-
 				// Quick check for a null slice:
-				if (at < 0 || at >= num_elements || len == 0)
+				if (at >= num_elements || len == 0)
+				{
+					if (at > num_elements)
+						array_index_error(at, num_elements, "slice");
 					return Self();
+				}
 
 				// Clamp slice length:
-				if (len == -1)
-					len = num_elements-at;
-				else if (len > num_elements-at)
+				if (len == IndexMax || len > num_elements-at)	// -1 means "to the end"
 					len = num_elements-at;
 
 				return Self(body, offset+at, len);
 			}
 	Self		head(Index num_elem) const
-			{ return slice(0, num_elem); }
+			{ return slice(0, num_elem); }		// slice() clamps to what there is
 	Self		tail(Index num_elem) const
-			{ return slice(length()-num_elem, num_elem); }
+			{ return num_elem >= num_elements ? slice(0) : slice(num_elements-num_elem, num_elem); }
 	Self		shorter(Index num_elem) const	// all elements up to tail
-			{ return slice(0, length()-num_elem); }
+			{ return num_elem >= num_elements ? Self() : slice(0, num_elements-num_elem); }
 
 	// Linear search for an element
 	int		find(const Element& e, int after = -1) const
@@ -231,10 +252,19 @@ public:
 				offset = 0;
 				return *this;
 			}
+	// A caller's index that is past the end is reported, and then refused: no
+	// answer this class could give would be the one the caller meant.
+	void		index_error(Index index, const char* operation)
+			{ array_index_error(index, num_elements, operation); }
+
 	Self		drop(Index n) const
 			{
-				assert(num_elements >= n);
 				Self	dropped = *this;
+				if (n > num_elements)
+				{
+					dropped.index_error(n, "drop");		// Nothing is dropped
+					return dropped;
+				}
 				return dropped.remove(0, n);
 			}
 
@@ -245,12 +275,21 @@ public:
 			  r = e;
 			  return r;
 			}
-	ArrayR&		remove(Index at, int len = -1)			// Delete a section from the middle
+	ArrayR&		remove(Index at, Index len = IndexMax)		// Delete a section from the middle
 			{
-				if (len == -1)
-					len = num_elements-at;
-				assert(num_elements-len >= at);		// Care with unsigned arithmetic
-				if (at == num_elements || len == 0)
+				if (at > num_elements)
+				{
+					index_error(at, "remove");
+					return *this;				// Refuse: nothing is removed
+				}
+				if (len == IndexMax)
+					len = num_elements-at;			// -1 means "to the end"
+				else if (len > num_elements-at)
+				{
+					index_error(num_elements, "remove");	// The first index it needed, and had not
+					return *this;				// Refuse: nothing is removed
+				}
+				if (len == 0)
 					return *this;
 
 				/*
@@ -265,7 +304,12 @@ public:
 			}
 	Element		delete_at(Index at)
 			{
-				Element	e = this->operator[](at);
+				if (at >= num_elements)
+				{
+					index_error(at, "take");
+					return Element();			// Nothing was there to take
+				}
+				Element	e = body->data()[offset+at];		// Take the value before the body moves under it
 				remove(at, 1);
 				return e;
 			}
@@ -345,24 +389,27 @@ public:
 			{
 				if (num_elements == 0)
 					return *this;				// body may be null
-				const Element*	dp = body->data()+offset;	// Start of our slice
-				const Element*	bp = dp;			// Output pointer
-				const Element*	ep = dp+num_elements;		// End of our slice
-				for (const Element* sp = dp; sp < ep; sp++, bp++)
-					if (condition(*sp))
+				Unshare();			// We are about to write through the body
+				Element*	dp = body->data()+offset;	// Start of our slice
+				Element*	bp = dp;			// Where the next survivor goes
+				Element*	ep = dp+num_elements;		// End of our slice
+				for (Element* sp = dp; sp < ep; sp++)
+					if (!condition(*sp))
 					{
-						if (isShared())
-						{
-							Unshare();	// This invalidates the pointers; reset them
-							dp = body->data() + (dp-sp);
-							bp = body->data() + (bp-sp);
-							ep = body->data() + (ep-sp);
-							// sp = body->data();	// Unnecessary, we won't Unshare twice
-						}
-						bp--;	// Skip this element in the output
+						if (bp != sp)
+							*bp = *sp;	// Move the survivor down over the holes
+						bp++;
 					}
-				if (bp < dp)
-					num_elements -= (dp-bp);
+
+				Index		kept = bp-dp;
+				if (kept < num_elements)
+				{
+					// The elements past the survivors are the removed ones:
+					// removing them destroys them and defaults what it vacates
+					body->remove(offset+kept, num_elements-kept);
+					num_elements = kept;
+					free_if_emptied();
+				}
 				return *this;
 			}
 
@@ -623,25 +670,24 @@ public:
 						start[pos+i] = elements[i];
 				num_elements += num;
 			}
-	void		remove(Index at, int len = -1)		// Delete a subslice from the middle; `at` is absolute in this body
+	void		remove(Index at, Index len = IndexMax)		// Delete a subslice from the middle; `at` is absolute in this body
 			{
 				assert(ref_count <= 1);
 				if (len == 0)
 					return;
-				assert(len >= -1);
-				assert(at >= 0);
-				assert(at < num_elements);
 
-				if (len == -1)
+				// Any remove() beyond array bounds is an assert
+				StrppAssert(at < num_elements);
+				if (len == IndexMax)
 					len = num_elements-at;
-				assert((Index)len <= num_elements);
+				StrppAssert(len <= num_elements-at);
 				Index	keep = num_elements-len;	// How many elements survive
 				for (Index i = at; i < keep; i++)
 					start[i] = start[i+len];	// Use assignment operators
 
 				/*
 				 * The new vacancies at the end contain elements not yet destroyed.
-				 * Destroy and reconstruct them as default, or they live til the block dies.
+				 * Destroy and reconstruct them as default, or they live until the block dies.
 				 * Assignment is not obliged to release what it overwrites.
 				 */
 				if (!std::is_trivially_destructible<Element>::value)

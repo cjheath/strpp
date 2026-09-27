@@ -48,7 +48,9 @@ Reading:
 
 Slicing, all O(1) and none of them copying:
 
-- `slice(at, len = -1)`, `head(n)`, `tail(n)`, `shorter(n)`, `drop(n)`.
+- `slice(at, len = -1)`, `head(n)`, `tail(n)`, `shorter(n)`, `drop(n)`. The
+  length defaults to the rest of the array, and a length that runs past the end
+  is clamped to what is there - see "Asking for what is not there" below.
 
 Changing, each taking a private copy first if the body is shared:
 
@@ -59,11 +61,13 @@ Changing, each taking a private copy first if the body is shared:
 - `unshift(e)` - insert at the start; `shift()` removes from the start.
 - `pull()`, `last_mut()` - take the last element, or reach it to write.
 - `remove(at, len = -1)`, `delete_at(at)`, `delete_if(f)` - remove elements.
+  `delete_if(f)` removes every element for which `f` returns true, and leaves
+  the rest in order.
 - `set(n, e)`, `elem_mut(n)` - write an element, and reach one to write.
 - `reverse()` - reverse the elements of this slice.
 - `each(f)` - call `f` for every element, leaving the array alone.
 - `select(f)` - a new array of the elements that satisfy `f`.
-- `map(f)` - a new array of what `f` answers for each element.
+- `map(f)` - a new array of what `f` returns for each element.
 - `inject(start, f)` - fold the elements into an accumulator.
 - `all(f)`, `any(f)`, `one(f)` - whether all, any, or exactly one element
   satisfies `f`.
@@ -82,6 +86,36 @@ makes an array safe to pass around by value - and it is why an array that is
 meant to be appended to repeatedly should not be handed out as a slice.
 Every outstanding slice costs one copy on the next append, however the slice
 is used.
+
+### Asking for what is not there
+
+There are two out-of-bounds cases, handled differently.
+
+Asking for **more elements than there are** is a clamp, not an error: `head(n)`
+and `tail(n)` return the whole array when `n` is past the end, `shorter(n)`
+gets the empty array, and a `len` that runs past the end of a slice is
+shortened to fit. None of those reports - this is the clamp that every slice in
+the class does, and the same one `StrVal`'s `substr` does.
+
+Asking for an **index the array has not got** is the caller's error, and is
+reported as `STRERR_INDEX_OUT_OF_RANGE`, naming the index, the length of the
+array and what was wanted. An empty slice is returned:
+
+| The call | What it returns |
+|---|---|
+| `slice(at)`, `at` past the end | the empty slice |
+| `remove(at, len)`, `at` past the end or `len` running off it | *this*, unchanged: nothing is removed |
+| `drop(n)`, `n` past the end | the array, unchanged |
+| `delete_at(at)`, `at` past the end | a default-constructed element, and nothing is removed |
+
+`slice(length())` and `remove(length())` are not errors - the empty slice and
+the empty removal at the end - and neither reports.
+
+Refusing rather than clamping is deliberate for the removal calls: the caller
+named elements they believed were there, and removing a different set from the
+one they named would be worse than removing none. A caller who expects an index
+to be out of range, and does not want the buffer filled by each one, takes a
+checkpoint first - see [Errors](error.md).
 
 ### Shrinking a slice
 
@@ -102,6 +136,11 @@ refilled repeatedly wants `evacuate()`.
 
 Neither can release elements a shared body still shows to another array; the
 elements stay alive until the last reference goes.
+
+A body never gives its storage back on a **shrink**: asking for less memory than
+it holds is ignored, so an array that grows and shrinks keeps the room it grew
+into. `clear()` on the last owner is the way to hand it back, and an empty slice
+that is the only owner gives it up too.
 
 The StrVal class uses a specialisation of this template to provide its
 storage and reference counting.

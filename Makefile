@@ -66,6 +66,7 @@ HDRS	=	\
 		variant.h
 
 SRCS	=	\
+		array.cpp		\
 		char_encoding.cpp	\
 		condition.cpp		\
 		datetime.cpp		\

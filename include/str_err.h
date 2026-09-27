@@ -43,6 +43,11 @@
 #define	STRERR_ILLEGAL_RADIX		ErrNum(STRERR_SET, 6)	// The radix {1} is not one a number can be read in, so `{2}` was not read
 #define	STRERR_NEGATIVE_UNSIGNED	ErrNum(STRERR_SET, 7)	// The number in `{1}` is negative, and cannot be read into an unsigned type in radix {2}
 
+// An Array asked for an element it has not got. The index named is the one that
+// is out of range, or the first the request needed and did not have:
+
+#define	STRERR_INDEX_OUT_OF_RANGE	ErrNum(STRERR_SET, 8)	// An index of {1} is outside an array of {2} elements, so there is nothing to {3}
+
 // A Variant's type, and a conversion that would lose the value:
 
 #define	VARERR_WRONG_TYPE		ErrNum(VARERR_SET, 1)	// A `{1}` was expected, but this Variant is a `{2}`
