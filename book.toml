@@ -1,6 +1,7 @@
 # The documentation site, built with mdbook:
 #
-#   make doc		build, and commit the result to the gh-pages branch
+#   make doc		build, and stage the result on the gh-pages branch
+#   make publish		...and commit it, with an editor for the message, and push
 #
 # The Markdown sources live in doc/ on this branch; the built site replaces
 # the contents of gh-pages, whose root Github Pages serves.

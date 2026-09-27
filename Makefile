@@ -178,8 +178,9 @@ run_variant_ndebug_test: variant_ndebug_test
 %:	%.cpp $(LIB) $(MEMCHECK)
 	$(CXX) $(DEBUG) $(CXXFLAGS) -Iinclude -Itest -o $@ $< $(MEMCHECK) $(LIB)
 
-# Build the documentation site and commit it to the gh-pages branch, for review
-# before pushing. Nothing is pushed. See book.toml.
+# Build the documentation site and stage it on the gh-pages branch, in a
+# worktree under build/. Nothing is committed here: see `publish`, which does
+# this, opens an editor for a commit message, and pushes. See book.toml.
 doc:
 	@command -v mdbook >/dev/null || { echo "mdbook is not installed: brew install mdbook"; exit 1; }
 	mdbook build
@@ -191,17 +192,18 @@ doc:
 	@echo "staged in build/gh-pages, on the gh-pages branch:"
 	@cd build/gh-pages && git status --short | head -20
 	@echo ""
-	@echo "review with:  cd build/gh-pages && git status && git diff --cached"
-	@echo "then commit it there, and 'git worktree remove --force build/gh-pages' when done"
+	@echo "then 'make publish' to commit it and push, or 'make commit-docs' to"
+	@echo "commit without pushing"
 
-# Commit the staged documentation in the gh-pages worktree, opening an editor
-# for the message. Run `make doc` first.
-commit-docs:
-	@test -d build/gh-pages || { echo "nothing staged: run 'make doc' first"; exit 1; }
+# Commit the staged documentation, opening an editor for the message, and push
+# it to gh-pages. The worktree is removed once the push has gone, so the next
+# `make publish` starts it again; a push that fails leaves it in place to retry.
+commit-docs: doc
 	cd build/gh-pages && git commit
 
-publish-docs: doc commit-docs
+publish: commit-docs
 	cd build/gh-pages && git push
+	git worktree remove --force build/gh-pages
 
 px:
 	cd ../px; $(MAKE)
@@ -273,4 +275,4 @@ clobber:	clean
 	rm -f $(LIB) libstrpp_freertos.a
 	$(foreach subdir,$(SUBDIRS),$(MAKE) -C $(subdir) $@;)
 
-.PHONY:	all lib clean test tests doc freertos_check
+.PHONY:	all lib clean test tests doc commit-docs publish freertos_check
