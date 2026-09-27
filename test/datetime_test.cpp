@@ -395,7 +395,7 @@ offset_tests()
 	expect_eq_str("...and with the zone left off",
 			DateTime().toString(UtcOffset::hours(10), IsoNoZone|IsoPunctuate), "2000-01-01T10:00:00");
 
-	// The date and the time of day, which the conversion can answer separately
+	// The date and the time of day, which the conversion can return separately
 	Interval	time_of_day;
 	Gregorian	noonish = DateTime::fromTicks(TicksPerDay/2).asGregorian(UtcOffset(), &time_of_day);
 	expect_eq_str("half a day in is midday", noonish.toString(), "2000-01-01T12:00:00");
@@ -426,7 +426,7 @@ offset_tests()
 	DateTime	east = DateTime::fromString("2002-01-03T11:12:13+10:00", &zone, &err);
 
 	expect_eq_err("a text with a zone reads", err, 0);
-	expect_eq_int("...and answers that zone", zone.asMinutes(), 600);
+	expect_eq_int("...and returns that zone", zone.asMinutes(), 600);
 	expect_eq_str("...and the instant it names is the one it says",
 			east.toString(), "2002-01-03T01:12:13Z");
 	expect_eq_str("a text with no zone is UTC",
@@ -438,7 +438,7 @@ offset_tests()
 /*
  * The null value: a time that was never set. It is the lowest tick, the one
  * with no positive equivalent, so no value can be negated into one. Using it
- * where a value is needed reports rather than answering something that looks
+ * where a value is needed reports rather than returning something that looks
  * real, and it spreads through a computation instead of becoming a number.
  */
 void
@@ -473,7 +473,7 @@ null_tests()
 			err, TIMERR_INVALID_TEXT);
 
 	/*
-	 * Arithmetic on a null reports, and answers another null rather than a
+	 * Arithmetic on a null reports, and returns another null rather than a
 	 * number. The report goes to the error buffer, an operator having nowhere
 	 * to return one from; the checkpoint takes it back so that the rest of
 	 * this test is not looking at it.
@@ -482,7 +482,7 @@ null_tests()
 	Interval	sum = null_interval + Interval(1);
 	int		reported = (int)ErrBuffer()->count();
 	ErrRollback(at);
-	expect("adding to a null answers a null", sum.isNull());
+	expect("adding to a null returns a null", sum.isNull());
 	expect("...and reports", reported > 0);
 
 	at = ErrCheckpoint();
@@ -507,14 +507,14 @@ null_tests()
 	expect("...and reports", reported > 0);
 
 	/*
-	 * And reading one as a value reports too, where the answer would have to
+	 * And reading one as a value reports too, where the result would have to
 	 * be a value: a count of seconds, or a date.
 	 */
 	at = ErrCheckpoint();
 	time_t		seconds = null_datetime.asTime_t();
 	reported = (int)ErrBuffer()->count();
 	ErrRollback(at);
-	expect_eq_int("a null instant read as a time_t answers zero", (long)seconds, 0);
+	expect_eq_int("a null instant read as a time_t returns zero", (long)seconds, 0);
 	expect("...and reports", reported > 0);
 
 	at = ErrCheckpoint();
@@ -547,7 +547,7 @@ null_tests()
 /*
  * The one thing reported since the buffer was last cleared, rendered from the
  * default text and its parameters, and then cleared away. What was reported is
- * the only way to tell an overflow from a null operand: both answer a null, and
+ * the only way to tell an overflow from a null operand: both return a null, and
  * only the report says which it was.
  */
 static StrVal
@@ -571,7 +571,7 @@ reported_text()
  * An operation whose result will not fit, which used to be answered with a
  * wrapped count: a duration of the wrong sign, or an instant in the wrong
  * century, with nothing about it to say so. Each of these now reports and
- * answers a null, and the report is what says which of the two failures it was.
+ * returns a null, and the report is what says which of the two failures it was.
  */
 void
 overflow_tests()
@@ -638,9 +638,9 @@ overflow_tests()
 	/*
 	 * The zone is applied to the tick count before the date is read, so an
 	 * instant within 18 hours of an end of the range, read in a zone that takes
-	 * it past, used to answer a date from the other end: a 924 BC instant
+	 * it past, used to return a date from the other end: a 924 BC instant
 	 * became 4922-10-08 with a zone designator on it, which is as plausible as
-	 * a wrong answer gets.
+	 * a wrong result gets.
 	 */
 	expect("the latest instant read 18 hours east has no date",
 			!latest.asGregorian(UtcOffset::hours(18)).hasDate());
@@ -651,7 +651,7 @@ overflow_tests()
 	expect_eq_str("...reported", reported_text(),
 			"The result of reading a date in that zone is past the range of `DateTime`");
 
-	// ...and the time of day that the conversion could not answer is a null,
+	// ...and the time of day that the conversion could not return is a null,
 	// and its text carries no zone, having no date to put in one
 	{
 		Interval	time_of_day;

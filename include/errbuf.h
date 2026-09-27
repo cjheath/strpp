@@ -62,7 +62,7 @@ public:
 	Message		message(MsgIndex n) const;
 
 	/*
-	 * Append a reported message, and answer its sequence number. Messages are
+	 * Append a reported message, and return its sequence number. Messages are
 	 * consecutively numbered: a recovery gives its numbers back, so the next
 	 * report takes them again, and a delivered number is never re-used.
 	 */

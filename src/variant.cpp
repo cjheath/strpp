@@ -60,7 +60,7 @@ Variant::no_coercion(VariantType t) const
  * wrong number it would otherwise have been given. Where they are off, no data
  * loss is tolerable, so the value is kept instead of being thrown away: the
  * Variant is left of the closest type that holds it, which any later read -
- * as_signed, as_longlong, type, as_json - then answers correctly. The caller
+ * as_signed, as_longlong, type, as_json - then returns correctly. The caller
  * asked for a type that cannot hold the value and gets what it asked for; the
  * data is still there, and the buffer says what happened.
  */

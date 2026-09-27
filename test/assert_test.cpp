@@ -73,7 +73,7 @@ write_to_pipe(const char* data, int length)
 }
 
 // Run `body` in a child process with the panic dump going into `out`.
-// Answers true if the child died by aborting.
+// Returns true if the child died by aborting.
 static bool
 aborts(void (*body)(), char* out, int out_size)
 {

@@ -19,7 +19,7 @@ node is copied first, which is safe because our rules require that a single
 reference is confined to one thread; sharing a map across threads should
 always copy the reference.
 
-`operator[]` answers a copy of the value; `find()` returns an iterator
+`operator[]` returns a copy of the value; `find()` returns an iterator
 instead, giving read-only access (`->first`/`->second`) without copying.
 `put()`/`insert()`/`remove()`/`clear()` mutate the map, unsharing first; the
 rest are read-only, functional-style traversal helpers.
@@ -56,7 +56,7 @@ Changing, each unsharing first so that no other map sees the change:
 - `insert(const Key, const Value)` - insert the pair.
 - `remove(const Key&)` - erase the entry.
 - `put(const Key&, Value)` - erase any entry for the key, then insert the new
-  value, and answer the key.
+  value, and return the key.
 - `clear()` - empty the map.
 
 Example:

@@ -6,7 +6,7 @@
  * This is the private half of the pair, for code that raises a message;
  * str_err.h holds the numbers, and is for code that recognises a condition.
  *
- * Each function answers the ErrNum it has just reported, so reporting an error
+ * Each function returns the ErrNum it has just reported, so reporting an error
  * and returning it are one act, and the ordinary use is a return:
  *
  *	return ErrorSTR_NoDigits(text, radix);
@@ -198,7 +198,7 @@ ErrorTIM_NullValue(const char* type, const char* operation)
 /*
  * An operation whose result will not fit: a count of ticks that ran past the
  * end of what a 64-bit count holds, or a date that ran past what the fields
- * hold. The answer to it is a null or a value with no date - never a wrapped
+ * hold. The result is a null or a value with no date - never a wrapped
  * number that looks like a time, which is what this reports instead of.
  */
 inline ErrNum

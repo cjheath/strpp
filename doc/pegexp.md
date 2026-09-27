@@ -104,7 +104,7 @@ Defined in [pegexp.h](https://github.com/cjheath/strpp/blob/main/include/pegexp.
 
 - `Pegexp(PatternP pattern)` - a matcher over the 8-bit pattern text.
 - `match(Source& source, Context* context)` - match at or after the source's
-  position, advance it to the end of the match, and answer the Match.
+  position, advance it to the end of the match, and return the Match.
 - `match_here(Source& source, Context* context)` - match at exactly that
   position, without scanning forward for somewhere the pattern does fit.
 - `pattern` - the pattern text it was built from.
@@ -131,13 +131,13 @@ of its own to the extension characters listed in the table above.
 `PegexpDefaultContext`, the Context to model yours on:
 
 - `capture(name, name_len, match, in_repetition)` - called for a labelled
-  atom, and answers the capture count afterwards. The default forgets it.
+  atom, and returns the capture count afterwards. The default forgets it.
 - `capture_count()`, `rollback_capture(count)` - number the captures, and give
   the recent ones back when a path fails.
 - `record_failure(op, op_end, location)` - called for an atom that did not
   match, with the place it was tried.
 - `match_result(from, to)`, `match_failure(at)` - how a Context declares its
-  answers.
+  returns.
 - `capture_disabled`, `repetition_nesting` - how deep inside a look-ahead, and
   inside a repetition, the match currently is.
 

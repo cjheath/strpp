@@ -56,7 +56,7 @@ does, only how much it may hold and how much room its own bookkeeping takes.
 
 - `DEPTH` (16) - the most levels of array or map that
   [formatting](strval.md) and JSON rendering descend into. A structure nested
-  deeper than that answers its type name instead, so that one far deeper than
+  deeper than that returns its type name instead, so that one far deeper than
   any text needs cannot run away with the stack.
 
 - `PEG_TRACE` (off) - traces the [PEG parsers](peg.md) as they run, writing to

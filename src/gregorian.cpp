@@ -8,7 +8,7 @@
  *
  * One thing about it is not kept: every division in it is a floor division.
  * Tantzen's rearrangement assumes it, and C divides towards zero, which is the
- * same answer for a year from 1 AD onwards and a day out before it - and its
+ * same result for a year from 1 AD onwards and a day out before it - and its
  * inverse, ltodate() below, comes apart completely for a day number before the
  * epoch. This library can name dates back to 924 BC, so the difference matters,
  * and it is settled once here rather than at each use.
@@ -46,7 +46,7 @@ civil(int year)
 
 /*
  * The day number of a Y/M/D, in astronomical years. A date is valid when
- * ltodate() of this answer yields the same Y/M/D, which is how the calendar
+ * ltodate() of this result yields the same Y/M/D, which is how the calendar
  * checks a field set it did not construct itself.
  */
 static Tick
@@ -125,8 +125,8 @@ errorOutOfRange(const Gregorian& when)
  *	Z, [+-]hh[:mm], [+-]hhmm	the zone, when one is given
  *
  * A date and a time are separated by T or a space. A text with no zone is read
- * as UTC and never as local time: an answer that depends on where it is read is
- * not an answer.
+ * as UTC and never as local time: a result that depends on where it is read is
+ * not a result.
  *
  * A bare run of four digits is refused rather than read, since it could be a
  * year or an hour and a minute, and a caller who meant either can punctuate it.
@@ -152,7 +152,7 @@ static bool
 scanDigits(StrVal text, StrValIndex& i, int count, int* value)
 {
 	StrValIndex	len = text.length();
-	int		answer = 0;
+	int		result = 0;
 
 	if (i + count > len)
 		return false;
@@ -161,10 +161,10 @@ scanDigits(StrVal text, StrValIndex& i, int count, int* value)
 		int	d = UCS4Digit(text[i+n]);
 		if (d < 0)
 			return false;
-		answer = answer*10 + d;
+		result = result*10 + d;
 	}
 	i += count;
-	*value = answer;
+	*value = result;
 	return true;
 }
 
@@ -184,13 +184,13 @@ Gregorian::Gregorian(int year, int month, int day, int hour, int minute, int sec
 Gregorian
 Gregorian::fromYMD(int year, int month, int day, int hour, int minute, int second, int32_t fraction, ErrNum* err_return)
 {
-	Gregorian	answer(year, month, day, hour, minute, second, fraction);
+	Gregorian	result(year, month, day, hour, minute, second, fraction);
 
 	if (err_return)
 		*err_return = 0;
-	if (!answer.isValid() && err_return)
+	if (!result.isValid() && err_return)
 		*err_return = ErrorTIM_InvalidYMDHMS(year, month, day, hour, minute, second);
-	return answer;
+	return result;
 }
 
 bool
@@ -268,7 +268,7 @@ Gregorian::timeSinceMidnight() const
  * refused before ltodate() sees it - whose own arithmetic would overflow - and
  * so is one whose year will not fit the fields the class holds. Both are
  * reported and answered with the value that says "no date", rather than a date
- * that never was: fromDayNumber(1e15) used to answer 32269-07-04, and isValid()
+ * that never was: fromDayNumber(1e15) used to return 32269-07-04, and isValid()
  * said it was a valid date.
  *
  * A time of day past the end of its day is folded into the day, so that the
@@ -605,7 +605,7 @@ Gregorian::fromString(StrVal text, UtcOffset* offset, ErrNum* err_return)
 bad:
 	/*
 	 * Nothing was read, or what was read is not a date or a time. The fields
-	 * read so far are answered with the error, as reading a number answers
+	 * read so far are answered with the error, as reading a number returns
 	 * the digits it read: the error is what says they are not the value.
 	 */
 	if (err_return)

@@ -56,7 +56,7 @@ Making one:
 
 #### Ownership and encoding
 
-Every constructor above that takes raw data answers two independent
+Every constructor above that takes raw data returns two independent
 questions, each its own enum:
 
 - **Ownership** - `ownership`, an [`ArrayOwnership`](array.md) (`array.h`,
@@ -89,7 +89,7 @@ Reading:
   past the end, and `UCS4_NONE` for an offset that is not there.
 - `asUTF8()` - the bytes, NUL-terminated, copying the body first if this is a
   substring whose terminator was elided.
-- `asUTF8(Index& bytes)` - the bytes without that guarantee, answering the
+- `asUTF8(Index& bytes)` - the bytes without that guarantee, returning the
   byte count.
 - `operator->()`, `operator*()`, `operator const Body&()` - the body itself.
 
@@ -119,11 +119,11 @@ Building one:
 - `operator*(int repeats)` - this string, repeated.
 - `insert(Index pos, const StrVal&)`, `append`, `prepend` - insert into the
   copy this string owns.
-- `asLower()`, `asUpper()`, `toLower()`, `toUpper()` - the first two answer a
+- `asLower()`, `asUpper()`, `toLower()`, `toUpper()` - the first two return a
   copy, the second two change this string and its length.
 - `transform(std::function<StrVal(const char*& cp, const char* ep)>, int after = -1)`
   - rewrite each character from `after` on, with whatever the function
-    answers.
+    returns.
 - `asJSON()`, `toJSON()` - escaped for JSON; `toJSON` escapes in place and
   does not add the enclosing quotes.
 - `asInteger<T>(ErrNum* err, int radix = 0, Index* scanned = 0)` - return
@@ -180,7 +180,7 @@ Example:
 ### Substituting parameters into a text
 
 `format()` takes a text with markers in it and the parameters those markers
-refer to, and answers the text with each parameter interpolated where the text
+refer to, and returns the text with each parameter interpolated where the text
 names it:
 
 	StrVal::format("The {1} weighs {2} grams", VariantArray() << "parcel" << 250)
@@ -231,7 +231,7 @@ one is cut. A minimum is applied after the cut rather than before it, so
 
 A parameter that is an array or a map is expanded rather than named: an array
 in brackets, its elements rendered the same way, and a map as JSON, which is
-what a map is for. An array at the limit of `RENDER_MAX_DEPTH` levels answers
+what a map is for. An array at the limit of `RENDER_MAX_DEPTH` levels returns
 its type name in angle brackets instead, as does a type with no rendering at
 all here, so a structure deeper than any text needs cannot run away with the
 stack. The limit is a build option - `make DEPTH=8` - rather than an argument
@@ -265,8 +265,8 @@ stands.
 
 ### Integers as text
 
-`asInteger<T>` answers the number a text reads as, `asFixedPoint<T>` answers it
-at a resolution the caller names, and the six `from*` functions answer the text
+`asInteger<T>` returns the number a text reads as, `asFixedPoint<T>` returns it
+at a resolution the caller names, and the six `from*` functions return the text
 a number writes as. The writers take a representation, and it is the same one a
 format marker names:
 
@@ -296,7 +296,7 @@ is what `0xff` in radix 16 above is for.
 **The integer width is the size of `T`, and the methods only get compiled when
 needed.** nothing instantiates either reader for any type (except int32
 which is needed by Variant) until a caller needs it. So a `long long` reads a
-number an `int32_t` cannot hold, and both answer correctly:
+number an `int32_t` cannot hold, and both return correctly:
 
 	StrVal("4000000000").asInt32()			// 400000000
 	StrVal("4000000000").asInteger<long long>()	// 4000000000

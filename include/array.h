@@ -17,7 +17,7 @@
 #include	<new>
 #include	<type_traits>
 
-#include	<error.h>			// An Array that cannot answer reports; see below
+#include	<error.h>			// An Array that cannot return a value reports; see below
 #include	<refcount.h>
 #include	<strassert.h>			// A body that cannot hold what it is asked to stops
 
@@ -253,7 +253,7 @@ public:
 				return *this;
 			}
 	// A caller's index that is past the end is reported, and then refused: no
-	// answer this class could give would be the one the caller meant.
+	// result this class could give would be the one the caller meant.
 	void		index_error(Index index, const char* operation)
 			{ array_index_error(index, num_elements, operation); }
 

@@ -113,30 +113,30 @@ Reading:
   cannot be read as it.
 - `as_uint()`, `as_ulong()`, `as_ulonglong()` - the same three, unsigned, for a
   Variant whose type is one of the unsigned ones. Unlike the three above they
-  answer a value rather than a reference to the union word, which is signed: a
+  return a value rather than a reference to the union word, which is signed: a
   reference to it read as unsigned would be an aliasing violation. There is
   therefore no mutable form of these three - nothing coerces *to* an unsigned
   type - so a Variant that holds a number signed must be asked for it that way.
 - `as_signed()` - the number held as a signed one, in the closest signed type
-  that holds it, answering a `long long`. This is the read for a number of
-  unknown origin, and the answer to an unsigned value too large for its own
+  that holds it, returning a `long long`. This is the read for a number of
+  unknown origin, and what reads an unsigned value too large for its own
   signed twin: a `UInteger` beyond `INT_MAX` becomes a `Long`, and one beyond
-  `LONG_MAX` a `LongLong`. A value already signed is answered as it stands and
+  `LONG_MAX` a `LongLong`. A value already signed is returned as it stands and
   not narrowed, since its width is what its holder chose; a string that reads
   as a number is converted; and an unsigned value no signed type can hold - a
   `ULongLong` beyond `LLONG_MAX`, and on a 64-bit target a `ULong` beyond
-  `LONG_MAX` too - is refused like any other lossy coercion. It answers a value
+  `LONG_MAX` too - is refused like any other lossy coercion. It returns a value
   rather than a reference, the width of a reference being whatever the value
   turned out to need, so it is a read and not a way to write in.
 - `as_strval()`, `as_string_array()`, `as_variant_array()`, `as_variant_map()`
   - the string or container held. The mutable `as_strval()` coerces a number
   to a string, which is what renders an unsigned value unsigned. All four
-  answer a handle to a body the Variant still shares, so writing through one -
+  return a handle to a body the Variant still shares, so writing through one -
   `v.as_strval() += "x"`, `v.as_variant_map().insert(k, v)` - copies the body
   and leaves the Variant as it was. A string or container is changed by taking
   it, changing that, and putting the result back.
 - `as_interval()`, `as_datetime()` - the time held, as an `Interval` or a
-  `DateTime`. Both answer a value rather than a reference, because what the
+  `DateTime`. Both return a value rather than a reference, because what the
   union holds is a count of ticks and not one of those objects: they are reads,
   and a caller with a new time assigns it to the Variant instead.
   `as_datetime()` renders as ISO 8601 in UTC.
@@ -155,7 +155,7 @@ not read as a negative number. What a Variant does with one follows from that:
   `ULong` as `Long`, `ULongLong` as `LongLong`. A `UInteger` of 4000000000
   has the sign bit set in that width, so it does not coerce to an `Integer` at
   all: the coercion is refused, as it is for any value the target could not
-  hold, rather than answering -294967296.
+  hold, rather than returning -294967296.
 
 - **Widening one goes by value, not by bits**, where the target is wide enough
   to hold it: a `UInteger` of 4000000000 read as a `LongLong` is 4000000000
@@ -175,15 +175,15 @@ asked for and the value that does not fit it:
 Where assertions are on, that report is followed by an assertion and the
 program stops, so a program under development cannot carry the wrong number
 forward. Where assertions are compiled out there is no one to stop for, and
-losing the value would be worse than a wrong answer: the Variant is left of the
+losing the value would be worse than a wrong result: the Variant is left of the
 closest type that holds the value instead - a `UInteger` beyond `INT_MAX` is
-left a `Long` - so nothing is lost and any later read answers it correctly. The
+left a `Long` - so nothing is lost and any later read returns it correctly. The
 caller that asked for too narrow a type still gets what it asked for, and the
 buffer says why.
 
 That is what `as_signed()` is for where the width is not known: it asks for the
 closest signed type that holds the value rather than being told one, so a
-caller with a number of unknown origin has a single call that either answers
+caller with a number of unknown origin has a single call that either returns
 the number or says that no signed type holds it.
 
 A refusal of a *kind* rather than of a value is reported differently: a

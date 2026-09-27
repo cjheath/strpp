@@ -3,8 +3,8 @@
 `#include	<datetime.h>`
 
 Time comes in two kinds that are forever being confused with each other, so
-this header has two types. An `Interval` is a duration, the answer to
-"how long"; a `DateTime` is a point in time, the answer to "when". Both count
+this header has two types. An `Interval` is a duration - how long something
+takes; a `DateTime` is a point in time - when it happens. Both count
 the same tick, so an interval adds to an instant with no conversion, and one
 instant less another is an interval.
 
@@ -44,7 +44,7 @@ time that actually elapsed - a span that began then and ended now was five
 seconds longer than the difference says. Which differences are affected cannot
 be told from the values; it needs a table of leap seconds, and this library has
 none. A duration that must be physical - a timeout, an elapsed time - belongs to
-a monotonic clock, which no leap second touches. A `DateTime` answers *when*,
+a monotonic clock, which no leap second touches. A `DateTime` returns *when*,
 and an `Interval` between two of them is a count of UTC seconds.
 
 ### Null times
@@ -58,11 +58,11 @@ and not the epoch: both of those are real times.
 A null used where a value is needed reports `TIMERR_NULL_VALUE`:
 
 - **Arithmetic** on a null - adding, subtracting or negating - reports, and
-  answers another null, so that a null spreads through a computation instead of
+  returns another null, so that a null spreads through a computation instead of
   becoming a number part-way along it. This includes `DateTime` arithmetic, and
   the difference of two instants when either is null.
-- **Reading one as a value** reports and answers the least misleading thing it
-  can: `asTime_t()` answers 0, and `asGregorian()` answers a value with no date,
+- **Reading one as a value** reports and returns the least misleading thing it
+  can: `asTime_t()` returns 0, and `asGregorian()` returns a value with no date,
   rather than a date that never was.
 
 Two things are deliberately silent. A null that *stays* null - a unit
@@ -81,10 +81,10 @@ a time, and the text did not say zero.
 A `Gregorian` has no null - a civil date is a date, and a time of day with no
 date is what year 0 means - so only the four tick-counting types can be null.
 
-### When an operation cannot answer
+### When an operation cannot return correctly
 
-An operation that cannot answer correctly reports it, and answers the type's
-"nothing". It never answers a wrapped number: a count of ticks that ran past the
+An operation that cannot return correctly reports it, and returns the type's
+"nothing". It never returns a wrapped number: a count of ticks that ran past the
 end of its range is a duration of the wrong sign or an instant in the wrong
 century, and nothing about it looks wrong. Four reports cover every case, all in
 the `TIM` set:
@@ -96,7 +96,7 @@ the `TIM` set:
 
 What the caller is given instead:
 
-| The operation | What it answers |
+| The operation | What it returns |
 |---|---|
 | Adding, subtracting or negating a null, or an instant moved by a null | another null, so that a null spreads rather than becoming a number |
 | A sum, difference or unit conversion that ran past the end of a Tick | a null of the result's type |
@@ -113,17 +113,17 @@ an instant within eighteen hours of either end, read in a zone that would take
 it past, has no date, where before it answered a date from the *other* end of
 the range with a zone designator on it.
 
-Where the answer is a `Gregorian` with no date, that value is a time of day -
+Where the result is a `Gregorian` with no date, that value is a time of day -
 midnight - and `hasDate()` is false. `isValid()` is true of it, a time of day
 being a valid value; the report and `hasDate()` are what say that a conversion
-failed rather than that the answer is a time.
+failed rather than that the result is a time.
 
 A caller who expects a value to be out of range and does not want the buffer
 filled by each one takes a checkpoint first and rolls back after:
 
 	ErrBuf::MsgSequence	at = ErrCheckpoint();
-	Interval		answer = a + b;
-	ErrRollback(at);	// ...and answer.isNull() says whether it was answered
+	Interval		sum = a + b;
+	ErrRollback(at);	// ...and sum.isNull() says whether it was returned
 
 ### Zones are offsets, not names
 
@@ -162,7 +162,7 @@ Making one:
 
 Reading:
 
-- `ticks()` - the count of 10⁻⁸ second ticks. The one read all of these answer.
+- `ticks()` - the count of 10⁻⁸ second ticks. The one read all of these return.
 - `isNull()` - whether the value is null: a time that was never set. See "Null
   times" below.
 - `ms()`, `seconds()` - a `Milliseconds` or a `Seconds` as its own number.
@@ -224,8 +224,8 @@ An instant is written in ISO 8601, in the zone it is asked for:
 `DateTime::fromString` reads the zone from the text as well as the time, and
 hands it back through the out-pointer, so a text can be read and written again
 in the zone it came in. A text with no zone designator is read as **UTC** and
-never as local time: an answer that depends on where it is read is not an
-answer. Reading an instant from a text that names a time of day but no date is
+never as local time: a result that depends on where it is read is not a
+result. Reading an instant from a text that names a time of day but no date is
 reported as `TIMERR_NO_DATE`, and one whose date is outside the range as
 `TIMERR_OUT_OF_RANGE`.
 

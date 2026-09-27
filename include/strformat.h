@@ -42,7 +42,7 @@
  * A parameter that is an array or a map is expanded rather than named: an array
  * in brackets, its elements rendered the same way, and a map as JSON, which is
  * what a map is for. The levels descended are bounded by RENDER_MAX_DEPTH, a
- * structure deeper than any text needs answering its type name in angle
+ * structure deeper than any text needs returning its type name in angle
  * brackets, as does a type with no rendering at all, so that a structure deep
  * enough to run away with the stack cannot, whatever a program passes in. A map
  * goes by way of as_json(), which the same constant bounds. The limit is not in
@@ -66,14 +66,14 @@
  *
  * The specification is parsed into StrFormatSpec, which is broken out so that
  * a type with a formatting of its own - a date or a time, say - can take the
- * same parts and read the rest of the marker itself. strval_render answers the
+ * same parts and read the rest of the marker itself. strval_render returns the
  * representation, and strval_push_parameter frames it as the specification
- * asks, writing the pad and the tail straight into the answer rather than into
+ * asks, writing the pad and the tail straight into the result rather than into
  * strings of their own.
  *
  * The walk hands its pieces to a push, so that a stream can take them as they
  * come rather than a whole string being built first: the counting push sizes
- * the answer, and the writing push fills it, which is why nothing in the
+ * the result, and the writing push fills it, which is why nothing in the
  * formatting path is rendered twice.
  *
  * None of this uses printf: a library that formats its own text must not need
@@ -112,9 +112,9 @@ struct StrFormatSpec
 
 /*
  * The name of a type that has no rendering here, or of a composite that the
- * depth limit stops us expanding: what answers when nothing else can. Built
+ * depth limit stops us expanding: what returns when nothing else can. Built
  * where it is used rather than in front of every parameter, since most
- * parameters answer something else and would only throw it away.
+ * parameters return something else and would only throw it away.
  */
 inline StrVal
 strval_type_name(Variant v)
@@ -125,12 +125,12 @@ strval_type_name(Variant v)
 /*
  * One parameter in the representation asked for, and nothing else: no minimum,
  * no maximum, no tail. What the specification asks for around it is written
- * straight into the answer by strval_push_parameter below, so that the padding
+ * straight into the result by strval_push_parameter below, so that the padding
  * of a value is never a string of its own - the room for all of it was counted
  * before, which is what the counting pass is for.
  *
  * A composite is expanded a level at a time, down to `depth`, and a parameter
- * of a type that has no rendering here - or a composite at that limit - answers
+ * of a type that has no rendering here - or a composite at that limit - returns
  * its type name in angle brackets, since a text that is being built is no place
  * to stop the program.
  */
@@ -193,7 +193,7 @@ strval_render(Variant v, const StrFormatSpec& spec, int depth)
 }
 
 /*
- * One parameter written into the answer, framed as its specification asks: cut
+ * One parameter written into the result, framed as its specification asks: cut
  * to the maximum with the tail standing in for the end that was lost, and
  * padded to the minimum. Every piece goes straight into the push it is given,
  * so that nothing here is materialised as a string of its own - the room for
@@ -283,7 +283,7 @@ strval_size(Variant v, const StrFormatSpec& spec)
 	 * The longest either time type can write: an interval is at most
 	 * "-92233720368.54775808", and a date at most "-0923-03-25T02:07:11" with
 	 * all eight fraction digits and a whole-hour zone. Counted generously, so
-	 * that the answer is built once: a value that writes more than this is
+	 * that the result is built once: a value that writes more than this is
 	 * written into a second allocation.
 	 */
 	case Variant::Interval:	room = 21; break;
@@ -302,7 +302,7 @@ strval_size(Variant v, const StrFormatSpec& spec)
 }
 
 /*
- * Parse a specification, from just after its colon, and answer where it ended:
+ * Parse a specification, just after its colon, and return where it ended:
  * the first character that cannot belong to a specification, which is the '}'
  * that closes the marker when the whole of it was understood. What was not
  * understood is passed over by the walk, and the marker is closed at its own }.
@@ -354,8 +354,8 @@ strval_parse_format(StrVal f, StrValIndex i, StrFormatSpec& spec)
  * parameter together with the specification for rendering it. The push decides
  * what a parameter costs and when to render it, so the walk renders nothing.
  *
- * StrValPush appends to a string, which is what format() below answers; a
- * stream will answer with a push that writes each piece as it arrives, so that
+ * StrValPush appends to a string, which is what format() below returns; a
+ * stream returns a push that writes each piece as it arrives, so that
  * a text can be written out without a complete formatted string ever being
  * built. The walk does not know which it is talking to, and nothing else here
  * does either.
@@ -373,11 +373,11 @@ struct StrValPush
 };
 
 /*
- * A push that only measures, so that the answer can be built with room for all
+ * A push that only measures, so that the result can be built with room for all
  * of it and no reallocation: format() walks once into one of these and once
  * into a StrValPush. Measuring a parameter costs its type, not its value, so a
  * value is rendered once in all. What this counts for a parameter has to be
- * what the writing push writes, or the answer is built twice over. A stream
+ * what the writing push writes, or the result is built twice over. A stream
  * will walk it once, and measure nothing, since it is building nothing.
  */
 struct StrValMeasure
@@ -452,9 +452,9 @@ template<typename Index>
 StrVal	StrValI<Index>::format(StrVal f, VariantArray args)
 {
 	const	int	depth = RENDER_MAX_DEPTH;
-	// Walk it once to learn how much room the answer needs, then once more to
+	// Walk it once to learn how much room the result needs, then once more to
 	// write it: two passes over the text, but each parameter is rendered once,
-	// and the answer is built with one allocation rather than one per piece.
+	// and the result is built with one allocation rather than one per piece.
 	// A stream, which builds nothing, will walk it only the second way.
 	StrValMeasure	measure;
 	strval_format_into(f, args, measure, depth);

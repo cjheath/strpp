@@ -42,7 +42,7 @@ captures.
 - `Peg(Rule* rules, int num_rule)` - a parser over an array of rules, sorted
   by name in place so that a binary search finds them.
 - `parse(Source& source)` - run the rule named `TOP` over the source, and
-  answer the Match.
+  return the Match.
 - `lookup(const char* name)` - the rule of that name. A shortened name ended
   by `>` or by the end of the string is allowed.
 - `recurse(Rule* sub_rule, State& state, Context* context)` - match a sub-rule
@@ -56,13 +56,13 @@ A Context must provide these, and `PegContextNoCapture` is the default that
 implements them all as no-ops:
 
 - `capture(name, name_len, match, in_repetition)` - called for a labelled
-  atom, and answers the capture count afterwards.
+  atom, and returns the capture count afterwards.
 - `capture_count()`, `rollback_capture(count)` - number the captures, and give
   the recent ones back when a path fails.
 - `record_failure(op, op_end, location)` - called for an atom that did not
   match, with the place it was tried.
 - `match_result(from, to)`, `match_failure(at)` - how the Context declares its
-  answers.
+  returns.
 - `capture_disabled`, `repetition_nesting` - how deep inside a look-ahead, and
   inside a repetition, the match currently is.
 
@@ -82,4 +82,4 @@ The Context that builds an AST is in
 - `PegCaptureRule(name, pegexp, captures)` - a rule that collects the labels
   in a zero-terminated list of names.
 - `PegMemorySource(const char* cp)` - the in-memory Source these use, whose
-  `peek()` answers the raw pointer at the current position.
+  `peek()` returns the raw pointer at the current position.

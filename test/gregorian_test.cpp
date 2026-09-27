@@ -191,7 +191,7 @@ day_number_tests()
 	 * Day 0 is 0/12/31, and in this calendar that day is 1 BC's last: the
 	 * year the BC/AD count has not got is 1 BC itself, which is -1 here, and
 	 * which year 0 is reserved for a time of day instead. Asking a year-0
-	 * value for a day number answers 0, but it is not on day 0 - it is not on
+	 * value for a day number returns 0, but it is not on day 0 - it is not on
 	 * any day at all.
 	 */
 	expect_eq_int("...and 0/12/31, which is 1 BC's last day, is day 0",
@@ -427,7 +427,7 @@ format_tests()
  * The legacy class kept two representations and a cache between them, so what
  * a getter answered could depend on which getter had been called first. There
  * is one representation here, and this is the test that says a value cannot
- * answer differently because of the order it was asked in.
+ * return a different result because of the order it was asked in.
  */
 void
 order_tests()
@@ -466,7 +466,7 @@ order_tests()
 
 /*
  * The one thing reported since the buffer was last cleared, rendered and then
- * cleared away - the only way to tell a conversion that could not answer from
+ * cleared away - the only way to tell a conversion that could not return a value from
  * one that answered "no date" for another reason.
  */
 static StrVal
@@ -487,7 +487,7 @@ reported_text()
 }
 
 /*
- * A day number the calendar cannot name. This used to answer a date that never
+ * A day number the calendar cannot name. This used to return a date that never
  * was - 32269-07-04 for a million million days - and isValid() said it was a
  * valid one, so a caller who checked was told nothing was wrong.
  */

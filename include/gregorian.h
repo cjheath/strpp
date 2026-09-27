@@ -14,14 +14,14 @@
  * before it is 1 BC, so the years before 1 AD count downwards: -1 is 1 BC, -2
  * is 2 BC. There is no year 0 in that reckoning, and this class uses the year
  * that never existed to mean something it does need: a time of day with no
- * date. So year() answers 0 for a value that is a time alone, hasDate() says
+ * date. So year() returns 0 for a value that is a time alone, hasDate() says
  * which kind it is, and "12:34" reads as a time rather than as a century.
  *
  * A text is read and written as ISO 8601, in the forms the standard allows
  * without a zone database: a date, a time, or both, punctuated or not, with
  * the fraction of a second written to as many digits as are wanted. A text
  * with a zone is read in that zone, and a text with no zone is read as UTC -
- * never as local time, which would make the answer depend on where it is read.
+ * never as local time, which would make the result depend on where it is read.
  * A date before 1 AD is written in ISO 8601's expanded form, which numbers the
  * same years astronomically: 1 BC is written 0000, and 2 BC as -0001.
  *

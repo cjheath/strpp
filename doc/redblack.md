@@ -48,7 +48,7 @@ Defined in [redblack.h](https://github.com/cjheath/strpp/blob/main/include/redbl
 - `RbTree<K,V>::find(Link root, const K& key)` - an Iter at the key, or
   `end()` if it is not in the tree.
 - `RbTree<K,V>::begin(Link root)` - an Iter at the smallest key.
-- `RbTree<K,V>::end()` - the past-the-end Iter, and what `find` answers when
+- `RbTree<K,V>::end()` - the past-the-end Iter, and what `find` returns when
   the key is missing.
 - `RbTree<K,V>::Iter::locate(Link root, const K& key)` - an iterator built by
   a key-guided walk; what `find` returns.

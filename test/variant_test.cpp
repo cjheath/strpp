@@ -270,7 +270,7 @@ void unsigned_tests()
 	assert(back.as_longlong() == 4000000000LL);
 	assert(back.type() == Variant::LongLong);
 
-	// as_signed() answers the value in the closest signed type that holds it,
+	// as_signed() returns the value in the closest signed type that holds it,
 	// which is the read that does not have to be told the width
 	{
 		Variant	a(5u);

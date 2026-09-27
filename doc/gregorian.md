@@ -7,10 +7,10 @@ hour, a minute, a second, and a fraction of a second as a count of 10⁻⁸ seco
 ticks. It knows no time zone, and it is not a point in time - it is what a
 clock and a calendar say, which is a different thing in every zone.
 
-To get an instant, tell it the zone: `asDateTime(off)` answers the `DateTime`
-that a civil time names in that zone, and `DateTime::asGregorian(off)` answers
+To get an instant, tell it the zone: `asDateTime(off)` returns the `DateTime`
+that a civil time names in that zone, and `DateTime::asGregorian(off)` returns
 the civil time of an instant. That is the whole of the conversion between them,
-and nothing here caches an answer.
+and nothing here caches a result.
 
 ### The years before 1 AD
 
@@ -18,7 +18,7 @@ The year is the count the calendar uses, in which 1 AD is year 1 and the year
 before it is 1 BC, so the years before 1 AD count downwards: -1 is 1 BC, -2 is
 2 BC. There is no year 0 in that reckoning, and this class uses the year that
 never existed to mean something it does need: **a time of day with no date**. So
-`year()` answers 0 for a value that is a time alone, `hasDate()` says which kind
+`year()` returns 0 for a value that is a time alone, `hasDate()` says which kind
 it is, and `"12:34"` reads as a time rather than as a century.
 
 ISO 8601, for its part, counts years as the astronomers do, inserting the year
@@ -47,14 +47,14 @@ refused rather than read, since it could be a year or an hour and a minute, and
 a caller who meant either can punctuate it.
 
 Reading a text with no zone designator does not assume local time: it is read
-as UTC, because an answer that depends on where it is read is not an answer.
+as UTC, because a result that depends on where it is read is not a result.
 The zone that was read is handed back through an out-pointer, so a text read
 and written again keeps the zone it came in.
 
 A text that is not a date or a time at all, and a field set that is not a date
 that exists - the 31st of February, or an hour of 24 - are reported as
 `TIMERR_INVALID_TEXT`. `fromYMD()` reports a field set of its own as
-`TIMERR_INVALID_YMDHMS`, and answers the value it was given, so that `isValid()`
+`TIMERR_INVALID_YMDHMS`, and returns the value it was given, so that `isValid()`
 can be asked about it.
 
 ### Writing ISO 8601
@@ -92,7 +92,7 @@ the range - never wrapped, and never silently a different date. That is the one
 place in this layer where a valid calendar date has no instant to be.
 
 `isValid()` checks the fields without converting anything, and `dayOfWeek()`
-answers -1 for a value with no date. Both are safe to call in any order and any
+returns -1 for a value with no date. Both are safe to call in any order and any
 number of times: there is one representation, and no cache to fall out of step
 with it.
 

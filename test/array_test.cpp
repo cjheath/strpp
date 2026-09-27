@@ -210,7 +210,7 @@ main(int argc, const char** argv)
 
 	/*
 	 * Asking for more elements than there are is a clamp, not a loss: the class
-	 * has always said so, and the slices that wrap around used to answer by
+	 * has always said so, and the slices that wrap around used to return by
 	 * accident instead. An *index* past the end is the caller's error, and is
 	 * reported.
 	 */
@@ -219,9 +219,9 @@ main(int argc, const char** argv)
 		StrArray	abc = strs("a", "b", "c");
 
 		check("head(10)", abc.head(10), 3, "abc");	// Clamped
-		check("tail(10)", abc.tail(10), 3, "abc");	// Clamped; used to answer empty
+		check("tail(10)", abc.tail(10), 3, "abc");	// Clamped; used to return empty
 		check("shorter(3)", abc.shorter(3), 0, "");	// All of it shaved off
-		check("shorter(10)", abc.shorter(10), 0, "");	// Used to answer the whole array
+		check("shorter(10)", abc.shorter(10), 0, "");	// Used to return the whole array
 		expect_no_report("...and none of those reported");
 
 		check("slice(3)", abc.slice(3), 0, "");		// The empty slice at the end
@@ -252,7 +252,7 @@ main(int argc, const char** argv)
 
 	/*
 	 * Removing past the end is refused, and changes nothing at all: the caller
-	 * has misjudged the array, and no answer here is the one they meant. It
+	 * has misjudged the array, and no result here is the one they meant. It
 	 * used to write past the allocation under NDEBUG.
 	 */
 	printf("\nRemoving, and requests past the end\n");
@@ -283,7 +283,7 @@ main(int argc, const char** argv)
 		StrArray	taken = abc;
 		StrRef		element = taken.delete_at(3);
 		check("delete_at(3)", taken, 3, "abc");
-		expect("delete_at(3) answers a default element", element.length() == 0);
+		expect("delete_at(3) returns a default element", element.length() == 0);
 		expect_report("delete_at(3) reports the index",
 			STRERR_INDEX_OUT_OF_RANGE,
 			"An index of 3 is outside an array of 3 elements, so there is nothing to take");

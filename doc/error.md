@@ -145,14 +145,14 @@ Defined in [errbuf.h](https://github.com/cjheath/strpp/blob/main/include/errbuf.
 - `message(MsgIndex n)` - the nth message: its number, default text and
   parameters.
 - `report(ErrNum err, const char* default_text, VariantArray params)` - append
-  a message and answer its sequence number. A zero ErrNum reports nothing.
+  a message and return its sequence number. A zero ErrNum reports nothing.
 - `rollback(MsgSequence which)` - discard everything reported since that
   checkpoint, the parameters going with it.
 - `delivered()` - retire the oldest message, once you have delivered it.
 - `clear()` - drop everything at once, keeping the storage.
 - `Error(ErrNum err, const char* default_text, VariantArray params)` - the
   free function the generated reporting functions call: it reports into this
-  thread's buffer and answers the number, so reporting and returning are one
+  thread's buffer and returns the number, so reporting and returning are one
   act.
 
 Three free functions are there so that a caller need not reach through the
@@ -160,7 +160,7 @@ slot at all, which is what almost every caller wants:
 
 - `ErrBuffer()` - this thread's buffer as a `ErrBuf*`, made on first use.
 - `ErrCheckpoint()` - the same as `ErrBuffer()->checkpoint()`: keep what it
-  answers, and roll back to it.
+  returns, and roll back to it.
 - `ErrRollback(MsgSequence to)` - the same as `ErrBuffer()->rollback(to)`:
   discard everything reported since that checkpoint, as a callee's reports
   are dropped without the callee being party to it. It makes the buffer if
@@ -171,7 +171,7 @@ That last pair is what a caller that *expects* a failure uses, so that the
 report does not become noise:
 
 	ErrBuf::MsgSequence	at = ErrCheckpoint();
-	...call something whose failure is one of the answers...
+	...call something whose failure is one of the returns...
 	if (the failure was the expected one)
 		ErrRollback(at);	// Not a mistake: take the report back
 
@@ -184,7 +184,7 @@ Generated code calls `Error` through a function per message:
 
 	ErrNum	Error(ErrNum err, const char* default_text, VariantArray params);
 
-It appends the message, and answers the number it was given, so that
+It appends the message, and returns the number it was given, so that
 reporting an error and returning it are one act:
 
 	return ErrorADL_Syntax("foo", source.location);
@@ -275,7 +275,7 @@ text](strval.md), which is what renders a message when it is displayed.
 
 There is one buffer per thread, reached through a thread-local slot, so two
 threads never see each other's messages. A caller running on one thread that
-completes work for another - or a server answering a client - packs the
+completes work for another - or a server returning a client - packs the
 unformatted messages (number, default text and parameters) into whatever it
 already speaks and ships them. The receiving context is the one that knows
 the reader's language and the room there is to display in, so it is the one

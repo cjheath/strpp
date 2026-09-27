@@ -115,7 +115,7 @@ position_tests()
 	test_group("Format: a text names its parameters by position");
 	expect_eq_str("a text with no marker is unchanged",
 		StrVal::format("nothing to substitute", VariantArray()), "nothing to substitute");
-	expect_eq_str("an empty text answers an empty string",
+	expect_eq_str("an empty text returns an empty string",
 		StrVal::format("", VariantArray() << Variant("unused")), "");
 	expect_eq_str("{1} takes the first parameter",
 		StrVal::format("A {1} was expected", VariantArray() << Variant("brace")),
@@ -384,7 +384,7 @@ long_string_tests()
 	expect_eq_str("forty-one characters are cut back to thirty-seven and the tail",
 		StrVal::format("{1:<40...}", VariantArray() << forty_one),
 		(forty.head(37)+"...").asUTF8());
-	expect_eq_int("...and the answer is forty either way",
+	expect_eq_int("...and the result is forty either way",
 		(long)StrVal::format("{1:<40...}", VariantArray() << forty_one).length(), 40);
 	expect_eq_str("a maximum with no tail cuts at the maximum itself",
 		StrVal::format("{1:<40}", VariantArray() << forty_one), forty.asUTF8());
@@ -399,7 +399,7 @@ long_string_tests()
 	expect_eq_int("the ellipsis is three bytes", (long)ellipsis.numBytes(), 3);
 	expect_eq_int("...and one character", (long)ellipsis.length(), 1);
 	StrVal	cut_one = StrVal::format("{1:<40\xE2\x80\xA6}", VariantArray() << fifty);
-	expect_eq_int("a one-character tail still answers forty characters",
+	expect_eq_int("a one-character tail still returns forty characters",
 		(long)cut_one.length(), 40);
 	expect_eq_str("...being thirty-nine characters of the value",
 		cut_one.head(39), forty.head(39).asUTF8());
@@ -461,7 +461,7 @@ depth_tests()
 	expect_eq_str("a string parameter is not affected by any of it",
 		StrVal::format("{1}", VariantArray() << "plain"), "plain");
 
-	// A structure nested past the limit answers its type name where the limit
+	// A structure nested past the limit returns its type name where the limit
 	// falls, rather than descending until the stack runs out
 	Variant	deep = VariantArray();
 	for (int i = 0; i < RENDER_MAX_DEPTH + 4; i++)

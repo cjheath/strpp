@@ -999,7 +999,7 @@ private:
 	/*
 	 * Where a number is in a text, and what is wrong with it if it is not one.
 	 * It knows no width and no scale: it finds the sign, the run of digits
-	 * before the radix point and the run after it, and answers an ErrNum when
+	 * before the radix point and the run after it, and returns an ErrNum when
 	 * there is no number to be found. What the digits are worth - in a type of
 	 * some width, at some resolution - is the reader's business, and so is
 	 * everything the value cannot hold.
@@ -1148,7 +1148,7 @@ template<typename Index = StrValIndex> StrValI<Index> operator+(const char* cp, 
 
 /*
  * What a width is called, for the one message that names it. The widths this
- * library reads are named, and another answers "integer", which is vague and
+ * library reads are named, and another returns "integer", which is vague and
  * cannot be wrong. Free rather than a member, so that each width is one line
  * and not a template of a template.
  */
@@ -1302,7 +1302,7 @@ StrValI<Index>::readNumber(const NumberScan& scan, int places, ErrNum* err_retur
 	if (err_return)
 		*err_return = 0;
 
-	if (scan.why)			// No number was recognised: say why, and answer 0
+	if (scan.why)			// No number was recognised: say why, and return 0
 	{
 		reportNumber(scan.why, strval_integer_type_name<T>(), *this, scan.radix, scan.at, scan.at);
 		if (err_return)
@@ -1320,7 +1320,7 @@ StrValI<Index>::readNumber(const NumberScan& scan, int places, ErrNum* err_retur
 		/*
 		 * A resolution the type cannot hold at all is the caller's fault and
 		 * not the text's: no number, however small, could be read at it. It
-		 * is caught rather than answered, an answer being a wrong number.
+		 * is caught rather than returned, a wrong number being what it would be.
 		 */
 		uint64_t	scale = 1;
 

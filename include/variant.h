@@ -206,7 +206,7 @@ public:
 	/*
 	 * The number held as a signed one, in the closest signed type that holds
 	 * it: an Integer, or a Long, or a LongLong. This is the read for a caller
-	 * who has a number of unknown origin, and it is the answer to an unsigned
+	 * who has a number of unknown origin, and what reads an unsigned
 	 * value that its own signed twin is too narrow for - one beyond INT_MAX
 	 * becomes a Long, and one beyond LONG_MAX a LongLong, where asking for the
 	 * twin leaves nowhere to put it.
@@ -215,7 +215,7 @@ public:
 	 * smallest type that would hold it: it is already signed, and its width is
 	 * what its holder chose.
 	 *
-	 * It answers a value rather than a reference, because the width of a
+	 * It returns a value rather than a reference, because the width of a
 	 * reference would be whatever the value turned out to need - so this is a
 	 * read, and not a way to write into the Variant.
 	 *
@@ -230,7 +230,7 @@ public:
 		case Long:	return u.l;
 		case LongLong:	return u.ll;
 
-		case String:	coerce(Integer);	// asInt32 answers an int32
+		case String:	coerce(Integer);	// asInt32 returns an int32
 				return u.i;
 
 		case UInteger:	// FALL THROUGH
@@ -259,7 +259,7 @@ public:
 	const StrVariantMap	as_variant_map() const { must_be(StrVarMap); return u.var_map; }
 
 	/*
-	 * The time types answer a value rather than a reference, because the
+	 * The time types return a value rather than a reference, because the
 	 * union holds a tick count and not an Interval or a DateTime: there is no
 	 * object of that type in the Variant to refer to. So these are reads, and
 	 * not a way to write into the Variant - a caller with a new time assigns
@@ -281,7 +281,7 @@ public:
 	// as_json(-1) emits single-line JSON with single spaces added for readability.
 	// as_json(-2) emits maximally compact JSON.
 	// as_json(n) emits formatted/indented json (two spaces per level) starting with indent n.
-	// A structure nested deeper than RENDER_MAX_DEPTH answers its type name, as a
+	// A structure nested deeper than RENDER_MAX_DEPTH returns its type name, as a
 	// JSON string, rather than being descended into.
 	StrVal			as_json(int indent = -1) const
 	{
@@ -295,7 +295,7 @@ public:
 	{
 		// A composite we were told not to descend into says what it is
 		if (depth <= 0 && (_type == StrArray || _type == VarArray || _type == StrVarMap))
-			return StrVal("\"<")+type_name()+">\"";	// A JSON string, so the answer stays JSON
+			return StrVal("\"<")+type_name()+">\"";	// A JSON string, so the result stays JSON
 
 		int		next_indent = indent;
 		StrVal		sep;			// Separator string between array or map items

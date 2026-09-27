@@ -80,9 +80,9 @@ main(int argc, const char** argv)
 	setvbuf(stdout, 0, _IONBF, 0);
 	ErrBuf*	buf = ErrBuffer();
 
-	// Reporting answers the number it was given, and records it
+	// Reporting returns the number it was given, and records it
 	ErrNum	reported = report_one(1, 42, "first");
-	check("Error answers its argument", (int32_t)reported == (int32_t)ErrNum(100, 1), 1);
+	check("Error returns its argument", (int32_t)reported == (int32_t)ErrNum(100, 1), 1);
 	check("count after one report", buf->count(), 1);
 
 	// A message carries its number, its default text and its parameters

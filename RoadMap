@@ -1,7 +1,7 @@
 Quality
         ASAN (Address Sanitiser)
-	No unreported wrong answers: an operation that cannot answer correctly
-		reports it, or fails, and never quietly answers something else.
+	No unreported wrong results: an operation that cannot return correctly
+		reports it, or fails, and never quietly returns something else.
 		The author's standing rule, stated 2026-09-26 while the time
 		layer was being finalised; it governs the deferred work listed
 		under Date&Time below and everything added after it.

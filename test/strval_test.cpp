@@ -765,7 +765,7 @@ int_conversion_tests()
 	 * standing. The value is answered either way.
 	 */
 	test_group("asInt32: error - too many digits for the type is an overflow");
-	expect_eq_int("a number too large for an int32_t answers the digits that fit",
+	expect_eq_int("a number too large for an int32_t returns the digits that fit",
 			(long)StrVal("99999999999999999999999999").asInt32(&err, 10, &scanned), 999999999);
 	expect_eq_err("...reporting an overflow, which is not a rounding", err,
 			ErrNum(STRERR_SET, STRERR_NUMBER_OVERFLOW));
@@ -787,15 +787,15 @@ int_conversion_tests()
 	expect_eq_int("INT32_MIN fits", (long)StrVal("-2147483648").asInt32(&err, 10), (long)INT32_MIN);
 	expect_eq_err("...with no error", err, ErrNum(0));
 
-	expect_eq_int("INT32_MAX+1 answers the digits that fit",
+	expect_eq_int("INT32_MAX+1 returns the digits that fit",
 			(long)StrVal("2147483648").asInt32(&err, 10, &scanned), 214748364);
 	expect_eq_err("...as an overflow", err, ErrNum(STRERR_SET, STRERR_NUMBER_OVERFLOW));
-	expect_eq_int("INT32_MIN-1 answers the digits that fit",
+	expect_eq_int("INT32_MIN-1 returns the digits that fit",
 			(long)StrVal("-2147483649").asInt32(&err, 10, &scanned), -214748364);
 	expect_eq_err("...as an overflow", err, ErrNum(STRERR_SET, STRERR_NUMBER_OVERFLOW));
 	// Four billion fits a long on a 64-bit target, and an int32_t on no target:
-	// the bound was a long's where the answer was an int32_t's
-	expect_eq_int("4000000000 answers the digits that fit",
+	// the bound was a long's where the result was an int32_t's
+	expect_eq_int("4000000000 returns the digits that fit",
 			(long)StrVal("4000000000").asInt32(&err, 10, &scanned), 400000000);
 	expect_eq_err("...as an overflow", err, ErrNum(STRERR_SET, STRERR_NUMBER_OVERFLOW));
 
@@ -1421,7 +1421,7 @@ fixed_point_tests()
 	 * caller decides whether that is a rounding or a mistake. This is the
 	 * whole reason the reader reports instead of deciding.
 	 */
-	expect_eq_int("12.345 at two places answers 1234",
+	expect_eq_int("12.345 at two places returns 1234",
 			(long)StrVal("12.345").asFixedPoint<int64_t>(2, &err, 10, &scanned), 1234);
 	expect_eq_err("...reporting the third place as trailing text", err, ErrNum(STRERR_TRAIL_TEXT));
 	expect_eq_int("...ending where it stopped", (long)scanned, 5);
@@ -1458,7 +1458,7 @@ fixed_point_tests()
 	 * time layer needs of them: a resolution coarser than the text has lost
 	 * precision and may be lived with, while digits the type cannot hold mean
 	 * the number is not this number at all, and a caller should not carry on
-	 * with it. Both answer the digits that fitted; only the report differs.
+	 * with it. Both return the digits that fitted; only the report differs.
 	 */
 	expect_eq_int("too many places is a rounding, and the value is answered",
 			(long)StrVal("1.234567890").asFixedPoint<int64_t>(8, &err, 10), 123456789);
@@ -1504,7 +1504,7 @@ fixed_point_tests()
 	{
 		ErrNum	said_err = 0;
 
-		expect_eq_int("a negative read as unsigned answers nothing",
+		expect_eq_int("a negative read as unsigned returns nothing",
 				(long)StrVal("-5").asInteger<uint32_t>(&err, 10), 0);
 		expect_eq_err("...and says why", err, ErrNum(STRERR_SET, STRERR_NEGATIVE_UNSIGNED));
 		expect_eq_str("...naming the text and the radix", reported(said_err),

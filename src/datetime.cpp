@@ -56,32 +56,32 @@ scanNull(StrVal text)
  * null tick is a time or a duration this library can hold.
  */
 static bool
-addFits(Tick addend, Tick augend, Tick* answer)
+addFits(Tick addend, Tick augend, Tick* result)
 {
 	if (augend > 0 ? addend > DateTime::MaxTicks - augend
 		       : addend < DateTime::MinTicks - augend)
 		return false;
-	*answer = addend + augend;
+	*result = addend + augend;
 	return true;
 }
 
 static bool
-subFits(Tick minuend, Tick subtrahend, Tick* answer)
+subFits(Tick minuend, Tick subtrahend, Tick* result)
 {
 	if (subtrahend > 0 ? minuend < DateTime::MinTicks + subtrahend
 			   : minuend > DateTime::MaxTicks + subtrahend)
 		return false;
-	*answer = minuend - subtrahend;
+	*result = minuend - subtrahend;
 	return true;
 }
 
 static bool
-scaleFits(Tick value, Tick factor, Tick* answer)
+scaleFits(Tick value, Tick factor, Tick* result)
 {
 	if (value > 0 ? value > DateTime::MaxTicks/factor
 		      : value < floorDiv(DateTime::MinTicks, factor))
 		return false;
-	*answer = value*factor;
+	*result = value*factor;
 	return true;
 }
 
@@ -93,14 +93,14 @@ scaleFits(Tick value, Tick factor, Tick* answer)
 static Tick
 scaledTicks(Tick value, Tick factor, const char* type, const char* operation)
 {
-	Tick	answer;
+	Tick	result;
 
-	if (!scaleFits(value, factor, &answer))
+	if (!scaleFits(value, factor, &result))
 	{
 		ErrorTIM_ResultOverflow(type, operation);
 		return NullTick;
 	}
-	return answer;
+	return result;
 }
 
 /*
@@ -123,7 +123,7 @@ Interval::Interval(const Seconds& sec)
 /*
  * A null where a value was needed. Reported, and not asserted: a null is data -
  * a field never filled in, a record that says "no time" - so a program that
- * meets one has a data problem rather than a fault of its own. The answer is
+ * meets one has a data problem rather than a fault of its own. The result is
  * another null, so that a null spreads through a computation instead of
  * becoming a number part-way along it.
  */
@@ -135,7 +135,7 @@ Interval::nullOperand(const char* operation) const
 }
 
 /*
- * Adding and subtracting, checked. Each answers a null for a null operand or
+ * Adding and subtracting, checked. Each returns a null for a null operand or
  * for a result that ran past the end of a Tick, and reports which of the two it
  * was: the caller is never handed a wrapped count, and needs no report to know
  * that a null is not a value.
@@ -143,31 +143,31 @@ Interval::nullOperand(const char* operation) const
 Interval
 Interval::sum(const Interval& addend) const
 {
-	Tick	answer;
+	Tick	result;
 
 	if (isNull() || addend.isNull())
 		return nullOperand("adding");
-	if (!addFits(ticks_, addend.ticks_, &answer))
+	if (!addFits(ticks_, addend.ticks_, &result))
 	{
 		ErrorTIM_ResultOverflow("Interval", "adding");
 		return Interval(NullTick);
 	}
-	return Interval(answer);
+	return Interval(result);
 }
 
 Interval
 Interval::difference(const Interval& minuend) const
 {
-	Tick	answer;
+	Tick	result;
 
 	if (isNull() || minuend.isNull())
 		return nullOperand("subtracting");
-	if (!subFits(ticks_, minuend.ticks_, &answer))
+	if (!subFits(ticks_, minuend.ticks_, &result))
 	{
 		ErrorTIM_ResultOverflow("Interval", "subtracting");
 		return Interval(NullTick);
 	}
-	return Interval(answer);
+	return Interval(result);
 }
 
 time_t
@@ -236,7 +236,7 @@ Interval::fromString(StrVal text, ErrNum* err_return)
 		return Interval(NullTick);	// "null" is a null, and not a failure
 
 	/*
-	 * Read at the resolution this layer keeps. Three answers can come back:
+	 * Read at the resolution this layer keeps. Three returns can come back:
 	 *
 	 * - nothing, for a number this reader can read;
 	 * - an overflow, which is digits the type cannot hold: the number is not
@@ -299,31 +299,31 @@ Milliseconds::nullOperand(const char* operation) const
 Milliseconds
 Milliseconds::sum(const Milliseconds& addend) const
 {
-	Tick	answer;
+	Tick	result;
 
 	if (isNull() || addend.isNull())
 		return nullOperand("adding");
-	if (!addFits(ms_, addend.ms_, &answer))
+	if (!addFits(ms_, addend.ms_, &result))
 	{
 		ErrorTIM_ResultOverflow("Milliseconds", "adding");
 		return Milliseconds(NullTick);
 	}
-	return Milliseconds(answer);
+	return Milliseconds(result);
 }
 
 Milliseconds
 Milliseconds::difference(const Milliseconds& minuend) const
 {
-	Tick	answer;
+	Tick	result;
 
 	if (isNull() || minuend.isNull())
 		return nullOperand("subtracting");
-	if (!subFits(ms_, minuend.ms_, &answer))
+	if (!subFits(ms_, minuend.ms_, &result))
 	{
 		ErrorTIM_ResultOverflow("Milliseconds", "subtracting");
 		return Milliseconds(NullTick);
 	}
-	return Milliseconds(answer);
+	return Milliseconds(result);
 }
 
 time_t
@@ -412,31 +412,31 @@ Seconds::nullOperand(const char* operation) const
 Seconds
 Seconds::sum(const Seconds& addend) const
 {
-	Tick	answer;
+	Tick	result;
 
 	if (isNull() || addend.isNull())
 		return nullOperand("adding");
-	if (!addFits(sec_, addend.sec_, &answer))
+	if (!addFits(sec_, addend.sec_, &result))
 	{
 		ErrorTIM_ResultOverflow("Seconds", "adding");
 		return Seconds(NullTick);
 	}
-	return Seconds(answer);
+	return Seconds(result);
 }
 
 Seconds
 Seconds::difference(const Seconds& minuend) const
 {
-	Tick	answer;
+	Tick	result;
 
 	if (isNull() || minuend.isNull())
 		return nullOperand("subtracting");
-	if (!subFits(sec_, minuend.sec_, &answer))
+	if (!subFits(sec_, minuend.sec_, &result))
 	{
 		ErrorTIM_ResultOverflow("Seconds", "subtracting");
 		return Seconds(NullTick);
 	}
-	return Seconds(answer);
+	return Seconds(result);
 }
 
 time_t
@@ -526,49 +526,49 @@ DateTime::nullOperand(const char* operation) const
 DateTime
 DateTime::sum(const Interval& addend) const
 {
-	Tick	answer;
+	Tick	result;
 
 	if (isNull() || addend.isNull())
 		return nullOperand("adding");
-	if (!addFits(ticks_, addend.ticks(), &answer))
+	if (!addFits(ticks_, addend.ticks(), &result))
 	{
 		ErrorTIM_ResultOverflow("DateTime", "adding");
 		return DateTime(NullTick);
 	}
-	return DateTime(answer);
+	return DateTime(result);
 }
 
 DateTime
 DateTime::difference(const Interval& minuend) const
 {
-	Tick	answer;
+	Tick	result;
 
 	if (isNull() || minuend.isNull())
 		return nullOperand("subtracting");
-	if (!subFits(ticks_, minuend.ticks(), &answer))
+	if (!subFits(ticks_, minuend.ticks(), &result))
 	{
 		ErrorTIM_ResultOverflow("DateTime", "subtracting");
 		return DateTime(NullTick);
 	}
-	return DateTime(answer);
+	return DateTime(result);
 }
 
 Interval
 DateTime::between(const DateTime& minuend) const
 {
-	Tick	answer;
+	Tick	result;
 
 	if (isNull() || minuend.isNull())
 	{
 		(void)nullOperand("subtracting");
 		return Interval(NullTick);
 	}
-	if (!subFits(ticks_, minuend.ticks_, &answer))
+	if (!subFits(ticks_, minuend.ticks_, &result))
 	{
 		ErrorTIM_ResultOverflow("Interval", "subtracting");
 		return Interval(NullTick);
 	}
-	return Interval(answer);
+	return Interval(result);
 }
 
 time_t
@@ -653,9 +653,9 @@ DateTime::now()
  * there is no zone database here, and a caller who needs one knows the offset
  * and passes it.
  *
- * A host that cannot answer is reported, and UTC is answered: an UtcOffset
+ * A host that cannot say is reported, and UTC is returned: an UtcOffset
  * cannot be null, so the honest thing is to say that the offset is not known
- * and answer the one the caller can trust to be a whole answer.
+ * and return the one the caller can trust to be the whole of it.
  */
 UtcOffset
 DateTime::localOffset(DateTime when)
@@ -712,15 +712,15 @@ DateTime::nowWithOffset(UtcOffset* offset)
  * The calendar date and time of this instant in the given zone. The zone is
  * applied once, here, and the fields are read from the shifted count: this is
  * the only place where an instant becomes a civil time, and nothing caches the
- * answer.
+ * result.
  *
- * A null instant has no date to answer, and no null a Gregorian could carry, so
- * it is reported and answered with the value that says "no date": a Gregorian
+ * A null instant has no date to give, and no null a Gregorian could carry, so
+ * it is reported and returned as the value that says "no date": a Gregorian
  * that is a time of day alone, at midnight. A caller who checks errors sees the
  * report; one who does not gets nothing rather than a date that never was.
  *
  * So is an instant within eighteen hours of either end of the range, read in a
- * zone that would take it past the end: the shift is checked, and the answer is
+ * zone that would take it past the end: the shift is checked, and the result is
  * the same "no date" rather than a wrapped date from the other end of the
  * range, which would read as a perfectly ordinary day and be wrong.
  */
@@ -761,7 +761,7 @@ DateTime::asGregorian(UtcOffset off, Interval* time_of_day) const
  * made into the buffer that is being read.
  *
  * The zone is written only for a value that has a date: a time of day is not
- * in any zone, and a conversion that could not answer has none to write.
+ * in any zone, and a conversion that could not return one has none to write.
  */
 StrVal
 DateTime::toString(UtcOffset off, int flags) const
@@ -785,7 +785,7 @@ DateTime::fromString(StrVal text, UtcOffset* offset, ErrNum* err_return)
 	ErrNum		e = 0;
 	UtcOffset	zone;
 	Gregorian	gregorian;
-	DateTime	answer;
+	DateTime	result;
 
 	if (err_return)
 		*err_return = 0;
@@ -796,10 +796,10 @@ DateTime::fromString(StrVal text, UtcOffset* offset, ErrNum* err_return)
 
 	gregorian = Gregorian::fromString(text, &zone, &e);
 	if (!e)
-		answer = gregorian.asDateTime(zone, &e);	// Reports a time of day, or a date out of range
+		result = gregorian.asDateTime(zone, &e);	// Reports a time of day, or a date out of range
 	if (err_return)
 		*err_return = e;
 	if (!e && offset)
 		*offset = zone;
-	return e ? DateTime() : answer;
+	return e ? DateTime() : result;
 }

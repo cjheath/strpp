@@ -4,8 +4,8 @@
  * Time and date: the interval, the instant, and the zone offset.
  *
  * Time comes in two kinds that are forever being confused with each other, so
- * they are two types here. An Interval is a length of time, the answer to "how
- * long"; a DateTime is a point in time, the answer to "when". Both count the
+ * they are two types here. An Interval is a length of time - how long something
+ * takes; a DateTime is a point in time - when it happens. Both count the
  * same tick, so an interval adds to an instant with no conversion, and one
  * instant less another is an interval.
  *
@@ -33,7 +33,7 @@
  *
  * A time can also be *null*, which is not a time at all: a value that was never
  * set. Null is the lowest tick, and a null used where a value is needed reports
- * rather than answering something that looks real. See NullTick below.
+ * rather than returning something that looks real. See NullTick below.
  *
  * The calendar - Y/M/D, h:m:s, ISO 8601 - is in gregorian.h, which is separate
  * because the two representations of one time, which an earlier library kept
@@ -77,7 +77,7 @@ static const Tick	EpochDay	= 730120;		// Days from 0/0/0000 to 2000-01-01
  *
  * A null is not zero and not the epoch: zero is a real instant. A value that
  * is null says so - isNull() - and reading one where a value is needed reports
- * TIMERR_NULL_VALUE rather than answering something that looks real.
+ * TIMERR_NULL_VALUE rather than returning something that looks real.
  */
 static const Tick	NullTick	= (Tick)-9223372036854775807LL - 1;
 
@@ -139,7 +139,7 @@ public:
 
 	Tick		ticks() const { return ticks_; }
 	bool		isNull() const { return ticks_ == NullTick; }
-	time_t		asTime_t() const;			// Reports a null, and answers 0
+	time_t		asTime_t() const;			// Reports a null, and returns 0
 	Milliseconds	asMilliseconds() const;			// A null stays null
 	Seconds		asSeconds() const;
 
@@ -147,7 +147,7 @@ public:
 	static Interval	fromString(StrVal text, ErrNum* err_return = 0);
 
 	/*
-	 * Arithmetic on a null reports, and answers another null, so that a null
+	 * Arithmetic on a null reports, and returns another null, so that a null
 	 * spreads through a computation instead of becoming a number. So does a
 	 * result that ran past the end of what a Tick can hold: that is a null too,
 	 * and never a wrapped number that looks like a time. A comparison is not
@@ -181,7 +181,7 @@ public:
 protected:
 	/*
 	 * A null where a value was needed: reports that, naming the operation it
-	 * was needed for, and answers another null. Reported and not asserted, a
+	 * was needed for, and returns another null. Reported and not asserted, a
 	 * null being data - a field never filled in, a record that says "no
 	 * time" - and not a fault in the program. Defined in src/datetime.cpp,
 	 * where Error() is at hand, like every reporting member.
@@ -213,7 +213,7 @@ public:
 
 	Tick		ms() const { return ms_; }
 	bool		isNull() const { return ms_ == NullTick; }
-	time_t		asTime_t() const;			// Reports a null, and answers 0
+	time_t		asTime_t() const;			// Reports a null, and returns 0
 	Interval	asInterval() const;			// A null stays null
 	Seconds		asSeconds() const;
 
@@ -245,7 +245,7 @@ public:
 			{ return ms_ >= other.ms_; }
 
 protected:
-	Milliseconds	nullOperand(const char* operation) const;	// Reports, answers null
+	Milliseconds	nullOperand(const char* operation) const;	// Reports, returns null
 	Milliseconds	sum(const Milliseconds& addend) const;		// The checked operations
 	Milliseconds	difference(const Milliseconds& minuend) const;
 
@@ -267,7 +267,7 @@ public:
 
 	Tick		seconds() const { return sec_; }
 	bool		isNull() const { return sec_ == NullTick; }
-	time_t		asTime_t() const;			// Reports a null, and answers 0
+	time_t		asTime_t() const;			// Reports a null, and returns 0
 	Interval	asInterval() const;			// A null stays null
 	Milliseconds	asMilliseconds() const;
 
@@ -299,7 +299,7 @@ public:
 			{ return sec_ >= other.sec_; }
 
 protected:
-	Seconds		nullOperand(const char* operation) const;	// Reports, answers null
+	Seconds		nullOperand(const char* operation) const;	// Reports, returns null
 	Seconds		sum(const Seconds& addend) const;		// The checked operations
 	Seconds		difference(const Seconds& minuend) const;
 
@@ -355,8 +355,8 @@ protected:
  * write a calendar date, and it is never stored.
  *
  * The date and time of one instant is therefore a question with as many
- * answers as there are zones, which is why asGregorian() takes the zone and
- * answers a Gregorian, and why nothing here caches one.
+ * returns as there are zones, which is why asGregorian() takes the zone and
+ * returns a Gregorian, and why nothing here caches one.
  */
 class	DateTime
 {
@@ -373,7 +373,7 @@ public:
 	static UtcOffset localOffset(DateTime when);		// The host's offset at that instant
 	static DateTime	nowWithOffset(UtcOffset* offset = 0);	// now(), and the offset to read it in
 
-	time_t		asTime_t() const;			// Reports a null, and answers 0
+	time_t		asTime_t() const;			// Reports a null, and returns 0
 	static DateTime	fromTime_t(time_t t);
 
 	/*
@@ -389,7 +389,7 @@ public:
 	static DateTime	fromString(StrVal text, UtcOffset* offset = 0, ErrNum* err_return = 0);
 
 	/*
-	 * Arithmetic on a null reports, and answers another null, so that a null
+	 * Arithmetic on a null reports, and returns another null, so that a null
 	 * spreads through a computation instead of becoming an instant. So does a
 	 * result that ran past either end of the range: that is a null too, and
 	 * never an instant that never was. A comparison is not arithmetic - it
@@ -437,7 +437,7 @@ public:
 	static const Tick	MaxDay		= 1797639;	// 4922 AD, October 8
 
 protected:
-	DateTime	nullOperand(const char* operation) const;	// Reports, answers null
+	DateTime	nullOperand(const char* operation) const;	// Reports, returns null
 	DateTime	sum(const Interval& addend) const;		// The checked operations
 	DateTime	difference(const Interval& minuend) const;
 	Interval	between(const DateTime& minuend) const;
