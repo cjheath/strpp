@@ -1684,11 +1684,15 @@ StrBodyI<Index>::toJSON()
 					break;
 				}
 
-				// We need two surrogates for Emoji's etc.
-				assert(ch <= 0xFFFFF);
-				// Surrogate pair: D800 to DBFF, Low surrogate: D800 to DBFF
-				u4(0xD800+((ch>>10)&0x3FF), op);
-				u4(0xDC00+(ch&0x3FF), op);
+				// We need two surrogates for Emoji's etc, which is what the
+				// UTF-16 rules are: a value that is not a code point is
+				// substituted there rather than made into a bogus pair
+				assert(ch <= 0x10FFFF);		// The last code point there is
+				UTF16	units[2];
+				UTF16*	up = units;
+				UTF16Put(up, ch);
+				for (const UTF16* unit = units; unit < up; unit++)
+					u4(*unit, op);
 				break;
 			}
 			*op = '\0';

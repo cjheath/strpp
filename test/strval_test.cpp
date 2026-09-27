@@ -10,11 +10,10 @@
  *
  * It also has a dedicated section, mixed_encoding_tests(), asserting the
  * *correct* semantics for operations that combine a UTF-8 StrVal with a
- * StrRawBinary (locale 8-bit) StrVal. Several of these currently FAIL:
- * the class only partially implements StrRawBinary interop (see the
- * "REVISIT: Handle StrRawBinary data" / "REVISIT: Only works if the
- * StrDataType matches" comments in strval.h). Those tests are left in
- * place, deliberately failing, to document and guard against the defects.
+ * StrRawBinary (locale 8-bit) StrVal. These were written while the class
+ * only partially implemented StrRawBinary interop, and were left in place
+ * failing, to document and guard against the defects; they all pass now,
+ * so they guard against the defects coming back.
  *
  * malformed_utf8_tests()/illegal_byte_propagation_tests() require that
  * every byte of invalid UTF-8 - wherever it came from, and after passing
@@ -24,7 +23,7 @@
  * a neighbour and never silently dropped.
  *
  * NOTE: toJSON()/asJSON() on a string containing an illegal-encoded byte
- * currently hits `assert(ch <= 0xFFFFF)` in strval.h and aborts the process
+ * currently hits `assert(ch <= 0x10FFFF)` in strval.h and aborts the process
  * (the illegal-marker range 0x80000000-0x800000FF isn't recognised there).
  * That case is deliberately left untested here rather than exercised - a
  * proper non-aborting panic/error handler is planned separately; add the
@@ -1307,23 +1306,24 @@ long_string_bookmark_tests()
  * (Latin-1), whose codepoints 0-255 are identical to Unicode's. All the
  * "correct" expectations below are computed on that basis.
  *
- * Every group here documents a currently-real defect (confirmed by direct
- * inspection of the actual output before writing the assertion), each
- * traceable to a specific gap in strval.h:
+ * Every group here was written to document a defect that was real when it
+ * was written (each confirmed by direct inspection of the actual output
+ * before the assertion was), and each was traceable to a specific gap in
+ * strval.h. All five have since been closed, so the groups now pass:
  *
- *   - operator[] on RawBinary data sign-extends the raw byte through a
+ *   - operator[] on RawBinary data sign-extended the raw byte through a
  *     signed `char`, corrupting any byte >= 0x80.
- *   - operator+, insert/append/prepend do not preserve the source
+ *   - operator+, insert/append/prepend did not preserve the source
  *     StrDataType (see "REVISIT: Handle StrRawBinary data" at each site);
- *     bytes are copied verbatim and then (re)interpreted under the
+ *     bytes were copied verbatim and then (re)interpreted under the
  *     destination's own encoding tag, corrupting non-ASCII content.
- *   - find/rfind(StrVal) compare raw bytes only (see "REVISIT: Only works
- *     if the StrDataType matches"), so a character does not match itself
- *     when the two sides use different encodings.
- *   - operator==/compare() is likewise a raw byte compare, so logically
- *     identical text compares unequal across encodings.
- *   - toLower/toUpper's internal transform() steps its input pointer using
- *     UTF8Len() regardless of source encoding, so it can misinterpret
+ *   - find/rfind(StrVal) compared raw bytes only (see "REVISIT: Only works
+ *     if the StrDataType matches"), so a character did not match itself
+ *     when the two sides used different encodings.
+ *   - operator==/compare() was likewise a raw byte compare, so logically
+ *     identical text compared unequal across encodings.
+ *   - toLower/toUpper's internal transform() stepped its input pointer using
+ *     UTF8Len() regardless of source encoding, so it could misinterpret
  *     RawBinary byte sequences as UTF-8 lead/continuation bytes and skip
  *     or destroy characters.
  */
