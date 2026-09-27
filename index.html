@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-9db74333.js";
+            window.path_to_searchindex_js = "searchindex-4028480f.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-e643466d.js"></script>
@@ -247,6 +247,18 @@ or <code>NO_THREAD</code>, and a FreeRTOS build also sets <code>THREAD_DEFAULT_S
 <code>THREAD_DEFAULT_PRIORITY</code> and <code>MAX_THREAD</code>. See <a href="threading.html">Threads, locks and
 thread-local storage</a>, and <code>include/thread_local.h</code> for the pool
 of thread-local slots that a FreeRTOS build must make room for.</p>
+<p>A program that does not use every part of the library need not carry every
+part of it. The library is an archive of one object file per source, so a
+function is linked in only if something reaches it - and for the functions
+that only one caller could reach, such as a string’s <code>compareNatural</code>, a
+linker told to drop what is not called will leave them out altogether:</p>
+<pre><code>gcc  ... -ffunction-sections -fdata-sections   # when building the library
+g++  ... -Wl,--gc-sections                     # when linking the program
+</code></pre>
+<p>On macOS, <code>-Wl,-dead_strip</code> does it without rebuilding the library that way.
+Either way, what <em>is</em> called is kept: measured on a program that never
+compares naturally, the natural comparison’s code is absent from the
+executable, and on one that does call it, present and correct.</p>
 <p>An ESP-IDF build registers the library with <code>CMakeLists.txt</code> and sets the
 thread settings from <code>Kconfig</code> rather than from this Makefile.</p>
 

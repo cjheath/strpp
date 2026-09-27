@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-9db74333.js";
+            window.path_to_searchindex_js = "searchindex-4028480f.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-e643466d.js"></script>
@@ -285,9 +285,9 @@ has is the empty string, which is what removing all of them leaves.</li>
 characters in <code>s</code> is.</li>
 <li><code>findNot</code>/<code>rfindNot(const StrVal&amp; s, int after/before)</code> - where a character
 not in <code>s</code> is.</li>
-<li><code>compare(const StrVal&amp;, CompareStyle = CompareRaw)</code>, <code>equalCI</code>, and the
-comparison operators - ordering, optionally case independent. <code>compare</code>
-with a style other than <code>CompareRaw</code> is not implemented yet.</li>
+<li><code>compare(const StrVal&amp;)</code>, and the comparison operators built on it -
+ordering as characters. <code>compareNatural()</code> likewise, ordering the numbers in
+a text as numbers. See “Comparisons” below.</li>
 <li><code>static compare(a, b)</code>, <code>static equiv(a, b)</code> - the ordering and equality
 predicates a std::map needs of its key.</li>
 <li><code>isStatic()</code> - true when the data is not owned by this string’s body.</li>
@@ -307,6 +307,21 @@ copy, the second two change this string and its length.</li>
 returns.</li>
 </ul>
 </li>
+<li><strong>A string holds the raw data as it was loaded.</strong> Storing one never rewrites
+it, so a program that reads the bytes back gets what it read, and a character
+written more loosely than it need be - a three-byte code point in its
+four-byte form - is decoded to the same character wherever it is read, so
+nothing is affected by one being there, and the bytes remain as they came
+for anything that wants them.</li>
+<li>Case conversion, <code>transform</code>, and the JSON escaping below, are the operations
+that <em>rebuild</em> a text: each character is read and written again, so it comes
+out encoded as UTF-8 canonically encodes it. Everything else - building a
+string, slicing it, joining, inserting, repeating it, <code>StrVal::format</code> -
+copies bytes, so a character that was given in a non-canonical encoding is
+kept exactly as it came in; only a rebuild rewrites it. A three-byte code
+point stored in its four-byte form comes out of <code>asLower()</code>, or of
+<code>asJSON()</code>, three bytes wide - one byte shorter than it went in, with the
+character, and the rest of the text, unchanged.</li>
 <li><code>asJSON()</code>, <code>toJSON()</code> - escaped for JSON; <code>toJSON</code> escapes in place and
 does not add the enclosing quotes.</li>
 <li><code>asInteger&lt;T&gt;(ErrNum* err, int radix = 0, Index* scanned = 0)</code> - return
@@ -361,6 +376,44 @@ int main()
 	greet(hello);
 }
 </code></pre>
+<h3 id="comparisons"><a class="header" href="#comparisons">Comparisons</a></h3>
+<p><code>compare()</code> compares two strings as characters. The same encoding on both sides
+is a byte comparison; where the two are encoded differently - a raw-binary string
+against a UTF-8 one - the characters are compared, a raw byte being the code
+point of its own value. An operator (<code>==</code>, <code>&lt;</code>, and the rest) is <code>compare()</code>,
+and so is what the library’s containers order their keys by.</p>
+<p><code>compareNatural()</code> is a function of its own, never reached from <code>compare()</code>, and
+orders text with the numbers in it read as numbers:</p>
+<ul>
+<li>A run of decimal digits is compared by the number it spells, in decimal, so
+<code>a10</code> sorts after <code>a9</code>. A digit’s value comes from <code>UCS4Digit</code>, so any script’s
+digits count: <code>a١٠</code> sorts after <code>a٩</code>, and a Thai <code>๑๐</code> after a Thai <code>๙</code>, though
+their bytes say the opposite.</li>
+<li>A run whose <strong>first</strong> digit is a zero is not a number but text: <code>a007</code> sorts
+before <code>a5</code>, and <code>1</code> after <code>01</code>.</li>
+<li>Numbers of different length are ordered by length - neither has a leading zero
+to pad it - and of the same length by the digits’ values. Two runs that spell
+the <strong>same</strong> number are then ordered by the <em>sets</em> of digits they are written
+with, which is what tells one script’s numerals from another’s (<code>5</code> before <code>٥</code>
+before <code>５</code>); only when they are written with the same digits too is there no
+difference at all, and the comparison carries on along the string, which is
+what makes <code>a1b</code> sort before <code>a1c</code>.</li>
+<li>The rule is applied to a whole string of digits as well as to an embedded run,
+which is what makes <code>10</code> sort after <code>9</code>. Two strings of different encodings are
+converted to text first, as <code>compare()</code> effectively does.</li>
+</ul>
+<p><strong>It is not a total order when scripts mix</strong>, and cannot be while a digit’s value
+and its position in the character set disagree: <code>9</code> &lt; <code>a</code> &lt; the Arabic-Indic
+five, but 9 &gt; 5, so those three are not in a line. Text whose digits are all from
+one script - including plain ASCII - is ordered strictly and consistently. Use it
+for display and for sorting text of one script; a container keyed by it must not
+mix scripts.</p>
+<p>Case-independent comparison is <strong>not implemented</strong>: there are no complete
+case-conversion tables to do it with, so the library offers none at all rather
+than one that answers something wrong. Language-sensitive collation (the 1-2 and 2-1
+digraph mappings for each locale) and Unicode normalisation are likewise not
+implemented; each will be a comparison function of its own, as <code>compareNatural()</code>
+is.</p>
 <h3 id="substituting-parameters-into-a-text"><a class="header" href="#substituting-parameters-into-a-text">Substituting parameters into a text</a></h3>
 <p><code>format()</code> takes a text with markers in it and the parameters those markers
 refer to, and returns the text with each parameter interpolated where the text
