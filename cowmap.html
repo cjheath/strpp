@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-a1b0bf4d.js";
+            window.path_to_searchindex_js = "searchindex-9db74333.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-e643466d.js"></script>
@@ -194,7 +194,7 @@ memory cost. A node that is uniquely owned is mutated in place; a shared
 node is copied first, which is safe because our rules require that a single
 reference is confined to one thread; sharing a map across threads should
 always copy the reference.</p>
-<p><code>operator[]</code> answers a copy of the value; <code>find()</code> returns an iterator
+<p><code>operator[]</code> returns a copy of the value; <code>find()</code> returns an iterator
 instead, giving read-only access (<code>-&gt;first</code>/<code>-&gt;second</code>) without copying.
 <code>put()</code>/<code>insert()</code>/<code>remove()</code>/<code>clear()</code> mutate the map, unsharing first; the
 rest are read-only, functional-style traversal helpers.</p>
@@ -228,7 +228,7 @@ satisfies <code>f</code>.</li>
 <li><code>insert(const Key, const Value)</code> - insert the pair.</li>
 <li><code>remove(const Key&amp;)</code> - erase the entry.</li>
 <li><code>put(const Key&amp;, Value)</code> - erase any entry for the key, then insert the new
-value, and answer the key.</li>
+value, and return the key.</li>
 <li><code>clear()</code> - empty the map.</li>
 </ul>
 <p>Example:</p>

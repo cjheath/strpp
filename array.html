@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-a1b0bf4d.js";
+            window.path_to_searchindex_js = "searchindex-9db74333.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-e643466d.js"></script>
@@ -225,7 +225,9 @@ value or by a match function, or -1 if it is not there.</li>
 </ul>
 <p>Slicing, all O(1) and none of them copying:</p>
 <ul>
-<li><code>slice(at, len = -1)</code>, <code>head(n)</code>, <code>tail(n)</code>, <code>shorter(n)</code>, <code>drop(n)</code>.</li>
+<li><code>slice(at, len = -1)</code>, <code>head(n)</code>, <code>tail(n)</code>, <code>shorter(n)</code>, <code>drop(n)</code>. The
+length defaults to the rest of the array, and a length that runs past the end
+is clamped to what is there - see “Asking for what is not there” below.</li>
 </ul>
 <p>Changing, each taking a private copy first if the body is shared:</p>
 <ul>
@@ -235,12 +237,14 @@ value or by a match function, or -1 if it is not there.</li>
 <li><code>insert(pos, Array)</code> - insert another array at <code>pos</code>.</li>
 <li><code>unshift(e)</code> - insert at the start; <code>shift()</code> removes from the start.</li>
 <li><code>pull()</code>, <code>last_mut()</code> - take the last element, or reach it to write.</li>
-<li><code>remove(at, len = -1)</code>, <code>delete_at(at)</code>, <code>delete_if(f)</code> - remove elements.</li>
+<li><code>remove(at, len = -1)</code>, <code>delete_at(at)</code>, <code>delete_if(f)</code> - remove elements.
+<code>delete_if(f)</code> removes every element for which <code>f</code> returns true, and leaves
+the rest in order.</li>
 <li><code>set(n, e)</code>, <code>elem_mut(n)</code> - write an element, and reach one to write.</li>
 <li><code>reverse()</code> - reverse the elements of this slice.</li>
 <li><code>each(f)</code> - call <code>f</code> for every element, leaving the array alone.</li>
 <li><code>select(f)</code> - a new array of the elements that satisfy <code>f</code>.</li>
-<li><code>map(f)</code> - a new array of what <code>f</code> answers for each element.</li>
+<li><code>map(f)</code> - a new array of what <code>f</code> returns for each element.</li>
 <li><code>inject(start, f)</code> - fold the elements into an accumulator.</li>
 <li><code>all(f)</code>, <code>any(f)</code>, <code>one(f)</code> - whether all, any, or exactly one element
 satisfies <code>f</code>.</li>
@@ -257,6 +261,36 @@ makes an array safe to pass around by value - and it is why an array that is
 meant to be appended to repeatedly should not be handed out as a slice.
 Every outstanding slice costs one copy on the next append, however the slice
 is used.</p>
+<h3 id="asking-for-what-is-not-there"><a class="header" href="#asking-for-what-is-not-there">Asking for what is not there</a></h3>
+<p>There are two out-of-bounds cases, handled differently.</p>
+<p>Asking for <strong>more elements than there are</strong> is a clamp, not an error: <code>head(n)</code>
+and <code>tail(n)</code> return the whole array when <code>n</code> is past the end, <code>shorter(n)</code>
+gets the empty array, and a <code>len</code> that runs past the end of a slice is
+shortened to fit. None of those reports - this is the clamp that every slice in
+the class does, and the same one <code>StrVal</code>’s <code>substr</code> does.</p>
+<p>Asking for an <strong>index the array has not got</strong> is the caller’s error, and is
+reported as <code>STRERR_INDEX_OUT_OF_RANGE</code>, naming the index, the length of the
+array and what was wanted. An empty slice is returned:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>The call</th><th>What it returns</th></tr>
+</thead>
+<tbody>
+<tr><td><code>slice(at)</code>, <code>at</code> past the end</td><td>the empty slice</td></tr>
+<tr><td><code>remove(at, len)</code>, <code>at</code> past the end or <code>len</code> running off it</td><td><em>this</em>, unchanged: nothing is removed</td></tr>
+<tr><td><code>drop(n)</code>, <code>n</code> past the end</td><td>the array, unchanged</td></tr>
+<tr><td><code>delete_at(at)</code>, <code>at</code> past the end</td><td>a default-constructed element, and nothing is removed</td></tr>
+</tbody>
+</table>
+</div>
+<p><code>slice(length())</code> and <code>remove(length())</code> are not errors - the empty slice and
+the empty removal at the end - and neither reports.</p>
+<p>Refusing rather than clamping is deliberate for the removal calls: the caller
+named elements they believed were there, and removing a different set from the
+one they named would be worse than removing none. A caller who expects an index
+to be out of range, and does not want the buffer filled by each one, takes a
+checkpoint first - see <a href="error.html">Errors</a>.</p>
 <h3 id="shrinking-a-slice"><a class="header" href="#shrinking-a-slice">Shrinking a slice</a></h3>
 <p><code>remove()</code>, <code>pull()</code>, <code>drop()</code>, <code>shift()</code> and <code>delete_at()</code> take sole
 ownership before they release anything, so an element they drop is destroyed
@@ -272,6 +306,10 @@ except that it also gives the storage back; an array that is emptied and
 refilled repeatedly wants <code>evacuate()</code>.</p>
 <p>Neither can release elements a shared body still shows to another array; the
 elements stay alive until the last reference goes.</p>
+<p>A body never gives its storage back on a <strong>shrink</strong>: asking for less memory than
+it holds is ignored, so an array that grows and shrinks keeps the room it grew
+into. <code>clear()</code> on the last owner is the way to hand it back, and an empty slice
+that is the only owner gives it up too.</p>
 <p>The StrVal class uses a specialisation of this template to provide its
 storage and reference counting.</p>
 

@@ -36,7 +36,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-a1b0bf4d.js";
+            window.path_to_searchindex_js = "searchindex-9db74333.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-e643466d.js"></script>
@@ -232,7 +232,7 @@ index whatever this one says, so a 32-bit array may hold more elements than a
 <li>
 <p><code>DEPTH</code> (16) - the most levels of array or map that
 <a href="#unicode-strings-the-strval-class-1">formatting</a> and JSON rendering descend into. A structure nested
-deeper than that answers its type name instead, so that one far deeper than
+deeper than that returns its type name instead, so that one far deeper than
 any text needs cannot run away with the stack.</p>
 </li>
 <li>
@@ -311,7 +311,7 @@ gets repointed for reuse, such as <code>transform()</code>’s internal one - is
 copied immediately instead, on construction or assignment alike.</li>
 </ul>
 <h4 id="ownership-and-encoding"><a class="header" href="#ownership-and-encoding">Ownership and encoding</a></h4>
-<p>Every constructor above that takes raw data answers two independent
+<p>Every constructor above that takes raw data returns two independent
 questions, each its own enum:</p>
 <ul>
 <li><strong>Ownership</strong> - <code>ownership</code>, an <a href="#array-with-slices-1"><code>ArrayOwnership</code></a> (<code>array.h</code>,
@@ -345,7 +345,7 @@ a constructor is called, not about the size of what it builds.</p>
 past the end, and <code>UCS4_NONE</code> for an offset that is not there.</li>
 <li><code>asUTF8()</code> - the bytes, NUL-terminated, copying the body first if this is a
 substring whose terminator was elided.</li>
-<li><code>asUTF8(Index&amp; bytes)</code> - the bytes without that guarantee, answering the
+<li><code>asUTF8(Index&amp; bytes)</code> - the bytes without that guarantee, returning the
 byte count.</li>
 <li><code>operator-&gt;()</code>, <code>operator*()</code>, <code>operator const Body&amp;()</code> - the body itself.</li>
 </ul>
@@ -375,12 +375,12 @@ predicates a std::map needs of its key.</li>
 <li><code>operator*(int repeats)</code> - this string, repeated.</li>
 <li><code>insert(Index pos, const StrVal&amp;)</code>, <code>append</code>, <code>prepend</code> - insert into the
 copy this string owns.</li>
-<li><code>asLower()</code>, <code>asUpper()</code>, <code>toLower()</code>, <code>toUpper()</code> - the first two answer a
+<li><code>asLower()</code>, <code>asUpper()</code>, <code>toLower()</code>, <code>toUpper()</code> - the first two return a
 copy, the second two change this string and its length.</li>
 <li><code>transform(std::function&lt;StrVal(const char*&amp; cp, const char* ep)&gt;, int after = -1)</code>
 <ul>
 <li>rewrite each character from <code>after</code> on, with whatever the function
-answers.</li>
+returns.</li>
 </ul>
 </li>
 <li><code>asJSON()</code>, <code>toJSON()</code> - escaped for JSON; <code>toJSON</code> escapes in place and
@@ -439,7 +439,7 @@ int main()
 </code></pre>
 <h3 id="substituting-parameters-into-a-text"><a class="header" href="#substituting-parameters-into-a-text">Substituting parameters into a text</a></h3>
 <p><code>format()</code> takes a text with markers in it and the parameters those markers
-refer to, and answers the text with each parameter interpolated where the text
+refer to, and returns the text with each parameter interpolated where the text
 names it:</p>
 <pre><code>StrVal::format("The {1} weighs {2} grams", VariantArray() &lt;&lt; "parcel" &lt;&lt; 250)
 // The parcel weighs 250 grams
@@ -486,7 +486,7 @@ one is cut. A minimum is applied after the cut rather than before it, so
 <code>{1:8&lt;6...}</code> gives two spaces and then <code>abc...</code>.</p>
 <p>A parameter that is an array or a map is expanded rather than named: an array
 in brackets, its elements rendered the same way, and a map as JSON, which is
-what a map is for. An array at the limit of <code>RENDER_MAX_DEPTH</code> levels answers
+what a map is for. An array at the limit of <code>RENDER_MAX_DEPTH</code> levels returns
 its type name in angle brackets instead, as does a type with no rendering at
 all here, so a structure deeper than any text needs cannot run away with the
 stack. The limit is a build option - <code>make DEPTH=8</code> - rather than an argument
@@ -515,8 +515,8 @@ in Python and .NET: <code>{{</code> is a <code>{</code>, and <code>}}</code> is 
 escaping, so a text may carry a regular expression, a path or a backslash as it
 stands.</p>
 <h3 id="integers-as-text"><a class="header" href="#integers-as-text">Integers as text</a></h3>
-<p><code>asInteger&lt;T&gt;</code> answers the number a text reads as, <code>asFixedPoint&lt;T&gt;</code> answers it
-at a resolution the caller names, and the six <code>from*</code> functions answer the text
+<p><code>asInteger&lt;T&gt;</code> returns the number a text reads as, <code>asFixedPoint&lt;T&gt;</code> returns it
+at a resolution the caller names, and the six <code>from*</code> functions return the text
 a number writes as. The writers take a representation, and it is the same one a
 format marker names:</p>
 <pre><code>StrVal::fromInt32(255, 'x')		// ff
@@ -543,7 +543,7 @@ is what <code>0xff</code> in radix 16 above is for.</p>
 <p><strong>The integer width is the size of <code>T</code>, and the methods only get compiled when
 needed.</strong> nothing instantiates either reader for any type (except int32
 which is needed by Variant) until a caller needs it. So a <code>long long</code> reads a
-number an <code>int32_t</code> cannot hold, and both answer correctly:</p>
+number an <code>int32_t</code> cannot hold, and both return correctly:</p>
 <pre><code>StrVal("4000000000").asInt32()			// 400000000
 StrVal("4000000000").asInteger&lt;long long&gt;()	// 4000000000
 </code></pre>
@@ -773,7 +773,9 @@ value or by a match function, or -1 if it is not there.</li>
 </ul>
 <p>Slicing, all O(1) and none of them copying:</p>
 <ul>
-<li><code>slice(at, len = -1)</code>, <code>head(n)</code>, <code>tail(n)</code>, <code>shorter(n)</code>, <code>drop(n)</code>.</li>
+<li><code>slice(at, len = -1)</code>, <code>head(n)</code>, <code>tail(n)</code>, <code>shorter(n)</code>, <code>drop(n)</code>. The
+length defaults to the rest of the array, and a length that runs past the end
+is clamped to what is there - see “Asking for what is not there” below.</li>
 </ul>
 <p>Changing, each taking a private copy first if the body is shared:</p>
 <ul>
@@ -783,12 +785,14 @@ value or by a match function, or -1 if it is not there.</li>
 <li><code>insert(pos, Array)</code> - insert another array at <code>pos</code>.</li>
 <li><code>unshift(e)</code> - insert at the start; <code>shift()</code> removes from the start.</li>
 <li><code>pull()</code>, <code>last_mut()</code> - take the last element, or reach it to write.</li>
-<li><code>remove(at, len = -1)</code>, <code>delete_at(at)</code>, <code>delete_if(f)</code> - remove elements.</li>
+<li><code>remove(at, len = -1)</code>, <code>delete_at(at)</code>, <code>delete_if(f)</code> - remove elements.
+<code>delete_if(f)</code> removes every element for which <code>f</code> returns true, and leaves
+the rest in order.</li>
 <li><code>set(n, e)</code>, <code>elem_mut(n)</code> - write an element, and reach one to write.</li>
 <li><code>reverse()</code> - reverse the elements of this slice.</li>
 <li><code>each(f)</code> - call <code>f</code> for every element, leaving the array alone.</li>
 <li><code>select(f)</code> - a new array of the elements that satisfy <code>f</code>.</li>
-<li><code>map(f)</code> - a new array of what <code>f</code> answers for each element.</li>
+<li><code>map(f)</code> - a new array of what <code>f</code> returns for each element.</li>
 <li><code>inject(start, f)</code> - fold the elements into an accumulator.</li>
 <li><code>all(f)</code>, <code>any(f)</code>, <code>one(f)</code> - whether all, any, or exactly one element
 satisfies <code>f</code>.</li>
@@ -805,6 +809,36 @@ makes an array safe to pass around by value - and it is why an array that is
 meant to be appended to repeatedly should not be handed out as a slice.
 Every outstanding slice costs one copy on the next append, however the slice
 is used.</p>
+<h3 id="asking-for-what-is-not-there"><a class="header" href="#asking-for-what-is-not-there">Asking for what is not there</a></h3>
+<p>There are two out-of-bounds cases, handled differently.</p>
+<p>Asking for <strong>more elements than there are</strong> is a clamp, not an error: <code>head(n)</code>
+and <code>tail(n)</code> return the whole array when <code>n</code> is past the end, <code>shorter(n)</code>
+gets the empty array, and a <code>len</code> that runs past the end of a slice is
+shortened to fit. None of those reports - this is the clamp that every slice in
+the class does, and the same one <code>StrVal</code>’s <code>substr</code> does.</p>
+<p>Asking for an <strong>index the array has not got</strong> is the caller’s error, and is
+reported as <code>STRERR_INDEX_OUT_OF_RANGE</code>, naming the index, the length of the
+array and what was wanted. An empty slice is returned:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>The call</th><th>What it returns</th></tr>
+</thead>
+<tbody>
+<tr><td><code>slice(at)</code>, <code>at</code> past the end</td><td>the empty slice</td></tr>
+<tr><td><code>remove(at, len)</code>, <code>at</code> past the end or <code>len</code> running off it</td><td><em>this</em>, unchanged: nothing is removed</td></tr>
+<tr><td><code>drop(n)</code>, <code>n</code> past the end</td><td>the array, unchanged</td></tr>
+<tr><td><code>delete_at(at)</code>, <code>at</code> past the end</td><td>a default-constructed element, and nothing is removed</td></tr>
+</tbody>
+</table>
+</div>
+<p><code>slice(length())</code> and <code>remove(length())</code> are not errors - the empty slice and
+the empty removal at the end - and neither reports.</p>
+<p>Refusing rather than clamping is deliberate for the removal calls: the caller
+named elements they believed were there, and removing a different set from the
+one they named would be worse than removing none. A caller who expects an index
+to be out of range, and does not want the buffer filled by each one, takes a
+checkpoint first - see <a href="#error-management-1">Errors</a>.</p>
 <h3 id="shrinking-a-slice"><a class="header" href="#shrinking-a-slice">Shrinking a slice</a></h3>
 <p><code>remove()</code>, <code>pull()</code>, <code>drop()</code>, <code>shift()</code> and <code>delete_at()</code> take sole
 ownership before they release anything, so an element they drop is destroyed
@@ -820,6 +854,10 @@ except that it also gives the storage back; an array that is emptied and
 refilled repeatedly wants <code>evacuate()</code>.</p>
 <p>Neither can release elements a shared body still shows to another array; the
 elements stay alive until the last reference goes.</p>
+<p>A body never gives its storage back on a <strong>shrink</strong>: asking for less memory than
+it holds is ignored, so an array that grows and shrinks keeps the room it grew
+into. <code>clear()</code> on the last owner is the way to hand it back, and an empty slice
+that is the only owner gives it up too.</p>
 <p>The StrVal class uses a specialisation of this template to provide its
 storage and reference counting.</p>
 <div style="break-before: page; page-break-before: always;"></div>
@@ -866,7 +904,7 @@ happens if it is absent.</li>
 <li><code>RbTree&lt;K,V&gt;::find(Link root, const K&amp; key)</code> - an Iter at the key, or
 <code>end()</code> if it is not in the tree.</li>
 <li><code>RbTree&lt;K,V&gt;::begin(Link root)</code> - an Iter at the smallest key.</li>
-<li><code>RbTree&lt;K,V&gt;::end()</code> - the past-the-end Iter, and what <code>find</code> answers when
+<li><code>RbTree&lt;K,V&gt;::end()</code> - the past-the-end Iter, and what <code>find</code> returns when
 the key is missing.</li>
 <li><code>RbTree&lt;K,V&gt;::Iter::locate(Link root, const K&amp; key)</code> - an iterator built by
 a key-guided walk; what <code>find</code> returns.</li>
@@ -931,7 +969,7 @@ memory cost. A node that is uniquely owned is mutated in place; a shared
 node is copied first, which is safe because our rules require that a single
 reference is confined to one thread; sharing a map across threads should
 always copy the reference.</p>
-<p><code>operator[]</code> answers a copy of the value; <code>find()</code> returns an iterator
+<p><code>operator[]</code> returns a copy of the value; <code>find()</code> returns an iterator
 instead, giving read-only access (<code>-&gt;first</code>/<code>-&gt;second</code>) without copying.
 <code>put()</code>/<code>insert()</code>/<code>remove()</code>/<code>clear()</code> mutate the map, unsharing first; the
 rest are read-only, functional-style traversal helpers.</p>
@@ -965,7 +1003,7 @@ satisfies <code>f</code>.</li>
 <li><code>insert(const Key, const Value)</code> - insert the pair.</li>
 <li><code>remove(const Key&amp;)</code> - erase the entry.</li>
 <li><code>put(const Key&amp;, Value)</code> - erase any entry for the key, then insert the new
-value, and answer the key.</li>
+value, and return the key.</li>
 <li><code>clear()</code> - empty the map.</li>
 </ul>
 <p>Example:</p>
@@ -1084,33 +1122,33 @@ forms coerce to that type first, and report and then assert when the value
 cannot be read as it.</li>
 <li><code>as_uint()</code>, <code>as_ulong()</code>, <code>as_ulonglong()</code> - the same three, unsigned, for a
 Variant whose type is one of the unsigned ones. Unlike the three above they
-answer a value rather than a reference to the union word, which is signed: a
+return a value rather than a reference to the union word, which is signed: a
 reference to it read as unsigned would be an aliasing violation. There is
 therefore no mutable form of these three - nothing coerces <em>to</em> an unsigned
 type - so a Variant that holds a number signed must be asked for it that way.</li>
 <li><code>as_signed()</code> - the number held as a signed one, in the closest signed type
-that holds it, answering a <code>long long</code>. This is the read for a number of
-unknown origin, and the answer to an unsigned value too large for its own
+that holds it, returning a <code>long long</code>. This is the read for a number of
+unknown origin, and what reads an unsigned value too large for its own
 signed twin: a <code>UInteger</code> beyond <code>INT_MAX</code> becomes a <code>Long</code>, and one beyond
-<code>LONG_MAX</code> a <code>LongLong</code>. A value already signed is answered as it stands and
+<code>LONG_MAX</code> a <code>LongLong</code>. A value already signed is returned as it stands and
 not narrowed, since its width is what its holder chose; a string that reads
 as a number is converted; and an unsigned value no signed type can hold - a
 <code>ULongLong</code> beyond <code>LLONG_MAX</code>, and on a 64-bit target a <code>ULong</code> beyond
-<code>LONG_MAX</code> too - is refused like any other lossy coercion. It answers a value
+<code>LONG_MAX</code> too - is refused like any other lossy coercion. It returns a value
 rather than a reference, the width of a reference being whatever the value
 turned out to need, so it is a read and not a way to write in.</li>
 <li><code>as_strval()</code>, <code>as_string_array()</code>, <code>as_variant_array()</code>, <code>as_variant_map()</code>
 <ul>
 <li>the string or container held. The mutable <code>as_strval()</code> coerces a number
 to a string, which is what renders an unsigned value unsigned. All four
-answer a handle to a body the Variant still shares, so writing through one -
+return a handle to a body the Variant still shares, so writing through one -
 <code>v.as_strval() += "x"</code>, <code>v.as_variant_map().insert(k, v)</code> - copies the body
 and leaves the Variant as it was. A string or container is changed by taking
 it, changing that, and putting the result back.</li>
 </ul>
 </li>
 <li><code>as_interval()</code>, <code>as_datetime()</code> - the time held, as an <code>Interval</code> or a
-<code>DateTime</code>. Both answer a value rather than a reference, because what the
+<code>DateTime</code>. Both return a value rather than a reference, because what the
 union holds is a count of ticks and not one of those objects: they are reads,
 and a caller with a new time assigns it to the Variant instead.
 <code>as_datetime()</code> renders as ISO 8601 in UTC.</li>
@@ -1129,7 +1167,7 @@ bits behave the same way however they were built: <code>UInteger</code> as <code
 <code>ULong</code> as <code>Long</code>, <code>ULongLong</code> as <code>LongLong</code>. A <code>UInteger</code> of 4000000000
 has the sign bit set in that width, so it does not coerce to an <code>Integer</code> at
 all: the coercion is refused, as it is for any value the target could not
-hold, rather than answering -294967296.</p>
+hold, rather than returning -294967296.</p>
 </li>
 <li>
 <p><strong>Widening one goes by value, not by bits</strong>, where the target is wide enough
@@ -1149,14 +1187,14 @@ asked for and the value that does not fit it:</p>
 <p>Where assertions are on, that report is followed by an assertion and the
 program stops, so a program under development cannot carry the wrong number
 forward. Where assertions are compiled out there is no one to stop for, and
-losing the value would be worse than a wrong answer: the Variant is left of the
+losing the value would be worse than a wrong result: the Variant is left of the
 closest type that holds the value instead - a <code>UInteger</code> beyond <code>INT_MAX</code> is
-left a <code>Long</code> - so nothing is lost and any later read answers it correctly. The
+left a <code>Long</code> - so nothing is lost and any later read returns it correctly. The
 caller that asked for too narrow a type still gets what it asked for, and the
 buffer says why.</p>
 <p>That is what <code>as_signed()</code> is for where the width is not known: it asks for the
 closest signed type that holds the value rather than being told one, so a
-caller with a number of unknown origin has a single call that either answers
+caller with a number of unknown origin has a single call that either returns
 the number or says that no signed type holds it.</p>
 <p>A refusal of a <em>kind</em> rather than of a value is reported differently: a
 <code>DateTime</code> read as an <code>Interval</code>, or a time read as a number, names the type
@@ -1186,8 +1224,8 @@ followed by <code>n</code>, so arrays can be built by chaining.</li>
 <h2 id="time-and-date-intervals-and-instants"><a class="header" href="#time-and-date-intervals-and-instants">Time and date: intervals and instants</a></h2>
 <p><code>#include	&lt;datetime.h&gt;</code></p>
 <p>Time comes in two kinds that are forever being confused with each other, so
-this header has two types. An <code>Interval</code> is a duration, the answer to
-“how long”; a <code>DateTime</code> is a point in time, the answer to “when”. Both count
+this header has two types. An <code>Interval</code> is a duration - how long something
+takes; a <code>DateTime</code> is a point in time - when it happens. Both count
 the same tick, so an interval adds to an instant with no conversion, and one
 instant less another is an interval.</p>
 <p><code>Milliseconds</code> and <code>Seconds</code> are lengths of time counted in their own units, so
@@ -1219,7 +1257,7 @@ time that actually elapsed - a span that began then and ended now was five
 seconds longer than the difference says. Which differences are affected cannot
 be told from the values; it needs a table of leap seconds, and this library has
 none. A duration that must be physical - a timeout, an elapsed time - belongs to
-a monotonic clock, which no leap second touches. A <code>DateTime</code> answers <em>when</em>,
+a monotonic clock, which no leap second touches. A <code>DateTime</code> returns <em>when</em>,
 and an <code>Interval</code> between two of them is a count of UTC seconds.</p>
 <h3 id="null-times"><a class="header" href="#null-times">Null times</a></h3>
 <p>A time can be null, which is not a time at all: a value that was never set, or a
@@ -1230,11 +1268,11 @@ and not the epoch: both of those are real times.</p>
 <p>A null used where a value is needed reports <code>TIMERR_NULL_VALUE</code>:</p>
 <ul>
 <li><strong>Arithmetic</strong> on a null - adding, subtracting or negating - reports, and
-answers another null, so that a null spreads through a computation instead of
+returns another null, so that a null spreads through a computation instead of
 becoming a number part-way along it. This includes <code>DateTime</code> arithmetic, and
 the difference of two instants when either is null.</li>
-<li><strong>Reading one as a value</strong> reports and answers the least misleading thing it
-can: <code>asTime_t()</code> answers 0, and <code>asGregorian()</code> answers a value with no date,
+<li><strong>Reading one as a value</strong> reports and returns the least misleading thing it
+can: <code>asTime_t()</code> returns 0, and <code>asGregorian()</code> returns a value with no date,
 rather than a date that never was.</li>
 </ul>
 <p>Two things are deliberately silent. A null that <em>stays</em> null - a unit
@@ -1250,9 +1288,9 @@ that is not a time at all is answered with a null rather than with zero: zero is
 a time, and the text did not say zero.</p>
 <p>A <code>Gregorian</code> has no null - a civil date is a date, and a time of day with no
 date is what year 0 means - so only the four tick-counting types can be null.</p>
-<h3 id="when-an-operation-cannot-answer"><a class="header" href="#when-an-operation-cannot-answer">When an operation cannot answer</a></h3>
-<p>An operation that cannot answer correctly reports it, and answers the type’s
-“nothing”. It never answers a wrapped number: a count of ticks that ran past the
+<h3 id="when-an-operation-cannot-return-correctly"><a class="header" href="#when-an-operation-cannot-return-correctly">When an operation cannot return correctly</a></h3>
+<p>An operation that cannot return correctly reports it, and returns the type’s
+“nothing”. It never returns a wrapped number: a count of ticks that ran past the
 end of its range is a duration of the wrong sign or an instant in the wrong
 century, and nothing about it looks wrong. Four reports cover every case, all in
 the <code>TIM</code> set:</p>
@@ -1265,7 +1303,7 @@ The host's zone offset is not known at that instant, so UTC is answered
 <div class="table-wrapper">
 <table>
 <thead>
-<tr><th>The operation</th><th>What it answers</th></tr>
+<tr><th>The operation</th><th>What it returns</th></tr>
 </thead>
 <tbody>
 <tr><td>Adding, subtracting or negating a null, or an instant moved by a null</td><td>another null, so that a null spreads rather than becoming a number</td></tr>
@@ -1284,15 +1322,15 @@ either side - so the interval between the two ends of the range is refused. And
 an instant within eighteen hours of either end, read in a zone that would take
 it past, has no date, where before it answered a date from the <em>other</em> end of
 the range with a zone designator on it.</p>
-<p>Where the answer is a <code>Gregorian</code> with no date, that value is a time of day -
+<p>Where the result is a <code>Gregorian</code> with no date, that value is a time of day -
 midnight - and <code>hasDate()</code> is false. <code>isValid()</code> is true of it, a time of day
 being a valid value; the report and <code>hasDate()</code> are what say that a conversion
-failed rather than that the answer is a time.</p>
+failed rather than that the result is a time.</p>
 <p>A caller who expects a value to be out of range and does not want the buffer
 filled by each one takes a checkpoint first and rolls back after:</p>
 <pre><code>ErrBuf::MsgSequence	at = ErrCheckpoint();
-Interval		answer = a + b;
-ErrRollback(at);	// ...and answer.isNull() says whether it was answered
+Interval		sum = a + b;
+ErrRollback(at);	// ...and sum.isNull() says whether it was returned
 </code></pre>
 <h3 id="zones-are-offsets-not-names"><a class="header" href="#zones-are-offsets-not-names">Zones are offsets, not names</a></h3>
 <p>A <code>DateTime</code> knows no time zone. It is a count of ticks from the epoch, and
@@ -1326,7 +1364,7 @@ instant, given another way.</li>
 </ul>
 <p>Reading:</p>
 <ul>
-<li><code>ticks()</code> - the count of 10⁻⁸ second ticks. The one read all of these answer.</li>
+<li><code>ticks()</code> - the count of 10⁻⁸ second ticks. The one read all of these return.</li>
 <li><code>isNull()</code> - whether the value is null: a time that was never set. See “Null
 times” below.</li>
 <li><code>ms()</code>, <code>seconds()</code> - a <code>Milliseconds</code> or a <code>Seconds</code> as its own number.</li>
@@ -1384,8 +1422,8 @@ DateTime::fromString("2002-01-03T11:12:13Z").toString(UtcOffset::hours(10))
 <p><code>DateTime::fromString</code> reads the zone from the text as well as the time, and
 hands it back through the out-pointer, so a text can be read and written again
 in the zone it came in. A text with no zone designator is read as <strong>UTC</strong> and
-never as local time: an answer that depends on where it is read is not an
-answer. Reading an instant from a text that names a time of day but no date is
+never as local time: a result that depends on where it is read is not a
+result. Reading an instant from a text that names a time of day but no date is
 reported as <code>TIMERR_NO_DATE</code>, and one whose date is outside the range as
 <code>TIMERR_OUT_OF_RANGE</code>.</p>
 <p>See <a href="#error-management-1">Errors</a> and the <code>TIM</code> set in <code>str_err.h</code>.</p>
@@ -1397,16 +1435,16 @@ reported as <code>TIMERR_NO_DATE</code>, and one whose date is outside the range
 hour, a minute, a second, and a fraction of a second as a count of 10⁻⁸ second
 ticks. It knows no time zone, and it is not a point in time - it is what a
 clock and a calendar say, which is a different thing in every zone.</p>
-<p>To get an instant, tell it the zone: <code>asDateTime(off)</code> answers the <code>DateTime</code>
-that a civil time names in that zone, and <code>DateTime::asGregorian(off)</code> answers
+<p>To get an instant, tell it the zone: <code>asDateTime(off)</code> returns the <code>DateTime</code>
+that a civil time names in that zone, and <code>DateTime::asGregorian(off)</code> returns
 the civil time of an instant. That is the whole of the conversion between them,
-and nothing here caches an answer.</p>
+and nothing here caches a result.</p>
 <h3 id="the-years-before-1-ad"><a class="header" href="#the-years-before-1-ad">The years before 1 AD</a></h3>
 <p>The year is the count the calendar uses, in which 1 AD is year 1 and the year
 before it is 1 BC, so the years before 1 AD count downwards: -1 is 1 BC, -2 is
 2 BC. There is no year 0 in that reckoning, and this class uses the year that
 never existed to mean something it does need: <strong>a time of day with no date</strong>. So
-<code>year()</code> answers 0 for a value that is a time alone, <code>hasDate()</code> says which kind
+<code>year()</code> returns 0 for a value that is a time alone, <code>hasDate()</code> says which kind
 it is, and <code>"12:34"</code> reads as a time rather than as a century.</p>
 <p>ISO 8601, for its part, counts years as the astronomers do, inserting the year
 0 that the calendar has not got: 1 BC is written <code>0000</code>, and 2 BC as <code>-0001</code>.
@@ -1429,13 +1467,13 @@ Z, [+-]hh[:mm], [+-]hhmm	the zone, when one is given
 refused rather than read, since it could be a year or an hour and a minute, and
 a caller who meant either can punctuate it.</p>
 <p>Reading a text with no zone designator does not assume local time: it is read
-as UTC, because an answer that depends on where it is read is not an answer.
+as UTC, because a result that depends on where it is read is not a result.
 The zone that was read is handed back through an out-pointer, so a text read
 and written again keeps the zone it came in.</p>
 <p>A text that is not a date or a time at all, and a field set that is not a date
 that exists - the 31st of February, or an hour of 24 - are reported as
 <code>TIMERR_INVALID_TEXT</code>. <code>fromYMD()</code> reports a field set of its own as
-<code>TIMERR_INVALID_YMDHMS</code>, and answers the value it was given, so that <code>isValid()</code>
+<code>TIMERR_INVALID_YMDHMS</code>, and returns the value it was given, so that <code>isValid()</code>
 can be asked about it.</p>
 <h3 id="writing-iso-8601"><a class="header" href="#writing-iso-8601">Writing ISO 8601</a></h3>
 <p><code>toString(flags)</code> writes the extended (punctuated) form by default, and the
@@ -1467,7 +1505,7 @@ refused and reported as <code>TIMERR_OUT_OF_RANGE</code>, naming the date and bo
 the range - never wrapped, and never silently a different date. That is the one
 place in this layer where a valid calendar date has no instant to be.</p>
 <p><code>isValid()</code> checks the fields without converting anything, and <code>dayOfWeek()</code>
-answers -1 for a value with no date. Both are safe to call in any order and any
+returns -1 for a value with no date. Both are safe to call in any order and any
 number of times: there is one representation, and no cache to fall out of step
 with it.</p>
 <h3 id="public-methods-6"><a class="header" href="#public-methods-6">Public methods</a></h3>
@@ -1640,14 +1678,14 @@ recovery usually wants.</li>
 <li><code>message(MsgIndex n)</code> - the nth message: its number, default text and
 parameters.</li>
 <li><code>report(ErrNum err, const char* default_text, VariantArray params)</code> - append
-a message and answer its sequence number. A zero ErrNum reports nothing.</li>
+a message and return its sequence number. A zero ErrNum reports nothing.</li>
 <li><code>rollback(MsgSequence which)</code> - discard everything reported since that
 checkpoint, the parameters going with it.</li>
 <li><code>delivered()</code> - retire the oldest message, once you have delivered it.</li>
 <li><code>clear()</code> - drop everything at once, keeping the storage.</li>
 <li><code>Error(ErrNum err, const char* default_text, VariantArray params)</code> - the
 free function the generated reporting functions call: it reports into this
-thread’s buffer and answers the number, so reporting and returning are one
+thread’s buffer and returns the number, so reporting and returning are one
 act.</li>
 </ul>
 <p>Three free functions are there so that a caller need not reach through the
@@ -1655,7 +1693,7 @@ slot at all, which is what almost every caller wants:</p>
 <ul>
 <li><code>ErrBuffer()</code> - this thread’s buffer as a <code>ErrBuf*</code>, made on first use.</li>
 <li><code>ErrCheckpoint()</code> - the same as <code>ErrBuffer()-&gt;checkpoint()</code>: keep what it
-answers, and roll back to it.</li>
+returns, and roll back to it.</li>
 <li><code>ErrRollback(MsgSequence to)</code> - the same as <code>ErrBuffer()-&gt;rollback(to)</code>:
 discard everything reported since that checkpoint, as a callee’s reports
 are dropped without the callee being party to it. It makes the buffer if
@@ -1665,7 +1703,7 @@ reported.</li>
 <p>That last pair is what a caller that <em>expects</em> a failure uses, so that the
 report does not become noise:</p>
 <pre><code>ErrBuf::MsgSequence	at = ErrCheckpoint();
-...call something whose failure is one of the answers...
+...call something whose failure is one of the returns...
 if (the failure was the expected one)
 	ErrRollback(at);	// Not a mistake: take the report back
 </code></pre>
@@ -1675,7 +1713,7 @@ of digits, so that a normal run leaves the buffer empty.</p>
 <p>Generated code calls <code>Error</code> through a function per message:</p>
 <pre><code>ErrNum	Error(ErrNum err, const char* default_text, VariantArray params);
 </code></pre>
-<p>It appends the message, and answers the number it was given, so that
+<p>It appends the message, and returns the number it was given, so that
 reporting an error and returning it are one act:</p>
 <pre><code>return ErrorADL_Syntax("foo", source.location);
 </code></pre>
@@ -1751,7 +1789,7 @@ text</a>, which is what renders a message when it is displayed.</p>
 <h4 id="threads-and-other-processes"><a class="header" href="#threads-and-other-processes">Threads and other processes</a></h4>
 <p>There is one buffer per thread, reached through a thread-local slot, so two
 threads never see each other’s messages. A caller running on one thread that
-completes work for another - or a server answering a client - packs the
+completes work for another - or a server returning a client - packs the
 unformatted messages (number, default text and parameters) into whatever it
 already speaks and ships them. The receiving context is the one that knows
 the reader’s language and the room there is to display in, so it is the one
@@ -1789,8 +1827,16 @@ synchronisation primitives and thread-local storage.</p>
 <h3 id="locks"><a class="header" href="#locks">Locks</a></h3>
 <p>A <code>Latch</code> is a lock, held by one thread at a time. <code>enter()</code> waits for it,
 <code>probe()</code> takes it only if it is free, <code>holding()</code> asks whether this thread
-has it, and <code>leave()</code> releases it. Under <code>NO_THREAD</code> there is one thread, so
-all of these are no-ops and <code>holding()</code> is always true.</p>
+has it, and <code>leave()</code> releases it. A <code>Latch</code> cannot be copied: the copy would
+hold the same lock, and destroying either would destroy it under the other.
+Under <code>NO_THREAD</code> there is one thread, so all of these are no-ops and
+<code>holding()</code> is always true.</p>
+<p><strong>A latch that cannot be taken stops the program</strong>, with the reason reported.
+There is no result <code>enter()</code> could return that the caller could act on - it
+would walk into the critical section unprotected - and the usual cause is the
+caller’s own mistake, a recursive <code>enter()</code> that this (error-checking) lock
+refuses by design. <code>leave()</code> checks in the same way that the calling thread is
+the one holding it.</p>
 <p>A <code>Condition</code> lets a thread wait until another signals it, with an optional
 timeout. Under <code>NO_THREAD</code> nothing waits, so every method is a no-op.</p>
 <h3 id="public-methods-8"><a class="header" href="#public-methods-8">Public methods</a></h3>
@@ -1802,14 +1848,23 @@ timeout. Under <code>NO_THREAD</code> nothing waits, so every method is a no-op.
 default.</li>
 <li><code>run()</code> - virtual, and yours to override. The thread’s body, whose return
 value is its exit code.</li>
-<li><code>resume()</code>, <code>suspend()</code> - start the thread, and suspend or resume it.</li>
-<li><code>join()</code> - wait for the thread to end. Not from the thread itself.</li>
-<li><code>id()</code> - this thread’s platform identifier.</li>
-<li><code>exit(int)</code> - end the current thread.</li>
-<li><code>static yield(unsigned long milliseconds = 0)</code> - give up the CPU, sleeping
-for that long where the platform can.</li>
+<li><code>resume()</code>, <code>suspend()</code> - start the thread, and suspend or resume it. A host
+that will not create the thread says so, and the thread is then not running:
+its <code>id()</code> is 0, joining it is a mistake, and destroying it is harmless.</li>
+<li><code>join()</code> - wait for the thread to end, and return its exit code: what <code>run()</code>
+returned, or what <code>exit()</code> was given. Not from the thread itself. 0 for a
+thread that never ran, or whose wait failed - the report is what tells those
+apart.</li>
+<li><code>id()</code> - this thread’s platform identifier, or 0 before it starts.</li>
+<li><code>exit(int)</code> - end the current thread, with this exit code. The thread ends
+there: the rest of <code>run()</code> does not happen, and under pthreads the destructors
+of objects <code>run()</code> built on its stack do not run either, so anything that must
+be released is released first.</li>
+<li><code>static yield(Milliseconds milliseconds = 0)</code> - give up the CPU, waiting for
+that long first where the platform can. A zero or negative time, or a null
+<code>Milliseconds</code>, is a plain yield.</li>
 <li><code>static joinAny()</code> - wait until one of the registered threads has ended, and
-answer it; 0 if there are none.</li>
+return it; 0 if there are none.</li>
 <li><code>static currentId()</code>, <code>static current()</code> - the calling thread, by identifier
 or by pointer.</li>
 <li><code>static currentProcessId()</code> - the process the calling thread is in, or 0
@@ -1827,14 +1882,33 @@ where the platform has no such notion.</li>
 <p><code>Condition</code>, in
 <a href="https://github.com/cjheath/strpp/blob/main/include/condition.h">condition.h</a>:</p>
 <ul>
-<li><code>wait(Latch* = 0)</code> - sleep until signalled, releasing the latch while it
-waits if one is given.</li>
-<li><code>wait(long&amp; delay_ms, Latch* = 0)</code> - the same, giving up after that many
-milliseconds.</li>
+<li><code>wait(Latch*)</code> - sleep until signalled, releasing the latch while it waits
+and taking it again on waking. The latch is the one the caller holds: a wait
+without one has nothing to release, and the platform needs a lock to wait on.</li>
+<li><code>wait(long&amp; delay_ms, Latch*)</code> - the same, giving up after that many
+milliseconds. <code>delay_ms</code> is updated with the time that is left: 0 when the
+wait timed out, and the remainder when it was signalled early, so a caller
+waiting in a loop for something that may never happen waits only as long as
+it asked to. A delay of 0 or less does not wait at all.</li>
 <li><code>signal()</code>, <code>broadcast()</code> - wake one thread that is waiting, or all of them.</li>
-<li><code>ok()</code> - whether the underlying primitive was made.</li>
+<li><code>ok()</code> - whether the underlying primitive was made. A condition variable that
+was not created has nothing to wait on and nothing to signal: the first wait,
+signal or broadcast to find that reports it and returns immediately.</li>
 <li><code>waiters()</code>, where the model offers it - how many threads are waiting.</li>
 </ul>
+<h3 id="when-the-host-refuses"><a class="header" href="#when-the-host-refuses">When the host refuses</a></h3>
+<p>An operating system call can fail for reasons the program cannot control - no
+more threads can be created, a lock cannot be taken. Each of those is reported
+from the <code>THR</code> message set (<code>include/str_err.h</code>), and then the library carries
+on with the safe nothing: a thread that was not created is not running and is
+not registered; a wait that failed is over. A caller who expects one and does
+not want the buffer filled by it takes a checkpoint first, as with any other
+report - see <a href="#error-management-1">Errors</a>.</p>
+<p>What is <em>not</em> carried on with is the library’s own bookkeeping: a reference
+count that would wrap or go below zero, or a tag too wide for a pointer’s
+alignment, stops the program with the reason reported, in every build. Those
+can only happen if something in the library is already wrong, and no result it
+could return would be right.</p>
 <p><code>ThreadLocal&lt;T&gt;</code> and <code>ThreadSlot</code>, in
 <a href="https://github.com/cjheath/strpp/blob/main/include/thread_local.h">thread_local.h</a>:</p>
 <ul>
@@ -1990,7 +2064,7 @@ unless an older copy still exists.</p>
 <ul>
 <li><code>Pegexp(PatternP pattern)</code> - a matcher over the 8-bit pattern text.</li>
 <li><code>match(Source&amp; source, Context* context)</code> - match at or after the source’s
-position, advance it to the end of the match, and answer the Match.</li>
+position, advance it to the end of the match, and return the Match.</li>
 <li><code>match_here(Source&amp; source, Context* context)</code> - match at exactly that
 position, without scanning forward for somewhere the pattern does fit.</li>
 <li><code>pattern</code> - the pattern text it was built from.</li>
@@ -2016,13 +2090,13 @@ error reporting.</li>
 <p><code>PegexpDefaultContext</code>, the Context to model yours on:</p>
 <ul>
 <li><code>capture(name, name_len, match, in_repetition)</code> - called for a labelled
-atom, and answers the capture count afterwards. The default forgets it.</li>
+atom, and returns the capture count afterwards. The default forgets it.</li>
 <li><code>capture_count()</code>, <code>rollback_capture(count)</code> - number the captures, and give
 the recent ones back when a path fails.</li>
 <li><code>record_failure(op, op_end, location)</code> - called for an atom that did not
 match, with the place it was tried.</li>
 <li><code>match_result(from, to)</code>, <code>match_failure(at)</code> - how a Context declares its
-answers.</li>
+returns.</li>
 <li><code>capture_disabled</code>, <code>repetition_nesting</code> - how deep inside a look-ahead, and
 inside a repetition, the match currently is.</li>
 </ul>
@@ -2065,7 +2139,7 @@ captures.</p>
 <li><code>Peg(Rule* rules, int num_rule)</code> - a parser over an array of rules, sorted
 by name in place so that a binary search finds them.</li>
 <li><code>parse(Source&amp; source)</code> - run the rule named <code>TOP</code> over the source, and
-answer the Match.</li>
+return the Match.</li>
 <li><code>lookup(const char* name)</code> - the rule of that name. A shortened name ended
 by <code>&gt;</code> or by the end of the string is allowed.</li>
 <li><code>recurse(Rule* sub_rule, State&amp; state, Context* context)</code> - match a sub-rule
@@ -2079,13 +2153,13 @@ holding the Pegexp it matches.</li>
 implements them all as no-ops:</p>
 <ul>
 <li><code>capture(name, name_len, match, in_repetition)</code> - called for a labelled
-atom, and answers the capture count afterwards.</li>
+atom, and returns the capture count afterwards.</li>
 <li><code>capture_count()</code>, <code>rollback_capture(count)</code> - number the captures, and give
 the recent ones back when a path fails.</li>
 <li><code>record_failure(op, op_end, location)</code> - called for an atom that did not
 match, with the place it was tried.</li>
 <li><code>match_result(from, to)</code>, <code>match_failure(at)</code> - how the Context declares its
-answers.</li>
+returns.</li>
 <li><code>capture_disabled</code>, <code>repetition_nesting</code> - how deep inside a look-ahead, and
 inside a repetition, the match currently is.</li>
 </ul>
@@ -2105,7 +2179,7 @@ parse.</li>
 <li><code>PegCaptureRule(name, pegexp, captures)</code> - a rule that collects the labels
 in a zero-terminated list of names.</li>
 <li><code>PegMemorySource(const char* cp)</code> - the in-memory Source these use, whose
-<code>peek()</code> answers the raw pointer at the current position.</li>
+<code>peek()</code> returns the raw pointer at the current position.</li>
 </ul>
 
                     </main>

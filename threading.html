@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-a1b0bf4d.js";
+            window.path_to_searchindex_js = "searchindex-9db74333.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-e643466d.js"></script>
@@ -186,8 +186,16 @@ synchronisation primitives and thread-local storage.</p>
 <h3 id="locks"><a class="header" href="#locks">Locks</a></h3>
 <p>A <code>Latch</code> is a lock, held by one thread at a time. <code>enter()</code> waits for it,
 <code>probe()</code> takes it only if it is free, <code>holding()</code> asks whether this thread
-has it, and <code>leave()</code> releases it. Under <code>NO_THREAD</code> there is one thread, so
-all of these are no-ops and <code>holding()</code> is always true.</p>
+has it, and <code>leave()</code> releases it. A <code>Latch</code> cannot be copied: the copy would
+hold the same lock, and destroying either would destroy it under the other.
+Under <code>NO_THREAD</code> there is one thread, so all of these are no-ops and
+<code>holding()</code> is always true.</p>
+<p><strong>A latch that cannot be taken stops the program</strong>, with the reason reported.
+There is no result <code>enter()</code> could return that the caller could act on - it
+would walk into the critical section unprotected - and the usual cause is the
+caller’s own mistake, a recursive <code>enter()</code> that this (error-checking) lock
+refuses by design. <code>leave()</code> checks in the same way that the calling thread is
+the one holding it.</p>
 <p>A <code>Condition</code> lets a thread wait until another signals it, with an optional
 timeout. Under <code>NO_THREAD</code> nothing waits, so every method is a no-op.</p>
 <h3 id="public-methods"><a class="header" href="#public-methods">Public methods</a></h3>
@@ -199,14 +207,23 @@ timeout. Under <code>NO_THREAD</code> nothing waits, so every method is a no-op.
 default.</li>
 <li><code>run()</code> - virtual, and yours to override. The thread’s body, whose return
 value is its exit code.</li>
-<li><code>resume()</code>, <code>suspend()</code> - start the thread, and suspend or resume it.</li>
-<li><code>join()</code> - wait for the thread to end. Not from the thread itself.</li>
-<li><code>id()</code> - this thread’s platform identifier.</li>
-<li><code>exit(int)</code> - end the current thread.</li>
-<li><code>static yield(unsigned long milliseconds = 0)</code> - give up the CPU, sleeping
-for that long where the platform can.</li>
+<li><code>resume()</code>, <code>suspend()</code> - start the thread, and suspend or resume it. A host
+that will not create the thread says so, and the thread is then not running:
+its <code>id()</code> is 0, joining it is a mistake, and destroying it is harmless.</li>
+<li><code>join()</code> - wait for the thread to end, and return its exit code: what <code>run()</code>
+returned, or what <code>exit()</code> was given. Not from the thread itself. 0 for a
+thread that never ran, or whose wait failed - the report is what tells those
+apart.</li>
+<li><code>id()</code> - this thread’s platform identifier, or 0 before it starts.</li>
+<li><code>exit(int)</code> - end the current thread, with this exit code. The thread ends
+there: the rest of <code>run()</code> does not happen, and under pthreads the destructors
+of objects <code>run()</code> built on its stack do not run either, so anything that must
+be released is released first.</li>
+<li><code>static yield(Milliseconds milliseconds = 0)</code> - give up the CPU, waiting for
+that long first where the platform can. A zero or negative time, or a null
+<code>Milliseconds</code>, is a plain yield.</li>
 <li><code>static joinAny()</code> - wait until one of the registered threads has ended, and
-answer it; 0 if there are none.</li>
+return it; 0 if there are none.</li>
 <li><code>static currentId()</code>, <code>static current()</code> - the calling thread, by identifier
 or by pointer.</li>
 <li><code>static currentProcessId()</code> - the process the calling thread is in, or 0
@@ -224,14 +241,33 @@ where the platform has no such notion.</li>
 <p><code>Condition</code>, in
 <a href="https://github.com/cjheath/strpp/blob/main/include/condition.h">condition.h</a>:</p>
 <ul>
-<li><code>wait(Latch* = 0)</code> - sleep until signalled, releasing the latch while it
-waits if one is given.</li>
-<li><code>wait(long&amp; delay_ms, Latch* = 0)</code> - the same, giving up after that many
-milliseconds.</li>
+<li><code>wait(Latch*)</code> - sleep until signalled, releasing the latch while it waits
+and taking it again on waking. The latch is the one the caller holds: a wait
+without one has nothing to release, and the platform needs a lock to wait on.</li>
+<li><code>wait(long&amp; delay_ms, Latch*)</code> - the same, giving up after that many
+milliseconds. <code>delay_ms</code> is updated with the time that is left: 0 when the
+wait timed out, and the remainder when it was signalled early, so a caller
+waiting in a loop for something that may never happen waits only as long as
+it asked to. A delay of 0 or less does not wait at all.</li>
 <li><code>signal()</code>, <code>broadcast()</code> - wake one thread that is waiting, or all of them.</li>
-<li><code>ok()</code> - whether the underlying primitive was made.</li>
+<li><code>ok()</code> - whether the underlying primitive was made. A condition variable that
+was not created has nothing to wait on and nothing to signal: the first wait,
+signal or broadcast to find that reports it and returns immediately.</li>
 <li><code>waiters()</code>, where the model offers it - how many threads are waiting.</li>
 </ul>
+<h3 id="when-the-host-refuses"><a class="header" href="#when-the-host-refuses">When the host refuses</a></h3>
+<p>An operating system call can fail for reasons the program cannot control - no
+more threads can be created, a lock cannot be taken. Each of those is reported
+from the <code>THR</code> message set (<code>include/str_err.h</code>), and then the library carries
+on with the safe nothing: a thread that was not created is not running and is
+not registered; a wait that failed is over. A caller who expects one and does
+not want the buffer filled by it takes a checkpoint first, as with any other
+report - see <a href="error.html">Errors</a>.</p>
+<p>What is <em>not</em> carried on with is the library’s own bookkeeping: a reference
+count that would wrap or go below zero, or a tag too wide for a pointer’s
+alignment, stops the program with the reason reported, in every build. Those
+can only happen if something in the library is already wrong, and no result it
+could return would be right.</p>
 <p><code>ThreadLocal&lt;T&gt;</code> and <code>ThreadSlot</code>, in
 <a href="https://github.com/cjheath/strpp/blob/main/include/thread_local.h">thread_local.h</a>:</p>
 <ul>

@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-a1b0bf4d.js";
+            window.path_to_searchindex_js = "searchindex-9db74333.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-e643466d.js"></script>
@@ -235,7 +235,7 @@ gets repointed for reuse, such as <code>transform()</code>’s internal one - is
 copied immediately instead, on construction or assignment alike.</li>
 </ul>
 <h4 id="ownership-and-encoding"><a class="header" href="#ownership-and-encoding">Ownership and encoding</a></h4>
-<p>Every constructor above that takes raw data answers two independent
+<p>Every constructor above that takes raw data returns two independent
 questions, each its own enum:</p>
 <ul>
 <li><strong>Ownership</strong> - <code>ownership</code>, an <a href="array.html"><code>ArrayOwnership</code></a> (<code>array.h</code>,
@@ -269,7 +269,7 @@ a constructor is called, not about the size of what it builds.</p>
 past the end, and <code>UCS4_NONE</code> for an offset that is not there.</li>
 <li><code>asUTF8()</code> - the bytes, NUL-terminated, copying the body first if this is a
 substring whose terminator was elided.</li>
-<li><code>asUTF8(Index&amp; bytes)</code> - the bytes without that guarantee, answering the
+<li><code>asUTF8(Index&amp; bytes)</code> - the bytes without that guarantee, returning the
 byte count.</li>
 <li><code>operator-&gt;()</code>, <code>operator*()</code>, <code>operator const Body&amp;()</code> - the body itself.</li>
 </ul>
@@ -299,12 +299,12 @@ predicates a std::map needs of its key.</li>
 <li><code>operator*(int repeats)</code> - this string, repeated.</li>
 <li><code>insert(Index pos, const StrVal&amp;)</code>, <code>append</code>, <code>prepend</code> - insert into the
 copy this string owns.</li>
-<li><code>asLower()</code>, <code>asUpper()</code>, <code>toLower()</code>, <code>toUpper()</code> - the first two answer a
+<li><code>asLower()</code>, <code>asUpper()</code>, <code>toLower()</code>, <code>toUpper()</code> - the first two return a
 copy, the second two change this string and its length.</li>
 <li><code>transform(std::function&lt;StrVal(const char*&amp; cp, const char* ep)&gt;, int after = -1)</code>
 <ul>
 <li>rewrite each character from <code>after</code> on, with whatever the function
-answers.</li>
+returns.</li>
 </ul>
 </li>
 <li><code>asJSON()</code>, <code>toJSON()</code> - escaped for JSON; <code>toJSON</code> escapes in place and
@@ -363,7 +363,7 @@ int main()
 </code></pre>
 <h3 id="substituting-parameters-into-a-text"><a class="header" href="#substituting-parameters-into-a-text">Substituting parameters into a text</a></h3>
 <p><code>format()</code> takes a text with markers in it and the parameters those markers
-refer to, and answers the text with each parameter interpolated where the text
+refer to, and returns the text with each parameter interpolated where the text
 names it:</p>
 <pre><code>StrVal::format("The {1} weighs {2} grams", VariantArray() &lt;&lt; "parcel" &lt;&lt; 250)
 // The parcel weighs 250 grams
@@ -410,7 +410,7 @@ one is cut. A minimum is applied after the cut rather than before it, so
 <code>{1:8&lt;6...}</code> gives two spaces and then <code>abc...</code>.</p>
 <p>A parameter that is an array or a map is expanded rather than named: an array
 in brackets, its elements rendered the same way, and a map as JSON, which is
-what a map is for. An array at the limit of <code>RENDER_MAX_DEPTH</code> levels answers
+what a map is for. An array at the limit of <code>RENDER_MAX_DEPTH</code> levels returns
 its type name in angle brackets instead, as does a type with no rendering at
 all here, so a structure deeper than any text needs cannot run away with the
 stack. The limit is a build option - <code>make DEPTH=8</code> - rather than an argument
@@ -439,8 +439,8 @@ in Python and .NET: <code>{{</code> is a <code>{</code>, and <code>}}</code> is 
 escaping, so a text may carry a regular expression, a path or a backslash as it
 stands.</p>
 <h3 id="integers-as-text"><a class="header" href="#integers-as-text">Integers as text</a></h3>
-<p><code>asInteger&lt;T&gt;</code> answers the number a text reads as, <code>asFixedPoint&lt;T&gt;</code> answers it
-at a resolution the caller names, and the six <code>from*</code> functions answer the text
+<p><code>asInteger&lt;T&gt;</code> returns the number a text reads as, <code>asFixedPoint&lt;T&gt;</code> returns it
+at a resolution the caller names, and the six <code>from*</code> functions return the text
 a number writes as. The writers take a representation, and it is the same one a
 format marker names:</p>
 <pre><code>StrVal::fromInt32(255, 'x')		// ff
@@ -467,7 +467,7 @@ is what <code>0xff</code> in radix 16 above is for.</p>
 <p><strong>The integer width is the size of <code>T</code>, and the methods only get compiled when
 needed.</strong> nothing instantiates either reader for any type (except int32
 which is needed by Variant) until a caller needs it. So a <code>long long</code> reads a
-number an <code>int32_t</code> cannot hold, and both answer correctly:</p>
+number an <code>int32_t</code> cannot hold, and both return correctly:</p>
 <pre><code>StrVal("4000000000").asInt32()			// 400000000
 StrVal("4000000000").asInteger&lt;long long&gt;()	// 4000000000
 </code></pre>

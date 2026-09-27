@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-a1b0bf4d.js";
+            window.path_to_searchindex_js = "searchindex-9db74333.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-e643466d.js"></script>
@@ -275,7 +275,7 @@ unless an older copy still exists.</p>
 <ul>
 <li><code>Pegexp(PatternP pattern)</code> - a matcher over the 8-bit pattern text.</li>
 <li><code>match(Source&amp; source, Context* context)</code> - match at or after the source’s
-position, advance it to the end of the match, and answer the Match.</li>
+position, advance it to the end of the match, and return the Match.</li>
 <li><code>match_here(Source&amp; source, Context* context)</code> - match at exactly that
 position, without scanning forward for somewhere the pattern does fit.</li>
 <li><code>pattern</code> - the pattern text it was built from.</li>
@@ -301,13 +301,13 @@ error reporting.</li>
 <p><code>PegexpDefaultContext</code>, the Context to model yours on:</p>
 <ul>
 <li><code>capture(name, name_len, match, in_repetition)</code> - called for a labelled
-atom, and answers the capture count afterwards. The default forgets it.</li>
+atom, and returns the capture count afterwards. The default forgets it.</li>
 <li><code>capture_count()</code>, <code>rollback_capture(count)</code> - number the captures, and give
 the recent ones back when a path fails.</li>
 <li><code>record_failure(op, op_end, location)</code> - called for an atom that did not
 match, with the place it was tried.</li>
 <li><code>match_result(from, to)</code>, <code>match_failure(at)</code> - how a Context declares its
-answers.</li>
+returns.</li>
 <li><code>capture_disabled</code>, <code>repetition_nesting</code> - how deep inside a look-ahead, and
 inside a repetition, the match currently is.</li>
 </ul>

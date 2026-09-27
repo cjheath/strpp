@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-a1b0bf4d.js";
+            window.path_to_searchindex_js = "searchindex-9db74333.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-e643466d.js"></script>
@@ -302,14 +302,14 @@ recovery usually wants.</li>
 <li><code>message(MsgIndex n)</code> - the nth message: its number, default text and
 parameters.</li>
 <li><code>report(ErrNum err, const char* default_text, VariantArray params)</code> - append
-a message and answer its sequence number. A zero ErrNum reports nothing.</li>
+a message and return its sequence number. A zero ErrNum reports nothing.</li>
 <li><code>rollback(MsgSequence which)</code> - discard everything reported since that
 checkpoint, the parameters going with it.</li>
 <li><code>delivered()</code> - retire the oldest message, once you have delivered it.</li>
 <li><code>clear()</code> - drop everything at once, keeping the storage.</li>
 <li><code>Error(ErrNum err, const char* default_text, VariantArray params)</code> - the
 free function the generated reporting functions call: it reports into this
-thread’s buffer and answers the number, so reporting and returning are one
+thread’s buffer and returns the number, so reporting and returning are one
 act.</li>
 </ul>
 <p>Three free functions are there so that a caller need not reach through the
@@ -317,7 +317,7 @@ slot at all, which is what almost every caller wants:</p>
 <ul>
 <li><code>ErrBuffer()</code> - this thread’s buffer as a <code>ErrBuf*</code>, made on first use.</li>
 <li><code>ErrCheckpoint()</code> - the same as <code>ErrBuffer()-&gt;checkpoint()</code>: keep what it
-answers, and roll back to it.</li>
+returns, and roll back to it.</li>
 <li><code>ErrRollback(MsgSequence to)</code> - the same as <code>ErrBuffer()-&gt;rollback(to)</code>:
 discard everything reported since that checkpoint, as a callee’s reports
 are dropped without the callee being party to it. It makes the buffer if
@@ -327,7 +327,7 @@ reported.</li>
 <p>That last pair is what a caller that <em>expects</em> a failure uses, so that the
 report does not become noise:</p>
 <pre><code>ErrBuf::MsgSequence	at = ErrCheckpoint();
-...call something whose failure is one of the answers...
+...call something whose failure is one of the returns...
 if (the failure was the expected one)
 	ErrRollback(at);	// Not a mistake: take the report back
 </code></pre>
@@ -337,7 +337,7 @@ of digits, so that a normal run leaves the buffer empty.</p>
 <p>Generated code calls <code>Error</code> through a function per message:</p>
 <pre><code>ErrNum	Error(ErrNum err, const char* default_text, VariantArray params);
 </code></pre>
-<p>It appends the message, and answers the number it was given, so that
+<p>It appends the message, and returns the number it was given, so that
 reporting an error and returning it are one act:</p>
 <pre><code>return ErrorADL_Syntax("foo", source.location);
 </code></pre>
@@ -413,7 +413,7 @@ text</a>, which is what renders a message when it is displayed.</p>
 <h4 id="threads-and-other-processes"><a class="header" href="#threads-and-other-processes">Threads and other processes</a></h4>
 <p>There is one buffer per thread, reached through a thread-local slot, so two
 threads never see each other’s messages. A caller running on one thread that
-completes work for another - or a server answering a client - packs the
+completes work for another - or a server returning a client - packs the
 unformatted messages (number, default text and parameters) into whatever it
 already speaks and ships them. The receiving context is the one that knows
 the reader’s language and the room there is to display in, so it is the one

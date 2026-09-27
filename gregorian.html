@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-a1b0bf4d.js";
+            window.path_to_searchindex_js = "searchindex-9db74333.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-e643466d.js"></script>
@@ -183,16 +183,16 @@
 hour, a minute, a second, and a fraction of a second as a count of 10⁻⁸ second
 ticks. It knows no time zone, and it is not a point in time - it is what a
 clock and a calendar say, which is a different thing in every zone.</p>
-<p>To get an instant, tell it the zone: <code>asDateTime(off)</code> answers the <code>DateTime</code>
-that a civil time names in that zone, and <code>DateTime::asGregorian(off)</code> answers
+<p>To get an instant, tell it the zone: <code>asDateTime(off)</code> returns the <code>DateTime</code>
+that a civil time names in that zone, and <code>DateTime::asGregorian(off)</code> returns
 the civil time of an instant. That is the whole of the conversion between them,
-and nothing here caches an answer.</p>
+and nothing here caches a result.</p>
 <h3 id="the-years-before-1-ad"><a class="header" href="#the-years-before-1-ad">The years before 1 AD</a></h3>
 <p>The year is the count the calendar uses, in which 1 AD is year 1 and the year
 before it is 1 BC, so the years before 1 AD count downwards: -1 is 1 BC, -2 is
 2 BC. There is no year 0 in that reckoning, and this class uses the year that
 never existed to mean something it does need: <strong>a time of day with no date</strong>. So
-<code>year()</code> answers 0 for a value that is a time alone, <code>hasDate()</code> says which kind
+<code>year()</code> returns 0 for a value that is a time alone, <code>hasDate()</code> says which kind
 it is, and <code>"12:34"</code> reads as a time rather than as a century.</p>
 <p>ISO 8601, for its part, counts years as the astronomers do, inserting the year
 0 that the calendar has not got: 1 BC is written <code>0000</code>, and 2 BC as <code>-0001</code>.
@@ -215,13 +215,13 @@ Z, [+-]hh[:mm], [+-]hhmm	the zone, when one is given
 refused rather than read, since it could be a year or an hour and a minute, and
 a caller who meant either can punctuate it.</p>
 <p>Reading a text with no zone designator does not assume local time: it is read
-as UTC, because an answer that depends on where it is read is not an answer.
+as UTC, because a result that depends on where it is read is not a result.
 The zone that was read is handed back through an out-pointer, so a text read
 and written again keeps the zone it came in.</p>
 <p>A text that is not a date or a time at all, and a field set that is not a date
 that exists - the 31st of February, or an hour of 24 - are reported as
 <code>TIMERR_INVALID_TEXT</code>. <code>fromYMD()</code> reports a field set of its own as
-<code>TIMERR_INVALID_YMDHMS</code>, and answers the value it was given, so that <code>isValid()</code>
+<code>TIMERR_INVALID_YMDHMS</code>, and returns the value it was given, so that <code>isValid()</code>
 can be asked about it.</p>
 <h3 id="writing-iso-8601"><a class="header" href="#writing-iso-8601">Writing ISO 8601</a></h3>
 <p><code>toString(flags)</code> writes the extended (punctuated) form by default, and the
@@ -253,7 +253,7 @@ refused and reported as <code>TIMERR_OUT_OF_RANGE</code>, naming the date and bo
 the range - never wrapped, and never silently a different date. That is the one
 place in this layer where a valid calendar date has no instant to be.</p>
 <p><code>isValid()</code> checks the fields without converting anything, and <code>dayOfWeek()</code>
-answers -1 for a value with no date. Both are safe to call in any order and any
+returns -1 for a value with no date. Both are safe to call in any order and any
 number of times: there is one representation, and no cache to fall out of step
 with it.</p>
 <h3 id="public-methods"><a class="header" href="#public-methods">Public methods</a></h3>

@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-a1b0bf4d.js";
+            window.path_to_searchindex_js = "searchindex-9db74333.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-e643466d.js"></script>
@@ -180,8 +180,8 @@
                         <h2 id="time-and-date-intervals-and-instants"><a class="header" href="#time-and-date-intervals-and-instants">Time and date: intervals and instants</a></h2>
 <p><code>#include	&lt;datetime.h&gt;</code></p>
 <p>Time comes in two kinds that are forever being confused with each other, so
-this header has two types. An <code>Interval</code> is a duration, the answer to
-“how long”; a <code>DateTime</code> is a point in time, the answer to “when”. Both count
+this header has two types. An <code>Interval</code> is a duration - how long something
+takes; a <code>DateTime</code> is a point in time - when it happens. Both count
 the same tick, so an interval adds to an instant with no conversion, and one
 instant less another is an interval.</p>
 <p><code>Milliseconds</code> and <code>Seconds</code> are lengths of time counted in their own units, so
@@ -213,7 +213,7 @@ time that actually elapsed - a span that began then and ended now was five
 seconds longer than the difference says. Which differences are affected cannot
 be told from the values; it needs a table of leap seconds, and this library has
 none. A duration that must be physical - a timeout, an elapsed time - belongs to
-a monotonic clock, which no leap second touches. A <code>DateTime</code> answers <em>when</em>,
+a monotonic clock, which no leap second touches. A <code>DateTime</code> returns <em>when</em>,
 and an <code>Interval</code> between two of them is a count of UTC seconds.</p>
 <h3 id="null-times"><a class="header" href="#null-times">Null times</a></h3>
 <p>A time can be null, which is not a time at all: a value that was never set, or a
@@ -224,11 +224,11 @@ and not the epoch: both of those are real times.</p>
 <p>A null used where a value is needed reports <code>TIMERR_NULL_VALUE</code>:</p>
 <ul>
 <li><strong>Arithmetic</strong> on a null - adding, subtracting or negating - reports, and
-answers another null, so that a null spreads through a computation instead of
+returns another null, so that a null spreads through a computation instead of
 becoming a number part-way along it. This includes <code>DateTime</code> arithmetic, and
 the difference of two instants when either is null.</li>
-<li><strong>Reading one as a value</strong> reports and answers the least misleading thing it
-can: <code>asTime_t()</code> answers 0, and <code>asGregorian()</code> answers a value with no date,
+<li><strong>Reading one as a value</strong> reports and returns the least misleading thing it
+can: <code>asTime_t()</code> returns 0, and <code>asGregorian()</code> returns a value with no date,
 rather than a date that never was.</li>
 </ul>
 <p>Two things are deliberately silent. A null that <em>stays</em> null - a unit
@@ -244,9 +244,9 @@ that is not a time at all is answered with a null rather than with zero: zero is
 a time, and the text did not say zero.</p>
 <p>A <code>Gregorian</code> has no null - a civil date is a date, and a time of day with no
 date is what year 0 means - so only the four tick-counting types can be null.</p>
-<h3 id="when-an-operation-cannot-answer"><a class="header" href="#when-an-operation-cannot-answer">When an operation cannot answer</a></h3>
-<p>An operation that cannot answer correctly reports it, and answers the type’s
-“nothing”. It never answers a wrapped number: a count of ticks that ran past the
+<h3 id="when-an-operation-cannot-return-correctly"><a class="header" href="#when-an-operation-cannot-return-correctly">When an operation cannot return correctly</a></h3>
+<p>An operation that cannot return correctly reports it, and returns the type’s
+“nothing”. It never returns a wrapped number: a count of ticks that ran past the
 end of its range is a duration of the wrong sign or an instant in the wrong
 century, and nothing about it looks wrong. Four reports cover every case, all in
 the <code>TIM</code> set:</p>
@@ -259,7 +259,7 @@ The host's zone offset is not known at that instant, so UTC is answered
 <div class="table-wrapper">
 <table>
 <thead>
-<tr><th>The operation</th><th>What it answers</th></tr>
+<tr><th>The operation</th><th>What it returns</th></tr>
 </thead>
 <tbody>
 <tr><td>Adding, subtracting or negating a null, or an instant moved by a null</td><td>another null, so that a null spreads rather than becoming a number</td></tr>
@@ -278,15 +278,15 @@ either side - so the interval between the two ends of the range is refused. And
 an instant within eighteen hours of either end, read in a zone that would take
 it past, has no date, where before it answered a date from the <em>other</em> end of
 the range with a zone designator on it.</p>
-<p>Where the answer is a <code>Gregorian</code> with no date, that value is a time of day -
+<p>Where the result is a <code>Gregorian</code> with no date, that value is a time of day -
 midnight - and <code>hasDate()</code> is false. <code>isValid()</code> is true of it, a time of day
 being a valid value; the report and <code>hasDate()</code> are what say that a conversion
-failed rather than that the answer is a time.</p>
+failed rather than that the result is a time.</p>
 <p>A caller who expects a value to be out of range and does not want the buffer
 filled by each one takes a checkpoint first and rolls back after:</p>
 <pre><code>ErrBuf::MsgSequence	at = ErrCheckpoint();
-Interval		answer = a + b;
-ErrRollback(at);	// ...and answer.isNull() says whether it was answered
+Interval		sum = a + b;
+ErrRollback(at);	// ...and sum.isNull() says whether it was returned
 </code></pre>
 <h3 id="zones-are-offsets-not-names"><a class="header" href="#zones-are-offsets-not-names">Zones are offsets, not names</a></h3>
 <p>A <code>DateTime</code> knows no time zone. It is a count of ticks from the epoch, and
@@ -320,7 +320,7 @@ instant, given another way.</li>
 </ul>
 <p>Reading:</p>
 <ul>
-<li><code>ticks()</code> - the count of 10⁻⁸ second ticks. The one read all of these answer.</li>
+<li><code>ticks()</code> - the count of 10⁻⁸ second ticks. The one read all of these return.</li>
 <li><code>isNull()</code> - whether the value is null: a time that was never set. See “Null
 times” below.</li>
 <li><code>ms()</code>, <code>seconds()</code> - a <code>Milliseconds</code> or a <code>Seconds</code> as its own number.</li>
@@ -378,8 +378,8 @@ DateTime::fromString("2002-01-03T11:12:13Z").toString(UtcOffset::hours(10))
 <p><code>DateTime::fromString</code> reads the zone from the text as well as the time, and
 hands it back through the out-pointer, so a text can be read and written again
 in the zone it came in. A text with no zone designator is read as <strong>UTC</strong> and
-never as local time: an answer that depends on where it is read is not an
-answer. Reading an instant from a text that names a time of day but no date is
+never as local time: a result that depends on where it is read is not a
+result. Reading an instant from a text that names a time of day but no date is
 reported as <code>TIMERR_NO_DATE</code>, and one whose date is outside the range as
 <code>TIMERR_OUT_OF_RANGE</code>.</p>
 <p>See <a href="error.html">Errors</a> and the <code>TIM</code> set in <code>str_err.h</code>.</p>
