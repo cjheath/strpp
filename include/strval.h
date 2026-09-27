@@ -629,31 +629,32 @@ public:
 	static bool	equiv(const StrValI& c1, const StrValI& c2);
 
 	// Extract substrings:
+	/*
+	 * Asking for more characters than there are is a clamp, not a loss: the
+	 * substring holds what there was, and nothing is reported. An *index* past
+	 * the end is the caller's error, and is reported - the same rule an Array's
+	 * slices follow.
+	 */
 	StrValI		substr(Index at, int len = -1) const
 			{
 				// Quick check for a null substring:
 				if (len < -1 || len == 0 || at >= length())
+				{
+					if (at > length())
+						array_index_error(at, length(), "slice");
 					return null;
+				}
 
 				// Clamp substring length:
-				if (len > 0)
-				{
-					if (at < 0)
-						len -= at, at = 0;
-					if (len < 0)
-						return null;
-					if (len > length()-at)
-						len = length()-at;
-				}
-				else
-					len = length()-at;
+				if (len < 0 || (Index)len > length()-at)	// -1 means "to the end"
+					len = (int)(length()-at);
 
 				return StrValI(body, offset+at, len);
 			}
 	StrValI		head(Index chars) const
 			{ return substr(0, chars); }
 	StrValI		tail(Index chars) const
-			{ return substr(length()-chars, chars); }
+			{ return chars >= length() ? *this : substr(length()-chars, chars); }
 	StrValI		shorter(Index chars) const	// all chars up to tail
 			{
 				if (chars > length())	// Nothing left

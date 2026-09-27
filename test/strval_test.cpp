@@ -61,6 +61,7 @@ void		json_tests();
 void		int_conversion_tests();
 void		int_conversion_report_tests();
 void		insert_tests();
+void		substr_index_tests();
 void		comparison_tests();
 void		copy_on_write_tests();
 void		raw_binary_tests();
@@ -408,7 +409,8 @@ substring_tests()
 	expect("substr(at, -2) is empty (illegal len)", hw.substr(2, -2).isEmpty());
 	expect_eq_str("substr(0, 999) clamps to whole string", hw.substr(0, 999), "Hello, world");
 	expect_eq_str("substr(0, -1) is whole string", hw.substr(0, -1), "Hello, world");
-	expect("tail(chars > length) is empty", hw.tail(hw.length()+5).isEmpty());
+	// The same clamp an Array's tail() makes: what exists, not nothing
+	expect("tail(chars > length) is the whole string", hw.tail(hw.length()+5) == hw);
 	expect("shorter(chars > length) is empty", hw.shorter(hw.length()+5).isEmpty());
 	expect_eq_str("head(0) is empty", hw.head(0), "");
 
@@ -802,6 +804,7 @@ int_conversion_tests()
 
 	int_conversion_report_tests();
 	insert_tests();
+	substr_index_tests();
 }
 
 /*
@@ -850,6 +853,28 @@ insert_tests()
 
 	three.insert(3, StrVal("X"));		// At the end is an append, and is allowed
 	expect_eq_str("...while inserting at the end still works", three, "abcX");
+}
+
+/*
+ * A character index the string does not have is the caller's error, and is
+ * reported; the empty substring at the end is not an error.
+ */
+void
+substr_index_tests()
+{
+	test_group("Substrings: an index past the end is refused, and reports");
+	StrVal	four("abcd");
+	four.substr(9);				// Past the end
+	ErrNum	err = 0;
+	StrVal	said = reported(err);
+	expect_eq_err("...reports the out-of-range index", err, STRERR_INDEX_OUT_OF_RANGE);
+
+	four.substr(4);				// The empty substring at the end: not an error
+	err = 0;
+	said = reported(err);
+	expect_eq_int("...while the empty substring at the end reports nothing", (long)err, 0);
+	expect_eq_str("...and is empty", four.substr(4), "");
+	expect_eq_str("...and so is an empty length", four.substr(1, 0), "");
 }
 
 void
