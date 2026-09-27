@@ -2,11 +2,74 @@
 #include	<variant.h>
 #include	<errbuf.h>		// The child reads its own error buffer
 
-#include	<cassert>
 #include	<csignal>
 #include	<fcntl.h>
 #include	<unistd.h>
 #include	<sys/wait.h>
+
+static int	test_count = 0;
+static int	failure_count = 0;
+
+/*
+ * The one way out, for everything this test says: the text is a StrVal, and is
+ * written in as many calls as it takes. Nothing here uses printf.
+ */
+static void
+say(StrVal text)
+{
+	const char*	cp = text.asUTF8();
+	ssize_t		bytes = text.numBytes();
+	while (bytes > 0)
+	{
+		ssize_t	written = write(1, cp, bytes);
+		if (written <= 0)
+			break;			// Nothing more can be done about it
+		cp += written;
+		bytes -= written;
+	}
+}
+
+static void
+expect(const StrVal& when, bool ok)
+{
+	test_count++;
+	if (ok)
+		return;
+
+	failure_count++;
+	say(StrVal::format("{1}:\t{2}: FAIL\n", Variant((int)test_count) << when));
+}
+
+static void
+expect_eq_str(const StrVal& when, const StrVal& got, const char* wanted)
+{
+	test_count++;
+	if (got == wanted)
+		return;
+
+	failure_count++;
+	say(StrVal::format("{1}:\t{2}: FAIL\n\twanted: {3}\n\tgot:    {4}\n",
+		Variant((int)test_count) << when << Variant(wanted) << got));
+}
+
+static void
+expect_eq_int(const StrVal& when, long got, long wanted)
+{
+	test_count++;
+	if (got == wanted)
+		return;
+
+	failure_count++;
+	say(StrVal::format("{1}:\t{2}: FAIL\n\twanted: {3}\n\tgot:    {4}\n",
+		Variant((int)test_count) << when << wanted << got));
+}
+
+/*
+ * A check where an assertion stood: it is counted and reported like the rest
+ * instead of killing the process, so one wrong expectation does not hide the
+ * ones behind it. The expression is its own name.
+ */
+#define	CHECK(expr)	expect(#expr, (expr))
 
 void variant_array_tests();
 void variant_tests();
@@ -126,12 +189,17 @@ main(int argc, const char** argv)
 	start_recording_allocations();
 #endif
 
-	printf("sizeof(Variant) == %ld\n", sizeof(Variant));
-	printf("sizeof(StrRef) == %ld\n", sizeof(StrRef));
-	printf("sizeof(StrVal) == %ld\n", sizeof(StrVal));
-	printf("sizeof(StringArray) == %ld\n", sizeof(StringArray));
-	printf("sizeof(VariantArray) == %ld\n", sizeof(VariantArray));
-	printf("sizeof(StrVariantMap) == %ld\n", sizeof(StrVariantMap));
+	say(StrVal::format("sizeof(Variant) == {1}\n", Variant((long)sizeof(Variant))));
+	say(StrVal::format("sizeof(StrRef) == {1}\n", Variant((long)sizeof(StrRef))));
+	say(StrVal::format("sizeof(StrVal) == {1}\n", Variant((long)sizeof(StrVal))));
+	say(StrVal::format("sizeof(StringArray) == {1}\n", Variant((long)sizeof(StringArray))));
+	say(StrVal::format("sizeof(VariantArray) == {1}\n", Variant((long)sizeof(VariantArray))));
+	say(StrVal::format("sizeof(StrVariantMap) == {1}\n", Variant((long)sizeof(StrVariantMap))));
+
+	expect_eq_int("a Variant is one word of union and its type", sizeof(Variant), 24);
+	expect("...no larger than a StrVal", sizeof(StrVal) == sizeof(Variant));
+	expect("...while a StrRef, which is a body and an offset, is smaller",
+		sizeof(StrRef) < sizeof(StrVal));
 
 	/*
 	 * The two time types share the widest word the union already had, so a
@@ -139,7 +207,7 @@ main(int argc, const char** argv)
 	 * bytes of union and the type. If this ever fails, a type was added that
 	 * needed storage of its own.
 	 */
-	assert(sizeof(Variant) == 24);
+	CHECK(sizeof(Variant) == 24);
 
 	variant_array_tests();
 	variant_tests();
@@ -151,12 +219,20 @@ main(int argc, const char** argv)
 		report_allocation_growth();
 #endif
 
-	return 0;
+	say(StrVal::format("{1} tests, {2} failures\n",
+		Variant((int)test_count) << (int)failure_count));
+	return failure_count == 0 ? 0 : 1;
 }
 
-void variant_array_from_param(VariantArray a)
+/*
+ * An array passed by value, and what it renders as: the expected rendering is
+ * the parameter, so that each caller says what it is looking for.
+ */
+void variant_array_from_param(VariantArray a, const char* wanted)
 {
-	printf("VariantArray from param = %s\n", Variant(a).as_json().asUTF8());
+	StrVal	rendered = Variant(a).as_json();
+	say(StrVal::format("VariantArray from param = {1}\n", Variant(rendered)));
+	expect_eq_str(StrVal("an array passed by value renders as ") + wanted, rendered, wanted);
 }
 
 void variant_array_tests()
@@ -183,24 +259,34 @@ void variant_array_tests()
 	va << sa;
 	va << va2;
 	va << map;
-	printf("VariantArray = %s\n", Variant(va).as_json().asUTF8());
+	StrVal	rendered = Variant(va).as_json();
+	say(StrVal::format("VariantArray = {1}\n", Variant(rendered)));
+	expect_eq_str("an array of every type it holds, rendered",
+		rendered, "[ 1, 4, 4, 8, \"baz\", [ \"foo\", \"bar\" ], [ 69, 81729 ],"
+			  " { \"fly\": \"boo\", \"fred\": 23 } ]");
 
 	va.clear();
 
 	va = Variant(23) << "appendage";	// Get an array by appending to a Variant
 	va << 1234567890123456789LL;		// And again
-	printf("VariantArray from append = %s\n", Variant(va).as_json().asUTF8());
+	rendered = Variant(va).as_json();
+	say(StrVal::format("VariantArray from append = {1}\n", Variant(rendered)));
+	expect_eq_str("appending to a Variant makes an array of it and the addend",
+		rendered, "[ 23, \"appendage\", 1234567890123456789 ]");
 
 	VariantArray	na("boo");		// Construct from value coerced to Variant
 	na << va[2];				// Append a 2nd value
-	printf("VariantArray from element = %s\n", Variant(na).as_json().asUTF8());
+	rendered = Variant(na).as_json();
+	say(StrVal::format("VariantArray from element = {1}\n", Variant(rendered)));
+	expect_eq_str("an array built from a value and an element",
+		rendered, "[ \"boo\", 1234567890123456789 ]");
 
 	// variant_array_from_param("bah");	// Unfortunately this can't be made to work
-	variant_array_from_param(VariantArray("bah"));			// This works
-	variant_array_from_param(VariantArray("baz") << 31);		// and this
-	variant_array_from_param(VariantArray() << "bah" << 47);	// this too
-	variant_array_from_param("bah" << Variant(53));			// So does this
-	variant_array_from_param(Variant(29));
+	variant_array_from_param(VariantArray("bah"), "[ \"bah\" ]");			// This works
+	variant_array_from_param(VariantArray("baz") << 31, "[ \"baz\", 31 ]");		// and this
+	variant_array_from_param(VariantArray() << "bah" << 47, "[ \"bah\", 47 ]");	// this too
+	variant_array_from_param("bah" << Variant(53), "[ \"bah\", 53 ]");			// So does this
+	variant_array_from_param(Variant(29), "[ 29 ]");
 
 	/*
 	 * The closing bracket of a nested structure stands at its *parent's*
@@ -217,11 +303,11 @@ void variant_array_tests()
 		outer << 1 << inner;
 		Variant		v(outer);
 
-		assert(v.as_json(-2) == "[1,[2,3]]");		// Tight
-		assert(v.as_json(-1) == "[ 1, [ 2, 3 ] ]");	// Compact: spaces, inside too
-		assert(v.as_json(0) == "[\n  1,\n  [\n    2,\n    3\n  ]\n]");
-		assert(v.as_json(1) == "[\n    1,\n    [\n      2,\n      3\n    ]\n  ]");
-		printf("as_json: tight, compact and both indented forms close at the parent's indent\n");
+		CHECK(v.as_json(-2) == "[1,[2,3]]");		// Tight
+		CHECK(v.as_json(-1) == "[ 1, [ 2, 3 ] ]");	// Compact: spaces, inside too
+		CHECK(v.as_json(0) == "[\n  1,\n  [\n    2,\n    3\n  ]\n]");
+		CHECK(v.as_json(1) == "[\n    1,\n    [\n      2,\n      3\n    ]\n  ]");
+		say(StrVal("as_json: tight, compact and both indented forms close at the parent's indent\n"));
 	}
 }
 
@@ -238,14 +324,18 @@ void unsigned_tests()
 	const Variant	ul(18000000000000000000ul);	// And beyond a signed long
 	const Variant	ull(18446744073709551615ull);	// The largest there is
 
-	printf("unsigned types: %s, %s, %s\n", u.type_name(), ul.type_name(), ull.type_name());
-	assert(u.type() == Variant::UInteger);
-	assert(ul.type() == Variant::ULong);
-	assert(ull.type() == Variant::ULongLong);
+	say(StrVal::format("unsigned types: {1}, {2}, {3}\n",
+		Variant(u.type_name()) << ul.type_name() << ull.type_name()));
+	expect_eq_str("an unsigned value keeps its own type", u.type_name(), "UInteger");
+	expect_eq_str("...one width up too", ul.type_name(), "ULong");
+	expect_eq_str("...and the widest", ull.type_name(), "ULongLong");
+	CHECK(u.type() == Variant::UInteger);
+	CHECK(ul.type() == Variant::ULong);
+	CHECK(ull.type() == Variant::ULongLong);
 
-	assert(u.as_uint() == 4000000000u);
-	assert(ul.as_ulong() == 18000000000000000000ul);
-	assert(ull.as_ulonglong() == 18446744073709551615ull);
+	CHECK(u.as_uint() == 4000000000u);
+	CHECK(ul.as_ulong() == 18000000000000000000ul);
+	CHECK(ull.as_ulonglong() == 18446744073709551615ull);
 
 	// A signed reading of the same bits is a different number: these are the
 	// digits of the unsigned value, which is what the types are for
@@ -255,37 +345,38 @@ void unsigned_tests()
 	StrVal	us = mu.as_strval();
 	StrVal	uls = mul.as_strval();
 	StrVal	ulls = mull.as_strval();
-	assert(us == "4000000000");
-	assert(uls == "18000000000000000000");
-	assert(ulls == "18446744073709551615");
-	printf("as text: %s, %s, %s\n", us.asUTF8(), uls.asUTF8(), ulls.asUTF8());
+	CHECK(us == "4000000000");
+	CHECK(uls == "18000000000000000000");
+	CHECK(ulls == "18446744073709551615");
+	say(StrVal::format("as text: {1}, {2}, {3}\n", Variant(us) << uls << ulls));
+	expect_eq_str("...which reads back as its own digits", us, "4000000000");
 
-	assert(Variant(u).as_json() == "4000000000");
-	assert(Variant(ull).as_json() == "18446744073709551615");
+	CHECK(Variant(u).as_json() == "4000000000");
+	CHECK(Variant(ull).as_json() == "18446744073709551615");
 
 	// A copy carries the type and the value, and coerces as its signed twin
 	// does. Widening goes by value, not by bits, and the type follows: after
 	// the coercion it is a LongLong and reads as one.
 	Variant	back(u);
-	assert(back.as_longlong() == 4000000000LL);
-	assert(back.type() == Variant::LongLong);
+	CHECK(back.as_longlong() == 4000000000LL);
+	CHECK(back.type() == Variant::LongLong);
 
 	// as_signed() returns the value in the closest signed type that holds it,
 	// which is the read that does not have to be told the width
 	{
 		Variant	a(5u);
-		assert(a.as_signed() == 5 && a.type() == Variant::Integer);
+		CHECK(a.as_signed() == 5 && a.type() == Variant::Integer);
 		Variant	b(u);				// 4000000000, beyond INT_MAX
-		assert(b.as_signed() == 4000000000LL && b.type() == Variant::Long);
+		CHECK(b.as_signed() == 4000000000LL && b.type() == Variant::Long);
 		Variant	c(5ul);
-		assert(c.as_signed() == 5 && c.type() == Variant::Long);
+		CHECK(c.as_signed() == 5 && c.type() == Variant::Long);
 		Variant	d(5ull);
-		assert(d.as_signed() == 5 && d.type() == Variant::LongLong);
+		CHECK(d.as_signed() == 5 && d.type() == Variant::LongLong);
 		Variant	e(47L);				// Already signed: answered as it stands
-		assert(e.as_signed() == 47 && e.type() == Variant::Long);
+		CHECK(e.as_signed() == 47 && e.type() == Variant::Long);
 		Variant	f("42");
-		assert(f.as_signed() == 42 && f.type() == Variant::Integer);
-		printf("as_signed: 5u as Integer, 4000000000u as Long, \"42\" as Integer\n");
+		CHECK(f.as_signed() == 42 && f.type() == Variant::Integer);
+		say(StrVal("as_signed: 5u as Integer, 4000000000u as Long, \"42\" as Integer\n"));
 	}
 
 	// A signed type of the same width cannot hold those values, so the coercion
@@ -294,17 +385,17 @@ void unsigned_tests()
 	// goes. as_signed() dies for the last two as well: no signed type holds
 	// them, so there is none for it to choose.
 	StrVal	report;
-	assert(coercion_aborts(uint_does_not_fit_int, report));
-	assert(report == "A0000802: Cannot convert to a `Integer` because the value"
+	CHECK(coercion_aborts(uint_does_not_fit_int, report));
+	CHECK(report == "A0000802: Cannot convert to a `Integer` because the value"
 			 " 4000000000 does not fit\n");
-	assert(coercion_aborts(ulong_does_not_fit_long, report));
-	assert(report == "A0000802: Cannot convert to a `Long` because the value"
+	CHECK(coercion_aborts(ulong_does_not_fit_long, report));
+	CHECK(report == "A0000802: Cannot convert to a `Long` because the value"
 			 " 18000000000000000000 does not fit\n");
-	assert(coercion_aborts(ullong_does_not_fit_signed, report));
-	assert(report == "A0000802: Cannot convert to a `LongLong` because the value"
+	CHECK(coercion_aborts(ullong_does_not_fit_signed, report));
+	CHECK(report == "A0000802: Cannot convert to a `LongLong` because the value"
 			 " 18446744073709551615 does not fit\n");
-	printf("refused: a UInteger beyond INT_MAX, a ULong beyond LONG_MAX\n");
-	printf("...each naming the value it could not hold\n");
+	say(StrVal("refused: a UInteger beyond INT_MAX, a ULong beyond LONG_MAX\n"));
+	say(StrVal("...each naming the value it could not hold\n"));
 }
 
 /*
@@ -363,62 +454,62 @@ void time_variant_tests()
 	Variant	interval(Interval(-150000000));
 	Variant	datetime(DateTime::fromTicks(0));
 
-	assert(interval.type() == Variant::Interval);
-	assert(StrVal(interval.type_name()) == "Interval");
-	assert(interval.as_interval().ticks() == -150000000);
+	CHECK(interval.type() == Variant::Interval);
+	CHECK(StrVal(interval.type_name()) == "Interval");
+	CHECK(interval.as_interval().ticks() == -150000000);
 
-	assert(datetime.type() == Variant::DateTime);
-	assert(StrVal(datetime.type_name()) == "DateTime");
-	assert(datetime.as_datetime().ticks() == 0);
+	CHECK(datetime.type() == Variant::DateTime);
+	CHECK(StrVal(datetime.type_name()) == "DateTime");
+	CHECK(datetime.as_datetime().ticks() == 0);
 
 	// A copy carries the type and the value, as an assignment does
 	Variant	copied(interval);
-	assert(copied.type() == Variant::Interval);
-	assert(copied.as_interval().ticks() == -150000000);
+	CHECK(copied.type() == Variant::Interval);
+	CHECK(copied.as_interval().ticks() == -150000000);
 
 	Variant	assigned;
 	assigned = datetime;
-	assert(assigned.type() == Variant::DateTime);
-	assert(assigned.as_datetime().ticks() == 0);
+	CHECK(assigned.type() == Variant::DateTime);
+	CHECK(assigned.as_datetime().ticks() == 0);
 
 	// JSON has no time, so both are written as the text of one
-	assert(interval.as_json() == "\"-1.50000000\"");
-	assert(datetime.as_json() == "\"2000-01-01T00:00:00Z\"");
+	CHECK(interval.as_json() == "\"-1.50000000\"");
+	CHECK(datetime.as_json() == "\"2000-01-01T00:00:00Z\"");
 
 	/*
 	 * A null time is not a time with a value, so it is JSON's own null and
 	 * not the text of one - and a Variant holding it reads back as a null
 	 * instead of as a date that never was.
 	 */
-	assert(Variant(Interval(NullTick)).as_json() == "null");
-	assert(Variant(DateTime::fromTicks(NullTick)).as_json() == "null");
-	assert(Variant(Interval(NullTick)).as_strval() == "null");
+	CHECK(Variant(Interval(NullTick)).as_json() == "null");
+	CHECK(Variant(DateTime::fromTicks(NullTick)).as_json() == "null");
+	CHECK(Variant(Interval(NullTick)).as_strval() == "null");
 	{
 		Variant	null_time((Interval(NullTick)));
 
-		assert(null_time.type() == Variant::Interval);
-		assert(null_time.as_interval().isNull());
+		CHECK(null_time.type() == Variant::Interval);
+		CHECK(null_time.as_interval().isNull());
 	}
 
 	// A text is the one thing either converts from, and a successful coercion
 	// changes the type, as it does for the numeric types
 	{
 		Variant	text("1.5");
-		assert(text.as_interval().ticks() == 150000000);
-		assert(text.type() == Variant::Interval);
+		CHECK(text.as_interval().ticks() == 150000000);
+		CHECK(text.type() == Variant::Interval);
 
 		Variant	when("2002-01-03T11:12:13Z");
-		assert(when.as_datetime().toString() == "2002-01-03T11:12:13Z");
-		assert(when.type() == Variant::DateTime);
+		CHECK(when.as_datetime().toString() == "2002-01-03T11:12:13Z");
+		CHECK(when.type() == Variant::DateTime);
 	}
 
 	// Reading one as text renders it, in a message and in StrVal::format
 	{
 		Variant	as_text(Interval(150000000));
-		assert(as_text.as_strval() == "1.50000000");
-		assert(as_text.type() == Variant::String);
+		CHECK(as_text.as_strval() == "1.50000000");
+		CHECK(as_text.type() == Variant::String);
 
-		assert(StrVal::format("{1} and {2}",
+		CHECK(StrVal::format("{1} and {2}",
 				VariantArray() << Interval(150000000) << DateTime::fromTicks(0))
 			== "1.50000000 and 2000-01-01T00:00:00Z");
 	}
@@ -430,14 +521,14 @@ void time_variant_tests()
 	 * it goes.
 	 */
 	StrVal	report;
-	assert(coercion_aborts(interval_read_as_a_number, report));
-	assert(report == "A0000801: A `Integer` was expected, but this Variant is a `Interval`\n");
+	CHECK(coercion_aborts(interval_read_as_a_number, report));
+	CHECK(report == "A0000801: A `Integer` was expected, but this Variant is a `Interval`\n");
 
-	assert(coercion_aborts(datetime_read_as_an_interval, report));
-	assert(report == "A0000801: A `Interval` was expected, but this Variant is a `DateTime`\n");
+	CHECK(coercion_aborts(datetime_read_as_an_interval, report));
+	CHECK(report == "A0000801: A `Interval` was expected, but this Variant is a `DateTime`\n");
 
-	assert(coercion_aborts(interval_read_as_a_datetime, report));
-	assert(report == "A0000801: A `DateTime` was expected, but this Variant is a `Interval`\n");
+	CHECK(coercion_aborts(interval_read_as_a_datetime, report));
+	CHECK(report == "A0000801: A `DateTime` was expected, but this Variant is a `Interval`\n");
 
 	/*
 	 * And the one the data must not be lost to: a target type this library has
@@ -445,13 +536,13 @@ void time_variant_tests()
 	 * as it was. The half of that which only a build with assertions off can
 	 * show is in variant_ndebug_test.cpp.
 	 */
-	assert(coercion_aborts(coercion_without_a_case, report));
-	assert(report == "A0000803: A `Interval` cannot be converted to a `Corrupt type`:"
+	CHECK(coercion_aborts(coercion_without_a_case, report));
+	CHECK(report == "A0000803: A `Interval` cannot be converted to a `Corrupt type`:"
 			 " that conversion is not implemented, so the value is left as it is\n");
 
-	printf("a Variant holds an Interval or a DateTime, and neither is a number\n");
-	printf("refused: a time read as a number, and an interval as an instant\n");
-	printf("...and a coercion with no case reports it rather than discarding the value\n");
+	say(StrVal("a Variant holds an Interval or a DateTime, and neither is a number\n"));
+	say(StrVal("refused: a time read as a number, and an interval as an instant\n"));
+	say(StrVal("...and a coercion with no case reports it rather than discarding the value\n"));
 }
 
 void variant_tests()
@@ -467,22 +558,28 @@ void variant_tests()
 	v.insert("baz", vll);
 
 	v.insert("bar", vmap);
-printf("v has %ld elements\n", v.size());
+	say(StrVal::format("v has {1} elements\n", Variant((long)v.size())));
+	expect_eq_int("three keys were inserted", v.size(), 3);
 
 	StrVariantMap	vm = vmap.as_variant_map();
 	StrVariantMap	vm2 = vm;
 	// This will Unshare vm
 	vm.insert("foo", vll);
-printf("vm2 has %ld elements\n", vm2.size());
-printf("vm has %ld elements\n", vm.size());
+	say(StrVal::format("vm2 has {1} elements\n", Variant((long)vm2.size())));
+	say(StrVal::format("vm has {1} elements\n", Variant((long)vm.size())));
+	expect_eq_int("the copy is still empty: inserting into vm unshared it", vm2.size(), 0);
+	expect_eq_int("...and vm has the one it was given", vm.size(), 1);
 
 	Variant f = vm["foo"];
-	printf("Found \"foo\" as type %s\n", f.type_name());
+	say(StrVal::format("Found \"foo\" as type {1}\n", Variant(f.type_name())));
+	expect_eq_str("a map lookup finds the value it holds and its type", f.type_name(), "LongLong");
 
 	int	fl = f.as_long();
-	printf("Found foo=%d as_long\n", fl);
+	say(StrVal::format("Found foo={1} as_long\n", Variant(fl)));
+	expect_eq_int("...which reads back as the number it was", fl, 47);
 
 	StrVal	fs = f.as_strval();
 
-	printf("Found foo=\"%s\" as strval\n", fs.asUTF8());
+	say(StrVal::format("Found foo=\"{1}\" as strval\n", Variant(fs)));
+	expect_eq_str("...and as that number's text", fs, "47");
 }

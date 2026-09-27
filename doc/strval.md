@@ -124,6 +124,21 @@ Building one:
 - `transform(std::function<StrVal(const char*& cp, const char* ep)>, int after = -1)`
   - rewrite each character from `after` on, with whatever the function
     returns.
+- **A string holds the raw data as it was loaded.** Storing one never rewrites
+  it, so a program that reads the bytes back gets what it read, and a character
+  written more loosely than it need be - a three-byte code point in its
+  four-byte form - is decoded to the same character wherever it is read, so
+  nothing is affected by one being there, and the bytes remain as they came
+  for anything that wants them.
+- Case conversion, `transform`, and the JSON escaping below, are the operations
+  that *rebuild* a text: each character is read and written again, so it comes
+  out encoded as UTF-8 canonically encodes it. Everything else - building a
+  string, slicing it, joining, inserting, repeating it, `StrVal::format` -
+  copies bytes, so a character that was given in a non-canonical encoding is
+  kept exactly as it came in; only a rebuild rewrites it. A three-byte code
+  point stored in its four-byte form comes out of `asLower()`, or of
+  `asJSON()`, three bytes wide - one byte shorter than it went in, with the
+  character, and the rest of the text, unchanged.
 - `asJSON()`, `toJSON()` - escaped for JSON; `toJSON` escapes in place and
   does not add the enclosing quotes.
 - `asInteger<T>(ErrNum* err, int radix = 0, Index* scanned = 0)` - return

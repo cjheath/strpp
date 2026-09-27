@@ -121,9 +121,22 @@ $(LIB):	build $(OBJS)
 
 tests:	$(TESTS)
 
-test:	run_pegexp_test run_pegexp_size_test \
-	run_peg_test run_peg_size_test \
-	run_variant_test run_variant_ndebug_test
+# The tests that give a verdict on their own: they take no arguments and exit
+# non-zero if any of their checks failed, or if they die. peg_test and
+# pegexp_test are not among them - they take a grammar or a case file on the
+# command line - so each has a run_* target of its own below, and so do the two
+# size reports, which measure rather than check.
+RUNTESTS	=	$(filter-out peg_test pegexp_test,$(TESTS))
+
+# Run every one of them, saying which is running, and stop at the first that
+# fails so that make returns non-zero. `make tests` only builds them.
+test:	$(RUNTESTS) run_peg_test run_pegexp_test \
+	run_pegexp_size_test run_peg_size_test
+	@for t in $(RUNTESTS); do \
+		echo "--- $$t"; \
+		./$$t || exit 1; \
+	done
+	@echo "All $(words $(RUNTESTS)) test programs passed"
 
 run_pegexp_test: pegexp_test
 	test/run_pegexp_test < test/pegexp_test.cases
