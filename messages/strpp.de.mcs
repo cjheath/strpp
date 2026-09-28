@@ -3,40 +3,40 @@
 deText: Set.Message.Text { Language = Languages.de; }
 
 StrVal {
-	ASSERT { : deText ~= 'In {1}:{2} schlug die Zusicherung fehl: `{3}`'; }
-	TRAIL_TEXT { : deText ~= 'Die Zahl `{1}` zur Basis {2} endete bei Zeichen {3}; `{4}` blieb ungelesen'; }
-	NO_DIGITS { : deText ~= 'Aus `{1}` konnte zur Basis {2} keine Zahl gelesen werden'; }
-	NUMBER_OVERFLOW { : deText ~= 'Die Zahl `{1}` zur Basis {2} passt nicht in `{4}` und läuft bei Zeichen {3} über; der zurückgegebene Wert ist unvollständig'; }
-	NOT_NUMBER { : deText ~= '`{1}` ist zur Basis {2} nicht als Zahl lesbar: das Zeichen `{3}` an Position {4} ist keine Ziffer'; }
-	NEGATIVE_UNSIGNED { : deText ~= '`{1}` sollte zur Basis {2} vorzeichenlos sein, ist aber negativ'; }
-	ILLEGAL_RADIX { : deText ~= 'Der Versuch, `{2}` zur ungültigen Basis {1} zu lesen, wurde abgewiesen'; }
-	INDEX_OUT_OF_RANGE { : deText ~= '{3} ist für Element {1} eines Arrays mit {2} Elementen nicht möglich'; }
+	Assert { : deText ~= 'In {1}:{2} schlug die Zusicherung fehl: `{3}`'; }
+	Trail text { : deText ~= 'Die Zahl `{1}` zur Basis {2} endete bei Zeichen {3}; `{4}` blieb ungelesen'; }
+	No digits { : deText ~= 'Aus `{1}` konnte zur Basis {2} keine Zahl gelesen werden'; }
+	Number overflow { : deText ~= 'Die Zahl `{1}` zur Basis {2} passt nicht in `{4}` und läuft bei Zeichen {3} über; der zurückgegebene Wert ist unvollständig'; }
+	Not number { : deText ~= '`{1}` ist zur Basis {2} nicht als Zahl lesbar: das Zeichen `{3}` an Position {4} ist keine Ziffer'; }
+	Negative unsigned { : deText ~= '`{1}` sollte zur Basis {2} vorzeichenlos sein, ist aber negativ'; }
+	Illegal radix { : deText ~= 'Der Versuch, `{2}` zur ungültigen Basis {1} zu lesen, wurde abgewiesen'; }
+	Index out of range { : deText ~= '{3} ist für Element {1} eines Arrays mit {2} Elementen nicht möglich'; }
 }
 
 Variants {
-	WRONG_TYPE { : deText ~= 'Erwartet wurde `{1}`, nicht `{2}`'; }
-	DOES_NOT_FIT { : deText ~= 'Der Wert {2} würde `{1}` überlaufen'; }
-	NO_COERCION { : deText ~= 'Die Umwandlung von `{1}` nach `{2}` ist nicht implementiert; der Wert bleibt unverändert'; }
+	Wrong type { : deText ~= 'Erwartet wurde `{1}`, nicht `{2}`'; }
+	Does not fit { : deText ~= 'Der Wert {2} würde `{1}` überlaufen'; }
+	No coercion { : deText ~= 'Die Umwandlung von `{1}` nach `{2}` ist nicht implementiert; der Wert bleibt unverändert'; }
 }
 
 DateTime {
-	INVALID_YMDHMS { : deText ~= 'Datum/Uhrzeit {1}-{2}-{3} {4}:{5}:{6} existiert nicht'; }
-	INVALID_TEXT { : deText ~= '`{1}` ist keine gültige Uhrzeit, kein gültiges Datum und kein gültiges Intervall'; }
-	OUT_OF_RANGE { : deText ~= 'Das Datum {1} liegt außerhalb des Bereichs, den wir halten können ({2} bis {3})'; }
-	NO_DATE { : deText ~= 'Es wurde ein Datum erwartet, empfangen wurde nur eine Tageszeit'; }
-	NO_CLOCK { : deText ~= 'Es ist keine Uhr verfügbar, die die aktuelle Zeit liefert'; }
-	NULL_VALUE { : deText ~= 'Nullwert `{1}` für {2} empfangen'; }
-	RESULT_OVERFLOW { : deText ~= 'Das Ergebnis von {2} würde `{1}` überlaufen'; }
-	NO_ZONE { : deText ~= 'Es wurde Ortszeit verlangt, aber die Zeitzone ist unbekannt. Es wird UTC verwendet'; }
+	Invalid YMDHMS { : deText ~= 'Datum/Uhrzeit {1}-{2}-{3} {4}:{5}:{6} existiert nicht'; }
+	Invalid text { : deText ~= '`{1}` ist keine gültige Uhrzeit, kein gültiges Datum und kein gültiges Intervall'; }
+	Out of range { : deText ~= 'Das Datum {1} liegt außerhalb des Bereichs, den wir halten können ({2} bis {3})'; }
+	No date { : deText ~= 'Es wurde ein Datum erwartet, empfangen wurde nur eine Tageszeit'; }
+	No clock { : deText ~= 'Es ist keine Uhr verfügbar, die die aktuelle Zeit liefert'; }
+	Null value { : deText ~= 'Nullwert `{1}` für {2} empfangen'; }
+	Result overflow { : deText ~= 'Das Ergebnis von {2} würde `{1}` überlaufen'; }
+	No zone { : deText ~= 'Es wurde Ortszeit verlangt, aber die Zeitzone ist unbekannt. Es wird UTC verwendet'; }
 }
 
 Threads {
-	CREATE_FAILED { : deText ~= '`{1}` meldete {2}: Der Thread konnte nicht erstellt werden'; }
-	STACK_REFUSED { : deText ~= '`{2}` lehnte eine Stackgröße von {1} Bytes ab (Fehlercode {3}). Es wird die Standardgröße verwendet'; }
-	JOIN_FAILED { : deText ~= '`{1}` für den Thread schlug fehl (Fehlercode {2}); sein Exit-Code ist unbekannt'; }
-	NO_CONDITION { : deText ~= '`{1}` ist nicht möglich: Die Bedingungsvariable wurde nicht erfolgreich erstellt'; }
-	WAIT_FAILED { : deText ~= 'Thread {1} schlug fehl (Fehlercode {2})'; }
-	DELAY_FAILED { : deText ~= 'Thread {1} schlug fehl (Fehlercode {2})'; }
+	Create failed { : deText ~= '`{1}` meldete {2}: Der Thread konnte nicht erstellt werden'; }
+	Stack refused { : deText ~= '`{2}` lehnte eine Stackgröße von {1} Bytes ab (Fehlercode {3}). Es wird die Standardgröße verwendet'; }
+	Join failed { : deText ~= '`{1}` für den Thread schlug fehl (Fehlercode {2}); sein Exit-Code ist unbekannt'; }
+	No condition { : deText ~= '`{1}` ist nicht möglich: Die Bedingungsvariable wurde nicht erfolgreich erstellt'; }
+	Wait failed { : deText ~= 'Thread {1} schlug fehl (Fehlercode {2})'; }
+	Delay failed { : deText ~= 'Thread {1} schlug fehl (Fehlercode {2})'; }
 }
 
 Strpp;

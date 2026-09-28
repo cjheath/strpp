@@ -3,40 +3,40 @@
 jaText: Set.Message.Text { Language = Languages.ja; }
 
 StrVal {
-	ASSERT { : jaText ~= '{1}:{2} でアサーションに失敗しました: `{3}`'; }
-	TRAIL_TEXT { : jaText ~= '基数 {2} の数値 `{1}` は文字 {3} で終わり、`{4}` は読まれませんでした'; }
-	NO_DIGITS { : jaText ~= '基数 {2} で `{1}` から数値を読み取れませんでした'; }
-	NUMBER_OVERFLOW { : jaText ~= '基数 {2} の数値 `{1}` は `{4}` に収まりません。文字 {3} でオーバーフローし、返された値は不完全です'; }
-	NOT_NUMBER { : jaText ~= '基数 {2} で `{1}` を数値として読めません: 位置 {4} の文字 `{3}` は数字ではありません'; }
-	NEGATIVE_UNSIGNED { : jaText ~= '基数 {2} の `{1}` は符号なしであるべきですが、負の値です'; }
-	ILLEGAL_RADIX { : jaText ~= '不正な基数 {1} で `{2}` を読もうとしたため、拒否されました'; }
-	INDEX_OUT_OF_RANGE { : jaText ~= '{2} 個の配列の要素 {1} を {3} することはできません'; }
+	Assert { : jaText ~= '{1}:{2} でアサーションに失敗しました: `{3}`'; }
+	Trail text { : jaText ~= '基数 {2} の数値 `{1}` は文字 {3} で終わり、`{4}` は読まれませんでした'; }
+	No digits { : jaText ~= '基数 {2} で `{1}` から数値を読み取れませんでした'; }
+	Number overflow { : jaText ~= '基数 {2} の数値 `{1}` は `{4}` に収まりません。文字 {3} でオーバーフローし、返された値は不完全です'; }
+	Not number { : jaText ~= '基数 {2} で `{1}` を数値として読めません: 位置 {4} の文字 `{3}` は数字ではありません'; }
+	Negative unsigned { : jaText ~= '基数 {2} の `{1}` は符号なしであるべきですが、負の値です'; }
+	Illegal radix { : jaText ~= '不正な基数 {1} で `{2}` を読もうとしたため、拒否されました'; }
+	Index out of range { : jaText ~= '{2} 個の配列の要素 {1} を {3} することはできません'; }
 }
 
 Variants {
-	WRONG_TYPE { : jaText ~= '`{1}` を期待しましたが、`{2}` でした'; }
-	DOES_NOT_FIT { : jaText ~= '値 {2} は `{1}` をオーバーフローします'; }
-	NO_COERCION { : jaText ~= '`{1}` から `{2}` への変換は実装されていないため、値はそのままです'; }
+	Wrong type { : jaText ~= '`{1}` を期待しましたが、`{2}` でした'; }
+	Does not fit { : jaText ~= '値 {2} は `{1}` をオーバーフローします'; }
+	No coercion { : jaText ~= '`{1}` から `{2}` への変換は実装されていないため、値はそのままです'; }
 }
 
 DateTime {
-	INVALID_YMDHMS { : jaText ~= '日時 {1}-{2}-{3} {4}:{5}:{6} は存在しません'; }
-	INVALID_TEXT { : jaText ~= '`{1}` は有効な時刻、日付、または間隔ではありません'; }
-	OUT_OF_RANGE { : jaText ~= '日付 {1} は保持できる範囲（{2} から {3}）を外れています'; }
-	NO_DATE { : jaText ~= '日付が必要でしたが、時刻だけを受け取りました'; }
-	NO_CLOCK { : jaText ~= '現在時刻を提供する時計がありません'; }
-	NULL_VALUE { : jaText ~= '{2} に対して null 値 `{1}` を受け取りました'; }
-	RESULT_OVERFLOW { : jaText ~= '{2} の結果は `{1}` をオーバーフローします'; }
-	NO_ZONE { : jaText ~= 'ローカル時刻が要求されましたが、タイムゾーンが不明です。UTC を使用します'; }
+	Invalid YMDHMS { : jaText ~= '日時 {1}-{2}-{3} {4}:{5}:{6} は存在しません'; }
+	Invalid text { : jaText ~= '`{1}` は有効な時刻、日付、または間隔ではありません'; }
+	Out of range { : jaText ~= '日付 {1} は保持できる範囲（{2} から {3}）を外れています'; }
+	No date { : jaText ~= '日付が必要でしたが、時刻だけを受け取りました'; }
+	No clock { : jaText ~= '現在時刻を提供する時計がありません'; }
+	Null value { : jaText ~= '{2} に対して null 値 `{1}` を受け取りました'; }
+	Result overflow { : jaText ~= '{2} の結果は `{1}` をオーバーフローします'; }
+	No zone { : jaText ~= 'ローカル時刻が要求されましたが、タイムゾーンが不明です。UTC を使用します'; }
 }
 
 Threads {
-	CREATE_FAILED { : jaText ~= '`{1}` が {2} を返し、スレッドの作成に失敗しました'; }
-	STACK_REFUSED { : jaText ~= '`{2}` が {1} バイトのスタックサイズを拒否しました（エラーコード {3}）。既定のサイズを使用します'; }
-	JOIN_FAILED { : jaText ~= 'スレッドの `{1}` に失敗しました（エラーコード {2}）。終了コードは不明です'; }
-	NO_CONDITION { : jaText ~= '条件変数を `{1}` できません: 正常に作成されませんでした'; }
-	WAIT_FAILED { : jaText ~= 'スレッド {1} が失敗しました（エラーコード {2}）'; }
-	DELAY_FAILED { : jaText ~= 'スレッド {1} が失敗しました（エラーコード {2}）'; }
+	Create failed { : jaText ~= '`{1}` が {2} を返し、スレッドの作成に失敗しました'; }
+	Stack refused { : jaText ~= '`{2}` が {1} バイトのスタックサイズを拒否しました（エラーコード {3}）。既定のサイズを使用します'; }
+	Join failed { : jaText ~= 'スレッドの `{1}` に失敗しました（エラーコード {2}）。終了コードは不明です'; }
+	No condition { : jaText ~= '条件変数を `{1}` できません: 正常に作成されませんでした'; }
+	Wait failed { : jaText ~= 'スレッド {1} が失敗しました（エラーコード {2}）'; }
+	Delay failed { : jaText ~= 'スレッド {1} が失敗しました（エラーコード {2}）'; }
 }
 
 Strpp;

@@ -200,25 +200,73 @@ static int placeholder_count(StrVal text)
 	return highest;
 }
 
-// ADL_NAME_LIKE_THIS -> PascalCase, for the function name half of the pair
-// (ErrorSTR_Assert, ErrorSTR_NumberOverflow, ...). The macro half needs no
-// transform at all - the ADL name is already the right shape.
+/*
+ * A message's name is words separated by spaces or underscores - a catalog
+ * may write "Number overflow" or NUMBER_OVERFLOW - so both separate here, and
+ * the two halves of each generated pair are built from the same words.
+ */
+static void words_of(StrVal name, Array<StrVal>& out)
+{
+	StrVal	word;
+	int	i = 0, n = (int)name.length();
+	for (i = 0; i <= n; i++)
+	{
+		UCS4	c = i < n ? name[i] : (UCS4)' ';
+		if (c == ' ' || c == '_')
+		{
+			if (!word.isEmpty())
+				out.push(word);
+			word = StrVal();
+		}
+		else
+			word += StrVal(c);
+	}
+}
+
+// The macro half of the pair: every word upper-cased and joined with
+// underscores ("Number overflow" -> NUMBER_OVERFLOW), naming the ErrNum value
+// and the #define that holds it.
+static StrVal macro_name(StrVal adl_name)
+{
+	Array<StrVal>	words;
+	words_of(adl_name, words);
+	StrVal	out;
+	for (int w = 0; w < words.length(); w++)
+	{
+		if (w)
+			out += "_";
+		for (int i = 0; i < words[w].length(); i++)
+			out += StrVal((UCS4)toupper((int)words[w][i]));
+	}
+	return out;
+}
+
+/*
+ * The function half: PascalCase, one capital per word - except a word the
+ * catalog already gave in capitals, which is left alone. An acronym is the
+ * author's spelling of it and is not to be lower-cased: "Invalid YMDHMS"
+ * gives ErrorTIM_InvalidYMDHMS, not ErrorTIM_InvalidYmdhms.
+ */
 static StrVal pascal_case(StrVal adl_name)
 {
+	Array<StrVal>	words;
+	words_of(adl_name, words);
 	StrVal	out;
-	bool	start_of_word = true;
-	int	i = 0, n = (int)adl_name.length();
-	while (i < n)
+	for (int w = 0; w < words.length(); w++)
 	{
-		UCS4	c = adl_name[i];
-		if (c == '_')
-			start_of_word = true;
-		else
+		StrVal	word = words[w];
+		bool	all_caps = true;
+		for (int i = 0; i < word.length(); i++)
+			if (word[i] >= 'a' && word[i] <= 'z')
+				all_caps = false;
+		for (int i = 0; i < word.length(); i++)
 		{
-			out += StrVal((UCS4)(start_of_word ? toupper((int)c) : tolower((int)c)));
-			start_of_word = false;
+			UCS4	c = word[i];
+			if (all_caps)
+				out += StrVal(c);
+			else
+				out += StrVal((UCS4)(i == 0 ? toupper((int)c) : tolower((int)c)));
 		}
-		i++;
 	}
 	return out;
 }
@@ -388,7 +436,7 @@ static void write_err_h(FILE* f, StrVal catalog_name, Array<GeneratedMessage>& m
 			last_prefix = m.set_prefix;
 		}
 		fprintf(f, "#define\t%sERR_%s\t\tErrNum(%sERR_SET, %d)\t// %s\n",
-			m.set_prefix.asUTF8(), m.name.asUTF8(),
+			m.set_prefix.asUTF8(), macro_name(m.name).asUTF8(),
 			m.set_prefix.asUTF8(), m.number, m.text.asUTF8());
 	}
 
@@ -439,7 +487,7 @@ static void write_msg_h(FILE* f, StrVal catalog_name, Array<GeneratedMessage>& m
 		for (int p = 1; p <= m.params; p++)
 			fprintf(f, "%sVariant p%d", p > 1 ? ", " : "", p);
 		fprintf(f, ")\n{\n\treturn Error(%sERR_%s,\n\t\t\"%s\",\n\t\tVariantArray()",
-			m.set_prefix.asUTF8(), m.name.asUTF8(), m.text.asUTF8());
+			m.set_prefix.asUTF8(), macro_name(m.name).asUTF8(), m.text.asUTF8());
 		for (int p = 1; p <= m.params; p++)
 			fprintf(f, " << p%d", p);
 		fprintf(f, ");\n}\n\n");
