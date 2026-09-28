@@ -142,7 +142,10 @@ cd strpp/tools
 Every file named is loaded in the order given, each from the context the one
 before it left: the language enumeration and the schema first, then the
 catalog, since that is where the catalog's name and its sets come from. The
-last catalog named is used to name the output files.
+name of the object defined by the **last statement of the last file** is what
+names the output files. For a catalog file that is the catalog itself, since
+its own definition is its last statement - which is why a file that goes on
+after its catalog generates from whatever it defined next.
 
 Without `-d` the two headers go to standard output instead, so you can
 pass your eye over them without writingh them to storage.

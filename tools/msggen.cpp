@@ -1,13 +1,20 @@
 /*
  * msggen: reads a Message Catalog Source (an MCS file, against
- * ../../adl/cpp's mcs.adl schema) and writes <name>_err.h/<name>_msg.h -
- * <name> being the catalog's own name (its file's last top-level
- * statement), downcased - as a faithful transcription of what the MCS
- * source declares. Not hard-wired to any one library: the catalog file
- * and its own name decide everything about the output - guard macros,
- * file names, comments - so the same binary generates strpp's own
- * strpp_err.h/strpp_msg.h from messages/strpp.mcs today and any other
- * library's headers from its own catalog tomorrow, unchanged.
+ * ../../adl/cpp's mcs.adl schema) and writes <name>_err.h/<name>_msg.h as a
+ * faithful transcription of what the MCS source declares. Not hard-wired to
+ * any one library: the catalog file and its own name decide everything about
+ * the output - guard macros, file names, comments - so the same binary
+ * generates strpp's own strpp_err.h/strpp_msg.h from messages/strpp.mcs today
+ * and any other library's headers from its own catalog tomorrow, unchanged.
+ *
+ * <name> is the name of the object the LAST file's last statement defines,
+ * downcased - which is the catalog only because a catalog file ends with its
+ * own definition. Nothing here asks what that object is a subtype of, or
+ * looks for one reaching `Message Catalog Source`: the object is walked for
+ * Sets, and if it has none the run fails with "no messages found under <that
+ * name>". A file that goes on after its catalog therefore generates from
+ * whatever it defined next. Measured 2026-09-28: a catalog followed by
+ * `After: String;` reports "no messages found under After".
  *
  * Run as: msggen [-d <output-dir>] <adl.adl> [precursor.adl ...] <catalog.mcs>.
  * With no -d the two generated headers go to stdout, error numbers first;
@@ -303,7 +310,7 @@ static StrVal upcase(StrVal name)
 // Handle::lookup() only searches one level, *locally* - it can never find
 // a field that's purely inherited and has no local child of its own,
 // which is exactly the shape of every "Prefix ~= 'STR';"-style assignment
-// here (Set/Message declare the field; each instance only ever assigns a
+// here (Set/Message declare the field; whatever uses it only ever assigns a
 // value to it, never re-declares it). The assigned value itself lives on
 // a separate, anonymous Assignment object, a sibling within the same
 // container, found by matching its own variable() by name. (Found by
