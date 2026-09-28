@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>COWMap - strpp</title>
+        <title>Message catalogs - strpp</title>
 
 
         <!-- Custom HTML head -->
@@ -177,80 +177,168 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h2 id="cowmap"><a class="header" href="#cowmap">COWMap</a></h2>
-<p><code>#include	&lt;cowmap.h&gt;</code></p>
-<p>The Copy-on-write Map template is a sorted key/value map with by-value
-semantics, like StrVal and Array: copying a CowMap is cheap (O(1), sharing
-the same underlying tree with the original), and modifying it transparently
-takes a private copy first if it’s shared with any other reference.</p>
-<p>Internally, CowMap is backed by a persistent (path-copying) red-black tree
-(see <a href="redblack.html">redblack.md</a>), not the STL’s std::map. This is what
-makes copying O(1): a copy just shares the tree’s root; a subsequent
-mutation on either copy only replaces the O(log n) nodes on the path to the
-change, leaving every other node - and so every other reference still
-holding an older version completely untouched. Node colour is packed into
-the spare low bits of each child pointer (see taggedref.h) at no extra
-memory cost. A node that is uniquely owned is mutated in place; a shared
-node is copied first, which is safe because our rules require that a single
-reference is confined to one thread; sharing a map across threads should
-always copy the reference.</p>
-<p><code>operator[]</code> returns a copy of the value; <code>find()</code> returns an iterator
-instead, giving read-only access (<code>-&gt;first</code>/<code>-&gt;second</code>) without copying.
-<code>put()</code>/<code>insert()</code>/<code>remove()</code>/<code>clear()</code> mutate the map, unsharing first; the
-rest are read-only, functional-style traversal helpers.</p>
-<h3 id="public-methods"><a class="header" href="#public-methods">Public methods</a></h3>
-<p>Defined in <a href="https://github.com/cjheath/strpp/blob/main/include/cowmap.h">cowmap.h</a>.</p>
-<p>Making one:</p>
-<ul>
-<li><code>CowMap()</code> - empty.</li>
-<li><code>CowMap(const Key* keys, const Value* values, int size)</code> - from <code>size</code>
-parallel key and value arrays.</li>
-<li><code>CowMap(const CowMap&amp;)</code>, <code>operator=</code> - share the tree’s root, which is O(1)
-however many entries the map holds.</li>
-</ul>
-<p>Reading:</p>
-<ul>
-<li><code>operator[](const Key&amp;)</code> - the value stored for the key, or a
-default-constructed one when it is absent. It does not insert.</li>
-<li><code>contains(const Key&amp;)</code> - whether the key is in the map.</li>
-<li><code>find(const Key&amp;)</code> - an iterator at the entry, to compare with <code>end()</code>.</li>
-<li><code>begin()</code>, <code>end()</code> - the entries, in key order.</li>
-<li><code>size()</code> - how many entries there are.</li>
-<li><code>values()</code> - an array of the values, in key order.</li>
-<li><code>each(f)</code> - call <code>f</code> with every key and value.</li>
-<li><code>select(f)</code> - a new map of the entries that satisfy <code>f</code>.</li>
-<li><code>inject(start, f)</code> - fold the entries into an accumulator.</li>
-<li><code>all(f)</code>, <code>any(f)</code>, <code>one(f)</code> - whether all, any, or exactly one entry
-satisfies <code>f</code>.</li>
-</ul>
-<p>Changing, each unsharing first so that no other map sees the change:</p>
-<ul>
-<li><code>insert(const Key, const Value)</code> - insert the pair.</li>
-<li><code>remove(const Key&amp;)</code> - erase the entry.</li>
-<li><code>put(const Key&amp;, Value)</code> - erase any entry for the key, then insert the new
-value, and return the key.</li>
-<li><code>clear()</code> - empty the map.</li>
-</ul>
-<p>Example:</p>
-<pre><code>#include	&lt;cowmap.h&gt;
+                        <h2 id="message-catalogs"><a class="header" href="#message-catalogs">Message catalogs</a></h2>
+<p>Messages to the user of a program should be concise, consistent, and complete.
+They should be actionable, describing the problem, the reason and a solution.
+A translator must know enough of the context to know how to phrase the text.
+Parameters may occur in a different order in different translations.</p>
+<p>Message catalog management keeps that in one place, not embedded in the code.
+Numbers are allocated once and should not be reallocated. The completeness
+of a translation and the types of the parameters should be checked at build.</p>
+<p>We write message catalogs in ADL, a small type-checked declarative language
+for describing structured data. The code and its message catalog are separate.
+A generator produces two header files for the library build from.</p>
+<h3 id="the-catalog-schema"><a class="header" href="#the-catalog-schema">The catalog schema</a></h3>
+<p>ADL files are type-checked against a schema itself written in ADL. The
+Message Catalog Source schema object contains <code>Set</code>s, each set holds
+<code>Message</code>s with a number and default text, and may contain additional
+Text objects for translations or styles.</p>
+<pre><code class="language-adl">Message Catalog Source:
+{
+	Set: {
+		Prefix: String;			// Used in filenames and Error definitions
 
-CowMap&lt;int, StrVal&gt;	ages;
-ages.insert("Alice", 30);
-ages.insert("Bob", 25);
+		Number: Integer;		// Globally allocated set number
 
-CowMap&lt;int, StrVal&gt;	snapshot(ages);	// O(1): shares the same tree
-ages.insert("Carol", 40);		// Only ages sees "Carol"; snapshot is unaffected
+		-&gt; Languages.Language;		// Default language for the set
+
+		Message: {
+			Number: Integer;	// Must be unique in the Set, 1-1023
+			Usage: String;		// Notes for a translator
+			Syntax = String;	// Default text matches String's Syntax
+
+			Text: {			    // Stylised text (Language or Style override)
+				-&gt; Languages.Language;	// Or default to the set's language
+				Style: String;	// Typically blank/unset, could be "terse", "verbose", etc
+				Syntax = String;// Allow direct assignment
+			}
+		}
+	}
+}
 </code></pre>
+<p>In ADL, any object which has a Syntax is assignable. Although Message is
+a container, it can also be assigned directly, any value matching the
+Syntax for a String. The above schema assumes a list of Languages defined
+in a prior file. Normally only the default text is in the main file, with
+translations provided by additional files.</p>
+<h3 id="a-catalog-of-default-texts"><a class="header" href="#a-catalog-of-default-texts">A catalog of default texts</a></h3>
+<p>The catalog’s name is used to derive the names of the two generated header
+files. Within it are Sets, and within those are Messages.  Here is part
+of the library’s catalog:</p>
+<pre><code class="language-adl">Strpp: Message Catalog Source {
+
+	StrVal: Set {
+		Prefix = 'STR';
+		Number = 1;
+		Language = Languages.en;
+
+		Assert: Message { Number = 1; } ~= 'At {1}:{2}, assertion failed: `{3}`';
+
+		Trailing text: Message { Number = 2; } ~= 'The number `{1}` in radix {2} ended at character {3}, leaving `{4}` unread';
+		No digits: Message { Number = 3; } ~= 'Failed to read a number from `{1}` in radix {2}';
+		...
+		Is Complete = True;
+	}
+}
+</code></pre>
+<p>Each message has a name consisting of one or more words. From these words,
+<code>msggen</code> emits the name of an ErrNum and the name of a function that
+reports this message, expecting the correct parameters.  For example,
+the message called <code>Trailing text</code> becomes the macro <code>STRERR_TRAILING_TEXT</code>
+and the function <code>ErrorSTR_TrailingText</code>.</p>
+<p>The parameters of the text are numbered <code>{1}</code>, <code>{2}</code> and so on, usually in
+the order the text uses them (but always the order used by the generated
+function). A translation may use the parameters in any order, even more
+than once if needed.</p>
+<p>A Set of Message number, once used, should not be re-used or re-numbered,
+for the sake of customer support staff. Even to a user who cannot read the
+text, the Set-Message number uniquely identifies a specific message condition.
+Each set typically ends <code>Is Complete = True;</code> to prevent any translation
+adding new content.</p>
+<p>The value assignments using <code>=</code> are Final (cannot be overridden), whereas
+the <code>~=</code> ones are tentative and may be overridden in a specified context.</p>
+<h3 id="translations"><a class="header" href="#translations">Translations</a></h3>
+<p>A translation is usually in a separate catalog file loaded after the first.
+It re-opens the catalog by name and adds a new <code>Text</code> object to each Message
+(Messages are not marked Complete for this reason). The message’s default
+text is not touched, so the two are independent and either may be reworded
+alone. It is possible for a program to load multiple translations on top
+of the same catalog.</p>
+<pre><code class="language-adl">// German wordings of strpp.mcs's messages.
+
+deText: Set.Message.Text { Language = Languages.de; }
+
+StrVal {
+	Assert { : deText ~= 'In {1}:{2} schlug die Zusicherung fehl: `{3}`'; }
+	Trailing text { : deText ~= 'Die Zahl `{1}` zur Basis {2} endete bei Zeichen {3}; `{4}` blieb ungelesen'; }
+	...
+}
+
+Strpp;
+</code></pre>
+<p>Usually only one language is used per file, and a convenient way to do
+that is to define a subtype of the schema’s own <code>Message.Text</code> which sets
+it once, so each message then only needs to add its text.</p>
+<p>When loading ADL files, new declarations begin in the last closed scope from
+the predecessor. To facilitate loading multiple languages, it is conventional
+that the file ends with a bare <code>Strpp;</code>, which leaves the catalog as the
+starting point for whatever file is read next.</p>
+<h3 id="generating-the-headers"><a class="header" href="#generating-the-headers">Generating the headers</a></h3>
+<p>The generated headers are built by <code>msggen</code>, which reads the schema, the
+catalog and any translation files, and writes both headers. With <code>-d</code> it
+writes them into a directory:</p>
+<pre><code>cd strpp/tools
+./msggen -d ../include ../../adl/cpp/adl.adl ../../adl/cpp/ietf_languages.adl \
+	mcs.adl ../messages/strpp.mcs
+</code></pre>
+<p>Every file named is loaded in the order given, each from the context the one
+before it left: the language enumeration and the schema first, then the
+catalog, since that is where the catalog’s name and its sets come from. The
+last catalog named is used to name the output files.</p>
+<p>Without <code>-d</code> the two headers go to standard output instead, so you can
+pass your eye over them without writingh them to storage.</p>
+<pre><code>./msggen ../../adl/cpp/adl.adl ../../adl/cpp/ietf_languages.adl \
+	mcs.adl ../messages/strpp.mcs
+</code></pre>
+<p>One of the headers is used by code needing to emit messages, the other
+by consumers wishing to match ErrNum return codes. The parameters and
+default text are pushed to the thread’s error cascade, to be reported
+or recoverd as previously discussed.</p>
+<p><code>strpp_err.h</code> gives each message a number and, in a comment, the default
+text:</p>
+<pre><code class="language-c">#define	STRERR_SET			1	// The message set allocated to the STR
+
+#define	STRERR_ASSERT		ErrNum(STRERR_SET, 1)	// At {1}:{2}, assertion failed: `{3}`
+#define	STRERR_TRAILING_TEXT		ErrNum(STRERR_SET, 2)	// The number `{1}` in radix {2} ended at character {3}, leaving `{4}` unread
+#define	STRERR_NUMBER_OVERFLOW		ErrNum(STRERR_SET, 4)	// The number `{1}` in radix {2} does not fit in `{3}`, overflowing at character {4}; the value returned is incomplete
+</code></pre>
+<p>An <code>ErrNum</code> holds a set number and a message number within it, and its
+<code>#define</code> is the message’s name. See <a href="error.html">Error Management</a> for
+details.</p>
+<p><code>strpp_msg.h</code> provides a function for each message. This function
+takes the parameters, logs the error and returns the ErrNum:</p>
+<pre><code class="language-c++">inline ErrNum
+ErrorSTR_Assert(Variant p1, Variant p2, Variant p3)
+{
+	return Error(STRERR_ASSERT,
+		"At {1}:{2}, assertion failed: `{3}`",
+		VariantArray() &lt;&lt; p1 &lt;&lt; p2 &lt;&lt; p3);
+}
+</code></pre>
+<p>This is all in the name of making it as easy to report an error with full
+context than to just return an error number.</p>
+<p>In an upcoming revision of this process, the function’s parameters will
+be typed and converted to Variant to be put into the error buffer.</p>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="redblack.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="error.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="variant.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="threading.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -260,11 +348,11 @@ ages.insert("Carol", 40);		// Only ages sees "Carol"; snapshot is unaffected
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="redblack.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="error.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="variant.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="threading.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

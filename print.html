@@ -36,10 +36,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-4028480f.js";
+            window.path_to_searchindex_js = "searchindex-4e6ac57a.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-e643466d.js"></script>
+        <script src="toc-02946640.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -1491,7 +1491,7 @@ never as local time: a result that depends on where it is read is not a
 result. Reading an instant from a text that names a time of day but no date is
 reported as <code>TIMERR_NO_DATE</code>, and one whose date is outside the range as
 <code>TIMERR_OUT_OF_RANGE</code>.</p>
-<p>See <a href="#error-management-1">Errors</a> and the <code>TIM</code> set in <code>str_err.h</code>.</p>
+<p>See <a href="#error-management-1">Errors</a> and the <code>TIM</code> set in <code>strpp_err.h</code>.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="gregorian-civil-dates-and-iso-8601-1"><a href="#gregorian-civil-dates-and-iso-8601-1" class="header">Gregorian: civil dates and ISO 8601</a></h1>
 <h2 id="gregorian-civil-dates-and-iso-8601"><a class="header" href="#gregorian-civil-dates-and-iso-8601">Gregorian: civil dates and ISO 8601</a></h2>
@@ -1615,7 +1615,7 @@ and <code>TIMERR_OUT_OF_RANGE</code> beyond either end of what a <code>DateTime<
 Ordering is not offered: two civil times in different zones have no order,
 and an instant is where that question belongs.</li>
 </ul>
-<p>See <a href="#error-management-1">Errors</a> and the <code>TIM</code> set in <code>str_err.h</code>.</p>
+<p>See <a href="#error-management-1">Errors</a> and the <code>TIM</code> set in <code>strpp_err.h</code>.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="error-management-1"><a href="#error-management-1" class="header">Error Management</a></h1>
 <h2 id="error-management"><a class="header" href="#error-management">Error Management</a></h2>
@@ -1694,8 +1694,9 @@ companion, <code>&lt;Module&gt;_msg.h</code>, holds the reporting function of ea
 for the two things a message is for, and a translation is written against the
 texts the first half carries.</p>
 <p>One library has one message source file, however many sets are in it. This
-library’s is <a href="https://github.com/cjheath/strpp/blob/main/include/str_err.h">str_err.h</a>
-and <a href="https://github.com/cjheath/strpp/blob/main/include/str_msg.h">str_msg.h</a>,
+library’s is
+<a href="https://github.com/cjheath/strpp/blob/main/include/strpp_err.h">strpp_err.h</a>
+and <a href="https://github.com/cjheath/strpp/blob/main/include/strpp_msg.h">strpp_msg.h</a>,
 which hold the sets <code>STR</code>, for the strings, and <code>VAR</code>, for the Variant. A set
 carries what can go wrong within it and nothing else, which is why a message
 about reading a number from a text is in <code>STR</code> rather than beside the class it
@@ -1882,6 +1883,160 @@ and a warning may be demoted to information or raised by whoever displays
 it.</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
+<h1 id="message-catalogs-1"><a href="#message-catalogs-1" class="header">Message catalogs</a></h1>
+<h2 id="message-catalogs"><a class="header" href="#message-catalogs">Message catalogs</a></h2>
+<p>Messages to the user of a program should be concise, consistent, and complete.
+They should be actionable, describing the problem, the reason and a solution.
+A translator must know enough of the context to know how to phrase the text.
+Parameters may occur in a different order in different translations.</p>
+<p>Message catalog management keeps that in one place, not embedded in the code.
+Numbers are allocated once and should not be reallocated. The completeness
+of a translation and the types of the parameters should be checked at build.</p>
+<p>We write message catalogs in ADL, a small type-checked declarative language
+for describing structured data. The code and its message catalog are separate.
+A generator produces two header files for the library build from.</p>
+<h3 id="the-catalog-schema"><a class="header" href="#the-catalog-schema">The catalog schema</a></h3>
+<p>ADL files are type-checked against a schema itself written in ADL. The
+Message Catalog Source schema object contains <code>Set</code>s, each set holds
+<code>Message</code>s with a number and default text, and may contain additional
+Text objects for translations or styles.</p>
+<pre><code class="language-adl">Message Catalog Source:
+{
+	Set: {
+		Prefix: String;			// Used in filenames and Error definitions
+
+		Number: Integer;		// Globally allocated set number
+
+		-&gt; Languages.Language;		// Default language for the set
+
+		Message: {
+			Number: Integer;	// Must be unique in the Set, 1-1023
+			Usage: String;		// Notes for a translator
+			Syntax = String;	// Default text matches String's Syntax
+
+			Text: {			    // Stylised text (Language or Style override)
+				-&gt; Languages.Language;	// Or default to the set's language
+				Style: String;	// Typically blank/unset, could be "terse", "verbose", etc
+				Syntax = String;// Allow direct assignment
+			}
+		}
+	}
+}
+</code></pre>
+<p>In ADL, any object which has a Syntax is assignable. Although Message is
+a container, it can also be assigned directly, any value matching the
+Syntax for a String. The above schema assumes a list of Languages defined
+in a prior file. Normally only the default text is in the main file, with
+translations provided by additional files.</p>
+<h3 id="a-catalog-of-default-texts"><a class="header" href="#a-catalog-of-default-texts">A catalog of default texts</a></h3>
+<p>The catalog’s name is used to derive the names of the two generated header
+files. Within it are Sets, and within those are Messages.  Here is part
+of the library’s catalog:</p>
+<pre><code class="language-adl">Strpp: Message Catalog Source {
+
+	StrVal: Set {
+		Prefix = 'STR';
+		Number = 1;
+		Language = Languages.en;
+
+		Assert: Message { Number = 1; } ~= 'At {1}:{2}, assertion failed: `{3}`';
+
+		Trailing text: Message { Number = 2; } ~= 'The number `{1}` in radix {2} ended at character {3}, leaving `{4}` unread';
+		No digits: Message { Number = 3; } ~= 'Failed to read a number from `{1}` in radix {2}';
+		...
+		Is Complete = True;
+	}
+}
+</code></pre>
+<p>Each message has a name consisting of one or more words. From these words,
+<code>msggen</code> emits the name of an ErrNum and the name of a function that
+reports this message, expecting the correct parameters.  For example,
+the message called <code>Trailing text</code> becomes the macro <code>STRERR_TRAILING_TEXT</code>
+and the function <code>ErrorSTR_TrailingText</code>.</p>
+<p>The parameters of the text are numbered <code>{1}</code>, <code>{2}</code> and so on, usually in
+the order the text uses them (but always the order used by the generated
+function). A translation may use the parameters in any order, even more
+than once if needed.</p>
+<p>A Set of Message number, once used, should not be re-used or re-numbered,
+for the sake of customer support staff. Even to a user who cannot read the
+text, the Set-Message number uniquely identifies a specific message condition.
+Each set typically ends <code>Is Complete = True;</code> to prevent any translation
+adding new content.</p>
+<p>The value assignments using <code>=</code> are Final (cannot be overridden), whereas
+the <code>~=</code> ones are tentative and may be overridden in a specified context.</p>
+<h3 id="translations"><a class="header" href="#translations">Translations</a></h3>
+<p>A translation is usually in a separate catalog file loaded after the first.
+It re-opens the catalog by name and adds a new <code>Text</code> object to each Message
+(Messages are not marked Complete for this reason). The message’s default
+text is not touched, so the two are independent and either may be reworded
+alone. It is possible for a program to load multiple translations on top
+of the same catalog.</p>
+<pre><code class="language-adl">// German wordings of strpp.mcs's messages.
+
+deText: Set.Message.Text { Language = Languages.de; }
+
+StrVal {
+	Assert { : deText ~= 'In {1}:{2} schlug die Zusicherung fehl: `{3}`'; }
+	Trailing text { : deText ~= 'Die Zahl `{1}` zur Basis {2} endete bei Zeichen {3}; `{4}` blieb ungelesen'; }
+	...
+}
+
+Strpp;
+</code></pre>
+<p>Usually only one language is used per file, and a convenient way to do
+that is to define a subtype of the schema’s own <code>Message.Text</code> which sets
+it once, so each message then only needs to add its text.</p>
+<p>When loading ADL files, new declarations begin in the last closed scope from
+the predecessor. To facilitate loading multiple languages, it is conventional
+that the file ends with a bare <code>Strpp;</code>, which leaves the catalog as the
+starting point for whatever file is read next.</p>
+<h3 id="generating-the-headers"><a class="header" href="#generating-the-headers">Generating the headers</a></h3>
+<p>The generated headers are built by <code>msggen</code>, which reads the schema, the
+catalog and any translation files, and writes both headers. With <code>-d</code> it
+writes them into a directory:</p>
+<pre><code>cd strpp/tools
+./msggen -d ../include ../../adl/cpp/adl.adl ../../adl/cpp/ietf_languages.adl \
+	mcs.adl ../messages/strpp.mcs
+</code></pre>
+<p>Every file named is loaded in the order given, each from the context the one
+before it left: the language enumeration and the schema first, then the
+catalog, since that is where the catalog’s name and its sets come from. The
+last catalog named is used to name the output files.</p>
+<p>Without <code>-d</code> the two headers go to standard output instead, so you can
+pass your eye over them without writingh them to storage.</p>
+<pre><code>./msggen ../../adl/cpp/adl.adl ../../adl/cpp/ietf_languages.adl \
+	mcs.adl ../messages/strpp.mcs
+</code></pre>
+<p>One of the headers is used by code needing to emit messages, the other
+by consumers wishing to match ErrNum return codes. The parameters and
+default text are pushed to the thread’s error cascade, to be reported
+or recoverd as previously discussed.</p>
+<p><code>strpp_err.h</code> gives each message a number and, in a comment, the default
+text:</p>
+<pre><code class="language-c">#define	STRERR_SET			1	// The message set allocated to the STR
+
+#define	STRERR_ASSERT		ErrNum(STRERR_SET, 1)	// At {1}:{2}, assertion failed: `{3}`
+#define	STRERR_TRAILING_TEXT		ErrNum(STRERR_SET, 2)	// The number `{1}` in radix {2} ended at character {3}, leaving `{4}` unread
+#define	STRERR_NUMBER_OVERFLOW		ErrNum(STRERR_SET, 4)	// The number `{1}` in radix {2} does not fit in `{3}`, overflowing at character {4}; the value returned is incomplete
+</code></pre>
+<p>An <code>ErrNum</code> holds a set number and a message number within it, and its
+<code>#define</code> is the message’s name. See <a href="#error-management-1">Error Management</a> for
+details.</p>
+<p><code>strpp_msg.h</code> provides a function for each message. This function
+takes the parameters, logs the error and returns the ErrNum:</p>
+<pre><code class="language-c++">inline ErrNum
+ErrorSTR_Assert(Variant p1, Variant p2, Variant p3)
+{
+	return Error(STRERR_ASSERT,
+		"At {1}:{2}, assertion failed: `{3}`",
+		VariantArray() &lt;&lt; p1 &lt;&lt; p2 &lt;&lt; p3);
+}
+</code></pre>
+<p>This is all in the name of making it as easy to report an error with full
+context than to just return an error number.</p>
+<p>In an upcoming revision of this process, the function’s parameters will
+be typed and converted to Variant to be put into the error buffer.</p>
+<div style="break-before: page; page-break-before: always;"></div>
 <h1 id="threads-locks-and-thread-local-storage-1"><a href="#threads-locks-and-thread-local-storage-1" class="header">Threads, locks and thread-local storage</a></h1>
 <h2 id="threads-locks-and-thread-local-storage"><a class="header" href="#threads-locks-and-thread-local-storage">Threads, locks and thread-local storage</a></h2>
 <p>This is a cross-platform thread API, allowing multi-threaded code to be
@@ -1964,7 +2119,7 @@ signal or broadcast to find that reports it and returns immediately.</li>
 <h3 id="when-the-host-refuses"><a class="header" href="#when-the-host-refuses">When the host refuses</a></h3>
 <p>An operating system call can fail for reasons the program cannot control - no
 more threads can be created, a lock cannot be taken. Each of those is reported
-from the <code>THR</code> message set (<code>include/str_err.h</code>), and then the library carries
+from the <code>THR</code> message set (<code>include/strpp_err.h</code>), and then the library carries
 on with the safe nothing: a thread that was not created is not running and is
 not registered; a wait that failed is over. A caller who expects one and does
 not want the buffer filled by it takes a checkpoint first, as with any other
