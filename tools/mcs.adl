@@ -1,9 +1,4 @@
-// The Message Catalog Source schema: what a message catalog is written
-// against.
-//
-// `Languages` is not declared here. It comes from `adl/cpp/ietf_languages.adl`,
-// which must be loaded before this file, since both `Set` and `Message.Text`
-// reference `Languages.Language` - on its own this file will not parse.
+// The Message Catalog Source schema
 
 Message Catalog Source:
 {
