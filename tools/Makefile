@@ -20,12 +20,12 @@
 #
 # LANGS is each language's own wordings, one file per IETF subtag (es, de,
 # fr, it, zh, ja). They are not read by msggen - what it generates refers to
-# the base message sets alone - but `check` parses them after the catalog.
-# The order matters, and each file also anchors itself: it re-opens the
-# catalog BY NAME, because a language file's top-level statements otherwise
-# land in whatever object the file before it left behind, and that is a Set,
-# which `Is Complete` closes to new content. Add a file here as a language
-# appears, and wrap it the same way.
+# the base message sets alone - but `check` parses them after the catalog,
+# each ending with a bare `Strpp;`. That anchor sets the context the next file
+# starts from: without it a language file leaves the context on the last Set it
+# reopened (`Threads { ... }`), and the next file's first statement is refused
+# by `Is Complete`. Add a file here as a language appears, and anchor it the
+# same way.
 
 ADL	=	../../adl/cpp
 ADLMEM	=	$(ADL)/adlmem
