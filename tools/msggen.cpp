@@ -47,7 +47,7 @@
  * are deliberately **not** read, so that what is generated refers to the
  * base message sets and to nothing else. A language file (strpp.es.mcs) is
  * therefore not an argument here at all - it is still checked by
- * `make -C tools check`, which parses it after the catalog it extends.
+ * `make check`, which parses it after the catalog it extends.
  *
  * Anything still carrying an aspect() is skipped, as before: a Contextual
  * Extension is a view from one context and is exactly what a generator

@@ -208,6 +208,51 @@ publish: commit-docs
 px:
 	cd ../px; $(MAKE)
 
+# ---- The message catalog ----
+#
+# The schema is tools/mcs.adl, which a catalog is written against; strpp's own
+# catalog and its translations are in messages/; and tools/msggen is the
+# generator, built from its own directory when it is wanted. Both targets below
+# need the neighbouring ADL repository built - adlmem to parse the catalogs,
+# msggen to generate from them - and adl/cpp builds against this library, so
+# neither runs as part of the normal build.
+MCS_ADL		=	../adl/cpp
+MCS_SCHEMA	=	tools/mcs.adl
+MCS_CATALOG	=	messages/strpp.mcs
+MCS_TRANSLATIONS = \
+			messages/strpp.es.mcs \
+			messages/strpp.de.mcs \
+			messages/strpp.fr.mcs \
+			messages/strpp.it.mcs \
+			messages/strpp.zh.mcs \
+			messages/strpp.ja.mcs
+
+# Parsed in the order the generator loads them: the language enumeration, then
+# the schema that refers to it, then the catalog, then each translation - a
+# translation's bare names resolve against the context the catalog leaves
+# behind, and each ends with a bare `Strpp;` to leave that context where the
+# next one wants it. Add a translation here as one appears.
+check:	$(MCS_SCHEMA) $(MCS_CATALOG) $(MCS_TRANSLATIONS)
+	@test -x $(MCS_ADL)/adlmem || { \
+		echo "build it first: cd $(MCS_ADL) && make"; exit 1; }
+	cd $(MCS_ADL) && ./adlmem -a adl.adl -a ietf_languages.adl $(CURDIR)/$(MCS_SCHEMA) >/dev/null \
+		&& echo "tools/mcs.adl parses, with the language enumeration it refers to"
+	cd $(MCS_ADL) && ./adlmem -a adl.adl -a ietf_languages.adl -a $(CURDIR)/$(MCS_SCHEMA) \
+		-a $(CURDIR)/$(MCS_CATALOG) \
+		$(patsubst %,-a $(CURDIR)/%,$(MCS_TRANSLATIONS)) >/dev/null \
+		&& echo "the catalog and its translations parse"
+
+# Manual only, and never run by `all`: this REWRITES include/strpp_err.h and
+# include/strpp_msg.h from the catalog, so read the diff before committing it.
+# The generated pair is committed rather than built on demand because of the
+# cycle above - adl/cpp cannot be built before this library exists.
+regenerate:	tools/msggen
+	tools/msggen -d include $(MCS_ADL)/adl.adl $(MCS_ADL)/ietf_languages.adl \
+		$(MCS_SCHEMA) $(MCS_CATALOG)
+
+tools/msggen:	tools/msggen.cpp
+	$(MAKE) -C tools msggen
+
 thread_test:	thread_test.cpp $(LIB)
 	$(CXX) $(DEBUG) $(CXXFLAGS) -Iinclude -Itest -o $@ $< $(LIB)
 
@@ -275,4 +320,4 @@ clobber:	clean
 	rm -f $(LIB) libstrpp_freertos.a
 	$(foreach subdir,$(SUBDIRS),$(MAKE) -C $(subdir) $@;)
 
-.PHONY:	all lib clean test tests doc commit-docs publish freertos_check
+.PHONY:	all lib clean test tests doc commit-docs publish freertos_check check regenerate
