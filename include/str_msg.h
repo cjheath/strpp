@@ -35,11 +35,11 @@
 // The assertion, whose report is the one made on the way out:
 
 inline ErrNum
-ErrorSTR_Assert(const char* condition, const char* file, int line)
+ErrorSTR_Assert(const char* file, int line, const char* condition)
 {
 	return Error(STRERR_ASSERT,
-		"Assertion failed: `{1}` at {2}:{3}",
-		VariantArray() << condition << file << line);
+		"At {1}:{2}, assertion failed: `{3}`",
+		VariantArray() << file << line << condition);
 }
 
 // Reading a number out of a text:

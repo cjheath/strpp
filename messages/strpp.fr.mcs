@@ -1,0 +1,92 @@
+// French wordings of strpp.mcs's messages.
+
+Strpp {
+	frText: Set.Message.Text { Language = Languages.fr; }
+
+	StrVal {
+		ASSERT {
+			: frText ~= 'Dans {1}:{2}, l\'assertion a échoué : `{3}`';
+		}
+		TRAIL_TEXT {
+			: frText ~= 'Le nombre `{1}` en base {2} s\'est arrêté au caractère {3}, laissant `{4}` non lu';
+		}
+		NO_DIGITS {
+			: frText ~= 'Impossible de lire un nombre dans `{1}` en base {2}';
+		}
+		NUMBER_OVERFLOW {
+			: frText ~= 'Le nombre `{1}` en base {2} ne tient pas dans `{4}`, dépassement au caractère {3} ; la valeur renvoyée est incomplète';
+		}
+		NOT_NUMBER {
+			: frText ~= 'Impossible de lire `{1}` comme un nombre en base {2} : le caractère `{3}` en position {4} n\'est pas un chiffre';
+		}
+		NEGATIVE_UNSIGNED {
+			: frText ~= '`{1}` devait être non signé en base {2}, mais il est négatif';
+		}
+		ILLEGAL_RADIX {
+			: frText ~= 'La tentative de lire `{2}` en base illégale {1} a été rejetée';
+		}
+		INDEX_OUT_OF_RANGE {
+			: frText ~= '{3} de l\'élément {1} d\'un tableau de {2} éléments est impossible';
+		}
+	}
+
+	Variants {
+		WRONG_TYPE {
+			: frText ~= '`{1}` attendu, pas `{2}`';
+		}
+		DOES_NOT_FIT {
+			: frText ~= 'La valeur {2} dépasserait un `{1}`';
+		}
+		NO_COERCION {
+			: frText ~= 'La conversion de `{1}` en `{2}` n\'est pas implémentée ; la valeur reste inchangée';
+		}
+	}
+
+	DateTime {
+		INVALID_YMDHMS {
+			: frText ~= 'La date/heure {1}-{2}-{3} {4}:{5}:{6} n\'existe pas';
+		}
+		INVALID_TEXT {
+			: frText ~= '`{1}` n\'est pas une heure, une date ou un intervalle valide';
+		}
+		OUT_OF_RANGE {
+			: frText ~= 'La date {1} sort de la plage que nous pouvons contenir (de {2} à {3})';
+		}
+		NO_DATE {
+			: frText ~= 'Une date était attendue, mais seule une heure du jour a été reçue';
+		}
+		NO_CLOCK {
+			: frText ~= 'Aucune horloge n\'est disponible pour donner l\'heure actuelle';
+		}
+		NULL_VALUE {
+			: frText ~= 'Valeur nulle `{1}` reçue pour {2}';
+		}
+		RESULT_OVERFLOW {
+			: frText ~= 'Le résultat de {2} dépasserait un `{1}`';
+		}
+		NO_ZONE {
+			: frText ~= 'L\'heure locale a été demandée, mais le fuseau horaire est inconnu. Utilisation d\'UTC';
+		}
+	}
+
+	Threads {
+		CREATE_FAILED {
+			: frText ~= '`{1}` a renvoyé {2} : échec de la création d\'un thread';
+		}
+		STACK_REFUSED {
+			: frText ~= '`{2}` a refusé une taille de pile de {1} octets (code d\'erreur {3}). Utilisation de la taille par défaut';
+		}
+		JOIN_FAILED {
+			: frText ~= '`{1}` pour le thread a échoué (code d\'erreur {2}) ; son code de sortie est inconnu';
+		}
+		NO_CONDITION {
+			: frText ~= '`{1}` est impossible : la variable de condition n\'a pas été créée correctement';
+		}
+		WAIT_FAILED {
+			: frText ~= 'Le thread {1} a échoué (code d\'erreur {2})';
+		}
+		DELAY_FAILED {
+			: frText ~= 'Le thread {1} a échoué (code d\'erreur {2})';
+		}
+	}
+}

@@ -1,0 +1,92 @@
+// Italian wordings of strpp.mcs's messages.
+
+Strpp {
+	itText: Set.Message.Text { Language = Languages.it; }
+
+	StrVal {
+		ASSERT {
+			: itText ~= 'In {1}:{2}, asserzione fallita: `{3}`';
+		}
+		TRAIL_TEXT {
+			: itText ~= 'Il numero `{1}` in base {2} è terminato al carattere {3}, lasciando `{4}` non letto';
+		}
+		NO_DIGITS {
+			: itText ~= 'Impossibile leggere un numero da `{1}` in base {2}';
+		}
+		NUMBER_OVERFLOW {
+			: itText ~= 'Il numero `{1}` in base {2} non entra in `{4}`, con overflow al carattere {3}; il valore restituito è incompleto';
+		}
+		NOT_NUMBER {
+			: itText ~= 'Impossibile leggere `{1}` come numero in base {2}: il carattere `{3}` in posizione {4} non è una cifra';
+		}
+		NEGATIVE_UNSIGNED {
+			: itText ~= '`{1}` doveva essere senza segno in base {2}, ma è negativo';
+		}
+		ILLEGAL_RADIX {
+			: itText ~= 'Il tentativo di leggere `{2}` in base illegale {1} è stato rifiutato';
+		}
+		INDEX_OUT_OF_RANGE {
+			: itText ~= '{3} dell\'elemento {1} di un array di {2} elementi non è possibile';
+		}
+	}
+
+	Variants {
+		WRONG_TYPE {
+			: itText ~= 'Atteso `{1}`, non `{2}`';
+		}
+		DOES_NOT_FIT {
+			: itText ~= 'Il valore {2} andrebbe in overflow su `{1}`';
+		}
+		NO_COERCION {
+			: itText ~= 'La conversione da `{1}` a `{2}` non è implementata; il valore resta com\'è';
+		}
+	}
+
+	DateTime {
+		INVALID_YMDHMS {
+			: itText ~= 'La data/ora {1}-{2}-{3} {4}:{5}:{6} non esiste';
+		}
+		INVALID_TEXT {
+			: itText ~= '`{1}` non è un orario, una data o un intervallo valido';
+		}
+		OUT_OF_RANGE {
+			: itText ~= 'La data {1} è fuori dall\'intervallo che possiamo contenere (da {2} a {3})';
+		}
+		NO_DATE {
+			: itText ~= 'Attesa una data, ma è stato ricevuto solo un orario';
+		}
+		NO_CLOCK {
+			: itText ~= 'Nessun orologio disponibile per fornire l\'ora corrente';
+		}
+		NULL_VALUE {
+			: itText ~= 'Valore nullo `{1}` ricevuto per {2}';
+		}
+		RESULT_OVERFLOW {
+			: itText ~= 'Il risultato di {2} andrebbe in overflow su `{1}`';
+		}
+		NO_ZONE {
+			: itText ~= 'È stata chiesta l\'ora locale, ma il fuso orario è sconosciuto. Si usa UTC';
+		}
+	}
+
+	Threads {
+		CREATE_FAILED {
+			: itText ~= '`{1}` ha restituito {2}: creazione del thread non riuscita';
+		}
+		STACK_REFUSED {
+			: itText ~= '`{2}` ha rifiutato una dimensione dello stack di {1} byte (codice di errore {3}). Si usa la dimensione predefinita';
+		}
+		JOIN_FAILED {
+			: itText ~= '`{1}` per il thread non riuscito (codice di errore {2}); il suo codice di uscita è sconosciuto';
+		}
+		NO_CONDITION {
+			: itText ~= '`{1}` non è possibile: la variabile di condizione non è stata creata correttamente';
+		}
+		WAIT_FAILED {
+			: itText ~= 'Il thread {1} non è riuscito (codice di errore {2})';
+		}
+		DELAY_FAILED {
+			: itText ~= 'Il thread {1} non è riuscito (codice di errore {2})';
+		}
+	}
+}

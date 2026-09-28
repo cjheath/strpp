@@ -181,7 +181,7 @@ main(int argc, const char** argv)
 	expect("...naming the file it is in", strstr(out, "assert_test.cpp") != 0);
 	expect("...and the error number of the message", strstr(out, "error A") != 0);
 	expect("...with the message's default text, not a formatted copy",
-		strstr(out, "Assertion failed:") != 0);
+		strstr(out, "assertion failed:") != 0);
 
 	test_group("StrppAssert: an assertion that holds is not a failure");
 	expect("an assertion that holds leaves the process alone", run_quietly());
@@ -202,7 +202,7 @@ main(int argc, const char** argv)
 	expect("a writer that asserts does not make a second dump",
 		aborts(assert_while_dumping, out, sizeof(out)));
 	expect("...and what it was to write is abandoned, not written again",
-		strstr(out, "Assertion failed") == 0);
+		strstr(out, "assertion failed") == 0);
 
 	printf("Completed %d tests with %d failures\n", test_count, failure_count);
 	return failure_count == 0 ? 0 : 1;

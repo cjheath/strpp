@@ -48,7 +48,7 @@ strpp_assert_failed(const char* file, int line, const char* condition)
 		abort();
 	dying = true;
 
-	ErrorSTR_Assert(condition, file, line);
+	ErrorSTR_Assert(file, line, condition);
 
 	ErrBuf*	buf = ErrBuffer();
 	if (buf)

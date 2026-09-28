@@ -1,0 +1,92 @@
+// Simplified Chinese wordings of strpp.mcs's messages.
+
+Strpp {
+	zhText: Set.Message.Text { Language = Languages.zh; }
+
+	StrVal {
+		ASSERT {
+			: zhText ~= '在 {1}:{2}，断言失败：`{3}`';
+		}
+		TRAIL_TEXT {
+			: zhText ~= '基数 {2} 下的数字 `{1}` 在字符 {3} 处结束，`{4}` 未被读取';
+		}
+		NO_DIGITS {
+			: zhText ~= '无法从 `{1}` 中按基数 {2} 读取数字';
+		}
+		NUMBER_OVERFLOW {
+			: zhText ~= '基数 {2} 下的数字 `{1}` 无法放入 `{4}`，在字符 {3} 处溢出；返回的值不完整';
+		}
+		NOT_NUMBER {
+			: zhText ~= '无法将 `{1}` 按基数 {2} 读作数字：位置 {4} 处的字符 `{3}` 不是数字';
+		}
+		NEGATIVE_UNSIGNED {
+			: zhText ~= '基数 {2} 下的 `{1}` 应为无符号数，但它是负数';
+		}
+		ILLEGAL_RADIX {
+			: zhText ~= '按非法基数 {1} 读取 `{2}` 的尝试已被拒绝';
+		}
+		INDEX_OUT_OF_RANGE {
+			: zhText ~= '无法对 {2} 个元素的数组中的元素 {1} 执行 {3}';
+		}
+	}
+
+	Variants {
+		WRONG_TYPE {
+			: zhText ~= '应为 `{1}`，而不是 `{2}`';
+		}
+		DOES_NOT_FIT {
+			: zhText ~= '值 {2} 会使 `{1}` 溢出';
+		}
+		NO_COERCION {
+			: zhText ~= '未实现从 `{1}` 到 `{2}` 的转换，值保持不变';
+		}
+	}
+
+	DateTime {
+		INVALID_YMDHMS {
+			: zhText ~= '日期时间 {1}-{2}-{3} {4}:{5}:{6} 不存在';
+		}
+		INVALID_TEXT {
+			: zhText ~= '`{1}` 不是有效的时间、日期或间隔';
+		}
+		OUT_OF_RANGE {
+			: zhText ~= '日期 {1} 超出我们能容纳的范围（从 {2} 到 {3}）';
+		}
+		NO_DATE {
+			: zhText ~= '需要日期，但只收到了一天中的时间';
+		}
+		NO_CLOCK {
+			: zhText ~= '没有可用的时钟来提供当前时间';
+		}
+		NULL_VALUE {
+			: zhText ~= '收到用于 {2} 的空值 `{1}`';
+		}
+		RESULT_OVERFLOW {
+			: zhText ~= '{2} 的结果会使 `{1}` 溢出';
+		}
+		NO_ZONE {
+			: zhText ~= '请求了本地时间，但时区未知。改用 UTC';
+		}
+	}
+
+	Threads {
+		CREATE_FAILED {
+			: zhText ~= '`{1}` 返回 {2}，表明创建线程失败';
+		}
+		STACK_REFUSED {
+			: zhText ~= '`{2}` 拒绝了 {1} 字节的栈大小（错误码 {3}）。改用默认大小';
+		}
+		JOIN_FAILED {
+			: zhText ~= '对线程执行 `{1}` 失败（错误码 {2}）；其退出码未知';
+		}
+		NO_CONDITION {
+			: zhText ~= '无法 `{1}` 条件变量，因为它未能成功创建';
+		}
+		WAIT_FAILED {
+			: zhText ~= '线程 {1} 失败（错误码 {2}）';
+		}
+		DELAY_FAILED {
+			: zhText ~= '线程 {1} 失败（错误码 {2}）';
+		}
+	}
+}

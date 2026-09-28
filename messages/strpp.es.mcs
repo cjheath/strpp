@@ -1,105 +1,92 @@
-// Spanish contextual overlay for strpp.mcs
+// Spanish wordings of strpp.mcs's messages.
 
-// Every text here must land on a genuine extension of the real Message,
-// tagged with aspect = Languages.es and findable only from this context.
-//
-// Test it with:
-//
-//	cd adl/cpp && ./adlmem -a adl.adl -a ../../strpp/tools/mcs.adl \
-//		-a ../../strpp/messages/strpp.mcs -a ../../strpp/messages/strpp.es.mcs
-//
-// This file needs to explicitly reopen TOP
-// This file's own top-level statement is "Languages.es", which must be
-// outermost for Contextual Extension to tag things correctly
-TOP {
-Languages.es {
-	Message Catalog Source.Strpp {
-		StrVal {
-			ASSERT {
-				: Text = 'Aserción fallida: `{1}` en {2}:{3}';
-			}
-			TRAIL_TEXT {
-				: Text = 'Al leer `{1}` en base {2}: el número termina en {3} y `{4}` no forma parte de él';
-			}
-			NO_DIGITS {
-				: Text = 'No hay dígitos en `{1}` de los cuales leer un número, en base {2}';
-			}
-			NUMBER_OVERFLOW {
-				: Text = 'El número en `{1}` es demasiado grande para leerse como `{4}` en base {2}, desbordándose en {3}';
-			}
-			NOT_NUMBER {
-				: Text = '`{1}` no es un número en base {2}: el carácter `{3}` en {4} no es un dígito';
-			}
-			NEGATIVE_UNSIGNED {
-				: Text = 'El número en `{1}` es negativo y no puede leerse en un tipo sin signo, en base {2}';
-			}
-			ILLEGAL_RADIX {
-				: Text = 'La base {1} no es una en la que se pueda leer un número, así que no se leyó `{2}`';
-			}
-			INDEX_OUT_OF_RANGE {
-				: Text = 'Un índice de {1} está fuera de un arreglo de {2} elementos, así que no hay nada que {3}';
-			}
+Strpp {
+	esText: Set.Message.Text { Language = Languages.es; }
+
+	StrVal {
+		ASSERT {
+			: esText ~= 'En {1}:{2}, falló la aserción: `{3}`';
 		}
-
-		Variants {
-			WRONG_TYPE {
-				: Text = 'Se esperaba un `{1}`, pero este Variant es un `{2}`';
-			}
-			DOES_NOT_FIT {
-				: Text = 'No se puede convertir a `{1}` porque el valor {2} no cabe';
-			}
-			NO_COERCION {
-				: Text = 'Un `{1}` no se puede convertir a un `{2}`: esa conversión no está implementada, así que el valor se deja como está';
-			}
+		TRAIL_TEXT {
+			: esText ~= 'El número `{1}` en base {2} terminó en el carácter {3}, dejando `{4}` sin leer';
 		}
-
-		DataTime {
-			INVALID_YMDHMS {
-				: Text = 'La fecha y hora {1}-{2}-{3} {4}:{5}:{6} no es una fecha que exista';
-			}
-			INVALID_TEXT {
-				: Text = '`{1}` no es una hora, fecha o intervalo que esta biblioteca pueda leer';
-			}
-			OUT_OF_RANGE {
-				: Text = 'La fecha {1} está fuera del rango que un DateTime puede contener, que va de {2} a {3}';
-			}
-			NO_DATE {
-				: Text = 'Este valor es una hora del día sin fecha, así que no nombra un instante';
-			}
-			NO_CLOCK {
-				: Text = 'No se conoce la hora actual: este destino no tiene reloj, o su lectura falló';
-			}
-			NULL_VALUE {
-				: Text = 'Este `{1}` es nulo, así que no hay valor para {2}';
-			}
-			RESULT_OVERFLOW {
-				: Text = 'El resultado de {2} está fuera del rango de `{1}`';
-			}
-			NO_ZONE {
-				: Text = 'No se conoce el desplazamiento de zona del host en ese instante, así que se devuelve UTC';
-			}
+		NO_DIGITS {
+			: esText ~= 'No se pudo leer un número de `{1}` en base {2}';
 		}
-
-		Threads {
-			CREATE_FAILED {
-				: Text = 'El hilo no fue creado: `{1}` devolvió {2}, así que no está en ejecución';
-			}
-			STACK_REFUSED {
-				: Text = 'El host rechazó una pila de {1} bytes: `{2}` devolvió {3}, así que el hilo se ejecuta con el valor predeterminado';
-			}
-			JOIN_FAILED {
-				: Text = 'No se pudo esperar al hilo: `{1}` devolvió {2}, así que no se conoce su código de salida';
-			}
-			NO_CONDITION {
-				: Text = 'Esta variable de condición no fue creada, así que no hay nada que {1}';
-			}
-			WAIT_FAILED {
-				: Text = 'La espera falló: `{1}` devolvió {2}';
-			}
-			DELAY_FAILED {
-				: Text = 'La demora no se realizó: `{1}` devolvió {2}';
-			}
+		NUMBER_OVERFLOW {
+			: esText ~= 'El número `{1}` en base {2} no cabe en `{4}`, desbordando en el carácter {3}; el valor devuelto está incompleto';
+		}
+		NOT_NUMBER {
+			: esText ~= 'No se puede leer `{1}` como número en base {2}: el carácter `{3}` en la posición {4} no es un dígito';
+		}
+		NEGATIVE_UNSIGNED {
+			: esText ~= 'Se esperaba que `{1}` fuese sin signo en base {2}, pero es negativo';
+		}
+		ILLEGAL_RADIX {
+			: esText ~= 'Se rechazó el intento de leer `{2}` en la base ilegal {1}';
+		}
+		INDEX_OUT_OF_RANGE {
+			: esText ~= 'No es posible {3} el elemento {1} de un arreglo de {2} elementos';
 		}
 	}
-}
+
+	Variants {
+		WRONG_TYPE {
+			: esText ~= 'Se esperaba `{1}`, no `{2}`';
+		}
+		DOES_NOT_FIT {
+			: esText ~= 'El valor {2} desbordaría un `{1}`';
+		}
+		NO_COERCION {
+			: esText ~= 'La conversión de `{1}` a `{2}` no está implementada; se deja como está';
+		}
+	}
+
+	DateTime {
+		INVALID_YMDHMS {
+			: esText ~= 'La fecha y hora {1}-{2}-{3} {4}:{5}:{6} no existe';
+		}
+		INVALID_TEXT {
+			: esText ~= '`{1}` no es una hora, una fecha ni un intervalo válidos';
+		}
+		OUT_OF_RANGE {
+			: esText ~= 'La fecha {1} está fuera del rango que podemos contener (de {2} a {3})';
+		}
+		NO_DATE {
+			: esText ~= 'Se quería una fecha, pero solo se recibió una hora del día';
+		}
+		NO_CLOCK {
+			: esText ~= 'No hay reloj disponible para dar la hora actual';
+		}
+		NULL_VALUE {
+			: esText ~= 'Valor nulo `{1}` recibido para {2}';
+		}
+		RESULT_OVERFLOW {
+			: esText ~= 'El resultado de {2} desbordaría un `{1}`';
+		}
+		NO_ZONE {
+			: esText ~= 'Se pidió la hora local, pero no conocemos la zona horaria. Se usa UTC';
+		}
+	}
+
+	Threads {
+		CREATE_FAILED {
+			: esText ~= '`{1}` devolvió {2}, diciendo que falló al crear un hilo';
+		}
+		STACK_REFUSED {
+			: esText ~= '`{2}` rechazó un tamaño de pila de {1} bytes (código de error {3}). Se usa el tamaño predeterminado';
+		}
+		JOIN_FAILED {
+			: esText ~= 'No se pudo {1} al hilo (código de error {2}); su código de salida es desconocido';
+		}
+		NO_CONDITION {
+			: esText ~= 'No se puede {1} la variable de condición porque no se creó correctamente';
+		}
+		WAIT_FAILED {
+			: esText ~= 'El hilo {1} falló (código de error {2})';
+		}
+		DELAY_FAILED {
+			: esText ~= 'El hilo {1} falló (código de error {2})';
+		}
+	}
 }

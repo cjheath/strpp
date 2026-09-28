@@ -33,7 +33,7 @@
 
 // The assertion, whose report is the one made on the way out:
 
-#define	STRERR_ASSERT			ErrNum(STRERR_SET, 1)	// Assertion failed: `{1}` at {2}:{3}
+#define	STRERR_ASSERT			ErrNum(STRERR_SET, 1)	// At {1}:{2}, assertion failed: `{3}`
 
 // Reading a number out of a text:
 

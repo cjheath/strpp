@@ -9,6 +9,15 @@
  * strpp_err.h/strpp_msg.h from messages/strpp.mcs today and any other
  * library's headers from its own catalog tomorrow, unchanged.
  *
+ * Run as: msggen <adl.adl> [precursor.adl ...] <catalog.mcs> <output-dir>.
+ * Every input but the last is a precursor, loaded in the order given and
+ * each from the context the one before it left behind; the last input is
+ * the catalog. The order is the caller's to state, not this program's to
+ * assume, because a file loaded in the wrong order does not parse: adl.adl
+ * gives TOP and the built-ins, adl/cpp/ietf_languages.adl gives the
+ * enumeration mcs.adl refers to but does not declare, and mcs.adl on its
+ * own now fails. tools/Makefile's `regenerate` is the one caller.
+ *
  * Not part of strpp's normal build, and not automated in the Makefile: run
  * by hand whenever a catalog's .mcs file changes, and the two generated
  * headers are committed - the reverse of the usual generated-file
@@ -18,12 +27,31 @@
  * place in strpp/tools that is allowed to depend on ADL - never strpp's
  * own library or tests.
  *
- * Only the base definitions are read - the ones a plain, unfiltered
- * children() walk would still need `aspect().is_null()` to skip: any
- * Contextual Extension (e.g. strpp.es.mcs's Spanish text) is deliberately
- * invisible here, exactly as it should be for a generator that only ever
- * needs the base language (adl/HANDOFF.md, "Next planned work: the
- * MCS/message-catalog generator").
+ * A Message's default text is assigned to the Message itself, as a
+ * sibling assignment within its Set: the schema gives Message
+ * `Syntax = String`, which copies String's Syntax, so a Message is a
+ * variable and takes a value directly. Its language is the Set's own
+ * Language - not a property of the Message, which is why the default text
+ * needs no Text object of its own.
+ *
+ * A variable and its value are two objects, not one: the Assignment that
+ * holds a value is a separate child of the same parent, naming its
+ * variable in its own `variable`. That is why the default text is found
+ * beside the Message rather than inside it, and why nothing here treats an
+ * object as if it carried its own value.
+ *
+ * Only a Message's own default text is read, and only from the catalog
+ * itself. A Text object inside a Message carries a wording of that message
+ * for another language, and names it in its own Language reference; those
+ * are deliberately **not** read, so that what is generated refers to the
+ * base message sets and to nothing else. A language file (strpp.es.mcs) is
+ * therefore not an argument here at all - it is still checked by
+ * `make -C tools check`, which parses it after the catalog it extends.
+ *
+ * Anything still carrying an aspect() is skipped, as before: a Contextual
+ * Extension is a view from one context and is exactly what a generator
+ * must not mistake for a real child (adl/HANDOFF.md, "Next planned work:
+ * the MCS/message-catalog generator").
  *
  * Parameter types are not declared in the schema (a standing decision -
  * adl/HANDOFF.md §10.2/§10.4 as inherited from strpp/HANDOFF.md) and
@@ -243,44 +271,6 @@ static Value assigned_value(Handle container, StrVal field_name)
 	return Value();
 }
 
-// The same shape, for the one case where the field itself has no name to
-// match by - the anonymous Text object-literal (README "Anonymity": not
-// nameable or reopenable). `field` here is the exact Text handle already
-// found by children(); its own assigned value is a sibling Assignment
-// within the same container, matched by variable() identity instead of by
-// name.
-static Value assigned_value(Handle container, Handle field)
-{
-	Array<Handle>&	kids = container.children();
-	for (int i = 0; i < kids.length(); i++)
-	{
-		Handle	k = kids[i];
-		if (k.is_assignment() && k.variable() == field)
-			return k.value();
-	}
-	return Value();
-}
-
-// The one real Text child of a Message - not found by name (it's
-// anonymous, per README "Anonymity" - not nameable or reopenable), and
-// not just the first child of the right supertype either: skip anything
-// with a non-null aspect, since a Contextual Extension (a translation) is
-// exactly what this generator must never see.
-static Handle base_text_of(Handle message)
-{
-	Array<Handle>&	kids = message.children();
-	for (int i = 0; i < kids.length(); i++)
-	{
-		Handle	k = kids[i];
-		if (!k.aspect().is_null())
-			continue;
-		Handle	s = k.super();
-		if (!s.is_null() && s.name() == "Text")
-			return k;
-	}
-	return Handle();
-}
-
 struct GeneratedMessage
 {
 	StrVal	set_prefix;	// 'STR', 'VAR', ... (already decoded, no quotes)
@@ -293,7 +283,9 @@ struct GeneratedMessage
 // Every Set's own Messages, in declaration order, skipping anything
 // Contextual Extension attached (aspect().is_null()) and anything that
 // isn't a Message at all (Prefix/Number/Language are Set's own other
-// children, found the same children() way).
+// children, found the same children() way - and so is every Message's own
+// text, since that is assigned to the Message and so sits here beside it,
+// not inside it).
 static void collect_set(Handle set, Array<GeneratedMessage>& out)
 {
 	StrVal	prefix = decode_string_literal(assigned_value(set, StrVal("Prefix")).string);
@@ -305,15 +297,19 @@ static void collect_set(Handle set, Array<GeneratedMessage>& out)
 			continue;
 		Handle	s = m.super();
 		if (s.is_null() || s.name() != "Message")
-			continue;	// Prefix, Number, Language - not a Message
+			continue;	// Prefix, Number, Language, an assignment - not a Message
 
-		Handle	text_h = base_text_of(m);
-		if (text_h.is_null())
+		// The Message's own value: `ASSERT: Message { Number = 1; } ~= '...'`
+		// leaves this assignment here, in the Set, as a sibling of ASSERT -
+		// so Handle::assigned() (the store's own search, by variable identity
+		// rather than by name), not a child of the Message.
+		Handle	own = set.assigned(m);
+		if (own.is_null() || own.value().string.isEmpty())
 		{
-			fprintf(stderr, "msggen: %s has no base Text - skipped\n", m.name().asUTF8());
+			fprintf(stderr, "msggen: %s has no default text - skipped\n", m.name().asUTF8());
 			continue;
 		}
-		StrVal	text = decode_string_literal(assigned_value(m, text_h).string);
+		StrVal	text = decode_string_literal(own.value().string);
 
 		GeneratedMessage	gm;
 		gm.set_prefix = prefix;
@@ -456,36 +452,34 @@ static void write_msg_h(FILE* f, StrVal catalog_name, Array<GeneratedMessage>& m
 
 int main(int argc, char** argv)
 {
-	if (argc != 5)
+	if (argc < 4)
 	{
-		fprintf(stderr, "usage: %s <adl.adl> <mcs.adl> <catalog.mcs> <output-dir>\n", argv[0]);
+		fprintf(stderr, "usage: %s <adl.adl> [precursor.adl ...] <catalog.mcs> <output-dir>\n", argv[0]);
 		return 1;
 	}
-	const char*	adl_adl = argv[1];
-	const char*	mcs_adl = argv[2];
-	const char*	catalog_mcs = argv[3];
-	const char*	out_dir = argv[4];
+	const char*	catalog_mcs = argv[argc-2];	// the last input is the catalog
+	const char*	out_dir = argv[argc-1];
 
 	ADL::MemStore	store;
 	ADLMemStoreSink	sink(store);
 
+	/*
+	 * Every input but the last is a precursor, loaded in the order given and
+	 * each from the context the one before it left behind - which is why the
+	 * order is the caller's to state and not this program's to assume. adl.adl
+	 * comes first (TOP and the built-ins); a schema referring to an
+	 * enumeration it does not declare comes before that schema; and the
+	 * catalog comes last, since it is what the last statement of is read.
+	 */
 	sink.root_object = sink.last_object();		// nothing loaded yet - TOP
-	if (!load_file(sink, adl_adl))
+	for (int i = 1; i < argc-1; i++)
 	{
-		fprintf(stderr, "msggen: %s did not parse cleanly\n", adl_adl);
-		return 1;
-	}
-	sink.root_object = sink.last_object();
-	if (!load_file(sink, mcs_adl))
-	{
-		fprintf(stderr, "msggen: %s did not parse cleanly\n", mcs_adl);
-		return 1;
-	}
-	sink.root_object = sink.last_object();
-	if (!load_file(sink, catalog_mcs))
-	{
-		fprintf(stderr, "msggen: %s did not parse cleanly\n", catalog_mcs);
-		return 1;
+		if (!load_file(sink, argv[i]))
+		{
+			fprintf(stderr, "msggen: %s did not parse cleanly\n", argv[i]);
+			return 1;
+		}
+		sink.root_object = sink.last_object();
 	}
 
 	Handle	catalog = sink.last_object();	// the catalog file's own last statement
