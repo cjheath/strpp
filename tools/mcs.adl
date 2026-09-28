@@ -12,7 +12,7 @@ Message Catalog Source:
 		Message: {
 			Number: Integer;	// Must be unique in the Set, 1-1023
 			Usage: String;		// Notes for a translator
-			Syntax = String;	// Default text
+			Syntax = String;	// Default text matches String's Syntax
 
 			Text: {			// Stylised text (Language or Style override)
 				-> Languages.Language;	// Or default to the set's language

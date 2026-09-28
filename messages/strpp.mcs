@@ -18,9 +18,9 @@ Strpp: Message Catalog Source {
 
 	// Set 1: STR - the StrVal messages, including reading numbers
 	StrVal: Set {
-		Prefix ~= 'STR';
-		Number ~= 1;
-		Language ~= Languages.en;
+		Prefix = 'STR';
+		Number = 1;
+		Language = Languages.en;
 
 		Assert: Message { Number = 1; } ~= 'At {1}:{2}, assertion failed: `{3}`';
 
@@ -39,9 +39,9 @@ Strpp: Message Catalog Source {
 
 	// Set 2: VAR - a Variant's type, and a conversion that would lose the value.
 	Variants: Set {
-		Prefix ~= 'VAR';
-		Number ~= 2;
-		Language ~= Languages.en;
+		Prefix = 'VAR';
+		Number = 2;
+		Language = Languages.en;
 
 		Wrong type: Message { Number = 1; } ~= 'Expected `{1}`, not `{2}`';
 		Does not fit: Message { Number = 2; } ~= 'Value {1} would overflow a `{2}`';
@@ -52,9 +52,9 @@ Strpp: Message Catalog Source {
 
 	// Set 3: TIM - the times and dates.
 	DateTime: Set {
-		Prefix ~= 'TIM';
-		Number ~= 3;
-		Language ~= Languages.en;
+		Prefix = 'TIM';
+		Number = 3;
+		Language = Languages.en;
 
 		Invalid YMDHMS: Message { Number = 1; } ~= 'Date/Time {1}-{2}-{3} {4}:{5}:{6} does not exist';
 		Invalid text: Message { Number = 2; } ~= '`{1}` is not a valid time, a date or interval';
@@ -71,9 +71,9 @@ Strpp: Message Catalog Source {
 	// Set 4: THR - the threads, the locks and the waits.
 	// The second/third parameter of each is the host's error code
 	Threads: Set {
-		Prefix ~= 'THR';
-		Number ~= 4;
-		Language ~= Languages.en;
+		Prefix = 'THR';
+		Number = 4;
+		Language = Languages.en;
 
 		Create failed: Message { Number = 1; } ~= '`{1}` returned {2} saying it failed to create a thread';
 		Stack refused: Message { Number = 2; } ~= '`{1}` refused a stack size of {2} bytes (error code {3}). Using the default size';
