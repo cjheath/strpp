@@ -4,18 +4,18 @@ zhText: Set.Message.Text { Language = Languages.zh; }
 
 StrVal {
 	Assert { : zhText ~= '在 {1}:{2}，断言失败：`{3}`'; }
-	Trail text { : zhText ~= '基数 {2} 下的数字 `{1}` 在字符 {3} 处结束，`{4}` 未被读取'; }
+	Trailing text { : zhText ~= '基数 {2} 下的数字 `{1}` 在字符 {3} 处结束，`{4}` 未被读取'; }
 	No digits { : zhText ~= '无法从 `{1}` 中按基数 {2} 读取数字'; }
-	Number overflow { : zhText ~= '基数 {2} 下的数字 `{1}` 无法放入 `{4}`，在字符 {3} 处溢出；返回的值不完整'; }
+	Number overflow { : zhText ~= '基数 {2} 下的数字 `{1}` 无法放入 `{3}`，在字符 {4} 处溢出；返回的值不完整'; }
 	Not number { : zhText ~= '无法将 `{1}` 按基数 {2} 读作数字：位置 {4} 处的字符 `{3}` 不是数字'; }
 	Negative unsigned { : zhText ~= '基数 {2} 下的 `{1}` 应为无符号数，但它是负数'; }
-	Illegal radix { : zhText ~= '按非法基数 {1} 读取 `{2}` 的尝试已被拒绝'; }
-	Index out of range { : zhText ~= '无法对 {2} 个元素的数组中的元素 {1} 执行 {3}'; }
+	Illegal radix { : zhText ~= '按非法基数 {2} 读取 `{1}` 的尝试已被拒绝'; }
+	Index out of range { : zhText ~= '无法对 {3} 个元素的数组中的元素 {2} 执行 {1}'; }
 }
 
 Variants {
 	Wrong type { : zhText ~= '应为 `{1}`，而不是 `{2}`'; }
-	Does not fit { : zhText ~= '值 {2} 会使 `{1}` 溢出'; }
+	Does not fit { : zhText ~= '值 {1} 会使 `{2}` 溢出'; }
 	No coercion { : zhText ~= '未实现从 `{1}` 到 `{2}` 的转换，值保持不变'; }
 }
 
@@ -26,13 +26,13 @@ DateTime {
 	No date { : zhText ~= '需要日期，但只收到了一天中的时间'; }
 	No clock { : zhText ~= '没有可用的时钟来提供当前时间'; }
 	Null value { : zhText ~= '收到用于 {2} 的空值 `{1}`'; }
-	Result overflow { : zhText ~= '{2} 的结果会使 `{1}` 溢出'; }
+	Result overflow { : zhText ~= '{1} 的结果会使 `{2}` 溢出'; }
 	No zone { : zhText ~= '请求了本地时间，但时区未知。改用 UTC'; }
 }
 
 Threads {
 	Create failed { : zhText ~= '`{1}` 返回 {2}，表明创建线程失败'; }
-	Stack refused { : zhText ~= '`{2}` 拒绝了 {1} 字节的栈大小（错误码 {3}）。改用默认大小'; }
+	Stack refused { : zhText ~= '`{1}` 拒绝了 {2} 字节的栈大小（错误码 {3}）。改用默认大小'; }
 	Join failed { : zhText ~= '对线程执行 `{1}` 失败（错误码 {2}）；其退出码未知'; }
 	No condition { : zhText ~= '无法 `{1}` 条件变量，因为它未能成功创建'; }
 	Wait failed { : zhText ~= '线程 {1} 失败（错误码 {2}）'; }

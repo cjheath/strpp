@@ -9,7 +9,7 @@
  * (c) Copyright Clifford Heath 2026. See LICENSE file for usage rights.
  */
 #include	<strval.h>
-#include	<str_msg.h>
+#include	<strpp_msg.h>
 
 /*
  * What a reader could not read, said out loud. One function serves every reader
@@ -40,7 +40,7 @@ ErrNum StrValI<Index>::reportNumber(
 	switch (why)
 	{
 	case STRERR_ILLEGAL_RADIX:
-		return ErrorSTR_IllegalRadix(radix, text);
+		return ErrorSTR_IllegalRadix(text, radix);
 
 	case STRERR_NO_DIGITS:
 		return ErrorSTR_NoDigits(text, radix);
@@ -52,10 +52,10 @@ ErrNum StrValI<Index>::reportNumber(
 		return ErrorSTR_NegativeUnsigned(text, radix);
 
 	case STRERR_NUMBER_OVERFLOW:
-		return ErrorSTR_NumberOverflow(text, radix, stop, type_name);
+		return ErrorSTR_NumberOverflow(text, radix, type_name, stop);
 
 	default:
-		return ErrorSTR_TrailText(text, radix, stop, text.substr(after));
+		return ErrorSTR_TrailingText(text, radix, stop, text.substr(after));
 	}
 }
 

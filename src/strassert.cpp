@@ -4,7 +4,7 @@
  * (c) Copyright Clifford Heath 2026. See LICENSE file for usage rights.
  */
 #include	<strassert.h>
-#include	<str_msg.h>			// The assertion's message
+#include	<strpp_msg.h>			// The assertion's message
 #include	<errbuf.h>			// The buffer the dump comes from
 
 #include	<cstdlib>

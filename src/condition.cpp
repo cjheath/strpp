@@ -10,7 +10,7 @@
 
 #include	<thread.h>
 #include	<condition.h>
-#include	<str_msg.h>			// A condition that was never created says so
+#include	<strpp_msg.h>			// A condition that was never created says so
 
 /*
  * With one thread - NO_THREAD, or no model selected at all, which thread.h

@@ -17,6 +17,7 @@ are built on.
 - [Time and date: intervals and instants](datetime.md)
 - [Gregorian: civil dates and ISO 8601](gregorian.md)
 - [Error Management](error.md)
+- [Message catalogs](messages.md)
 - [Threads, locks and thread-local storage](threading.md)
 - [Pegexp](pegexp.md)
 - [PEG parsing](peg.md)

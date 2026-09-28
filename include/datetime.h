@@ -46,7 +46,7 @@
 #include	<time.h>
 
 #include	<strval.h>
-#include	<str_err.h>			// The error numbers this header returns
+#include	<strpp_err.h>			// The error numbers this header returns
 #include	<strassert.h>			// An offset that will not fit a short stops
 
 class	Gregorian;

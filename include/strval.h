@@ -25,7 +25,7 @@
 #include	<type_traits>
 
 #include	<error.h>
-#include	<str_err.h>			// The error numbers this header returns
+#include	<strpp_err.h>			// The error numbers this header returns
 #include	<array.h>
 #include	<refcount.h>
 #include	<char_encoding.h>
@@ -996,7 +996,7 @@ public:
 	 * asInteger<int32_t> and nothing more.
 	 *
 	 * @retval 0 no problems
-	 * @retval STRERR_TRAIL_TEXT There are non-blank characters after the number
+	 * @retval STRERR_TRAILING_TEXT There are non-blank characters after the number
 	 * @retval STRERR_NO_DIGITS Number string contains only blank characters
 	 * @retval STRERR_NOT_NUMBER The first non-blank character was non-numeric
 	 * @retval STRERR_ILLEGAL_RADIX The radix is not one a number can be read in
@@ -1597,7 +1597,7 @@ StrValI<Index>::readNumber(const NumberScan& scan, int places, ErrNum* err_retur
 	}
 	else if (trailed)
 	{
-		why = STRERR_TRAIL_TEXT;
+		why = STRERR_TRAILING_TEXT;
 		reportNumber(why, strval_integer_type_name<T>(), *this, scan.radix, scan.at, stop);
 	}
 	if (err_return)

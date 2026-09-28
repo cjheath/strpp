@@ -7,7 +7,7 @@
 #include	<functional>
 
 #include	<strval.h>
-#include	<str_err.h>			// The error numbers reported from src/variant.cpp
+#include	<strpp_err.h>			// The error numbers reported from src/variant.cpp
 #include	<array.h>
 #include	<cowmap.h>
 #include	<datetime.h>			// Interval and DateTime travel in a Variant

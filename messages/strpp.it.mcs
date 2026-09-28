@@ -4,18 +4,18 @@ itText: Set.Message.Text { Language = Languages.it; }
 
 StrVal {
 	Assert { : itText ~= 'In {1}:{2}, asserzione fallita: `{3}`'; }
-	Trail text { : itText ~= 'Il numero `{1}` in base {2} è terminato al carattere {3}, lasciando `{4}` non letto'; }
+	Trailing text { : itText ~= 'Il numero `{1}` in base {2} è terminato al carattere {3}, lasciando `{4}` non letto'; }
 	No digits { : itText ~= 'Impossibile leggere un numero da `{1}` in base {2}'; }
-	Number overflow { : itText ~= 'Il numero `{1}` in base {2} non entra in `{4}`, con overflow al carattere {3}; il valore restituito è incompleto'; }
+	Number overflow { : itText ~= 'Il numero `{1}` in base {2} non entra in `{3}`, con overflow al carattere {4}; il valore restituito è incompleto'; }
 	Not number { : itText ~= 'Impossibile leggere `{1}` come numero in base {2}: il carattere `{3}` in posizione {4} non è una cifra'; }
 	Negative unsigned { : itText ~= '`{1}` doveva essere senza segno in base {2}, ma è negativo'; }
-	Illegal radix { : itText ~= 'Il tentativo di leggere `{2}` in base illegale {1} è stato rifiutato'; }
-	Index out of range { : itText ~= '{3} dell\'elemento {1} di un array di {2} elementi non è possibile'; }
+	Illegal radix { : itText ~= 'Il tentativo di leggere `{1}` in base illegale {2} è stato rifiutato'; }
+	Index out of range { : itText ~= '{1} dell\'elemento {2} di un array di {3} elementi non è possibile'; }
 }
 
 Variants {
 	Wrong type { : itText ~= 'Atteso `{1}`, non `{2}`'; }
-	Does not fit { : itText ~= 'Il valore {2} andrebbe in overflow su `{1}`'; }
+	Does not fit { : itText ~= 'Il valore {1} andrebbe in overflow su `{2}`'; }
 	No coercion { : itText ~= 'La conversione da `{1}` a `{2}` non è implementata; il valore resta com\'è'; }
 }
 
@@ -26,13 +26,13 @@ DateTime {
 	No date { : itText ~= 'Attesa una data, ma è stato ricevuto solo un orario'; }
 	No clock { : itText ~= 'Nessun orologio disponibile per fornire l\'ora corrente'; }
 	Null value { : itText ~= 'Valore nullo `{1}` ricevuto per {2}'; }
-	Result overflow { : itText ~= 'Il risultato di {2} andrebbe in overflow su `{1}`'; }
+	Result overflow { : itText ~= 'Il risultato di {1} andrebbe in overflow su `{2}`'; }
 	No zone { : itText ~= 'È stata chiesta l\'ora locale, ma il fuso orario è sconosciuto. Si usa UTC'; }
 }
 
 Threads {
 	Create failed { : itText ~= '`{1}` ha restituito {2}: creazione del thread non riuscita'; }
-	Stack refused { : itText ~= '`{2}` ha rifiutato una dimensione dello stack di {1} byte (codice di errore {3}). Si usa la dimensione predefinita'; }
+	Stack refused { : itText ~= '`{1}` ha rifiutato una dimensione dello stack di {2} byte (codice di errore {3}). Si usa la dimensione predefinita'; }
 	Join failed { : itText ~= '`{1}` per il thread non riuscito (codice di errore {2}); il suo codice di uscita è sconosciuto'; }
 	No condition { : itText ~= '`{1}` non è possibile: la variabile di condizione non è stata creata correttamente'; }
 	Wait failed { : itText ~= 'Il thread {1} non è riuscito (codice di errore {2})'; }

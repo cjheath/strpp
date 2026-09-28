@@ -11,7 +11,7 @@
  * (c) Copyright Clifford Heath 2026. See LICENSE file for usage rights.
  */
 #include	<array.h>
-#include	<str_msg.h>
+#include	<strpp_msg.h>
 
 /*
  * A caller asked an Array for an element it has not got. `index` is the index
@@ -21,5 +21,5 @@
 ErrNum
 array_index_error(size_t index, size_t length, const char* operation)
 {
-	return ErrorSTR_IndexOutOfRange(index, length, operation);
+	return ErrorSTR_IndexOutOfRange(operation, index, length);
 }

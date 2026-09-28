@@ -487,6 +487,27 @@ reported_text()
 }
 
 /*
+ * The same report's error number, and nothing else: a test that only wants to
+ * know which message was raised should not break when its wording changes.
+ */
+static ErrNum
+reported_code()
+{
+	ErrBuf*	buf = ErrBuffer();
+	ErrNum	number = 0;
+
+	if (buf && buf->count() > 0)
+	{
+		{
+			ErrBuf::Message	msg = buf->message(0);
+			number = msg.error;
+		}
+		buf->clear();	// Only once the message has been let go
+	}
+	return number;
+}
+
+/*
  * A day number the calendar cannot name. This used to return a date that never
  * was - 32269-07-04 for a million million days - and isValid() said it was a
  * valid one, so a caller who checked was told nothing was wrong.
@@ -501,15 +522,15 @@ day_number_range_tests()
 	Gregorian	far_away = Gregorian::fromDayNumber(1000000000000000LL);
 	expect("a day number a million million days out has no date", !far_away.hasDate());
 	expect("...and is not a valid date that it could hide behind", far_away.isValid());
-	expect_eq_str("...reported as a result past the range", reported_text(),
-			"The result of converting a day number is past the range of `Gregorian`");
+	expect_eq_err("...reported as a result past the range", reported_code(),
+			TIMERR_RESULT_OVERFLOW);
 
 	// A year that will not fit the fields, though the day number itself is one
 	// the calendar could count to
 	far_away = Gregorian::fromDayNumber(12000000);
 	expect("a year past what the fields hold has no date", !far_away.hasDate());
-	expect_eq_str("...reported", reported_text(),
-			"The result of converting a day number is past the range of `Gregorian`");
+	expect_eq_err("...reported", reported_code(),
+			TIMERR_RESULT_OVERFLOW);
 
 	// A time of day past the end of its day is folded into it, so the count of
 	// ticks means what it says
@@ -531,7 +552,7 @@ day_number_range_tests()
 
 		expect("the day after it does not",
 				!Gregorian::fromDayNumber(last_day+1).hasDate());
-		expect_eq_str("...and says so", reported_text(),
-				"The result of converting a day number is past the range of `Gregorian`");
+		expect_eq_err("...and says so", reported_code(),
+				TIMERR_RESULT_OVERFLOW);
 	}
 }

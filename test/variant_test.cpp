@@ -182,6 +182,18 @@ static bool	ullong_does_not_fit_signed()
 	return true;
 }
 
+/*
+ * Whether a report names the message expected, by its number - the 8-digit
+ * prefix of "A0000802: ...". What a test wants to know is which message was
+ * raised; the wording is not its business, and neither are the values, which
+ * are searched for separately because those are values and not prose.
+ */
+static bool
+same_code(StrVal report, const char* code)
+{
+	return report.substr(0, 8) == code;
+}
+
 int
 main(int argc, const char** argv)
 {
@@ -386,14 +398,17 @@ void unsigned_tests()
 	// them, so there is none for it to choose.
 	StrVal	report;
 	CHECK(coercion_aborts(uint_does_not_fit_int, report));
-	CHECK(report == "A0000802: Cannot convert to a `Integer` because the value"
-			 " 4000000000 does not fit\n");
+	CHECK(same_code(report, "A0000802")
+			&& report.find(StrVal("4000000000")) >= 0
+			&& report.find(StrVal("Integer")) >= 0);
 	CHECK(coercion_aborts(ulong_does_not_fit_long, report));
-	CHECK(report == "A0000802: Cannot convert to a `Long` because the value"
-			 " 18000000000000000000 does not fit\n");
+	CHECK(same_code(report, "A0000802")
+			&& report.find(StrVal("18000000000000000000")) >= 0
+			&& report.find(StrVal("Long")) >= 0);
 	CHECK(coercion_aborts(ullong_does_not_fit_signed, report));
-	CHECK(report == "A0000802: Cannot convert to a `LongLong` because the value"
-			 " 18446744073709551615 does not fit\n");
+	CHECK(same_code(report, "A0000802")
+			&& report.find(StrVal("18446744073709551615")) >= 0
+			&& report.find(StrVal("LongLong")) >= 0);
 	say(StrVal("refused: a UInteger beyond INT_MAX, a ULong beyond LONG_MAX\n"));
 	say(StrVal("...each naming the value it could not hold\n"));
 }
@@ -522,13 +537,19 @@ void time_variant_tests()
 	 */
 	StrVal	report;
 	CHECK(coercion_aborts(interval_read_as_a_number, report));
-	CHECK(report == "A0000801: A `Integer` was expected, but this Variant is a `Interval`\n");
+	CHECK(same_code(report, "A0000801")
+			&& report.find(StrVal("Integer")) >= 0
+			&& report.find(StrVal("Interval")) >= 0);
 
 	CHECK(coercion_aborts(datetime_read_as_an_interval, report));
-	CHECK(report == "A0000801: A `Interval` was expected, but this Variant is a `DateTime`\n");
+	CHECK(same_code(report, "A0000801")
+			&& report.find(StrVal("Interval")) >= 0
+			&& report.find(StrVal("DateTime")) >= 0);
 
 	CHECK(coercion_aborts(interval_read_as_a_datetime, report));
-	CHECK(report == "A0000801: A `DateTime` was expected, but this Variant is a `Interval`\n");
+	CHECK(same_code(report, "A0000801")
+			&& report.find(StrVal("DateTime")) >= 0
+			&& report.find(StrVal("Interval")) >= 0);
 
 	/*
 	 * And the one the data must not be lost to: a target type this library has
@@ -537,8 +558,9 @@ void time_variant_tests()
 	 * show is in variant_ndebug_test.cpp.
 	 */
 	CHECK(coercion_aborts(coercion_without_a_case, report));
-	CHECK(report == "A0000803: A `Interval` cannot be converted to a `Corrupt type`:"
-			 " that conversion is not implemented, so the value is left as it is\n");
+	CHECK(same_code(report, "A0000803")
+			&& report.find(StrVal("Interval")) >= 0
+			&& report.find(StrVal("Corrupt type")) >= 0);
 
 	say(StrVal("a Variant holds an Interval or a DateTime, and neither is a number\n"));
 	say(StrVal("refused: a time read as a number, and an interval as an instant\n"));

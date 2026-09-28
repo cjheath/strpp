@@ -87,8 +87,9 @@ for the two things a message is for, and a translation is written against the
 texts the first half carries.
 
 One library has one message source file, however many sets are in it. This
-library's is [str_err.h](https://github.com/cjheath/strpp/blob/main/include/str_err.h)
-and [str_msg.h](https://github.com/cjheath/strpp/blob/main/include/str_msg.h),
+library's is
+[strpp_err.h](https://github.com/cjheath/strpp/blob/main/include/strpp_err.h)
+and [strpp_msg.h](https://github.com/cjheath/strpp/blob/main/include/strpp_msg.h),
 which hold the sets `STR`, for the strings, and `VAR`, for the Variant. A set
 carries what can go wrong within it and nothing else, which is why a message
 about reading a number from a text is in `STR` rather than beside the class it

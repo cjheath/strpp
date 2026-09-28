@@ -55,9 +55,9 @@ HDRS	=	\
 		refcount.h		\
 		lockfree.h		\
 		strassert.h		\
-		str_err.h		\
+		strpp_err.h		\
 		strformat.h		\
-		str_msg.h		\
+		strpp_msg.h		\
 		threadid.h		\
 		strval.h		\
 		taggedref.h		\

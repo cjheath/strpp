@@ -229,4 +229,4 @@ result. Reading an instant from a text that names a time of day but no date is
 reported as `TIMERR_NO_DATE`, and one whose date is outside the range as
 `TIMERR_OUT_OF_RANGE`.
 
-See [Errors](error.md) and the `TIM` set in `str_err.h`.
+See [Errors](error.md) and the `TIM` set in `strpp_err.h`.

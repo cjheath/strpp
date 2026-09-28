@@ -24,15 +24,15 @@ Strpp: Message Catalog Source {
 
 		Assert: Message { Number = 1; } ~= 'At {1}:{2}, assertion failed: `{3}`';
 
-		Trail text: Message { Number = 2; } ~= 'The number `{1}` in radix {2} ended at character {3}, leaving `{4}` unread';
+		Trailing text: Message { Number = 2; } ~= 'The number `{1}` in radix {2} ended at character {3}, leaving `{4}` unread';
 		No digits: Message { Number = 3; } ~= 'Failed to read a number from `{1}` in radix {2}';
-		Number overflow: Message { Number = 4; } ~= 'The number `{1}` in radix {2} does not fit in `{4}`, overflowing at character {3}; the value returned is incomplete';
+		Number overflow: Message { Number = 4; } ~= 'The number `{1}` in radix {2} does not fit in `{3}`, overflowing at character {4}; the value returned is incomplete';
 		Not number: Message { Number = 5; } ~= 'Cannot read `{1}` as a number in radix {2}: the character `{3}` at position {4} is not a digit';
 		Negative unsigned: Message { Number = 7; } ~= 'Expected `{1}` to be unsigned in radix {2} but it is negative';
-		Illegal radix: Message { Number = 6; } ~= 'Attempt to read `{2}` in illegal radix {1} was rejected';
+		Illegal radix: Message { Number = 6; } ~= 'Attempt to read `{1}` in illegal radix {2} was rejected';
 
 		// Parameter 3 is the operation: "remove", "drop", "take", "slice"
-		Index out of range: Message { Number = 8; } ~= 'Indexing to {3} element {1} in array of {2} elements is not possible';
+		Index out of range: Message { Number = 8; } ~= 'Indexing to {1} element {2} in array of {3} elements is not possible';
 
 		Is Complete = True;
 	}
@@ -44,7 +44,7 @@ Strpp: Message Catalog Source {
 		Language ~= Languages.en;
 
 		Wrong type: Message { Number = 1; } ~= 'Expected `{1}`, not `{2}`';
-		Does not fit: Message { Number = 2; } ~= 'Value {2} would overflow a `{1}`';
+		Does not fit: Message { Number = 2; } ~= 'Value {1} would overflow a `{2}`';
 		No coercion: Message { Number = 3; } ~= 'Conversion from `{1}` to `{2}` is not implemented, leaving it alone';
 
 		Is Complete = True;
@@ -62,7 +62,7 @@ Strpp: Message Catalog Source {
 		No date: Message { Number = 4; } ~= 'Wanted a Date but only received a time of day';
 		No clock: Message { Number = 5; } ~= 'No clock is available to provide the current time';
 		Null value: Message { Number = 6; } ~= 'Null value `{1}` received for a {2}';
-		Result overflow: Message { Number = 7; } ~= 'Result of {2} would overflow a `{1}`';
+		Result overflow: Message { Number = 7; } ~= 'Result of {1} would overflow a `{2}`';
 		No zone: Message { Number = 8; } ~= 'You asked for localtime but we don\'t know the timezone. Using UTC';
 
 		Is Complete = True;
@@ -76,7 +76,7 @@ Strpp: Message Catalog Source {
 		Language ~= Languages.en;
 
 		Create failed: Message { Number = 1; } ~= '`{1}` returned {2} saying it failed to create a thread';
-		Stack refused: Message { Number = 2; } ~= '`{2}` refused a stack size of {1} bytes (error code {3}). Using the default size';
+		Stack refused: Message { Number = 2; } ~= '`{1}` refused a stack size of {2} bytes (error code {3}). Using the default size';
 		Join failed: Message { Number = 3; } ~= 'Failed to {1} for thread (error code {2}); its exit code is unknown';
 		No condition: Message { Number = 4; } ~= 'Cannot {1} condition variable because it was not successfully created';
 		Wait failed: Message { Number = 5; } ~= 'Thread {1} failed (error code {2})';

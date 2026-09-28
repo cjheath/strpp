@@ -4,18 +4,18 @@ frText: Set.Message.Text { Language = Languages.fr; }
 
 StrVal {
 	Assert { : frText ~= 'Dans {1}:{2}, l\'assertion a échoué : `{3}`'; }
-	Trail text { : frText ~= 'Le nombre `{1}` en base {2} s\'est arrêté au caractère {3}, laissant `{4}` non lu'; }
+	Trailing text { : frText ~= 'Le nombre `{1}` en base {2} s\'est arrêté au caractère {3}, laissant `{4}` non lu'; }
 	No digits { : frText ~= 'Impossible de lire un nombre dans `{1}` en base {2}'; }
-	Number overflow { : frText ~= 'Le nombre `{1}` en base {2} ne tient pas dans `{4}`, dépassement au caractère {3} ; la valeur renvoyée est incomplète'; }
+	Number overflow { : frText ~= 'Le nombre `{1}` en base {2} ne tient pas dans `{3}`, dépassement au caractère {4} ; la valeur renvoyée est incomplète'; }
 	Not number { : frText ~= 'Impossible de lire `{1}` comme un nombre en base {2} : le caractère `{3}` en position {4} n\'est pas un chiffre'; }
 	Negative unsigned { : frText ~= '`{1}` devait être non signé en base {2}, mais il est négatif'; }
-	Illegal radix { : frText ~= 'La tentative de lire `{2}` en base illégale {1} a été rejetée'; }
-	Index out of range { : frText ~= '{3} de l\'élément {1} d\'un tableau de {2} éléments est impossible'; }
+	Illegal radix { : frText ~= 'La tentative de lire `{1}` en base illégale {2} a été rejetée'; }
+	Index out of range { : frText ~= '{1} de l\'élément {2} d\'un tableau de {3} éléments est impossible'; }
 }
 
 Variants {
 	Wrong type { : frText ~= '`{1}` attendu, pas `{2}`'; }
-	Does not fit { : frText ~= 'La valeur {2} dépasserait un `{1}`'; }
+	Does not fit { : frText ~= 'La valeur {1} dépasserait un `{2}`'; }
 	No coercion { : frText ~= 'La conversion de `{1}` en `{2}` n\'est pas implémentée ; la valeur reste inchangée'; }
 }
 
@@ -26,13 +26,13 @@ DateTime {
 	No date { : frText ~= 'Une date était attendue, mais seule une heure du jour a été reçue'; }
 	No clock { : frText ~= 'Aucune horloge n\'est disponible pour donner l\'heure actuelle'; }
 	Null value { : frText ~= 'Valeur nulle `{1}` reçue pour {2}'; }
-	Result overflow { : frText ~= 'Le résultat de {2} dépasserait un `{1}`'; }
+	Result overflow { : frText ~= 'Le résultat de {1} dépasserait un `{2}`'; }
 	No zone { : frText ~= 'L\'heure locale a été demandée, mais le fuseau horaire est inconnu. Utilisation d\'UTC'; }
 }
 
 Threads {
 	Create failed { : frText ~= '`{1}` a renvoyé {2} : échec de la création d\'un thread'; }
-	Stack refused { : frText ~= '`{2}` a refusé une taille de pile de {1} octets (code d\'erreur {3}). Utilisation de la taille par défaut'; }
+	Stack refused { : frText ~= '`{1}` a refusé une taille de pile de {2} octets (code d\'erreur {3}). Utilisation de la taille par défaut'; }
 	Join failed { : frText ~= '`{1}` pour le thread a échoué (code d\'erreur {2}) ; son code de sortie est inconnu'; }
 	No condition { : frText ~= '`{1}` est impossible : la variable de condition n\'a pas été créée correctement'; }
 	Wait failed { : frText ~= 'Le thread {1} a échoué (code d\'erreur {2})'; }

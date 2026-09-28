@@ -9,7 +9,8 @@
  * strpp_err.h/strpp_msg.h from messages/strpp.mcs today and any other
  * library's headers from its own catalog tomorrow, unchanged.
  *
- * Run as: msggen <adl.adl> [precursor.adl ...] <catalog.mcs> <output-dir>.
+ * Run as: msggen [-d <output-dir>] <adl.adl> [precursor.adl ...] <catalog.mcs>.
+ * With no -d the two generated headers go to stdout, error numbers first;
  * Every input but the last is a precursor, loaded in the order given and
  * each from the context the one before it left behind; the last input is
  * the catalog. The order is the caller's to state, not this program's to
@@ -58,11 +59,12 @@
  * nothing here can recover the informal parameter names in each message's
  * own preceding comment either - comments aren't part of the parsed tree.
  * So every generated function takes plain Variant parameters, named only
- * by position (p1, p2, ...) - a real, visible difference from strpp's own
- * hand-written str_err.h/str_msg.h, which use specific types (StrVal, int,
- * ...) and meaningful names. Variant's own non-explicit constructors from
- * StrVal/int/long/long long/const char* make this a drop-in for every
- * existing call site regardless.
+ * by position (p1, p2, ...) - a real, visible difference from the
+ * hand-written pair it replaced (str_err.h/str_msg.h, removed 2026-09-28),
+ * which had specific types (StrVal, int, ...) and meaningful names.
+ * Variant's own non-explicit constructors from StrVal/int/long/long
+ * long/const char* make this a drop-in for every existing call site
+ * regardless.
  *
  * Below the line marked GENERATOR LOGIC, nothing touches ADL::MemStore (or
  * any other concrete Store) directly, and nothing names any one catalog or
@@ -460,11 +462,11 @@ static void write_msg_h(FILE* f, StrVal catalog_name, Array<GeneratedMessage>& m
 		" *\n"
 		" * Parameters are not typed or named in the MCS schema (a standing\n"
 		" * decision, and comments aren't part of the parsed tree either), so\n"
-		" * every parameter here is a plain Variant, named only by position -\n"
-		" * unlike strpp's own hand-written str_msg.h, which uses specific\n"
-		" * types and meaningful names. Variant's own non-explicit constructors\n"
-		" * from StrVal/int/long/long long/const char* make this a drop-in for\n"
-		" * every existing call site regardless.\n"
+		" * every parameter here is a plain Variant, named only by position.\n"
+		" * The hand-written pair this replaced (str_msg.h, until 2026-09-28)\n"
+		" * used specific types and meaningful names instead. Variant's own\n"
+		" * non-explicit constructors from StrVal/int/long/long long/const\n"
+		" * char* make this a drop-in for every call site regardless.\n"
 		" */\n"
 		"#include\t<%s_err.h>\n"
 		"#include\t<errbuf.h>\n"
@@ -500,13 +502,23 @@ static void write_msg_h(FILE* f, StrVal catalog_name, Array<GeneratedMessage>& m
 
 int main(int argc, char** argv)
 {
-	if (argc < 4)
+	const char*	out_dir = 0;			// none given: write to stdout
+	int		first_input = 1;
+
+	if (argc > 2 && argv[1][0] == '-' && argv[1][1] == 'd' && argv[1][2] == '\0')
 	{
-		fprintf(stderr, "usage: %s <adl.adl> [precursor.adl ...] <catalog.mcs> <output-dir>\n", argv[0]);
+		out_dir = argv[2];
+		first_input = 3;
+	}
+	if (argc - first_input < 2)
+	{
+		fprintf(stderr, "usage: %s [-d <output-dir>] <adl.adl> [precursor.adl ...] <catalog.mcs>\n",
+			argv[0]);
+		fprintf(stderr, "\tWith no -d, both generated headers are written to stdout:\n"
+				"\tthe error numbers first, then the reporting functions.\n");
 		return 1;
 	}
-	const char*	catalog_mcs = argv[argc-2];	// the last input is the catalog
-	const char*	out_dir = argv[argc-1];
+	const char*	catalog_mcs = argv[argc-1];	// the last input is the catalog
 
 	ADL::MemStore	store;
 	ADLMemStoreSink	sink(store);
@@ -520,7 +532,7 @@ int main(int argc, char** argv)
 	 * catalog comes last, since it is what the last statement of is read.
 	 */
 	sink.root_object = sink.last_object();		// nothing loaded yet - TOP
-	for (int i = 1; i < argc-1; i++)
+	for (int i = first_input; i < argc; i++)	// the catalog is the last of them
 	{
 		if (!load_file(sink, argv[i]))
 		{
@@ -548,20 +560,29 @@ int main(int argc, char** argv)
 		return 1;
 	}
 
-	StrVal	err_path = StrVal(out_dir) + "/" + lower + "_err.h";
-	StrVal	msg_path = StrVal(out_dir) + "/" + lower + "_msg.h";
-	FILE*	err_f = fopen(err_path.asUTF8(), "w");
-	FILE*	msg_f = fopen(msg_path.asUTF8(), "w");
-	if (!err_f || !msg_f)
+	FILE*	err_f = stdout;
+	FILE*	msg_f = stdout;
+	StrVal	err_path = "<stdout>", msg_path = "<stdout>";
+
+	if (out_dir)
 	{
-		perror(out_dir);
-		return 1;
+		err_path = StrVal(out_dir) + "/" + lower + "_err.h";
+		msg_path = StrVal(out_dir) + "/" + lower + "_msg.h";
+		if ((err_f = fopen(err_path.asUTF8(), "w")) == 0
+		 || (msg_f = fopen(msg_path.asUTF8(), "w")) == 0)
+		{
+			perror(out_dir);
+			return 1;
+		}
 	}
 	write_err_h(err_f, catalog_name, messages);
 	write_msg_h(msg_f, catalog_name, messages);
-	fclose(err_f);
-	fclose(msg_f);
 
+	if (out_dir)
+	{
+		fclose(err_f);
+		fclose(msg_f);
+	}
 	fprintf(stderr, "msggen: wrote %d messages to %s and %s\n",
 		(int)messages.length(), err_path.asUTF8(), msg_path.asUTF8());
 	return 0;

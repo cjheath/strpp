@@ -62,7 +62,7 @@ msggen:	msggen.cpp
 # OVERWRITES ../include/strpp_err.h and strpp_msg.h; review the diff before
 # committing, the same as any other hand-reviewed change.
 regenerate:	msggen
-	./msggen $(ADL)/adl.adl $(LANGUAGES) mcs.adl $(CATALOG) $(STRPP)/include
+	./msggen -d $(STRPP)/include $(ADL)/adl.adl $(LANGUAGES) mcs.adl $(CATALOG)
 
 clean:
 	rm -f msggen

@@ -3,7 +3,7 @@
  * header because reporting needs the message set. See src/strval.cpp.
  */
 #include	<variant.h>
-#include	<str_msg.h>			// The functions that report
+#include	<strpp_msg.h>			// The functions that report
 
 const char*	Variant::type_names[] = {
 	"None",
@@ -67,7 +67,7 @@ Variant::no_coercion(VariantType t) const
 void
 Variant::cannot_convert(VariantType t)
 {
-	ErrorVAR_DoesNotFit(type_names[t], value_text());
+	ErrorVAR_DoesNotFit(value_text(), type_names[t]);
 	assert(!"Value does not fit the type it was asked for");
 
 	VariantType	to = fitting_signed();

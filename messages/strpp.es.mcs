@@ -4,18 +4,18 @@ esText: Set.Message.Text { Language = Languages.es; }
 
 StrVal {
 	Assert { : esText ~= 'En {1}:{2}, falló la aserción: `{3}`'; }
-	Trail text { : esText ~= 'El número `{1}` en base {2} terminó en el carácter {3}, dejando `{4}` sin leer'; }
+	Trailing text { : esText ~= 'El número `{1}` en base {2} terminó en el carácter {3}, dejando `{4}` sin leer'; }
 	No digits { : esText ~= 'No se pudo leer un número de `{1}` en base {2}'; }
-	Number overflow { : esText ~= 'El número `{1}` en base {2} no cabe en `{4}`, desbordando en el carácter {3}; el valor devuelto está incompleto'; }
+	Number overflow { : esText ~= 'El número `{1}` en base {2} no cabe en `{3}`, desbordando en el carácter {4}; el valor devuelto está incompleto'; }
 	Not number { : esText ~= 'No se puede leer `{1}` como número en base {2}: el carácter `{3}` en la posición {4} no es un dígito'; }
 	Negative unsigned { : esText ~= 'Se esperaba que `{1}` fuese sin signo en base {2}, pero es negativo'; }
-	Illegal radix { : esText ~= 'Se rechazó el intento de leer `{2}` en la base ilegal {1}'; }
-	Index out of range { : esText ~= 'No es posible {3} el elemento {1} de un arreglo de {2} elementos'; }
+	Illegal radix { : esText ~= 'Se rechazó el intento de leer `{1}` en la base ilegal {2}'; }
+	Index out of range { : esText ~= 'No es posible {1} el elemento {2} de un arreglo de {3} elementos'; }
 }
 
 Variants {
 	Wrong type { : esText ~= 'Se esperaba `{1}`, no `{2}`'; }
-	Does not fit { : esText ~= 'El valor {2} desbordaría un `{1}`'; }
+	Does not fit { : esText ~= 'El valor {1} desbordaría un `{2}`'; }
 	No coercion { : esText ~= 'La conversión de `{1}` a `{2}` no está implementada; se deja como está'; }
 }
 
@@ -26,13 +26,13 @@ DateTime {
 	No date { : esText ~= 'Se quería una fecha, pero solo se recibió una hora del día'; }
 	No clock { : esText ~= 'No hay reloj disponible para dar la hora actual'; }
 	Null value { : esText ~= 'Valor nulo `{1}` recibido para {2}'; }
-	Result overflow { : esText ~= 'El resultado de {2} desbordaría un `{1}`'; }
+	Result overflow { : esText ~= 'El resultado de {1} desbordaría un `{2}`'; }
 	No zone { : esText ~= 'Se pidió la hora local, pero no conocemos la zona horaria. Se usa UTC'; }
 }
 
 Threads {
 	Create failed { : esText ~= '`{1}` devolvió {2}, diciendo que falló al crear un hilo'; }
-	Stack refused { : esText ~= '`{2}` rechazó un tamaño de pila de {1} bytes (código de error {3}). Se usa el tamaño predeterminado'; }
+	Stack refused { : esText ~= '`{1}` rechazó un tamaño de pila de {2} bytes (código de error {3}). Se usa el tamaño predeterminado'; }
 	Join failed { : esText ~= 'No se pudo {1} al hilo (código de error {2}); su código de salida es desconocido'; }
 	No condition { : esText ~= 'No se puede {1} la variable de condición porque no se creó correctamente'; }
 	Wait failed { : esText ~= 'El hilo {1} falló (código de error {2})'; }

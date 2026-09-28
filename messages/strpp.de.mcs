@@ -4,18 +4,18 @@ deText: Set.Message.Text { Language = Languages.de; }
 
 StrVal {
 	Assert { : deText ~= 'In {1}:{2} schlug die Zusicherung fehl: `{3}`'; }
-	Trail text { : deText ~= 'Die Zahl `{1}` zur Basis {2} endete bei Zeichen {3}; `{4}` blieb ungelesen'; }
+	Trailing text { : deText ~= 'Die Zahl `{1}` zur Basis {2} endete bei Zeichen {3}; `{4}` blieb ungelesen'; }
 	No digits { : deText ~= 'Aus `{1}` konnte zur Basis {2} keine Zahl gelesen werden'; }
-	Number overflow { : deText ~= 'Die Zahl `{1}` zur Basis {2} passt nicht in `{4}` und läuft bei Zeichen {3} über; der zurückgegebene Wert ist unvollständig'; }
+	Number overflow { : deText ~= 'Die Zahl `{1}` zur Basis {2} passt nicht in `{3}` und läuft bei Zeichen {4} über; der zurückgegebene Wert ist unvollständig'; }
 	Not number { : deText ~= '`{1}` ist zur Basis {2} nicht als Zahl lesbar: das Zeichen `{3}` an Position {4} ist keine Ziffer'; }
 	Negative unsigned { : deText ~= '`{1}` sollte zur Basis {2} vorzeichenlos sein, ist aber negativ'; }
-	Illegal radix { : deText ~= 'Der Versuch, `{2}` zur ungültigen Basis {1} zu lesen, wurde abgewiesen'; }
-	Index out of range { : deText ~= '{3} ist für Element {1} eines Arrays mit {2} Elementen nicht möglich'; }
+	Illegal radix { : deText ~= 'Der Versuch, `{1}` zur ungültigen Basis {2} zu lesen, wurde abgewiesen'; }
+	Index out of range { : deText ~= '{1} ist für Element {2} eines Arrays mit {3} Elementen nicht möglich'; }
 }
 
 Variants {
 	Wrong type { : deText ~= 'Erwartet wurde `{1}`, nicht `{2}`'; }
-	Does not fit { : deText ~= 'Der Wert {2} würde `{1}` überlaufen'; }
+	Does not fit { : deText ~= 'Der Wert {1} würde `{2}` überlaufen'; }
 	No coercion { : deText ~= 'Die Umwandlung von `{1}` nach `{2}` ist nicht implementiert; der Wert bleibt unverändert'; }
 }
 
@@ -26,13 +26,13 @@ DateTime {
 	No date { : deText ~= 'Es wurde ein Datum erwartet, empfangen wurde nur eine Tageszeit'; }
 	No clock { : deText ~= 'Es ist keine Uhr verfügbar, die die aktuelle Zeit liefert'; }
 	Null value { : deText ~= 'Nullwert `{1}` für {2} empfangen'; }
-	Result overflow { : deText ~= 'Das Ergebnis von {2} würde `{1}` überlaufen'; }
+	Result overflow { : deText ~= 'Das Ergebnis von {1} würde `{2}` überlaufen'; }
 	No zone { : deText ~= 'Es wurde Ortszeit verlangt, aber die Zeitzone ist unbekannt. Es wird UTC verwendet'; }
 }
 
 Threads {
 	Create failed { : deText ~= '`{1}` meldete {2}: Der Thread konnte nicht erstellt werden'; }
-	Stack refused { : deText ~= '`{2}` lehnte eine Stackgröße von {1} Bytes ab (Fehlercode {3}). Es wird die Standardgröße verwendet'; }
+	Stack refused { : deText ~= '`{1}` lehnte eine Stackgröße von {2} Bytes ab (Fehlercode {3}). Es wird die Standardgröße verwendet'; }
 	Join failed { : deText ~= '`{1}` für den Thread schlug fehl (Fehlercode {2}); sein Exit-Code ist unbekannt'; }
 	No condition { : deText ~= '`{1}` ist nicht möglich: Die Bedingungsvariable wurde nicht erfolgreich erstellt'; }
 	Wait failed { : deText ~= 'Thread {1} schlug fehl (Fehlercode {2})'; }

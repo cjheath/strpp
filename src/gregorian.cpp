@@ -16,7 +16,7 @@
  * (c) Copyright Clifford Heath 2026. See LICENSE file for usage rights.
  */
 #include	<gregorian.h>
-#include	<str_msg.h>
+#include	<strpp_msg.h>
 #include	<strformat.h>			// StrVal::format, for the ISO 8601 text
 
 /*
@@ -287,14 +287,14 @@ Gregorian::fromDayNumber(Tick day, Tick within_day)
 
 	if (day < -(Tick)20000000 || day > (Tick)20000000)
 	{
-		ErrorTIM_ResultOverflow("Gregorian", "converting a day number");
+		ErrorTIM_ResultOverflow("converting a day number", "Gregorian");
 		return Gregorian();
 	}
 
 	ltodate(day, ymd);
 	if (ymd[0] < -32767 || ymd[0] > 32767)
 	{
-		ErrorTIM_ResultOverflow("Gregorian", "converting a day number");
+		ErrorTIM_ResultOverflow("converting a day number", "Gregorian");
 		return Gregorian();
 	}
 

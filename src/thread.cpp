@@ -5,7 +5,7 @@
  */
 #include	<thread.h>
 #include	<condition.h>
-#include	<str_msg.h>			// A thread the host would not create says so
+#include	<strpp_msg.h>			// A thread the host would not create says so
 #include	<errno.h>
 
 Thread*		Thread::main_thread;
@@ -94,7 +94,7 @@ Thread::resume()
 	}
 
 	if (stack_bytes && (code = pthread_attr_setstacksize(&attr, stack_bytes)) != 0)
-		ErrorTHR_StackRefused(stack_bytes, "pthread_attr_setstacksize", code);
+		ErrorTHR_StackRefused("pthread_attr_setstacksize", stack_bytes, code);
 
 	thread_latch.enter();
 	void	*(*proc)(void *) = (void *(*)(void *))Thread::ThreadProc;	// pthread procs return void*
@@ -116,7 +116,7 @@ Thread::resume()
 	size_t		depth = bytes / sizeof(StackType_t);
 	if (depth > (size_t)(StackType_t)-1)		// The platform's count is a narrower field
 	{
-		ErrorTHR_StackRefused(bytes, "xTaskCreate", 0);		// Truncated below
+		ErrorTHR_StackRefused("xTaskCreate", bytes, 0);		// Truncated below
 		depth = (size_t)(StackType_t)-1;
 	}
 	BaseType_t	ok = xTaskCreate(

@@ -3,13 +3,13 @@
  * that ask the host what time it is.
  *
  * Reporting needs the message set, which a header cannot include (see
- * str_msg.h), so every member that reports is defined here.
+ * strpp_msg.h), so every member that reports is defined here.
  *
  * (c) Copyright Clifford Heath 2026. See LICENSE file for usage rights.
  */
 #include	<datetime.h>
 #include	<gregorian.h>
-#include	<str_msg.h>
+#include	<strpp_msg.h>
 #if	!defined(MSW) && !defined(HAVE_NO_CLOCK)
 #include	<sys/time.h>			// gettimeofday
 #endif
@@ -97,7 +97,7 @@ scaledTicks(Tick value, Tick factor, const char* type, const char* operation)
 
 	if (!scaleFits(value, factor, &result))
 	{
-		ErrorTIM_ResultOverflow(type, operation);
+		ErrorTIM_ResultOverflow(operation, type);
 		return NullTick;
 	}
 	return result;
@@ -149,7 +149,7 @@ Interval::sum(const Interval& addend) const
 		return nullOperand("adding");
 	if (!addFits(ticks_, addend.ticks_, &result))
 	{
-		ErrorTIM_ResultOverflow("Interval", "adding");
+		ErrorTIM_ResultOverflow("adding", "Interval");
 		return Interval(NullTick);
 	}
 	return Interval(result);
@@ -164,7 +164,7 @@ Interval::difference(const Interval& minuend) const
 		return nullOperand("subtracting");
 	if (!subFits(ticks_, minuend.ticks_, &result))
 	{
-		ErrorTIM_ResultOverflow("Interval", "subtracting");
+		ErrorTIM_ResultOverflow("subtracting", "Interval");
 		return Interval(NullTick);
 	}
 	return Interval(result);
@@ -252,7 +252,7 @@ Interval::fromString(StrVal text, ErrNum* err_return)
 	 */
 	at = ErrCheckpoint();
 	ticks = text.asFixedPoint<Tick>(8, &e, 10, &scanned);
-	if (e == STRERR_TRAIL_TEXT
+	if (e == STRERR_TRAILING_TEXT
 	 && scanned < text.length() && UCS4Digit(text[scanned]) >= 0)
 	{
 		ErrRollback(at);
@@ -305,7 +305,7 @@ Milliseconds::sum(const Milliseconds& addend) const
 		return nullOperand("adding");
 	if (!addFits(ms_, addend.ms_, &result))
 	{
-		ErrorTIM_ResultOverflow("Milliseconds", "adding");
+		ErrorTIM_ResultOverflow("adding", "Milliseconds");
 		return Milliseconds(NullTick);
 	}
 	return Milliseconds(result);
@@ -320,7 +320,7 @@ Milliseconds::difference(const Milliseconds& minuend) const
 		return nullOperand("subtracting");
 	if (!subFits(ms_, minuend.ms_, &result))
 	{
-		ErrorTIM_ResultOverflow("Milliseconds", "subtracting");
+		ErrorTIM_ResultOverflow("subtracting", "Milliseconds");
 		return Milliseconds(NullTick);
 	}
 	return Milliseconds(result);
@@ -418,7 +418,7 @@ Seconds::sum(const Seconds& addend) const
 		return nullOperand("adding");
 	if (!addFits(sec_, addend.sec_, &result))
 	{
-		ErrorTIM_ResultOverflow("Seconds", "adding");
+		ErrorTIM_ResultOverflow("adding", "Seconds");
 		return Seconds(NullTick);
 	}
 	return Seconds(result);
@@ -433,7 +433,7 @@ Seconds::difference(const Seconds& minuend) const
 		return nullOperand("subtracting");
 	if (!subFits(sec_, minuend.sec_, &result))
 	{
-		ErrorTIM_ResultOverflow("Seconds", "subtracting");
+		ErrorTIM_ResultOverflow("subtracting", "Seconds");
 		return Seconds(NullTick);
 	}
 	return Seconds(result);
@@ -532,7 +532,7 @@ DateTime::sum(const Interval& addend) const
 		return nullOperand("adding");
 	if (!addFits(ticks_, addend.ticks(), &result))
 	{
-		ErrorTIM_ResultOverflow("DateTime", "adding");
+		ErrorTIM_ResultOverflow("adding", "DateTime");
 		return DateTime(NullTick);
 	}
 	return DateTime(result);
@@ -547,7 +547,7 @@ DateTime::difference(const Interval& minuend) const
 		return nullOperand("subtracting");
 	if (!subFits(ticks_, minuend.ticks(), &result))
 	{
-		ErrorTIM_ResultOverflow("DateTime", "subtracting");
+		ErrorTIM_ResultOverflow("subtracting", "DateTime");
 		return DateTime(NullTick);
 	}
 	return DateTime(result);
@@ -565,7 +565,7 @@ DateTime::between(const DateTime& minuend) const
 	}
 	if (!subFits(ticks_, minuend.ticks_, &result))
 	{
-		ErrorTIM_ResultOverflow("Interval", "subtracting");
+		ErrorTIM_ResultOverflow("subtracting", "Interval");
 		return Interval(NullTick);
 	}
 	return Interval(result);
@@ -597,7 +597,7 @@ DateTime::fromTime_t(time_t t)
 	if (!subFits((Tick)t, Time_tAtEpoch, &seconds)
 	 || !scaleFits(seconds, TicksPerSecond, &ticks))
 	{
-		ErrorTIM_ResultOverflow("DateTime", "reading a time_t");
+		ErrorTIM_ResultOverflow("reading a time_t", "DateTime");
 		return DateTime(NullTick);
 	}
 	return DateTime(ticks);
@@ -740,7 +740,7 @@ DateTime::asGregorian(UtcOffset off, Interval* time_of_day) const
 
 	if (!addFits(ticks_, (Tick)off.asSeconds()*TicksPerSecond, &ticks))
 	{
-		ErrorTIM_ResultOverflow("DateTime", "reading a date in that zone");
+		ErrorTIM_ResultOverflow("reading a date in that zone", "DateTime");
 		if (time_of_day)
 			*time_of_day = Interval(NullTick);
 		return Gregorian();

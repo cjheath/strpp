@@ -138,4 +138,4 @@ Reading:
   Ordering is not offered: two civil times in different zones have no order,
   and an instant is where that question belongs.
 
-See [Errors](error.md) and the `TIM` set in `str_err.h`.
+See [Errors](error.md) and the `TIM` set in `strpp_err.h`.

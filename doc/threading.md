@@ -88,7 +88,7 @@ timeout. Under `NO_THREAD` nothing waits, so every method is a no-op.
 
 An operating system call can fail for reasons the program cannot control - no
 more threads can be created, a lock cannot be taken. Each of those is reported
-from the `THR` message set (`include/str_err.h`), and then the library carries
+from the `THR` message set (`include/strpp_err.h`), and then the library carries
 on with the safe nothing: a thread that was not created is not running and is
 not registered; a wait that failed is over. A caller who expects one and does
 not want the buffer filled by it takes a checkpoint first, as with any other

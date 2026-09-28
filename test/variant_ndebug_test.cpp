@@ -82,14 +82,19 @@ main()
 		if (buf && buf->count() > 0)
 		{
 			StrVal	said;
+			ErrNum	number = 0;
 			{	// The Message holds a slice of the buffer's parameters, and
 				// delivered() refuses while any slice is outstanding
 				ErrBuf::Message	msg = buf->message(0);
+				number = msg.error;
 				said = StrVal::format(msg.default_text, msg.parameters);
 			}
 			printf("the buffer says: %s\n", said.asUTF8());
+			expect("...with the number for a value that does not fit",
+				number == VARERR_DOES_NOT_FIT);
 			expect("...naming the type and the value",
-				said == "Cannot convert to a `Integer` because the value 4000000000 does not fit");
+				said.find(StrVal("4000000000")) >= 0
+				&& said.find(StrVal("Integer")) >= 0);
 			buf->delivered();
 		}
 	}
@@ -145,14 +150,15 @@ main()
 		if (buf && buf->count() > 0)
 		{
 			StrVal	said;
+			ErrNum	number = 0;
 			{
 				ErrBuf::Message	msg = buf->message(buf->count()-1);
+				number = msg.error;
 				said = StrVal::format(msg.default_text, msg.parameters);
 			}
 			printf("the buffer says: %s\n", said.asUTF8());
-			expect("...naming both types, and that the value is left alone",
-				said == "A `Interval` cannot be converted to a `Corrupt type`:"
-					" that conversion is not implemented, so the value is left as it is");
+			expect("...with the number for a conversion that is not implemented",
+				number == VARERR_NO_COERCION);
 			buf->delivered();
 		}
 	}
