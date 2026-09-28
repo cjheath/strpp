@@ -11,14 +11,14 @@ of a translation and the types of the parameters should be checked at build.
 
 We write message catalogs in ADL, a small type-checked declarative language
 for describing structured data. The code and its message catalog are separate.
-A generator produces two header files for the library build from.
+A generator writes two header files for the library to build from.
 
 ### The catalog schema
 
-ADL files are type-checked against a schema itself written in ADL. The
-Message Catalog Source schema object contains `Set`s, each set holds
-`Message`s with a number and default text, and may contain additional
-Text objects for translations or styles.
+ADL type-checks your files against a schema, itself written in ADL. The
+Message Catalog Source schema object holds `Set`s; each set holds `Message`s
+with a number and default text, and may hold further `Text` objects for
+translations or styles.
 
 ```adl
 Message Catalog Source:
@@ -45,17 +45,16 @@ Message Catalog Source:
 }
 ```
 
-In ADL, any object which has a Syntax is assignable. Although Message is
-a container, it can also be assigned directly, any value matching the
-Syntax for a String. The above schema assumes a list of Languages defined
-in a prior file. Normally only the default text is in the main file, with
-translations provided by additional files.
+In ADL you can assign a value to any object that has a Syntax. A Message is
+a container, but you can also assign text straight to it, since it matches
+the Syntax for a String. The schema expects a list of Languages, from a file
+loaded before it. Keep the default text in the main file, and put each
+translation in an additional one.
 
 ### A catalog of default texts
 
-The catalog's name is used to derive the names of the two generated header
-files. Within it are Sets, and within those are Messages.  Here is part
-of the library's catalog:
+The catalog's name gives the names of both generated headers. It holds Sets,
+and each Set holds Messages. Here is part of the library's catalog:
 
 ```adl
 Strpp: Message Catalog Source {
@@ -75,34 +74,30 @@ Strpp: Message Catalog Source {
 }
 ```
 
-Each message has a name consisting of one or more words. From these words,
-`msggen` emits the name of an ErrNum and the name of a function that
-reports this message, expecting the correct parameters.  For example,
-the message called `Trailing text` becomes the macro `STRERR_TRAILING_TEXT`
-and the function `ErrorSTR_TrailingText`.
+A message's name is one or more words, and `msggen` builds both names from
+them: the ErrNum macro and the function that reports the message. The
+message called `Trailing text` becomes the macro `STRERR_TRAILING_TEXT` and
+the function `ErrorSTR_TrailingText`.
 
-The parameters of the text are numbered `{1}`, `{2}` and so on, usually in
-the order the text uses them (but always the order used by the generated
-function). A translation may use the parameters in any order, even more
-than once if needed.
+Number the parameters `{1}`, `{2}` and so on in the order the text uses them,
+and the generated function takes them in that order. A translation may use
+them in any order, and may use one twice.
 
-A Set of Message number, once used, should not be re-used or re-numbered,
-for the sake of customer support staff. Even to a user who cannot read the
-text, the Set-Message number uniquely identifies a specific message condition.
-Each set typically ends `Is Complete = True;` to prevent any translation
-adding new content.
+Once you use a number, never re-use or re-number it: the Set-Message number
+identifies one condition for customer support, even to someone who cannot
+read the text. Each set ends `Is Complete = True;`, which stops a translation
+adding content to it.
 
-The value assignments using `=` are Final (cannot be overridden), whereas
-the `~=` ones are tentative and may be overridden in a specified context.
+Assign with `=` for Final, which nothing can override; or with `~=` for
+tentative, which a specified context may override.
 
 ### Translations
 
-A translation is usually in a separate catalog file loaded after the first.
-It re-opens the catalog by name and adds a new `Text` object to each Message
-(Messages are not marked Complete for this reason). The message's default
-text is not touched, so the two are independent and either may be reworded
-alone. It is possible for a program to load multiple translations on top
-of the same catalog.
+Put each translation in a separate catalog file, loaded after the first. It
+re-opens the catalog by name and adds a new `Text` object to each Message
+(which is why you Complete a Set but not its Messages). It leaves the default
+text alone, so you can reword either one. You can load several translations
+over the same catalog.
 
 ```adl
 // German wordings of strpp.mcs's messages.
@@ -118,20 +113,17 @@ StrVal {
 Strpp;
 ```
 
-Usually only one language is used per file, and a convenient way to do
-that is to define a subtype of the schema's own `Message.Text` which sets
-it once, so each message then only needs to add its text.
+Use one language per file, and define a subtype of the schema's own
+`Message.Text` that sets it once - then each message needs only its text.
 
-When loading ADL files, new declarations begin in the last closed scope from
-the predecessor. To facilitate loading multiple languages, it is conventional
-that the file ends with a bare `Strpp;`, which leaves the catalog as the
-starting point for whatever file is read next.
+When ADL loads a file, new declarations begin in the scope the file before it
+left closed. So end each translation with a bare `Strpp;`: that re-opens the
+catalog, and leaves it as the starting point for the next file.
 
 ### Generating the headers
 
-The generated headers are built by `msggen`, which reads the schema, the
-catalog and any translation files, and writes both headers. With `-d` it
-writes them into a directory:
+`msggen` reads the schema, the catalog and any translation files, and writes
+both headers. Give it `-d` to write them into a directory:
 
 ```
 cd strpp/tools
@@ -139,26 +131,25 @@ cd strpp/tools
 	mcs.adl ../messages/strpp.mcs
 ```
 
-Every file named is loaded in the order given, each from the context the one
-before it left: the language enumeration and the schema first, then the
-catalog, since that is where the catalog's name and its sets come from. The
-name of the object defined by the **last statement of the last file** is what
-names the output files. For a catalog file that is the catalog itself, since
-its own definition is its last statement - which is why a file that goes on
-after its catalog generates from whatever it defined next.
+`msggen` loads every file you name in the order you give, each from the
+context the one before it left. Name the language enumeration and the schema
+first, then the catalog, which is where the name and the sets come from. It
+names the output files after the object the **last statement of the last
+file** defines, which for a catalog file is the catalog itself - so a file
+that goes on after its catalog generates from whatever it defined next.
 
 Without `-d` the two headers go to standard output instead, so you can
-pass your eye over them without writingh them to storage.
+pass your eye over them without writing them to storage.
 
 ```
 ./msggen ../../adl/cpp/adl.adl ../../adl/cpp/ietf_languages.adl \
 	mcs.adl ../messages/strpp.mcs
 ```
 
-One of the headers is used by code needing to emit messages, the other
-by consumers wishing to match ErrNum return codes. The parameters and
-default text are pushed to the thread's error cascade, to be reported
-or recoverd as previously discussed.
+Code that emits messages includes one header; code that matches ErrNum
+return codes includes the other. Reporting pushes the parameters and the
+default text onto the thread's error cascade, to be reported or recovered
+as [Error Management](error.md) describes.
 
 `strpp_err.h` gives each message a number and, in a comment, the default
 text:
@@ -188,8 +179,8 @@ ErrorSTR_Assert(Variant p1, Variant p2, Variant p3)
 }
 ```
 
-This is all in the name of making it as easy to report an error with full
-context than to just return an error number.
+All of this makes reporting an error with full context easier than returning
+a bare number.
 
-In an upcoming revision of this process, the function's parameters will
-be typed and converted to Variant to be put into the error buffer.
+A coming revision will type the function's parameters, and convert them to
+Variant for the error buffer.

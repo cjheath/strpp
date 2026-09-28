@@ -10,10 +10,10 @@
  * <name> is the name of the object the LAST file's last statement defines,
  * downcased - which is the catalog only because a catalog file ends with its
  * own definition. Nothing here asks what that object is a subtype of, or
- * looks for one reaching `Message Catalog Source`: the object is walked for
- * Sets, and if it has none the run fails with "no messages found under <that
- * name>". A file that goes on after its catalog therefore generates from
- * whatever it defined next. Measured 2026-09-28: a catalog followed by
+ * looks for one reaching `Message Catalog Source`: msggen walks it for Sets,
+ * and if it finds none it fails with "no messages found under <that name>".
+ * A file that goes on after its catalog therefore generates from whatever it
+ * defined next. Measured 2026-09-28: a catalog followed by
  * `After: String;` reports "no messages found under After".
  *
  * Run as: msggen [-d <output-dir>] <adl.adl> [precursor.adl ...] <catalog.mcs>.
@@ -44,17 +44,17 @@
  *
  * A variable and its value are two objects, not one: the Assignment that
  * holds a value is a separate child of the same parent, naming its
- * variable in its own `variable`. That is why the default text is found
+ * variable in its own `variable`. That is why msggen finds the default text
  * beside the Message rather than inside it, and why nothing here treats an
  * object as if it carried its own value.
  *
- * Only a Message's own default text is read, and only from the catalog
+ * msggen reads only a Message's own default text, and only from the catalog
  * itself. A Text object inside a Message carries a wording of that message
- * for another language, and names it in its own Language reference; those
- * are deliberately **not** read, so that what is generated refers to the
- * base message sets and to nothing else. A language file (strpp.es.mcs) is
- * therefore not an argument here at all - it is still checked by
- * `make check`, which parses it after the catalog it extends.
+ * for another language, and names it in its own Language reference; msggen
+ * deliberately does **not** read those, so that what it generates refers to
+ * the base message sets and to nothing else. That is why it takes no
+ * language file as an argument - `make check` still parses each one, after
+ * the catalog it extends.
  *
  * Anything still carrying an aspect() is skipped, as before: a Contextual
  * Extension is a view from one context and is exactly what a generator
@@ -139,11 +139,11 @@ using	ADL::Handle;
 using	ADL::Value;
 
 /*
- * A String value is stored as raw source text, quotes and all (strpp's own
- * HANDOFF.md §10.3) - strip the surrounding quotes and decode the escapes
- * this catalog actually uses. Does not yet handle the full escape grammar
- * (octal, \x, \u) - none of strpp's own messages need them yet, and this
- * is flagged rather than silently wrong if that changes.
+ * ADL gives a String value as raw source text, quotes and all: strip the
+ * surrounding quotes, and decode the escapes this catalog uses. Does not yet
+ * handle the full escape grammar (octal, \x, \u) - none of strpp's own
+ * messages need them yet, and this is flagged rather than silently wrong if
+ * that changes.
  */
 static StrVal decode_string_literal(StrVal raw)
 {
@@ -211,8 +211,8 @@ static int placeholder_count(StrVal text)
 
 /*
  * A message's name is words separated by spaces or underscores - a catalog
- * may write "Number overflow" or NUMBER_OVERFLOW - so both separate here, and
- * the two halves of each generated pair are built from the same words.
+ * may write "Number overflow" or NUMBER_OVERFLOW - so msggen separates on
+ * both here, and builds the two halves of each pair from the same words.
  */
 static void words_of(StrVal name, Array<StrVal>& out)
 {
@@ -252,7 +252,7 @@ static StrVal macro_name(StrVal adl_name)
 
 /*
  * The function half: PascalCase, one capital per word - except a word the
- * catalog already gave in capitals, which is left alone. An acronym is the
+ * catalog already gave in capitals, which msggen leaves alone. An acronym is
  * author's spelling of it and is not to be lower-cased: "Invalid YMDHMS"
  * gives ErrorTIM_InvalidYMDHMS, not ErrorTIM_InvalidYmdhms.
  */
@@ -521,7 +521,7 @@ int main(int argc, char** argv)
 	{
 		fprintf(stderr, "usage: %s [-d <output-dir>] <adl.adl> [precursor.adl ...] <catalog.mcs>\n",
 			argv[0]);
-		fprintf(stderr, "\tWith no -d, both generated headers are written to stdout:\n"
+		fprintf(stderr, "\tWith no -d, msggen writes both headers to stdout:\n"
 				"\tthe error numbers first, then the reporting functions.\n");
 		return 1;
 	}
@@ -531,12 +531,12 @@ int main(int argc, char** argv)
 	ADLMemStoreSink	sink(store);
 
 	/*
-	 * Every input but the last is a precursor, loaded in the order given and
-	 * each from the context the one before it left behind - which is why the
-	 * order is the caller's to state and not this program's to assume. adl.adl
-	 * comes first (TOP and the built-ins); a schema referring to an
-	 * enumeration it does not declare comes before that schema; and the
-	 * catalog comes last, since it is what the last statement of is read.
+	 * msggen loads every input but the last as a precursor, in the order you
+	 * give and each from the context the one before it left behind - which is
+	 * why you state the order rather than this program assuming one. Name
+	 * adl.adl first (TOP and the built-ins); name a schema before the
+	 * enumeration it refers to, if it declares none itself; and name the
+	 * catalog last, since msggen reads the name from its last statement.
 	 */
 	sink.root_object = sink.last_object();		// nothing loaded yet - TOP
 	for (int i = first_input; i < argc; i++)	// the catalog is the last of them
