@@ -19,6 +19,7 @@ are built on.
 - [Error Management](error.md)
 - [Message catalogs](messages.md)
 - [Threads, locks and thread-local storage](threading.md)
+- [Queue: a thread's inbox](queue.md)
 - [Pegexp](pegexp.md)
 - [PEG parsing](peg.md)
 

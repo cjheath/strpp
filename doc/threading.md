@@ -158,3 +158,11 @@ every model this library builds for.
 
 Under FreeRTOS, `configNUM_THREAD_LOCAL_STORAGE_POINTERS` must be raised
 from its default of 0 to at least `THREAD_LOCAL_MAX_SLOTS`.
+
+### Passing messages between threads
+
+A Thread may receive messages from a message [`Queue`](queue.md), which
+is created on its first call to `Queue::mine()`. The queue is made available
+to other threads which may `push()` new items onto the queue.
+Each Queue involves a `Latch` to protect the critical section, a `Condition`
+to notify a waiter, and a VariantArray to contain message data.

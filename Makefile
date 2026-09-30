@@ -51,6 +51,7 @@ HDRS	=	\
 		peg.h			\
 		pegexp.h		\
 		peg_ast.h		\
+		queue.h			\
 		redblack.h		\
 		refcount.h		\
 		lockfree.h		\
@@ -92,6 +93,7 @@ TESTS	=	\
 		medley_test		\
 		peg_test		\
 		pegexp_test		\
+		queue_test		\
 		reassembly_test		\
 		redblack_test		\
 		refcount_test		\
@@ -290,6 +292,12 @@ freertos_check:	thread_test_freertos
 	@$(CXX) $(CXXFLAGS) -Iinclude -Itest \
 		-fsyntax-only test/thread_local_branch_check.cpp
 	@echo "No-threading thread-local branch compiles"
+	@$(CXX) $(CXXFLAGS) $(FREERTOS_COPT) -Iinclude -Itest $(FREERTOS_INC) \
+		-fsyntax-only test/queue_freertos_branch_check.cpp
+	@echo "FreeRTOS queue branch compiles"
+	@$(CXX) $(CXXFLAGS) -Iinclude -Itest \
+		-fsyntax-only test/queue_freertos_branch_check.cpp
+	@echo "No-threading queue branch compiles"
 
 thread_test_freertos:	thread_test.cpp libstrpp_freertos.a
 	$(CXX) $(CXXFLAGS) $(FREERTOS_COPT) -Iinclude -Itest $(FREERTOS_INC) -o $@ $< libstrpp_freertos.a
