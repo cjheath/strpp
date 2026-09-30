@@ -125,6 +125,9 @@ protected:
 	static	inline	void	unregisterThread(ThreadId);	// Remove from the registry if present; caller holds thread_latch
 
 	static int		ThreadProc(void* _this);
+#if	defined(HAVE_FREERTOS)
+	static void		ThreadProcTask(void* _this);	// TaskFunction_t's signature; calls ThreadProc
+#endif
 	inline void		remove_ended();
 
 	// REVISIT: Implement error buffer:

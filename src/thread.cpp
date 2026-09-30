@@ -120,7 +120,7 @@ Thread::resume()
 		depth = (size_t)(StackType_t)-1;
 	}
 	BaseType_t	ok = xTaskCreate(
-				(TaskFunction_t)Thread::ThreadProc,
+				Thread::ThreadProcTask,
 				"Thread",			// REVISIT: allow a name to be supplied?
 				(StackType_t)depth,
 				this,
@@ -195,6 +195,14 @@ Thread::ThreadProc(void* _this)
 	return ret;
 #endif
 }
+
+#if	defined(HAVE_FREERTOS)
+void
+Thread::ThreadProcTask(void* _this)	// TaskFunction_t's signature; ThreadProc returns int for the other models
+{
+	ThreadProc(_this);
+}
+#endif
 
 /*
  * End the calling thread, with this code as its exit code - which join()
@@ -363,12 +371,12 @@ void
 Thread::yield(Milliseconds milliseconds)
 {
 #if	defined(HAVE_PTHREADS)
-	Tick		ticks = milliseconds.asInterval().ticks();	// 10⁻⁸ second ticks
+	Tick		ticks = milliseconds.asInterval().ticks();	// 10^-8 second ticks
 	if (ticks < 0)			// Zero, or the null tick: no time at all
 		ticks = 0;
 	struct timespec	request, remaining;
 	request.tv_sec = (time_t)(ticks / TicksPerSecond);
-	request.tv_nsec = (long)(ticks % TicksPerSecond * 100);	// 10⁻⁸ s to 10⁻⁹ s
+	request.tv_nsec = (long)(ticks % TicksPerSecond * 10);	// 10^-8 s to 10^-9 s
 	while (nanosleep(&request, &remaining) == -1)
 	{
 		if (errno != EINTR)

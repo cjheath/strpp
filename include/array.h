@@ -572,6 +572,8 @@ public:
 	: Base() {}
 	Array(const Array& s1)		// Normal copy constructor
 	: Base(s1) {}
+	Array& operator=(const Array& s1)	// Normal assignment operator
+	{ Base::operator=(s1); return *this; }
 	Array(const Element* data, Index size, Index allocate = 0)	// construct by copying data
 	: Base(data, size, allocate) {}
 	Array(const Element* data, Index size, Index allocate, ArrayOwnership ownership) // borrow, or take ownership of, `data`

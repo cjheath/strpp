@@ -1749,11 +1749,8 @@ StrBodyI<Index>::toJSON()
 				// a control-char, \, ' or a surrogate, but we don't have to do that.
 				// Here we leave valid UTF-16 characters inline, represented as UTF-8
 
-				// REVISIT: Handle StrRawBinary data
-				// if (ch >= ' ' && ch < 128)			// ASCII but not ctl
-				// if (ch >= ' ' && ch < 256)			// ISO8859-1 but not ctl
-				if (ch >= ' '
-				 && (ch <= 0xFFFF && !UTF16IsSurrogate(ch))	// Not ctl, emoji or surrogate 
+				if ((ch >= ' '
+				 && (ch <= 0xFFFF && !UTF16IsSurrogate(ch)))	// Not ctl, emoji or surrogate
 				  || (ch <= 0xFF && isRawBinary()))		// Just 8-bit
 				{
 					putChar(op, ch);

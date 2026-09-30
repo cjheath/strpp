@@ -104,7 +104,7 @@ inline bool	UCS4IsWhite(UCS4 ch)
 				|| (ch >= 0x2028 && ch <= 0x2029)
 				|| ch == 0x3000;
 		}
-inline bool	UCS4IsASCII(UCS4 ch) { return ch >= 0 && ch < 0x00000080; }
+inline bool	UCS4IsASCII(UCS4 ch) { return ch < 0x00000080; }
 inline bool	UCS4IsASCIIPrintable(UCS4 ch) { return ch < 0x0000007F && ch >= ' '; }
 inline bool	UCS4IsLatin1(UCS4 ch) { return ch < 0x00000100; }
 inline bool	UCS4IsUnicode(UCS4 ch) { return ch < 0x00110000; }	// Should we exclude Surrogates?
@@ -148,7 +148,7 @@ UTF8Is2nd(UTF8 ch)
 inline int
 UTF8Len(UCS4 ch)
 {
-	if (ch < 0 || (ch & 0x80000000))
+	if (ch & 0x80000000)
 	{
 		if (UCS4IsIllegal(ch))	// MSB is sign bit
 			return 1;
