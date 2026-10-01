@@ -1,11 +1,11 @@
-#if !defined(QUEUE_H)
-#define QUEUE_H
+#if !defined(MSGQUEUE_H)
+#define MSGQUEUE_H
 /*
- * Queue: a thread-safe FIFO of Variants. A Thread may create/access its
- * incoming work queue (saved as a ThreadLocal) by calling Queue::mine().
+ * MessageQueue: a thread-safe FIFO of Variants. A Thread may create/access its
+ * incoming work queue (saved as a ThreadLocal) by calling MessageQueue::mine().
  *
  * A sender needs to be handed a pointer or reference to a recipient thread's
- * Queue before it can push() onto that queue.
+ * MessageQueue before it can push() onto that queue.
  *
  * (c) Copyright Clifford Heath 2026. See LICENSE file for usage rights.
  */
@@ -15,15 +15,15 @@
 #include	<datetime.h>
 #include	<variant.h>
 
-class	Queue
+class	MessageQueue
 {
 public:
-	Queue() {}
-	~Queue() {}
+	MessageQueue() {}
+	~MessageQueue() {}
 
 	// A queue may not be copied: see Latch, which it holds one of
-	Queue(const Queue&) = delete;
-	Queue&		operator=(const Queue&) = delete;
+	MessageQueue(const MessageQueue&) = delete;
+	MessageQueue&		operator=(const MessageQueue&) = delete;
 
 	void		push(const Variant& item);
 	void		push(const VariantArray& items);	// Several, in order, under one lock
@@ -34,10 +34,10 @@ public:
 
 	bool		isEmpty();
 
-	// A Queue that serves as the calling thread's own inbox (created on first use)
-	static Queue*	mine()
+	// A MessageQueue that serves as the calling thread's own inbox (created on first use)
+	static MessageQueue*	mine()
 			{
-				static ThreadLocal<Queue>	mailbox;
+				static ThreadLocal<MessageQueue>	mailbox;
 				return mailbox.get();
 			}
 
@@ -48,7 +48,7 @@ private:
 };
 
 inline void
-Queue::push(const Variant& item)
+MessageQueue::push(const Variant& item)
 {
 	latch.enter();
 	items.push(item);
@@ -57,7 +57,7 @@ Queue::push(const Variant& item)
 }
 
 inline void
-Queue::push(const VariantArray& to_add)
+MessageQueue::push(const VariantArray& to_add)
 {
 	latch.enter();
 	for (VariantArray::Index i = 0; i < to_add.length(); i++)
@@ -68,7 +68,7 @@ Queue::push(const VariantArray& to_add)
 }
 
 inline Variant
-Queue::pop()
+MessageQueue::pop()
 {
 	latch.enter();
 	while (items.isEmpty())
@@ -79,7 +79,7 @@ Queue::pop()
 }
 
 inline Variant
-Queue::pop(Milliseconds timeout)
+MessageQueue::pop(Milliseconds timeout)
 {
 	long		remaining_ms = (long)timeout.ms();
 	latch.enter();
@@ -98,7 +98,7 @@ Queue::pop(Milliseconds timeout)
 }
 
 inline bool
-Queue::try_pop(Variant& item)
+MessageQueue::try_pop(Variant& item)
 {
 	latch.enter();
 	bool		got = !items.isEmpty();
@@ -109,7 +109,7 @@ Queue::try_pop(Variant& item)
 }
 
 inline bool
-Queue::isEmpty()
+MessageQueue::isEmpty()
 {
 	latch.enter();
 	bool		empty = items.isEmpty();
@@ -117,4 +117,4 @@ Queue::isEmpty()
 	return empty;
 }
 
-#endif	// QUEUE_H
+#endif	// MSGQUEUE_H

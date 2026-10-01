@@ -17,7 +17,7 @@
 # The error buffer holds a thread-local slot, as does anything else wanting one
 # per thread, so FreeRTOS's configNUM_THREAD_LOCAL_STORAGE_POINTERS
 # (CONFIG_FREERTOS_THREAD_LOCAL_STORAGE_POINTERS) has to be raised from its
-# default of 0 to at least THREAD_LOCAL_MAX_SLOTS, which is 16. See
+# default of 0 to at least CONFIG_STRPP_THREAD_LOCAL_SLOTS + 1. See
 # include/thread_local.h.
 #
 # HAVE_FREERTOS is always defined for this component, since ESP-IDF always
@@ -49,6 +49,7 @@ target_compile_definitions(${COMPONENT_LIB} PUBLIC
 	HAVE_FREERTOS
 	THREAD_DEFAULT_STACK_BYTES=${CONFIG_STRPP_THREAD_DEFAULT_STACK_BYTES}
 	THREAD_DEFAULT_PRIORITY=${CONFIG_STRPP_THREAD_DEFAULT_PRIORITY}
+	THREAD_LOCAL_MAX_SLOTS=${CONFIG_STRPP_THREAD_LOCAL_SLOTS}
 )
 
 # MAX_THREAD (see Array<Thread*> Thread::threads in src/thread.cpp) is tested

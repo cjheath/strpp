@@ -35,7 +35,7 @@ class	Condition;
  * Optional parameters to the Thread constructor. Currently just the stack
  * size, applied on every backend (pthreads: pthread_attr_setstacksize();
  * Windows: CreateThread's size argument; FreeRTOS: xTaskCreate's stack
- * depth, converted from bytes to StackType_t words).
+ * depth, converted from bytes to StackType_t units).
  */
 struct	ThreadParams
 {

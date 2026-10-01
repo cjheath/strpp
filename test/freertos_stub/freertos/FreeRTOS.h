@@ -23,6 +23,7 @@ typedef long		BaseType_t;
 typedef unsigned long	UBaseType_t;
 typedef uint32_t	TickType_t;
 typedef uint32_t	StackType_t;
+#define	configSTACK_DEPTH_TYPE	uint32_t
 typedef uint32_t	EventBits_t;
 
 #define	pdTRUE		((BaseType_t)1)
@@ -34,7 +35,7 @@ typedef uint32_t	EventBits_t;
  * FreeRTOS's own default is 0, and a build that uses ThreadSlot has to raise
  * it; see include/thread_local.h.
  */
-#define	configNUM_THREAD_LOCAL_STORAGE_POINTERS	8
+#define	configNUM_THREAD_LOCAL_STORAGE_POINTERS	17
 
 #define	portMAX_DELAY		((TickType_t)0xFFFFFFFFUL)
 #define	portTICK_PERIOD_MS	1

@@ -32,8 +32,7 @@ Threads
 
 Error
 	msggen compiler/generator (from ADL? Using Px?)
-		Test it
-		Add type signatgure support
+		Add type signature support
 		Multi-language
 			Parameter type cross-checks
 			Emit compiled catalogs

@@ -114,15 +114,15 @@ Thread::resume()
 	thread_latch.enter();
 	size_t		bytes = stack_bytes ? stack_bytes : THREAD_DEFAULT_STACK_BYTES;
 	size_t		depth = bytes / sizeof(StackType_t);
-	if (depth > (size_t)(StackType_t)-1)		// The platform's count is a narrower field
+	if (depth > (size_t)(configSTACK_DEPTH_TYPE)-1)		// The platform's count is a narrower field
 	{
 		ErrorTHR_StackRefused("xTaskCreate", bytes, 0);		// Truncated below
-		depth = (size_t)(StackType_t)-1;
+		depth = (size_t)(configSTACK_DEPTH_TYPE)-1;
 	}
 	BaseType_t	ok = xTaskCreate(
 				Thread::ThreadProcTask,
 				"Thread",			// REVISIT: allow a name to be supplied?
-				(StackType_t)depth,
+				(configSTACK_DEPTH_TYPE)depth,
 				this,
 				THREAD_DEFAULT_PRIORITY,
 				&thread_id

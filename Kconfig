@@ -30,4 +30,17 @@ menu "strpp Configuration"
 			as a hard limit. Leave at 0 to let the registry grow
 			dynamically instead.
 
+	config STRPP_THREAD_LOCAL_SLOTS
+		int "Thread-local storage slots strpp may claim"
+		range 1 16
+		default 4
+		help
+			The most slots the program may claim for ThreadLocal objects
+			(include/thread_local.h). strpp claims two: the error buffer,
+			and the one shared by every thread's MessageQueue::mine()
+			inbox; claiming more than this stops the program at startup. Set
+			FREERTOS_THREAD_LOCAL_STORAGE_POINTERS to at least this plus
+			one - ESP-IDF keeps index 0 - or the build fails. Each slot
+			costs a pointer in every task.
+
 endmenu

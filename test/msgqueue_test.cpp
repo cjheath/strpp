@@ -1,5 +1,5 @@
 /*
- * Queue: push/pop, blocking pop woken by another thread, and pop(timeout).
+ * MessageQueue: push/pop, blocking pop woken by another thread, and pop(timeout).
  *
  * (c) Copyright Clifford Heath 2026. See LICENSE file for usage rights.
  */
@@ -9,7 +9,7 @@
 #include	<lockfree.h>
 #include	<thread.h>
 #include	<condition.h>
-#include	<queue.h>
+#include	<msgqueue.h>
 
 static int	fails = 0;
 
@@ -30,15 +30,15 @@ now_ms()
 	return (long)(ts.tv_sec*1000 + ts.tv_nsec/1000000);
 }
 
-// Pushes one item onto a given Queue, after a delay
+// Pushes one item onto a given MessageQueue, after a delay
 class	Pusher
 : public Thread
 {
-	Queue*		target;
+	MessageQueue*		target;
 	long		delay_ms;
 	int		value;
 public:
-	Pusher(Queue* a_target, long a_delay, int a_value)
+	Pusher(MessageQueue* a_target, long a_delay, int a_value)
 	: target(a_target)
 	, delay_ms(a_delay)
 	, value(a_value)
@@ -56,7 +56,7 @@ static void
 push_pop_tests()
 {
 	printf("\nQueue push/pop, single thread\n");
-	Queue		q;
+	MessageQueue		q;
 	expect("a new queue is empty", q.isEmpty());
 
 	Variant		unused;
@@ -85,7 +85,7 @@ static void
 timeout_tests()
 {
 	printf("\nQueue::pop(timeout)\n");
-	Queue		q;
+	MessageQueue		q;
 
 	long	start = now_ms();
 	Variant	got = q.pop(Milliseconds(50));
@@ -99,7 +99,7 @@ static void
 blocking_pop_tests()
 {
 	printf("\nQueue::pop() blocks until another thread pushes\n");
-	Queue		q;
+	MessageQueue		q;
 
 	Pusher		pusher(&q, 200, 99);
 	long		start = now_ms();

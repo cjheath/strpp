@@ -20,7 +20,8 @@
  * the models this library builds for.
  *
  * FreeRTOS builds must raise configNUM_THREAD_LOCAL_STORAGE_POINTERS (it
- * defaults to 0) to at least THREAD_LOCAL_MAX_SLOTS.
+ * defaults to 0) to at least THREAD_LOCAL_MAX_SLOTS + 1: index 0 is left to
+ * ESP-IDF, whose pthread layer and lwIP both keep their own data in it.
  *
  * (c) Copyright Clifford Heath 2026. See LICENSE file for usage rights.
  */
@@ -61,7 +62,7 @@ private:
 #elif	defined(HAVE_FREERTOS)
 	ThreadSlot()
 			{
-				index = claim();
+				index = claim() + 1;	// Index 0 belongs to ESP-IDF
 				assert(index < configNUM_THREAD_LOCAL_STORAGE_POINTERS);
 			}
 	~ThreadSlot()
@@ -82,6 +83,9 @@ private:
 
 private:
 	BaseType_t	index;
+
+	static_assert(configNUM_THREAD_LOCAL_STORAGE_POINTERS >= THREAD_LOCAL_MAX_SLOTS + 1,
+		"Raise configNUM_THREAD_LOCAL_STORAGE_POINTERS to THREAD_LOCAL_MAX_SLOTS + 1 or more");
 
 #elif	defined(MSW)
 	ThreadSlot()

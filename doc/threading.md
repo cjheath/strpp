@@ -157,12 +157,15 @@ but not on FreeRTOS, where it needs toolchain support, so it could not cover
 every model this library builds for.
 
 Under FreeRTOS, `configNUM_THREAD_LOCAL_STORAGE_POINTERS` must be raised
-from its default of 0 to at least `THREAD_LOCAL_MAX_SLOTS`.
+from its default of 0 to at least `THREAD_LOCAL_MAX_SLOTS + 1`; ESP-IDF keeps
+index 0 for itself. In an ESP-IDF build, `THREAD_LOCAL_MAX_SLOTS` is the
+`STRPP_THREAD_LOCAL_SLOTS` setting (1 to 16, default 4), and the build fails if
+FreeRTOS has fewer.
 
 ### Passing messages between threads
 
-A Thread may receive messages from a message [`Queue`](queue.md), which
-is created on its first call to `Queue::mine()`. The queue is made available
+A Thread may receive messages from a message [`MessageQueue`](msgqueue.md), which
+is created on its first call to `MessageQueue::mine()`. The queue is made available
 to other threads which may `push()` new items onto the queue.
-Each Queue involves a `Latch` to protect the critical section, a `Condition`
+Each MessageQueue involves a `Latch` to protect the critical section, a `Condition`
 to notify a waiter, and a VariantArray to contain message data.
