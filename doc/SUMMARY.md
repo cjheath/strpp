@@ -20,6 +20,8 @@ are built on.
 - [Message catalogs](messages.md)
 - [Threads, locks and thread-local storage](threading.md)
 - [MessageQueue: a thread's inbox](msgqueue.md)
+- [Lock and SIXLock: shared, intent and exclusive locks](lock.md)
+- [Windows: transactional message processing](window.md)
 - [Pegexp](pegexp.md)
 - [PEG parsing](peg.md)
 

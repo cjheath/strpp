@@ -65,7 +65,8 @@ HDRS	=	\
 		taggedref.h		\
 		thread.h		\
 		thread_local.h		\
-		variant.h
+		variant.h		\
+		window.h
 
 SRCS	=	\
 		array.cpp		\
@@ -106,7 +107,8 @@ TESTS	=	\
 		thread_local_test	\
 		utf8pointer_test	\
 		variant_test		\
-		variant_ndebug_test
+		variant_ndebug_test	\
+		window_test
 
 SUBDIRS	=	rx tools
 
