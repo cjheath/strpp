@@ -37,6 +37,7 @@ Threads {
 	No condition { : itText ~= '`{1}` non è possibile: la variabile di condizione non è stata creata correttamente'; }
 	Wait failed { : itText ~= 'Il thread {1} non è riuscito (codice di errore {2})'; }
 	Delay failed { : itText ~= 'Il thread {1} non è riuscito (codice di errore {2})'; }
+	Ended with errors { : itText ~= 'Il thread `{1}` è terminato con {2} errori non gestiti; sono segnalati prima di questo'; }
 }
 
 Strpp;

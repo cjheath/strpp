@@ -44,6 +44,17 @@ not yet recovered or delivered as a message. The error number is compact,
 just a 32-bit compile-time constant, so error handling can use `switch`
 cases.
 
+### If a thread ends with errors outstanding
+
+The error buffer holds what has been reported and not dealt with. If a
+thread ends with undelivered errors, a debug build will assert and dump
+the errors. Deal with every error, or `clear()` the buffer, before `run()`
+returns.
+
+Without assertions, outstanding errors get propagated to error buffer of
+the thread which cleans up (joins) this thread. They're added in order and
+followed by a `THRERR_ENDED_WITH_ERRORS` message.
+
 ### Error numbers: the ErrNum type
 
 `#include	<error.h>`

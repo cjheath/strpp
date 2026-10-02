@@ -37,6 +37,7 @@ Threads {
 	No condition { : jaText ~= '条件変数を `{1}` できません: 正常に作成されませんでした'; }
 	Wait failed { : jaText ~= 'スレッド {1} が失敗しました（エラーコード {2}）'; }
 	Delay failed { : jaText ~= 'スレッド {1} が失敗しました（エラーコード {2}）'; }
+	Ended with errors { : jaText ~= 'スレッド `{1}` は未処理のエラー {2} 件を残して終了しました。それらはこのエラーの前に報告されています'; }
 }
 
 Strpp;

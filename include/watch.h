@@ -35,7 +35,8 @@ enum	WatchKind
 	WatchNothing = 0,
 	WatchLatch,			// A Latch
 	WatchLock,			// A Lock or SIXLock
-	WatchCondition			// A Condition: nothing says who will signal it
+	WatchCondition,			// A Condition: nothing says who will signal it
+	WatchQueue			// A full MessageQueue, which its consumer has to make room in
 };
 
 // What the thread needs, so we know why it's blocked
@@ -44,7 +45,8 @@ enum	WatchMode
 	WatchForShared,			// A shared hold: writers hold it up
 	WatchForWriter,			// An intent or exclusive hold, or a Latch: writers hold it up
 	WatchForDrain,			// An upgrade to exclusive: shared holds hold it up
-	WatchForSignal			// A condition: no one in particular
+	WatchForSignal,			// A condition: no one in particular
+	WatchForSpace			// A queue: the thread that pops it holds this up
 };
 
 // How a thread is holding a lock
@@ -72,6 +74,8 @@ struct	WatchRecord
 	WatchMode		wait_mode;
 	const void*		wait_object;
 	uint32_t		wait_since;	// WatchNowMs() when the wait began
+	bool			wait_has_consumer;	// A queue wait: whether it is known who pops it
+	ThreadId		wait_consumer;	// ...and that thread
 };
 
 /*
@@ -82,8 +86,9 @@ struct	WatchRecord
  * Return the number of WatchRecords written to `out`.
  *
  * WatchFindCycle finds one cycle of threads, each waiting for a lock
- * the next holds, and writes them in that order; it returns 0 when there is
- * none. A thread that waits for a lock only it holds is not reported.
+ * the next holds - or, for a full queue, pops it - and writes them in that
+ * order; it returns 0 when there is none. A thread that waits for a lock only
+ * it holds is not reported.
  *
  * WatchFindStalls lists the threads that have waited at least threshold_ms,
  * only those holding a lock if only_holding.
@@ -112,7 +117,7 @@ struct	ThreadWatch;
 class	WatchWait
 {
 public:
-	WatchWait(const void* object, WatchKind kind, WatchMode mode);
+	WatchWait(const void* object, WatchKind kind, WatchMode mode, const ThreadId* consumer = 0);
 	~WatchWait();
 	void		retarget(WatchMode mode);	// The same wait, now needing something else
 
@@ -134,7 +139,7 @@ inline void	watch_held_remove(const void*)		{}
 class	WatchWait
 {
 public:
-	WatchWait(const void*, WatchKind, WatchMode)	{}
+	WatchWait(const void*, WatchKind, WatchMode, const ThreadId* = 0)	{}
 	void		retarget(WatchMode)		{}
 };
 

@@ -41,14 +41,24 @@ menu "strpp Configuration"
 			deadlock/stall monitor, so the default here is 4.
 			Each slot costs a pointer in every thread.
 
+	config STRPP_MSGQUEUE_HIGH_WATER
+		int "Maximum capacity after which MessageQueue blocks a push"
+		range 1 1024
+		default 16
+		help
+			A push to a full queue waits for someone to make room, or
+			fails if it has a timeout (include/msgqueue.h). A batch
+			push can exceed this limit. If a queue doesn't drain there's
+			probably a deadlock. Use the monitor thread to find it.
+
 	config STRPP_MONITOR
-		bool "Track locks held by each thread for deadlock monitoring"
+		bool "Enable deadlock detection by tracking locks held by each thread"
 		default n
 		help
-			Detection of deadlock and stalls requires this to keep track
-			of who is holding what, and who is waiting for it. There is
-			no memory cost if this is disabled, and a small bookkeeping
-			overhead (memory and some atomic memory cycles)  when it is
-			enabled. It uses one THREAD_LOCAL_SLOT.
+			Enable this to allow detecting deadlock and stalls. Keeps track
+			of who is holding what, and who is waiting for it. No memory
+			cost if disabled, and a small bookkeeping overhead (memory and
+			some atomic memory cycles)  when it is enabled. It uses one
+			THREAD_LOCAL_SLOT.
 
 endmenu

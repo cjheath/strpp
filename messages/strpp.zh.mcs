@@ -37,6 +37,7 @@ Threads {
 	No condition { : zhText ~= '无法 `{1}` 条件变量，因为它未能成功创建'; }
 	Wait failed { : zhText ~= '线程 {1} 失败（错误码 {2}）'; }
 	Delay failed { : zhText ~= '线程 {1} 失败（错误码 {2}）'; }
+	Ended with errors { : zhText ~= '线程 `{1}` 结束时仍有 {2} 个未处理的错误；它们在此之前已报告'; }
 }
 
 Strpp;

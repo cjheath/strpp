@@ -52,6 +52,7 @@ HDRS	=	\
 		pegexp.h		\
 		peg_ast.h		\
 		msgqueue.h		\
+		registry.h		\
 		redblack.h		\
 		refcount.h		\
 		lock.h			\
@@ -77,6 +78,7 @@ SRCS	=	\
 		errbuf.cpp		\
 		gregorian.cpp		\
 		lockfree.cpp		\
+		msgqueue.cpp		\
 		strassert.cpp		\
 		strval.cpp		\
 		thread.cpp		\
@@ -105,6 +107,7 @@ TESTS	=	\
 		strformat_test		\
 		strval_test		\
 		taggedref_test		\
+		thread_errors_ndebug_test \
 		thread_test		\
 		thread_local_test	\
 		utf8pointer_test	\
@@ -180,6 +183,16 @@ run_variant_test: variant_test
 variant_ndebug_test: test/variant_ndebug_test.cpp $(HDRS) Makefile
 	$(CXX) $(DEBUG) -DNDEBUG $(CXXFLAGS) -Iinclude -Itest -o $@ \
 		$< src/variant.cpp src/errbuf.cpp $(LIB)
+
+# A thread that ends with errors stops a build with assertions, so what happens
+# without them - the errors reach whoever joins it - needs NDEBUG through the
+# two sources that act on it.
+thread_errors_ndebug_test: test/thread_errors_ndebug_test.cpp $(HDRS) Makefile
+	$(CXX) $(DEBUG) -DNDEBUG $(CXXFLAGS) -Iinclude -Itest -o $@ \
+		$< src/thread.cpp src/errbuf.cpp $(LIB)
+
+run_thread_errors_ndebug_test: thread_errors_ndebug_test
+	thread_errors_ndebug_test
 
 run_variant_ndebug_test: variant_ndebug_test
 	variant_ndebug_test
@@ -323,7 +336,7 @@ freertos_check:	thread_test_freertos
 	@$(CXX) $(CXXFLAGS) $(FREERTOS_COPT) -Iinclude -Itest $(FREERTOS_INC) \
 		-fsyntax-only test/msgqueue_freertos_branch_check.cpp
 	@echo "FreeRTOS queue branch compiles"
-	@$(CXX) $(CXXFLAGS) -Iinclude -Itest \
+	@$(CXX) $(CXXFLAGS) -DNO_THREAD -Iinclude -Itest \
 		-fsyntax-only test/msgqueue_freertos_branch_check.cpp
 	@echo "No-threading queue branch compiles"
 	@$(CXX) $(CXXFLAGS) $(FREERTOS_COPT) -DSTRPP_MONITOR -Iinclude -Isrc -Itest $(FREERTOS_INC) \

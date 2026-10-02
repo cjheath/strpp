@@ -37,6 +37,7 @@ Threads {
 	No condition { : deText ~= '`{1}` ist nicht möglich: Die Bedingungsvariable wurde nicht erfolgreich erstellt'; }
 	Wait failed { : deText ~= 'Thread {1} schlug fehl (Fehlercode {2})'; }
 	Delay failed { : deText ~= 'Thread {1} schlug fehl (Fehlercode {2})'; }
+	Ended with errors { : deText ~= 'Thread `{1}` endete mit {2} unbehandelten Fehlern; sie werden vor diesem gemeldet'; }
 }
 
 Strpp;
