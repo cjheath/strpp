@@ -19,10 +19,15 @@ DEPTH	=	16
 STRVALINDEXBITS	=	32
 ARRAYINDEXBITS	=	32
 
+# Anything else you want defined: `make EXTRA_COPT='-DSTRPP_MONITOR -DSTRPP_WATCH_THREADS=64'`.
+# The settings that have one are in doc/monitor.md and doc/msgqueue.md.
+EXTRA_COPT =
+
 COPT	=	-DHAVE_PTHREADS \
 		-DRENDER_MAX_DEPTH=$(DEPTH) \
 		-DStrValIndexBits=$(STRVALINDEXBITS) \
-		-DArrayIndexBits=$(ARRAYINDEXBITS) # -DPEG_TRACE
+		-DArrayIndexBits=$(ARRAYINDEXBITS) \
+		$(EXTRA_COPT)	# -DPEG_TRACE
 # For a real FreeRTOS build, use -DHAVE_FREERTOS instead of -DHAVE_PTHREADS above,
 # add e.g. -DTHREAD_DEFAULT_STACK_BYTES=4096 -DTHREAD_DEFAULT_PRIORITY=1 -DMAX_THREAD=8,
 # and point -I at your real FreeRTOS headers instead of test/freertos_stub.
@@ -51,6 +56,7 @@ HDRS	=	\
 		peg.h			\
 		pegexp.h		\
 		peg_ast.h		\
+		monitor.h		\
 		msgqueue.h		\
 		registry.h		\
 		redblack.h		\
@@ -78,6 +84,7 @@ SRCS	=	\
 		errbuf.cpp		\
 		gregorian.cpp		\
 		lockfree.cpp		\
+		monitor.cpp		\
 		msgqueue.cpp		\
 		strassert.cpp		\
 		strval.cpp		\
@@ -113,6 +120,7 @@ TESTS	=	\
 		utf8pointer_test	\
 		variant_test		\
 		variant_ndebug_test	\
+		monitor_test		\
 		watch_test		\
 		window_test
 
@@ -201,9 +209,9 @@ run_variant_ndebug_test: variant_ndebug_test
 # Condition and the locks do: they are compiled from source with the flag on,
 # and not linked with the archive. `make monitor_tests` also runs the tests
 # that do not need it, to check that the hooks leave them working.
-MONITOR_TESTS	=	watch_test lock_test window_test msgqueue_test thread_test
+MONITOR_TESTS	=	watch_test monitor_test lock_test window_test msgqueue_test thread_test
 
-watch_test:	test/watch_test.cpp $(HDRS) Makefile
+watch_test monitor_test:	%:	test/%.cpp $(HDRS) Makefile
 	$(CXX) $(DEBUG) -DSTRPP_MONITOR $(CXXFLAGS) -Iinclude -Isrc -Itest -o $@ \
 		$< $(addprefix src/,$(SRCS))
 
@@ -211,9 +219,10 @@ watch_test:	test/watch_test.cpp $(HDRS) Makefile
 	$(CXX) $(DEBUG) -DSTRPP_MONITOR $(CXXFLAGS) -Iinclude -Isrc -Itest -o $@ \
 		$< $(addprefix src/,$(SRCS))
 
-monitor_tests:	watch_test $(filter-out watch_test,$(MONITOR_TESTS:%=%_monitor))
+monitor_tests:	watch_test monitor_test $(filter-out watch_test monitor_test,$(MONITOR_TESTS:%=%_monitor))
 	./watch_test
-	@for t in $(filter-out watch_test,$(MONITOR_TESTS)); do \
+	./monitor_test
+	@for t in $(filter-out watch_test monitor_test,$(MONITOR_TESTS)); do \
 		echo "--- $${t}_monitor"; \
 		./$${t}_monitor || exit 1; \
 	done
@@ -341,6 +350,8 @@ freertos_check:	thread_test_freertos
 	@echo "No-threading queue branch compiles"
 	@$(CXX) $(CXXFLAGS) $(FREERTOS_COPT) -DSTRPP_MONITOR -Iinclude -Isrc -Itest $(FREERTOS_INC) \
 		-fsyntax-only src/watch.cpp
+	@$(CXX) $(CXXFLAGS) $(FREERTOS_COPT) -DSTRPP_MONITOR -Iinclude -Isrc -Itest $(FREERTOS_INC) \
+		-fsyntax-only src/monitor.cpp
 	@echo "FreeRTOS monitor branch compiles"
 
 thread_test_freertos:	thread_test.cpp libstrpp_freertos.a

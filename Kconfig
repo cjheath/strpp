@@ -61,4 +61,47 @@ menu "strpp Configuration"
 			some atomic memory cycles)  when it is enabled. It uses one
 			THREAD_LOCAL_SLOT.
 
+	config STRPP_WATCH_THREADS
+		int "How many Threads the monitor can see at once"
+		depends on STRPP_MONITOR
+		range 4 128
+		default 32
+		help
+			The most threads one look at the threads can hold. Each costs
+			about 170 bytes of heap in the monitor, and about 40 bytes of
+			its stack while it looks. See include/watch.h.
+
+	config STRPP_WATCH_HELD
+		int "How many Locks a thread's record can list"
+		depends on STRPP_MONITOR
+		range 2 32
+		default 8
+		help
+			A thread that holds more locks than this at once is still
+			watched, but the extra ones are only counted and cannot take
+			part in finding a deadlock. Each costs 16 bytes in every
+			thread's record and in every look.
+
+	config STRPP_MONITOR_STACK_BYTES
+		int "Stack size for the monitor thread (in bytes)"
+		depends on STRPP_MONITOR
+		range 3072 16384
+		default 6144
+		help
+			Raise this if you raise the number of threads, queues or
+			error buffers: each look keeps an array for them on the stack.
+			See include/monitor.h for the sizes.
+
+	config STRPP_MONITOR_QUEUES
+		int "How many Queues the monitor can see at once"
+		depends on STRPP_MONITOR
+		range 4 128
+		default 16
+
+	config STRPP_MONITOR_ERRBUFS
+		int "How many Error buffers the monitor can see at once"
+		depends on STRPP_MONITOR
+		range 4 128
+		default 16
+
 endmenu

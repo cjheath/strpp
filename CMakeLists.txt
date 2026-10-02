@@ -33,6 +33,7 @@ idf_component_register(
 		"src/errbuf.cpp"
 		"src/gregorian.cpp"
 		"src/lockfree.cpp"
+		"src/monitor.cpp"
 		"src/msgqueue.cpp"
 		"src/strassert.cpp"
 		"src/strval.cpp"
@@ -61,7 +62,13 @@ target_compile_definitions(${COMPONENT_LIB} PUBLIC
 # STRPP_MONITOR is tested with #if defined(), so define it only when it is on.
 # Everything built together has to agree on it: see include/watch.h.
 if(CONFIG_STRPP_MONITOR)
-	target_compile_definitions(${COMPONENT_LIB} PUBLIC STRPP_MONITOR)
+	target_compile_definitions(${COMPONENT_LIB} PUBLIC
+		STRPP_MONITOR
+		STRPP_WATCH_THREADS=${CONFIG_STRPP_WATCH_THREADS}
+		STRPP_WATCH_HELD=${CONFIG_STRPP_WATCH_HELD}
+		STRPP_MONITOR_STACK_BYTES=${CONFIG_STRPP_MONITOR_STACK_BYTES}
+		STRPP_MONITOR_QUEUES=${CONFIG_STRPP_MONITOR_QUEUES}
+		STRPP_MONITOR_ERRBUFS=${CONFIG_STRPP_MONITOR_ERRBUFS})
 endif()
 
 if(CONFIG_STRPP_MAX_THREAD)
