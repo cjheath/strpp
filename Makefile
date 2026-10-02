@@ -54,6 +54,7 @@ HDRS	=	\
 		msgqueue.h		\
 		redblack.h		\
 		refcount.h		\
+		lock.h			\
 		lockfree.h		\
 		strassert.h		\
 		strpp_err.h		\
@@ -90,6 +91,7 @@ TESTS	=	\
 		errbuf_test		\
 		greeting_test		\
 		gregorian_test		\
+		lock_test		\
 		medley_test		\
 		peg_test		\
 		pegexp_test		\
