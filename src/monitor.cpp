@@ -8,6 +8,7 @@
 #if	defined(STRPP_MONITOR)
 
 #include	<stdint.h>
+#include	<new>
 
 #include	<strval.h>
 #include	<errbuf.h>
@@ -31,6 +32,9 @@ Monitor::Monitor(MessageQueue& a_reports, const MonitorSettings& a_settings)
 , reports(a_reports)
 , settings(a_settings)
 , records(new WatchRecord[STRPP_WATCH_THREADS])
+, no_memory(Variant(VariantArray() << "monitor" << "no-memory" << "Not enough memory to report"))
+, was_short(false)
+, alloc_failed(false)
 {
 	resume();
 }
@@ -81,7 +85,12 @@ Monitor::confirmed(const unsigned* cycle, unsigned length)
 
 	Thread::yield(settings.confirm);
 
-	WatchRecord*	again = new WatchRecord[STRPP_WATCH_THREADS];
+	WatchRecord*	again = new (std::nothrow) WatchRecord[STRPP_WATCH_THREADS];
+	if (!again)
+	{
+		alloc_failed = true;
+		return false;
+	}
 	unsigned	count = WatchSnapshot(again, STRPP_WATCH_THREADS);
 	bool		same = true;
 	for (unsigned i = 0; i < length && same; i++)
@@ -96,9 +105,50 @@ Monitor::confirmed(const unsigned* cycle, unsigned length)
 	return same;
 }
 
+/*
+ * A look needs room for a second set of thread records, the findings, and the
+ * strings that name them. Without a probe there is no way to know, so it goes on.
+ */
+bool
+Monitor::enough_memory()
+{
+	if (!settings.probe)
+		return true;
+	MonitorMemory	memory;
+	if (!settings.probe(memory))
+		return true;
+	size_t		needed = settings.reserve ? settings.reserve
+				: STRPP_WATCH_THREADS * sizeof(WatchRecord) + 4096;
+	return memory.largest_block >= needed;
+}
+
+// Say once that looking was not possible, in a way that allocates nothing
+void
+Monitor::skip_look()
+{
+	bool		first = !was_short;
+	was_short = true;
+	bool		pushed = !first || reports.try_push(no_memory);
+	update([&](Data& d)
+	{
+		d.skipped++;
+		d.short_of_memory = true;
+		if (!pushed)
+			d.dropped++;
+	});
+}
+
 void
 Monitor::sample()
 {
+	if (!enough_memory())
+	{
+		skip_look();
+		return;
+	}
+	was_short = false;
+	alloc_failed = false;
+
 	VariantArray	findings;		// What there is now
 	VariantArray	keys;			// What identifies each, so it is reported once
 
@@ -110,7 +160,13 @@ Monitor::sample()
 	bool		in_cycle[STRPP_WATCH_THREADS];
 	for (unsigned i = 0; i < STRPP_WATCH_THREADS; i++)
 		in_cycle[i] = false;
-	if (length > 0 && confirmed(cycle, length))
+	bool		real_cycle = length > 0 && confirmed(cycle, length);
+	if (alloc_failed)
+	{		// Not even the second set of records fitted
+		skip_look();
+		return;
+	}
+	if (real_cycle)
 	{
 		VariantArray	names;
 		for (unsigned i = 0; i < length; i++)
@@ -191,6 +247,7 @@ Monitor::sample()
 	update([&](Data& d)
 	{
 		d.samples++;
+		d.short_of_memory = false;
 		d.dropped += dropped;
 		d.threads = threads;
 		d.queues = queue_count;
