@@ -66,6 +66,7 @@ HDRS	=	\
 		thread.h		\
 		thread_local.h		\
 		variant.h		\
+		watch.h			\
 		window.h
 
 SRCS	=	\
@@ -79,7 +80,8 @@ SRCS	=	\
 		strassert.cpp		\
 		strval.cpp		\
 		thread.cpp		\
-		variant.cpp
+		variant.cpp		\
+		watch.cpp
 
 LIB	=	libstrpp.a
 TESTS	=	\
@@ -108,6 +110,7 @@ TESTS	=	\
 		utf8pointer_test	\
 		variant_test		\
 		variant_ndebug_test	\
+		watch_test		\
 		window_test
 
 SUBDIRS	=	rx tools
@@ -180,6 +183,27 @@ variant_ndebug_test: test/variant_ndebug_test.cpp $(HDRS) Makefile
 
 run_variant_ndebug_test: variant_ndebug_test
 	variant_ndebug_test
+
+# Tests that need the library built with STRPP_MONITOR, which changes what Latch,
+# Condition and the locks do: they are compiled from source with the flag on,
+# and not linked with the archive. `make monitor_tests` also runs the tests
+# that do not need it, to check that the hooks leave them working.
+MONITOR_TESTS	=	watch_test lock_test window_test msgqueue_test thread_test
+
+watch_test:	test/watch_test.cpp $(HDRS) Makefile
+	$(CXX) $(DEBUG) -DSTRPP_MONITOR $(CXXFLAGS) -Iinclude -Isrc -Itest -o $@ \
+		$< $(addprefix src/,$(SRCS))
+
+%_monitor:	test/%.cpp $(HDRS) Makefile
+	$(CXX) $(DEBUG) -DSTRPP_MONITOR $(CXXFLAGS) -Iinclude -Isrc -Itest -o $@ \
+		$< $(addprefix src/,$(SRCS))
+
+monitor_tests:	watch_test $(filter-out watch_test,$(MONITOR_TESTS:%=%_monitor))
+	./watch_test
+	@for t in $(filter-out watch_test,$(MONITOR_TESTS)); do \
+		echo "--- $${t}_monitor"; \
+		./$${t}_monitor || exit 1; \
+	done
 
 %:	%.cpp $(LIB) $(MEMCHECK)
 	$(CXX) $(DEBUG) $(CXXFLAGS) -Iinclude -Itest -o $@ $< $(MEMCHECK) $(LIB)
@@ -302,6 +326,9 @@ freertos_check:	thread_test_freertos
 	@$(CXX) $(CXXFLAGS) -Iinclude -Itest \
 		-fsyntax-only test/msgqueue_freertos_branch_check.cpp
 	@echo "No-threading queue branch compiles"
+	@$(CXX) $(CXXFLAGS) $(FREERTOS_COPT) -DSTRPP_MONITOR -Iinclude -Isrc -Itest $(FREERTOS_INC) \
+		-fsyntax-only src/watch.cpp
+	@echo "FreeRTOS monitor branch compiles"
 
 thread_test_freertos:	thread_test.cpp libstrpp_freertos.a
 	$(CXX) $(CXXFLAGS) $(FREERTOS_COPT) -Iinclude -Itest $(FREERTOS_INC) -o $@ $< libstrpp_freertos.a

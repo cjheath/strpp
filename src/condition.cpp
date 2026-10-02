@@ -11,6 +11,19 @@
 #include	<thread.h>
 #include	<condition.h>
 #include	<strpp_msg.h>			// A condition that was never created says so
+#include	<watch.h>
+
+#if	defined(HAVE_PTHREADS)
+// The latch is not held while its owner waits: pthread_cond_wait lets go of it itself
+class	WatchLatchReleased
+{
+public:
+	WatchLatchReleased(Latch* a_latch) : latch(a_latch)	{ if (latch) watch_held_remove(latch); }
+	~WatchLatchReleased()					{ if (latch) watch_held_add(latch, HoldWriter); }
+private:
+	Latch*		latch;
+};
+#endif
 
 /*
  * With one thread - NO_THREAD, or no model selected at all, which thread.h
@@ -117,8 +130,10 @@ Condition::wait(
 	StrppAssert(user_latch);
 	if (!usable("wait on"))
 		return;
+	WatchWait	waiting(this, WatchCondition, WatchForSignal);
 
 #if	defined(HAVE_PTHREADS)
+	WatchLatchReleased	released(user_latch);
 	int		retcode = pthread_cond_wait(&cond, &user_latch->mutex);
 	if (retcode)
 		ErrorTHR_WaitFailed("pthread_cond_wait", retcode);
@@ -259,7 +274,9 @@ Condition::wait(		// Wait for a ticket
 	Latch*	user_latch
 )
 {
+	WatchWait	waiting(this, WatchCondition, WatchForSignal);
 #if	defined(HAVE_PTHREADS)
+	WatchLatchReleased	released(user_latch);
 	/*
 	 * pthread_cond_timedwait wants an absolute deadline on the condition
 	 * variable's clock - CLOCK_REALTIME, unless its attributes say otherwise -

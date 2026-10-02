@@ -26,6 +26,7 @@
 #include	<condition.h>
 #include	<thread.h>
 #include	<datetime.h>
+#include	<watch.h>
 #include	<strassert.h>
 
 class	SharedLock;
@@ -148,14 +149,23 @@ class	SharedLock
 public:
 	explicit	SharedLock(SIXLock& a_lock)
 			: lock(&a_lock)
-			{ lock->latch.enter(); lock->take_shared(0); lock->latch.leave(); }
+			{
+				WatchWait	waiting(lock, WatchLock, WatchForShared);
+				lock->latch.enter();
+				lock->take_shared(0);
+				lock->latch.leave();
+				watch_held_add(lock, HoldShared);
+			}
 	SharedLock(SIXLock& a_lock, Milliseconds timeout)
 			: lock(&a_lock)
 			{
+				WatchWait	waiting(lock, WatchLock, WatchForShared);
 				lock->latch.enter();
 				bool	granted = lock->take_shared(&timeout);
 				lock->latch.leave();
-				if (!granted)
+				if (granted)
+					watch_held_add(lock, HoldShared);
+				else
 					lock = 0;
 			}
 	SharedLock(SharedLock&& o) : lock(o.lock) { o.lock = 0; }
@@ -167,7 +177,15 @@ public:
 			{ release(); lock = o.lock; o.lock = 0; return *this; }
 
 	bool		holding() const	{ return lock != 0; }
-	void		release()	{ if (lock) lock->release_shared(); lock = 0; }
+	void		release()
+			{
+				if (lock)
+				{
+					watch_held_remove(lock);
+					lock->release_shared();
+				}
+				lock = 0;
+			}
 
 private:
 	Lock*		lock;
@@ -178,14 +196,23 @@ class	IntentLock
 public:
 	explicit	IntentLock(SIXLock& a_lock)
 			: lock(&a_lock)
-			{ lock->latch.enter(); lock->take_intent(0); lock->latch.leave(); }
+			{
+				WatchWait	waiting(lock, WatchLock, WatchForWriter);
+				lock->latch.enter();
+				lock->take_intent(0);
+				lock->latch.leave();
+				watch_held_add(lock, HoldWriter);
+			}
 	IntentLock(SIXLock& a_lock, Milliseconds timeout)
 			: lock(&a_lock)
 			{
+				WatchWait	waiting(lock, WatchLock, WatchForWriter);
 				lock->latch.enter();
 				bool	granted = lock->take_intent(&timeout);
 				lock->latch.leave();
-				if (!granted)
+				if (granted)
+					watch_held_add(lock, HoldWriter);
+				else
 					lock = 0;
 			}
 	IntentLock(IntentLock&& o) : lock(o.lock) { o.lock = 0; }
@@ -197,7 +224,15 @@ public:
 			{ release(); lock = o.lock; o.lock = 0; return *this; }
 
 	bool		holding() const	{ return lock != 0; }
-	void		release()	{ if (lock) lock->release_writer(); lock = 0; }
+	void		release()
+			{
+				if (lock)
+				{
+					watch_held_remove(lock);
+					lock->release_writer();
+				}
+				lock = 0;
+			}
 
 private:
 	Lock*		lock;
@@ -211,23 +246,34 @@ public:
 	explicit	ExclLock(Lock& a_lock)
 			: lock(&a_lock)
 			{
+				WatchWait	waiting(lock, WatchLock, WatchForWriter);
 				lock->latch.enter();
 				lock->take_intent(0);
+				waiting.retarget(WatchForDrain);
 				lock->drain(0);
 				lock->latch.leave();
+				watch_held_add(lock, HoldWriter);
 			}
 	ExclLock(Lock& a_lock, Milliseconds timeout)
 			: lock(&a_lock)
 			{
+				WatchWait	waiting(lock, WatchLock, WatchForWriter);
 				lock->latch.enter();
-				bool	granted = lock->take_intent(&timeout) && lock->drain(&timeout);
-				if (!granted && lock->writer && lock->owner == Thread::currentId())
-				{			// Got the writer slot, but the readers stayed
-					lock->writer = false;
-					lock->cond.broadcast();
+				bool	granted = lock->take_intent(&timeout);
+				if (granted)
+				{
+					waiting.retarget(WatchForDrain);
+					granted = lock->drain(&timeout);
+					if (!granted)
+					{		// Got the writer slot, but the readers stayed
+						lock->writer = false;
+						lock->cond.broadcast();
+					}
 				}
 				lock->latch.leave();
-				if (!granted)
+				if (granted)
+					watch_held_add(lock, HoldWriter);
+				else
 					lock = 0;
 			}
 
@@ -236,15 +282,17 @@ public:
 			: lock(intent.lock)
 			{
 				StrppAssert(lock);
+				WatchWait	waiting(lock, WatchLock, WatchForDrain);
 				lock->latch.enter();
 				lock->drain(0);
 				lock->latch.leave();
-				intent.lock = 0;
+				intent.lock = 0;		// Its hold is now this lock's
 			}
 	ExclLock(IntentLock& intent, Milliseconds timeout)
 			: lock(intent.lock)
 			{
 				StrppAssert(lock);
+				WatchWait	waiting(lock, WatchLock, WatchForDrain);
 				lock->latch.enter();
 				bool	granted = lock->drain(&timeout);
 				lock->latch.leave();
@@ -262,7 +310,15 @@ public:
 			{ release(); lock = o.lock; o.lock = 0; return *this; }
 
 	bool		holding() const	{ return lock != 0; }
-	void		release()	{ if (lock) lock->release_writer(); lock = 0; }
+	void		release()
+			{
+				if (lock)
+				{
+					watch_held_remove(lock);
+					lock->release_writer();
+				}
+				lock = 0;
+			}
 
 private:
 	Lock*		lock;

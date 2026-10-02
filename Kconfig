@@ -35,12 +35,20 @@ menu "strpp Configuration"
 		range 1 16
 		default 4
 		help
-			The most slots the program may claim for ThreadLocal objects
-			(include/thread_local.h). strpp claims two: the error buffer,
-			and the one shared by every thread's MessageQueue::mine()
-			inbox; claiming more than this stops the program at startup. Set
-			FREERTOS_THREAD_LOCAL_STORAGE_POINTERS to at least this plus
-			one - ESP-IDF keeps index 0 - or the build fails. Each slot
-			costs a pointer in every task.
+			The maximum number of ThreadLocal slots (include/thread_local.h).
+			WiFi in ESP32 claims one, and strpp claims two: the error buffer,
+			and the thread MessageQueue, and perhaps one more for the
+			deadlock/stall monitor, so the default here is 4.
+			Each slot costs a pointer in every thread.
+
+	config STRPP_MONITOR
+		bool "Track locks held by each thread for deadlock monitoring"
+		default n
+		help
+			Detection of deadlock and stalls requires this to keep track
+			of who is holding what, and who is waiting for it. There is
+			no memory cost if this is disabled, and a small bookkeeping
+			overhead (memory and some atomic memory cycles)  when it is
+			enabled. It uses one THREAD_LOCAL_SLOT.
 
 endmenu

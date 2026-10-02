@@ -34,6 +34,8 @@ inline void		taskYIELD_stub() {}
 #define			taskYIELD()	taskYIELD_stub()
 inline TaskHandle_t	xTaskGetCurrentTaskHandle() { return (TaskHandle_t)1; }
 inline TickType_t	xTaskGetTickCount() { return 0; }
+#define	taskSCHEDULER_NOT_STARTED	1
+inline int		xTaskGetSchedulerState() { return 2; }
 
 /*
  * Task-local storage. The stub keeps one array, not one per task, which is

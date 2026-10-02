@@ -37,6 +37,7 @@ idf_component_register(
 		"src/strval.cpp"
 		"src/thread.cpp"
 		"src/variant.cpp"
+		"src/watch.cpp"
 	INCLUDE_DIRS
 		"include"
 	PRIV_INCLUDE_DIRS
@@ -55,6 +56,12 @@ target_compile_definitions(${COMPONENT_LIB} PUBLIC
 # MAX_THREAD (see Array<Thread*> Thread::threads in src/thread.cpp) is tested
 # with #if defined(MAX_THREAD), not by its value, so it must be left
 # completely undefined for the "0 = unbounded" case - not defined as 0.
+# STRPP_MONITOR is tested with #if defined(), so define it only when it is on.
+# Everything built together has to agree on it: see include/watch.h.
+if(CONFIG_STRPP_MONITOR)
+	target_compile_definitions(${COMPONENT_LIB} PUBLIC STRPP_MONITOR)
+endif()
+
 if(CONFIG_STRPP_MAX_THREAD)
 	target_compile_definitions(${COMPONENT_LIB} PUBLIC
 		MAX_THREAD=${CONFIG_STRPP_MAX_THREAD})

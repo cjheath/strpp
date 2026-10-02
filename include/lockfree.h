@@ -10,6 +10,7 @@
 
 #include	<threadid.h>
 #include	<strassert.h>			// A latch that cannot be taken stops the program
+#include	<watch.h>			// What a monitor needs to know about who holds and waits
 
 #if	defined(HAVE_FREERTOS)
 #include	<freertos/semphr.h>
@@ -94,7 +95,10 @@ Latch::~Latch()
 bool
 Latch::probe()		// Gain the latch if possible immediately
 {
-	return pthread_mutex_trylock(&mutex) == 0;
+	bool	got = pthread_mutex_trylock(&mutex) == 0;
+	if (got)
+		watch_held_add(this, HoldWriter);
+	return got;
 }
 
 void
@@ -107,8 +111,10 @@ Latch::enter()		// Wait for the latch
 	 * caller's own recursive enter(), which this (error-checking) mutex
 	 * refuses by design.
 	 */
+	WatchWait	waiting(this, WatchLatch, WatchForWriter);
 	int	ret = pthread_mutex_lock(&mutex);
 	StrppAssert(ret == 0);
+	watch_held_add(this, HoldWriter);
 }
 
 bool
@@ -118,7 +124,7 @@ Latch::holding()	// Latch is held by calling thread?
 	if (ret == EDEADLK)
 		return true;
 	if (ret == 0)
-		leave();
+		pthread_mutex_unlock(&mutex);
 	return false;
 }
 
@@ -129,6 +135,7 @@ Latch::leave()		// Release the latch
 	// the check, leaving a latch another thread holds would acquire and then
 	// release it, quietly breaking that thread's critical section.
 	StrppAssert(pthread_mutex_lock(&mutex) == EDEADLK);
+	watch_held_remove(this);
 	pthread_mutex_unlock(&mutex);
 }
 
@@ -147,7 +154,10 @@ Latch::~Latch()
 bool
 Latch::probe()		// Gain the latch if possible immediately
 {
-	return xSemaphoreTakeRecursive(mutex, 0) == pdTRUE;
+	bool	got = xSemaphoreTakeRecursive(mutex, 0) == pdTRUE;
+	if (got)
+		watch_held_add(this, HoldWriter);
+	return got;
 }
 
 void
@@ -155,8 +165,10 @@ Latch::enter()		// Wait for the latch
 {
 	// A latch that cannot be taken leaves the critical section it protects
 	// unprotected, and there is no result to give the caller: stop, reported
+	WatchWait	waiting(this, WatchLatch, WatchForWriter);
 	BaseType_t	ok = xSemaphoreTakeRecursive(mutex, portMAX_DELAY);
 	StrppAssert(ok == pdTRUE);
+	watch_held_add(this, HoldWriter);
 }
 
 bool
@@ -171,6 +183,7 @@ Latch::leave()		// Release the latch
 	// Failing here means this thread did not hold it, or held it fewer times
 	// than it has left it: either way the latch's state is not what the caller
 	// believes, so there is no safe way to carry on
+	watch_held_remove(this);
 	BaseType_t	ok = xSemaphoreGiveRecursive(mutex);
 	StrppAssert(ok == pdTRUE);
 }

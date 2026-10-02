@@ -39,7 +39,8 @@ class	Condition;
  */
 struct	ThreadParams
 {
-	size_t	stackBytes = 0;		// 0 = platform default; see THREAD_DEFAULT_STACK_BYTES
+	size_t		stackBytes = 0;	// 0 = platform default; see THREAD_DEFAULT_STACK_BYTES
+	const char*	name = 0;	// Shown by tools and the monitor; must outlive the thread, as a literal does
 };
 
 /*
@@ -101,6 +102,7 @@ protected:
 	ThreadId		thread_id;
 	State			state;
 	size_t			stack_bytes;	// From ThreadParams, or 0 (platform default)
+	const char*		name;		// From ThreadParams, or null
 	/*
 	 * What run() returned, stored by ThreadProc before the thread is marked
 	 * Ended, or what exit() was given. The library carries it rather than the

@@ -45,6 +45,7 @@ Thread::Thread(const ThreadParams* params)
 : thread_id(0)
 , state(New)
 , stack_bytes(params ? params->stackBytes : 0)
+, name(params ? params->name : 0)
 , exit_code(0)
 {
 #if	defined(HAVE_PTHREADS) || defined(HAVE_FREERTOS)
@@ -121,7 +122,7 @@ Thread::resume()
 	}
 	BaseType_t	ok = xTaskCreate(
 				Thread::ThreadProcTask,
-				"Thread",			// REVISIT: allow a name to be supplied?
+				name ? name : "Thread",
 				(configSTACK_DEPTH_TYPE)depth,
 				this,
 				THREAD_DEFAULT_PRIORITY,
@@ -166,6 +167,7 @@ Thread::ThreadProc(void* _this)
 #endif
 
 	t->state = Started;
+	watch_thread_start(t->name);
 
 	int	ret = t->run();
 
@@ -185,6 +187,7 @@ Thread::ThreadProc(void* _this)
 		ended_threads_condition.broadcast();
 	}
 	thread_latch.leave();
+	watch_thread_exit();
 
 #if	defined(HAVE_PTHREADS)
 	return ret;
