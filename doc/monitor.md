@@ -1,62 +1,61 @@
 ## The monitor: finding deadlocks, stalls and runaway buffers
 
-`#include <monitor.h>`, which brings in `thread.h`, `msgqueue.h`, `window.h`
-and `watch.h`. It exists only when you build with `STRPP_MONITOR`.
-
-A thread that waits for ever, a queue that fills and an error buffer that
-nobody empties all fail quietly: the device carries on until it runs out of
-memory, or just stops. The monitor is a thread that looks for each of those
-and tells you.
+The Monitor is a background thread which watches for deadlocked threads,
+queues that fill faster then they are emptied, or an error buffer filling
+with reports that are not being delivered, or a device running out of
+memory. The Monitor wakes periodically and has a `look` to see if there
+seem to be problems.
 
 ### Switching it on
 
-Define `STRPP_MONITOR` when you build the library and everything that uses it.
-In ESP-IDF, set `STRPP_MONITOR` in `menuconfig`, under strpp. Without it, no
-code for the monitor is built and no lock does any extra work.
+Build everything with `STRPP_MONITOR` to enable the Monitor thread and
+the Watch points that it uses to check things. If you don't enable it,
+nothing is added to your code and no extra work is undertaken.
 
-With it on, `Latch`, `Condition` and the locks in [lock.h](lock.md) tell the
-library when a thread starts to wait, gets a lock or lets it go. Each thread
-that takes a lock gets a small record, which holds up to `STRPP_WATCH_HELD`
-locks (8 unless you set it). The library keeps one record for each of up to
-`STRPP_WATCH_THREADS` threads (32), and a thread-local slot for finding them.
-Everything you build together has to agree on the flag, as it has to agree on
-the threading model.
+In ESP-IDF, the `strpp` section of `menuconfig` provides `STRPP_MONITOR`.
+On other platforms you can set it in the Makefiles.
 
-### Settings you can build with
+The Watch point added to `Latch`, `Condition` and the Locks in [lock.h](lock.md)
+record the time that a thread starts to wait, gets a lock or lets it go. Each
+thread that takes a lock can record up to `STRPP_WATCH_HELD` locks (8 by default).
+Up to `STRPP_WATCH_THREADS` threads (default 32) may be monitored, and a
+thread-local slot is allocated.
 
-Each of these has a default, which you can change with `-D` when you build,
+### Settings
+
+Each setting has a default which you can change with `-D` when you build,
 or in `menuconfig` under ESP-IDF. For `make`, pass them in `EXTRA_COPT`:
 
 	make EXTRA_COPT='-DSTRPP_MONITOR -DSTRPP_WATCH_THREADS=64'
 
 | define | default | what it sets |
 |---|---|---|
-| `STRPP_WATCH_THREADS` | 32 | threads one look can hold |
-| `STRPP_WATCH_HELD` | 8 | locks one thread's record can list |
-| `STRPP_MONITOR_STACK_BYTES` | 6144 | the monitor thread's stack |
-| `STRPP_MONITOR_QUEUES` | 16 | queues one look can see |
-| `STRPP_MONITOR_ERRBUFS` | 16 | error buffers one look can see |
-| `MSGQUEUE_HIGH_WATER` | 16 | items a queue holds before a push waits |
+| `STRPP_WATCH_THREADS` | 32 | how many threads can be monitored |
+| `STRPP_WATCH_HELD` | 8 | how many active locks for one thread |
+| `STRPP_MONITOR_STACK_BYTES` | 6144 | stack size for the monitor thread |
+| `STRPP_MONITOR_QUEUES` | 16 | How many queues can be monitored |
+| `STRPP_MONITOR_ERRBUFS` | 16 | How many error buffers can be monitored |
+| `MSGQUEUE_HIGH_WATER` | 16 | items a message queue holds before a push blocks |
 
-The arrays for a look live on the monitor's stack, so when you raise the counts,
-raise the stack: allow about 40 bytes for each thread, 60 for each queue and 40
-for each error buffer, on top of 2 KB. Everything you build together must agree
-on `STRPP_WATCH_THREADS` and `STRPP_WATCH_HELD`, because they change the size of
-a record.
+Each time the Monitor looks, it builds arrays on its stack, not in allocated
+memory. If you raise the counts, expand the stack limit, allowing about 40 bytes
+for each thread, 60 for each queue and 40 for each error buffer, on top of 2KB base.
+All parts of the program should be built with the same settings, or they will
+disagree on the sizes of these records (`STRPP_WATCH_THREADS` and `STRPP_WATCH_HELD`)
 
-Give each thread a name so that reports say which one they mean:
+It is preferred to give each thread a name for reporting:
 
 	ThreadParams	params;
 	params.name = "scanner";	// A literal, or anything that outlives the thread
 	Thread(&params);
 
-### Starting it
+### Starting the monitor
 
 	MessageQueue	reports("reports");
 	Monitor		monitor(reports);
 
 `reports` is where findings go, so give it to a thread that reads them. You
-can change when and what the monitor looks for:
+can change settings that control when and what the monitor looks for:
 
 	MonitorSettings	settings;
 	settings.interval = Milliseconds(2000);		// Between looks (5000)
@@ -81,54 +80,55 @@ to know your platform:
 
 ### What it reports
 
-Each finding becomes a message pushed to `reports` when it first appears:
+Each finding becomes a message pushed to a MessageQueue `reports` when it first appears:
 
-- `["monitor", "deadlock", [name, ...]]` - these threads each wait for a lock,
-  or for room in a queue, that the next one holds or pops. The monitor looks
-  twice, a moment apart, and only reports a cycle that is still the same, so a
-  wait that happened to overlap is not a deadlock.
+- `["monitor", "deadlock", [name, ...]]` - the named threads each wait for a lock,
+  or for room in a queue, that the next one holds or should pop. The monitor looks
+  twice, a moment apart, and only reports a cycle if it hasn't changed, so a wait
+  that happened to overlap is not a deadlock.
 - `["monitor", "stall", name, milliseconds, what, locks held]` - a thread has
   waited too long while it holds a lock. This catches the deadlocks that go
-  through a condition or an empty queue, where nothing says who will signal
-  it. A reader that holds a [Window](window.md) and waits for a reply from the
-  thread it is reading is the usual one.
-- `["monitor", "queue", name, depth, peak, pushers waiting]` - a queue is
-  nearly full, or a thread is waiting to push to it. See [MessageQueue](msgqueue.md).
+  through a condition or an empty queue, where the monitor has no knowledge of
+  who should signal it. A reader that holds a read [Window](window.md) and waiting
+  for a reply from the owner thread is the most likely case.
+- `["monitor", "queue", name, depth, peak, pushers waiting]` - a queue is nearly
+  full, or a thread is waiting to push to it. See [MessageQueue](msgqueue.md).
 - `["monitor", "errors", name, errors, parameters]` - a thread has many errors
-  in its buffer that nobody has dealt with. See [Errors](error.md).
+  in its buffer that have not been reported or forwarded. See [Errors](error.md).
 - `["monitor", "memory", free, largest block, lowest free]` - the probe says
   memory is low.
 
-It says each one once. When it is gone and comes back, it says it again.
-The monitor never waits to push a report. If `reports` is full, it counts the
-report as dropped and carries on.
+Monitor reports are never repeated. If a condition goes away and returns, that's a
+new report. The monitor never waits to push a report. If `reports` is full, it counts
+the report as dropped and carries on.
 
-What it found at its last look is also in its data. Open a Window to read it:
+What it found at its last look is also published in its data. You can open a Window
+to read it:
 
 	Window<Monitor>	w(monitor, Milliseconds(100));
-	if (w.holding())
-		show(w->findings);		// The same reports, for what is found now
+	if (w.holding())                // We opened a Window
+		show(w->findings);	// The same reports, for what is found now
 
 `samples` counts its looks, `dropped` counts the reports it lost, and `threads`,
 `queues` and `error_buffers` say how much it saw.
 
-### Controlling it
+### Controlling the Monitor
 
-Push a request to `monitor.requests`:
+You can push a request message to `monitor.requests`:
 
 - `["sample"]` - look now, instead of waiting for the interval.
 - `["quit"]` - end the thread. You can then `join()` it.
 
-### What it cannot see
+### What the Monitor cannot see
 
-It sees only what the library knows about: locks and conditions that go through
-strpp, and threads that have taken a lock. A queue, a lock or a thread that
-strpp did not make is invisible to it. A thread that strpp did not start keeps
-its record for as long as the program runs.
+The Monitor sees only what the library knows about. Locks and conditions that
+go through strpp, and threads that have taken a lock. A queue, a lock or a
+thread that strpp did not make is invisible. A thread that strpp did not start
+keeps its record for as long as the program runs.
 
-A cycle that goes through a condition cannot be found by looking at the locks,
-because nothing says which thread will signal the condition. The stall report
-is how you find those.
+If a lock-dependency cycle goes through a condition, that cannot be found by
+looking at the locks, because nothing says which thread will signal the condition.
+This will show up as a stall report instead.
 
 ### Public methods
 
@@ -139,8 +139,8 @@ is how you find those.
 - `requests` - the queue to push `["sample"]` and `["quit"]` to.
 - `data()` is private to the monitor; read what it found through a `Window<Monitor>`.
 
-`WatchSnapshot`, `WatchFindCycle` and `WatchFindStalls`, in
-[watch.h](https://github.com/cjheath/strpp/blob/main/include/watch.h), are what
-the monitor uses. You can call them yourself to look for a deadlock when you
-choose, such as when a watchdog fires. `MessageQueue::snapshot` and
-`ErrBuf::snapshot` give you the figures for queues and error buffers.
+The Monitor uses `WatchSnapshot`, `WatchFindCycle` and `WatchFindStalls` from
+[watch.h](https://github.com/cjheath/strpp/blob/main/include/watch.h).
+You can call them yourself to look for a deadlock when you choose, such as when a
+watchdog fires. The figures for queues and error buffers are available from
+`MessageQueue::snapshot` and `ErrBuf::snapshot` give you
