@@ -36,7 +36,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-e313047c.js";
+            window.path_to_searchindex_js = "searchindex-b8e80fee.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-974dafb5.js"></script>
@@ -1657,6 +1657,14 @@ and an entry in a per-thread buffer accumulates what has been reported but
 not yet recovered or delivered as a message. The error number is compact,
 just a 32-bit compile-time constant, so error handling can use <code>switch</code>
 cases.</p>
+<h3 id="if-a-thread-ends-with-errors-outstanding"><a class="header" href="#if-a-thread-ends-with-errors-outstanding">If a thread ends with errors outstanding</a></h3>
+<p>The error buffer holds what has been reported and not dealt with. If a
+thread ends with undelivered errors, a debug build will assert and dump
+the errors. Deal with every error, or <code>clear()</code> the buffer, before <code>run()</code>
+returns.</p>
+<p>Without assertions, outstanding errors get propagated to error buffer of
+the thread which cleans up (joins) this thread. They’re added in order and
+followed by a <code>THRERR_ENDED_WITH_ERRORS</code> message.</p>
 <h3 id="error-numbers-the-errnum-type"><a class="header" href="#error-numbers-the-errnum-type">Error numbers: the ErrNum type</a></h3>
 <p><code>#include	&lt;error.h&gt;</code></p>
 <p>An ErrNum is a 32-bit value naming a message: a set number, and a number
@@ -2220,7 +2228,11 @@ already has the <code>MessageQueue</code> some other way.</p>
 <ul>
 <li><code>push(const Variant&amp;)</code>, <code>push(const VariantArray&amp;)</code> - append one item,
 or several in order under a single lock, and wake a waiter. Pushing an
-empty <code>VariantArray</code> wakes nobody, since nothing arrived.</li>
+empty <code>VariantArray</code> wakes nobody, since nothing arrived. If the queue
+is full, these wait for a pop to make room: see “A full queue” below.</li>
+<li><code>push(item, Milliseconds timeout)</code> - the same, giving up after the timeout.
+It returns false when there was no room in time, and true when it pushed.</li>
+<li><code>try_push(item)</code> - push if there is room now, and return whether it did.</li>
 <li><code>pop()</code> - wait as long as it takes for an item, then return it.</li>
 <li><code>pop(Milliseconds timeout)</code> - the same, but give up after <code>timeout</code> and
 return a null <code>Variant</code> (<code>Variant().is_null()</code> is true) if nothing
@@ -2233,8 +2245,25 @@ push or pop the instant after you read it.</li>
 <li><code>static mine()</code> - the calling thread’s own <code>MessageQueue</code>, created on first
 use.</li>
 </ul>
+<h3 id="a-full-queue"><a class="header" href="#a-full-queue">A full queue</a></h3>
+<p>A queue holds at most <code>MSGQUEUE_HIGH_WATER</code> items, default 16. A <code>push</code> to
+a full queue waits until a <code>pop</code> makes room. A batch waits once, and
+can then take the queue past the high water by the size of the batch.</p>
+<p>A queue that stays full tells you something that its consumer is not
+keeping up, or it is stuck.</p>
+<p>A thread that pushes can wait for ever, so choose the form that suits it:</p>
+<ul>
+<li>A thread with nothing better to do can use <code>push</code>.</li>
+<li>A thread that must not wait, such as a user interface thread, uses
+<code>try_push</code>, and decides what to do when the queue is full.</li>
+<li>A thread that can wait a while uses <code>push</code> with a timeout.</li>
+</ul>
+<p>Two threads can each wait for room in the other’s full queue, and neither
+ever pops, so give at least one of them a timeout.</p>
+<p>The queue remembers which thread popped it last, so deadlock detection can
+guess who is to blame.</p>
 <h3 id="what-it-does-not-do"><a class="header" href="#what-it-does-not-do">What it does not do</a></h3>
-<p>A <code>MessageQueue</code> does not know who else holds a pointer to it, so nothing stops
+<p>A <code>MessageQueue</code> does not know who else holds a pointer, so nothing stops
 two threads reading the same one - <code>pop()</code> and <code>try_pop()</code> are safe to
 call from more than one thread, but whichever call happens to win a race
 takes the item, and the loser sees the queue as if it had never been
