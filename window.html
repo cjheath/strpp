@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-60c08b16.js";
+            window.path_to_searchindex_js = "searchindex-c16ddc37.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-c18c0bf2.js"></script>
@@ -177,25 +177,28 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h2 id="windows-transactional-message-processing"><a class="header" href="#windows-transactional-message-processing">Windows: transactional message processing</a></h2>
+                        <h2 id="transactional-message-processing-and-read-windows"><a class="header" href="#transactional-message-processing-and-read-windows">Transactional message processing and read Windows</a></h2>
+<p>A thread may maintain a protected block of variables which publish some
+state.  These variables are only available to view if you open a <strong>Window</strong>
+on that thread.  An open Window stops the variables from being updated. The
+owning thread may only update the variables under control of an <code>update</code>
+block, which is only allowed to proceed when the data has no open Windows.
+As long as update leaves the data in a valid state, no Window will ever see
+invalid or half-updated state.</p>
+<p>Because published data should be value-only (or using copy-on-write to
+emulate value semantics), you can open a Window to snapshot the data and
+close it quickly to work on the snapshot. Just be aware that as soon as the
+Window is closed, you have no idea whether the data has been changed.
+Multiple threads may open a Window on the same data, but as soon as the
+owner wants to update it, any new Window requests will be delayed until
+other windows have closed and the data has been updated.</p>
+<p>Using this publication strategy, it’s not usually necessary to include data in
+messages. Just announce that new data is available and let whoever cares look
+at it on their own time.</p>
 <p><code>#include &lt;window.h&gt;</code>, which brings in <code>thread.h</code> and <code>lock.h</code>.</p>
-<p>Threads talk to each other with messages, and a message makes a good request
-or announcement. A message makes a poor way to ask “what is the state now?”,
-because the answer has gone stale by the time you read it, and the thread has
-to do work to build it.</p>
-<p>A thread can instead keep its state in a protected area that other threads
-read directly. You open a <strong>Window</strong> onto the thread, read what you want, and
-close it. While your Window is open, the thread changes none of that state.
-The thread changes its state only inside <code>update()</code>, a short transaction that
-no Window can see half-finished.</p>
-<p>So you use both:</p>
-<ul>
-<li><strong>Messages</strong> say what to do, and what has happened.</li>
-<li><strong>Windows</strong> show what the state is.</li>
-</ul>
 <h3 id="an-example"><a class="header" href="#an-example">An example</a></h3>
-<p>A thread counts what it is sent. Its state is <code>CounterData</code>, which you define
-before the thread:</p>
+<p>Here is a thread which keeps a running total of some integers it receives in
+a message. The struct <code>CounterData</code> defines the published data:</p>
 <pre><code>struct CounterData
 {
 	CounterData() : count(0) {}
@@ -211,34 +214,38 @@ class Counter
 		for (;;)
 		{
 			Variant		message = MessageQueue::mine()-&gt;pop();
+                            // Do any costly work prior to calling update():
 			int		next = data().count + message.as_int();
-			update([&amp;](Data&amp; d) { d.count = next; });
+			update(
+                                    [&amp;](Data&amp; d) { d.count = next; }
+                            );
 		}
 	}
 };
 </code></pre>
 <p>Another thread reads the count:</p>
-<pre><code>Window&lt;Counter&gt;		w(counter);	// Waits until it is not updating
-show(w-&gt;count);
-					// The Window closes at the end of the scope
+<pre><code>    {
+            Window&lt;Counter&gt;		w(counter);	// Wait until it is stable
+            show(w-&gt;count);
+}					// The Window closes at the end of the scope
 </code></pre>
-<p><code>Counter</code> reads its own state with <code>data()</code>, which needs no Window, because
-only <code>Counter</code> writes it. It writes only through <code>update()</code>, which calls your
-lambda with a <code>Data&amp;</code> while no Window is open. A write anywhere else does not
-compile.</p>
-<h3 id="announcing-a-change"><a class="header" href="#announcing-a-change">Announcing a change</a></h3>
+<p>The <code>Counter</code> thread gets a read-only view of its own state with <code>data()</code>,
+which needs no Window, because only <code>Counter</code> writes it. It writes only
+through <code>update()</code>, which calls your lambda with a <code>Data&amp;</code> while no Window
+is open. A write anywhere else does not compile.</p>
+<h3 id="use-a-message-to-announce-a-change"><a class="header" href="#use-a-message-to-announce-a-change">Use a Message to announce a change</a></h3>
 <p>Don’t send the new state in a message. Update the state, then announce that
-it changed, and let each reader fetch what it wants:</p>
+it changed, notifying each reader to fetch what it wants:</p>
 <pre><code>update([&amp;](Data&amp; d) { d.last_scan = aps; d.scan_count++; });
 replies.push(Variant(VariantArray() &lt;&lt; "scan" &lt;&lt; (int)data().scan_count));
 </code></pre>
-<p>The announcement carries a generation number, <code>scan_count</code>. A reader that
+<p>This announcement carries a generation number, <code>scan_count</code>. A reader that
 misses an announcement, or sees several at once, opens a Window and reads the
 latest. A reader that starts late does the same. The reader compares the
 number with the last one it saw to tell whether anything changed.</p>
-<p>Copy what you need out of the Window and close it before you do anything
-slow with it. A <code>VariantArray</code> or <code>StrVal</code> copy shares its data until someone
-changes it, so the copy costs little:</p>
+<p>Copy what you need out of the Window (and any other threads Windows!) and close
+them before you do anything slow with it. A <code>VariantArray</code> or <code>StrVal</code> uses
+shared data, so the copy costs little:</p>
 <pre><code>VariantArray	aps;
 {
 	Window&lt;WifiScanner&gt;	w(scanner, Milliseconds(1000));
@@ -248,20 +255,23 @@ changes it, so the copy costs little:</p>
 }
 print(aps);
 </code></pre>
+<p>Note that if you open multiple Windows, the order of acquisition of the read
+locks can affect the success of the operation, or lead to deadlocks if you get
+it wrong.</p>
 <h3 id="the-rules-of-a-transaction"><a class="header" href="#the-rules-of-a-transaction">The rules of a transaction</a></h3>
-<p>An <code>update()</code> is a transaction on the thread’s state. These rules keep it one:</p>
+<p>An <code>update()</code> is a transaction on the thread’s state. These rules enforce it:</p>
 <ul>
-<li><strong>Leave the state consistent.</strong> A reader can open a Window between any two
-updates. Put everything that makes one consistent change in one <code>update()</code>:
-a list and its count, not the list in one and the count in the next.</li>
+<li><strong>Leave the state consistent.</strong> A reader can peek through an open Window
+between any two updates. Put everything that makes one consistent change in
+one <code>update()</code>.</li>
 <li><strong>Do the slow work first.</strong> Build the new value before <code>update()</code>, and only
-assign it inside. Every reader waits while you update. A scan that takes two
-seconds belongs outside, and the assignment that publishes its result
-inside.</li>
+assign it inside. Every reader must wait while you update. A scan that takes
+two seconds belongs outside, and the assignment that publishes its result
+can go inside.</li>
 <li><strong>Don’t wait for anything inside <code>update()</code>.</strong> Don’t pop a queue, wait on a
 condition or open a Window there.</li>
-<li><strong>Don’t nest them.</strong> An <code>update()</code> inside an <code>update()</code> waits for itself, and
-the program stops with the reason reported.</li>
+<li><strong>Don’t nest updates.</strong> An <code>update()</code> inside an <code>update()</code> waits for itself, and
+the program stops, reporting a deadlock.</li>
 <li><strong>Handle each message quickly.</strong> A message that takes a long time holds up
 the messages behind it, whether or not any Window is open. If a job is
 long, make it a series of steps: do one, publish its progress with an
@@ -274,35 +284,36 @@ answer other messages between steps.</li>
 and then push a request and wait for the reply, the thread cannot update
 until you close the Window. It never replies, and you wait for ever.</li>
 <li><strong>Use a timeout if you can’t afford to wait.</strong> A user interface thread
-passes a <code>Milliseconds</code> and checks <code>holding()</code>, then shows what it had or
-tries again on the next frame.</li>
-<li><strong>Don’t open a Window on your own thread while you update.</strong> That asks the
-thread to wait for itself. Outside <code>update()</code> the thread can open a Window on
-itself, but it has <code>data()</code> for that.</li>
+passes a <code>Milliseconds</code> and checks it worked with <code>holding()</code>, then shows
+what it saw, or tries again on the next frame.</li>
+<li><strong>Don’t open a Window on your own thread during your update.</strong> A thread that
+waits for itself is deadlocked. Outside <code>update()</code> the thread can open a
+Window on itself, but it has <code>data()</code> for that.</li>
 <li><strong>Close every Window before the thread is destroyed.</strong></li>
 </ul>
-<h3 id="what-the-locks-do"><a class="header" href="#what-the-locks-do">What the locks do</a></h3>
+<h3 id="how-the-locks-work"><a class="header" href="#how-the-locks-work">How the locks work</a></h3>
 <p>A Window holds a <code>SharedLock</code> on the thread, and <code>update()</code> takes an
-<code>IntentLock</code> and then upgrades it to an <code>ExclLock</code>. See
-<a href="lock.html">Lock and SIXLock</a>. The result:</p>
+<code>IntentLock</code> to block new SharedLocks, and then upgrades it to an <code>ExclLock</code>
+when the last granted SharedLock is released. See <a href="lock.html">Lock and SIXLock</a>.
+The result:</p>
 <ul>
-<li>Any number of Windows can be open at once.</li>
-<li>When the thread wants to update, Windows already open continue, and no new
+<li>Any number of Windows can be open to read the data at once.</li>
+<li>When the thread wants to update, already open Windows continue, but no new
 Window opens. The update starts when the last one closes.</li>
-<li>The thread then updates, and Windows can open again.</li>
+<li>The thread then updates, and blocked Windows can open.</li>
 </ul>
 <p>A reader can never keep the thread from updating by opening Windows one after
 another, because new Windows wait once the thread is waiting.</p>
 <h3 id="memory"><a class="header" href="#memory">Memory</a></h3>
 <p><code>update()</code> takes your lambda by value, as a template argument. It does not use
 <code>std::function</code> and does not allocate. Capture with <code>[&amp;]</code>, which costs one
-pointer for each variable you name. What your lambda does inside can allocate,
-as it could anywhere. Appending to a <code>VariantArray</code> allocates, and assigning
-one to another does not.</p>
+pointer for each variable you name. The lambda may allocate memory, as it could
+anywhere. Appending to a <code>VariantArray</code> allocates, but assigning one to another
+does not.</p>
 <h3 id="public-methods"><a class="header" href="#public-methods">Public methods</a></h3>
 <p><code>Windowed&lt;Owner, Data&gt;</code>, in
-<a href="https://github.com/cjheath/strpp/blob/main/include/window.h">window.h</a>. You
-derive your <code>Thread</code> from it, and <code>Data</code> is a type you define, with a default
+<a href="https://github.com/cjheath/strpp/blob/main/include/window.h">window.h</a>.
+Derive your <code>Thread</code> from this, where <code>Data</code> is your type, using a default
 constructor:</p>
 <ul>
 <li><code>Data</code> - the state’s type, which you can name in your thread’s code.</li>
@@ -313,10 +324,10 @@ constructor:</p>
 <ul>
 <li><code>Window(Owner&amp;)</code> - open a Window, waiting as long as it takes.</li>
 <li><code>Window(Owner&amp;, Milliseconds)</code> - the same, giving up after the timeout.</li>
-<li><code>holding()</code> - whether you have a Window.</li>
-<li><code>close()</code> - close it now, instead of at the end of the scope.</li>
-<li><code>operator-&gt;()</code>, <code>operator*()</code> - the state, read-only. They stop the program if
-you don’t hold a Window.</li>
+<li><code>holding()</code> - true if your Window is open.</li>
+<li><code>close()</code> - close the Window now, instead of at the end of the scope.</li>
+<li><code>operator-&gt;()</code>, <code>operator*()</code> - the state, read-only. The program panics if
+your Window is not open.</li>
 </ul>
 
                     </main>
