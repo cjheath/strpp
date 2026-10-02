@@ -22,6 +22,7 @@ are built on.
 - [MessageQueue: a thread's inbox](msgqueue.md)
 - [Lock and SIXLock: shared, intent and exclusive locks](lock.md)
 - [Windows: transactional message processing](window.md)
+- [The monitor: finding deadlocks, stalls and runaway buffers](monitor.md)
 - [Pegexp](pegexp.md)
 - [PEG parsing](peg.md)
 
