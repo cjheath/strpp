@@ -14,6 +14,13 @@
  *	errors		An error buffer with many errors that no one has dealt with.
  *	memory		Free memory below what you set, if you gave it a way to ask.
  *
+ * Looking and reporting both allocate. If you gave it a way to ask about memory,
+ * it checks that the largest free block can hold what a look needs before it
+ * starts, and when it cannot it looks at nothing and says so once instead:
+ *	["monitor", "no-memory", "Not enough memory to report"]
+ * until there is enough again. That message is made when the monitor starts, so
+ * saying it allocates nothing itself, but the queue it is pushed to might.
+ *
  * It reports each finding once, when it first appears, as a message
  * ["monitor", kind, ...] pushed to the queue you gave it. It never waits for
  * that queue: when it is full, the report is counted in `dropped` and lost.
@@ -25,6 +32,7 @@
  *	["monitor", "queue", queue name, depth, peak, pushers waiting]
  *	["monitor", "errors", thread name, errors, parameters]
  *	["monitor", "memory", bytes free, largest block, lowest free ever]
+ *	["monitor", "no-memory", "Not enough memory to report"]
  * A name that was not given is "(unnamed)".
  *
  * Send it ["sample"] to look now, or ["quit"] to end it.
@@ -73,7 +81,7 @@ struct	MonitorSettings
 	MonitorSettings()
 	: interval(5000), stall(5000), confirm(250)
 	, queue_warning((MSGQUEUE_HIGH_WATER*3)/4), error_warning(8)
-	, probe(0), low_free(0), low_largest(0)
+	, probe(0), low_free(0), low_largest(0), reserve(0)
 	{}
 
 	Milliseconds		interval;	// Between looks
@@ -84,18 +92,23 @@ struct	MonitorSettings
 	MonitorMemoryProbe	probe;		// How to ask about memory, or none
 	size_t			low_free;	// Report when less than this is free (0: never)
 	size_t			low_largest;	// ...or the largest block is smaller than this (0: never)
+	size_t			reserve;	// The largest block a look needs; 0 works it out from the sizes
 };
 
 // What a Window<Monitor> shows
 struct	MonitorData
 {
-	MonitorData() : samples(0), dropped(0), threads(0), queues(0), error_buffers(0) {}
+	MonitorData()
+	: samples(0), skipped(0), dropped(0), threads(0), queues(0), error_buffers(0), short_of_memory(false)
+	{}
 
 	unsigned	samples;	// Looks so far
+	unsigned	skipped;	// Looks it did not make, for want of memory
 	unsigned	dropped;	// Reports it could not push
 	unsigned	threads;	// Threads, queues and error buffers seen at the last look
 	unsigned	queues;
 	unsigned	error_buffers;
+	bool		short_of_memory;	// The last look was skipped
 	MonitorMemory	memory;		// From the probe, if it has one
 	VariantArray	findings;	// The reports for everything found at the last look
 };
@@ -118,9 +131,14 @@ private:
 	MonitorSettings		settings;
 	WatchRecord*		records;	// The latest look at the threads
 	VariantArray		known;		// Keys of what was reported at the last look
+	Variant			no_memory;	// The message to send when short of memory, made in advance
+	bool			was_short;	// The last look was skipped
+	bool			alloc_failed;	// A look's own allocation was refused
 
 	void		sample();
 	bool		confirmed(const unsigned* cycle, unsigned length);
+	bool		enough_memory();
+	void		skip_look();
 	const char*	name_of(ThreadId id, unsigned count) const;
 };
 

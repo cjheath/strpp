@@ -48,9 +48,10 @@ private:
 	}
 };
 
-// The next report of a kind, waiting up to timeout_ms; a null Variant if none comes
+// The next report of a kind, and about the named thread or queue if a name is given,
+// waiting up to timeout_ms; empty if none comes
 static VariantArray
-wait_report(MessageQueue& reports, const char* kind, long timeout_ms)
+wait_report(MessageQueue& reports, const char* kind, long timeout_ms, const char* about = 0)
 {
 	for (long waited = 0; waited < timeout_ms; waited += 50)
 	{
@@ -58,13 +59,14 @@ wait_report(MessageQueue& reports, const char* kind, long timeout_ms)
 		if (item.is_null() || item.type() != Variant::VarArray)
 			continue;
 		VariantArray	report = item.as_variant_array();
-		if (report.length() >= 2 && report[1].as_strval() == kind)
+		if (report.length() >= 2 && report[1].as_strval() == kind
+		 && (!about || (report.length() > 2 && report[2].type() == Variant::String && report[2].as_strval() == about)))
 			return report;
 	}
 	return VariantArray();
 }
 
-static MonitorMemory	fake_memory = { 500, 400, 300 };
+static MonitorMemory	fake_memory = { 500000, 400000, 300000 };
 
 static bool
 fake_probe(MonitorMemory& memory)
@@ -84,20 +86,37 @@ main(int argc, const char** argv)
 	settings.stall = Milliseconds(300);
 	settings.confirm = Milliseconds(100);
 	settings.probe = fake_probe;
-	settings.low_free = 1000;
+	settings.low_free = 600000;
 	Monitor			monitor(reports, settings);
 
 	printf("\nThe monitor looks, and reports what it finds once\n");
 	VariantArray		memory = wait_report(reports, "memory", 2000);
-	expect("it reports low memory from the probe", memory.length() == 5 && memory[2].as_long() == 500 && memory[3].as_long() == 400);
+	expect("it reports low memory from the probe", memory.length() == 5 && memory[2].as_long() == 500000 && memory[3].as_long() == 400000);
 	{
 		Window<Monitor>	w(monitor, Milliseconds(1000));
 		expect("a Window shows its data: it has looked, and found memory low",
-			w.holding() && w->samples > 0 && w->memory.free_bytes == 500 && w->findings.length() == 1);
+			w.holding() && w->samples > 0 && w->memory.free_bytes == 500000 && w->findings.length() == 1);
 		expect("...and counted the threads, queues and error buffers",
 			w.holding() && w->threads >= 2 && w->queues >= 2);
 	}
 	expect("it does not say it again", wait_report(reports, "memory", 500).length() == 0);
+
+	printf("\nShort of memory\n");
+	fake_memory.largest_block = 100;			// Too little for a look
+	VariantArray	shortage = wait_report(reports, "no-memory", 2000);
+	expect("with too little memory it says so, in words",
+		shortage.length() == 3 && shortage[2].as_strval() == "Not enough memory to report");
+	{
+		Window<Monitor>	w(monitor, Milliseconds(1000));
+		expect("...and a Window shows it skipped looking", w.holding() && w->short_of_memory && w->skipped > 0);
+	}
+	expect("...and does not say it again", wait_report(reports, "no-memory", 500).length() == 0);
+	fake_memory.largest_block = 400000;
+	Thread::yield(Milliseconds(400));
+	{
+		Window<Monitor>	w(monitor, Milliseconds(1000));
+		expect("once there is enough it looks again", w.holding() && !w->short_of_memory);
+	}
 
 	printf("\nA deadlock\n");
 	SIXLock		first, second;
@@ -158,7 +177,7 @@ main(int argc, const char** argv)
 		nothing_comes.wait(ms, &latch);
 		latch.leave();
 	});
-	VariantArray	stall = wait_report(reports, "stall", 2000);
+	VariantArray	stall = wait_report(reports, "stall", 3000, "reader");
 	expect("a thread waiting too long with a lock held is reported",
 		stall.length() == 6 && stall[2].as_strval() == "reader" && stall[3].as_long() >= 300
 		&& stall[4].as_strval() == "condition" && stall[5].as_int() == 1);
@@ -168,7 +187,7 @@ main(int argc, const char** argv)
 	MessageQueue	busy("busy");
 	for (int i = 0; i < MSGQUEUE_HIGH_WATER-2; i++)
 		busy.push(Variant(i));
-	VariantArray	queue = wait_report(reports, "queue", 2000);
+	VariantArray	queue = wait_report(reports, "queue", 3000, "busy");
 	expect("it is reported, with its depth", queue.length() == 6 && queue[2].as_strval() == "busy"
 		&& queue[3].as_int() == MSGQUEUE_HIGH_WATER-2);
 	while (!busy.isEmpty())
@@ -182,7 +201,7 @@ main(int argc, const char** argv)
 		Thread::yield(Milliseconds(500));
 		ErrBuffer()->clear();		// A thread must not end with errors
 	});
-	VariantArray	errors = wait_report(reports, "errors", 2000);
+	VariantArray	errors = wait_report(reports, "errors", 3000, "noisy");
 	expect("it is reported, with the thread that owns it",
 		errors.length() == 5 && errors[2].as_strval() == "noisy" && errors[3].as_int() == 9);
 	noisy.join();

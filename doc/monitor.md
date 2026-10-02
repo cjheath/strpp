@@ -78,6 +78,13 @@ to know your platform:
 		return true;
 	}
 
+A look allocates memory, and a failed allocation stops the program, so the
+monitor checks first. Before each look it asks the probe, and if the largest
+free block is smaller than a look needs, it looks at nothing and says so instead
+(see `no-memory` below). It works out what a look needs from the sizes you
+built with, or you can set `settings.reserve` to your own number of bytes.
+Without a probe, it has no way to ask, and looks anyway.
+
 ### What it reports
 
 Each finding becomes a message pushed to a MessageQueue `reports` when it first appears:
@@ -97,6 +104,10 @@ Each finding becomes a message pushed to a MessageQueue `reports` when it first 
   in its buffer that have not been reported or forwarded. See [Errors](error.md).
 - `["monitor", "memory", free, largest block, lowest free]` - the probe says
   memory is low.
+- `["monitor", "no-memory", "Not enough memory to report"]` - there was too little
+  for a look, so it did not look. You get this once, until there is enough
+  again. The monitor makes this message when it starts, so saying it allocates
+  nothing itself. The queue you push it to might.
 
 Monitor reports are never repeated. If a condition goes away and returns, that's a
 new report. The monitor never waits to push a report. If `reports` is full, it counts
@@ -109,8 +120,9 @@ to read it:
 	if (w.holding())                // We opened a Window
 		show(w->findings);	// The same reports, for what is found now
 
-`samples` counts its looks, `dropped` counts the reports it lost, and `threads`,
-`queues` and `error_buffers` say how much it saw.
+`samples` counts its looks, `skipped` counts the looks it did not make for want of
+memory, `short_of_memory` says whether the last one was skipped, `dropped` counts
+the reports it lost, and `threads`, `queues` and `error_buffers` say how much it saw.
 
 ### Controlling the Monitor
 
