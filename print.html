@@ -36,10 +36,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-4e6ac57a.js";
+            window.path_to_searchindex_js = "searchindex-e313047c.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-02946640.js"></script>
+        <script src="toc-974dafb5.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -1894,12 +1894,12 @@ Numbers are allocated once and should not be reallocated. The completeness
 of a translation and the types of the parameters should be checked at build.</p>
 <p>We write message catalogs in ADL, a small type-checked declarative language
 for describing structured data. The code and its message catalog are separate.
-A generator produces two header files for the library build from.</p>
+A generator writes two header files for the library to build from.</p>
 <h3 id="the-catalog-schema"><a class="header" href="#the-catalog-schema">The catalog schema</a></h3>
-<p>ADL files are type-checked against a schema itself written in ADL. The
-Message Catalog Source schema object contains <code>Set</code>s, each set holds
-<code>Message</code>s with a number and default text, and may contain additional
-Text objects for translations or styles.</p>
+<p>ADL type-checks your files against a schema, itself written in ADL. The
+Message Catalog Source schema object holds <code>Set</code>s; each set holds <code>Message</code>s
+with a number and default text, and may hold further <code>Text</code> objects for
+translations or styles.</p>
 <pre><code class="language-adl">Message Catalog Source:
 {
 	Set: {
@@ -1923,15 +1923,14 @@ Text objects for translations or styles.</p>
 	}
 }
 </code></pre>
-<p>In ADL, any object which has a Syntax is assignable. Although Message is
-a container, it can also be assigned directly, any value matching the
-Syntax for a String. The above schema assumes a list of Languages defined
-in a prior file. Normally only the default text is in the main file, with
-translations provided by additional files.</p>
+<p>In ADL you can assign a value to any object that has a Syntax. A Message is
+a container, but you can also assign text straight to it, since it matches
+the Syntax for a String. The schema expects a list of Languages, from a file
+loaded before it. Keep the default text in the main file, and put each
+translation in an additional one.</p>
 <h3 id="a-catalog-of-default-texts"><a class="header" href="#a-catalog-of-default-texts">A catalog of default texts</a></h3>
-<p>The catalog’s name is used to derive the names of the two generated header
-files. Within it are Sets, and within those are Messages.  Here is part
-of the library’s catalog:</p>
+<p>The catalog’s name gives the names of both generated headers. It holds Sets,
+and each Set holds Messages. Here is part of the library’s catalog:</p>
 <pre><code class="language-adl">Strpp: Message Catalog Source {
 
 	StrVal: Set {
@@ -1948,29 +1947,25 @@ of the library’s catalog:</p>
 	}
 }
 </code></pre>
-<p>Each message has a name consisting of one or more words. From these words,
-<code>msggen</code> emits the name of an ErrNum and the name of a function that
-reports this message, expecting the correct parameters.  For example,
-the message called <code>Trailing text</code> becomes the macro <code>STRERR_TRAILING_TEXT</code>
-and the function <code>ErrorSTR_TrailingText</code>.</p>
-<p>The parameters of the text are numbered <code>{1}</code>, <code>{2}</code> and so on, usually in
-the order the text uses them (but always the order used by the generated
-function). A translation may use the parameters in any order, even more
-than once if needed.</p>
-<p>A Set of Message number, once used, should not be re-used or re-numbered,
-for the sake of customer support staff. Even to a user who cannot read the
-text, the Set-Message number uniquely identifies a specific message condition.
-Each set typically ends <code>Is Complete = True;</code> to prevent any translation
-adding new content.</p>
-<p>The value assignments using <code>=</code> are Final (cannot be overridden), whereas
-the <code>~=</code> ones are tentative and may be overridden in a specified context.</p>
+<p>A message’s name is one or more words, and <code>msggen</code> builds both names from
+them: the ErrNum macro and the function that reports the message. The
+message called <code>Trailing text</code> becomes the macro <code>STRERR_TRAILING_TEXT</code> and
+the function <code>ErrorSTR_TrailingText</code>.</p>
+<p>Number the parameters <code>{1}</code>, <code>{2}</code> and so on in the order the text uses them,
+and the generated function takes them in that order. A translation may use
+them in any order, and may use one twice.</p>
+<p>Once you use a number, never re-use or re-number it: the Set-Message number
+identifies one condition for customer support, even to someone who cannot
+read the text. Each set ends <code>Is Complete = True;</code>, which stops a translation
+adding content to it.</p>
+<p>Assign with <code>=</code> for Final, which nothing can override; or with <code>~=</code> for
+tentative, which a specified context may override.</p>
 <h3 id="translations"><a class="header" href="#translations">Translations</a></h3>
-<p>A translation is usually in a separate catalog file loaded after the first.
-It re-opens the catalog by name and adds a new <code>Text</code> object to each Message
-(Messages are not marked Complete for this reason). The message’s default
-text is not touched, so the two are independent and either may be reworded
-alone. It is possible for a program to load multiple translations on top
-of the same catalog.</p>
+<p>Put each translation in a separate catalog file, loaded after the first. It
+re-opens the catalog by name and adds a new <code>Text</code> object to each Message
+(which is why you Complete a Set but not its Messages). It leaves the default
+text alone, so you can reword either one. You can load several translations
+over the same catalog.</p>
 <pre><code class="language-adl">// German wordings of strpp.mcs's messages.
 
 deText: Set.Message.Text { Language = Languages.de; }
@@ -1983,34 +1978,33 @@ StrVal {
 
 Strpp;
 </code></pre>
-<p>Usually only one language is used per file, and a convenient way to do
-that is to define a subtype of the schema’s own <code>Message.Text</code> which sets
-it once, so each message then only needs to add its text.</p>
-<p>When loading ADL files, new declarations begin in the last closed scope from
-the predecessor. To facilitate loading multiple languages, it is conventional
-that the file ends with a bare <code>Strpp;</code>, which leaves the catalog as the
-starting point for whatever file is read next.</p>
+<p>Use one language per file, and define a subtype of the schema’s own
+<code>Message.Text</code> that sets it once - then each message needs only its text.</p>
+<p>When ADL loads a file, new declarations begin in the scope the file before it
+left closed. So end each translation with a bare <code>Strpp;</code>: that re-opens the
+catalog, and leaves it as the starting point for the next file.</p>
 <h3 id="generating-the-headers"><a class="header" href="#generating-the-headers">Generating the headers</a></h3>
-<p>The generated headers are built by <code>msggen</code>, which reads the schema, the
-catalog and any translation files, and writes both headers. With <code>-d</code> it
-writes them into a directory:</p>
+<p><code>msggen</code> reads the schema, the catalog and any translation files, and writes
+both headers. Give it <code>-d</code> to write them into a directory:</p>
 <pre><code>cd strpp/tools
 ./msggen -d ../include ../../adl/cpp/adl.adl ../../adl/cpp/ietf_languages.adl \
 	mcs.adl ../messages/strpp.mcs
 </code></pre>
-<p>Every file named is loaded in the order given, each from the context the one
-before it left: the language enumeration and the schema first, then the
-catalog, since that is where the catalog’s name and its sets come from. The
-last catalog named is used to name the output files.</p>
+<p><code>msggen</code> loads every file you name in the order you give, each from the
+context the one before it left. Name the language enumeration and the schema
+first, then the catalog, which is where the name and the sets come from. It
+names the output files after the object the <strong>last statement of the last
+file</strong> defines, which for a catalog file is the catalog itself - so a file
+that goes on after its catalog generates from whatever it defined next.</p>
 <p>Without <code>-d</code> the two headers go to standard output instead, so you can
-pass your eye over them without writingh them to storage.</p>
+pass your eye over them without writing them to storage.</p>
 <pre><code>./msggen ../../adl/cpp/adl.adl ../../adl/cpp/ietf_languages.adl \
 	mcs.adl ../messages/strpp.mcs
 </code></pre>
-<p>One of the headers is used by code needing to emit messages, the other
-by consumers wishing to match ErrNum return codes. The parameters and
-default text are pushed to the thread’s error cascade, to be reported
-or recoverd as previously discussed.</p>
+<p>Code that emits messages includes one header; code that matches ErrNum
+return codes includes the other. Reporting pushes the parameters and the
+default text onto the thread’s error cascade, to be reported or recovered
+as <a href="#error-management-1">Error Management</a> describes.</p>
 <p><code>strpp_err.h</code> gives each message a number and, in a comment, the default
 text:</p>
 <pre><code class="language-c">#define	STRERR_SET			1	// The message set allocated to the STR
@@ -2032,10 +2026,10 @@ ErrorSTR_Assert(Variant p1, Variant p2, Variant p3)
 		VariantArray() &lt;&lt; p1 &lt;&lt; p2 &lt;&lt; p3);
 }
 </code></pre>
-<p>This is all in the name of making it as easy to report an error with full
-context than to just return an error number.</p>
-<p>In an upcoming revision of this process, the function’s parameters will
-be typed and converted to Variant to be put into the error buffer.</p>
+<p>All of this makes reporting an error with full context easier than returning
+a bare number.</p>
+<p>A coming revision will type the function’s parameters, and convert them to
+Variant for the error buffer.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="threads-locks-and-thread-local-storage-1"><a href="#threads-locks-and-thread-local-storage-1" class="header">Threads, locks and thread-local storage</a></h1>
 <h2 id="threads-locks-and-thread-local-storage"><a class="header" href="#threads-locks-and-thread-local-storage">Threads, locks and thread-local storage</a></h2>
@@ -2183,7 +2177,290 @@ thread, or by <code>ThreadLocal::clear()</code> - not by the slot.</p>
 but not on FreeRTOS, where it needs toolchain support, so it could not cover
 every model this library builds for.</p>
 <p>Under FreeRTOS, <code>configNUM_THREAD_LOCAL_STORAGE_POINTERS</code> must be raised
-from its default of 0 to at least <code>THREAD_LOCAL_MAX_SLOTS</code>.</p>
+from its default of 0 to at least <code>THREAD_LOCAL_MAX_SLOTS + 1</code>; ESP-IDF keeps
+index 0 for itself. In an ESP-IDF build, <code>THREAD_LOCAL_MAX_SLOTS</code> is the
+<code>STRPP_THREAD_LOCAL_SLOTS</code> setting (1 to 16, default 4), and the build fails if
+FreeRTOS has fewer.</p>
+<h3 id="passing-messages-between-threads"><a class="header" href="#passing-messages-between-threads">Passing messages between threads</a></h3>
+<p>A Thread may receive messages from a message <a href="#messagequeue-a-threads-inbox-1"><code>MessageQueue</code></a>, which
+is created on its first call to <code>MessageQueue::mine()</code>. The queue is made available
+to other threads which may <code>push()</code> new items onto the queue.
+Each MessageQueue involves a <code>Latch</code> to protect the critical section, a <code>Condition</code>
+to notify a waiter, and a VariantArray to contain message data.</p>
+<p>For locks that last longer than a critical section, see
+<a href="#lock-and-sixlock-shared-intent-and-exclusive-locks-1">Lock and SIXLock</a>. To let other threads read a thread’s state
+without sending it messages, see <a href="#windows-transactional-message-processing-1">Windows</a>.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="messagequeue-a-threads-inbox-1"><a href="#messagequeue-a-threads-inbox-1" class="header">MessageQueue: a thread's inbox</a></h1>
+<h2 id="messagequeue-a-threads-inbox"><a class="header" href="#messagequeue-a-threads-inbox">MessageQueue: a thread’s inbox</a></h2>
+<p><code>#include &lt;msgqueue.h&gt;</code>, which brings in <code>lockfree.h</code> (the <code>Latch</code>),
+<code>condition.h</code> (the <code>Condition</code>), <code>thread_local.h</code> (<code>ThreadLocal</code>) and
+<code>variant.h</code> (<code>Variant</code>, <code>VariantArray</code>).</p>
+<p>A <code>MessageQueue</code> is a thread-safe FIFO of <code>Variant</code>s: a <code>Latch</code>-protected
+<code>VariantArray</code>, with a <code>Condition</code> signalling a waiter when something
+arrives. It gives threads a way to pass messages without either one
+touching the other’s data directly - a sender pushes a copy of a
+<code>Variant</code> or <code>VariantArray</code>, and the copy-on-write design in <code>variant.h</code>
+makes that cheap even for a large nested structure.</p>
+<p>There is no name-based registry to look a thread’s queue up by. A sender
+holds a pointer or reference to the <em>target</em> thread’s <code>MessageQueue</code>, handed to
+it when the threads were set up - the same way you would hand it any
+other object one thread needs to reach into another’s world.</p>
+<h3 id="each-threads-own-inbox"><a class="header" href="#each-threads-own-inbox">Each thread’s own inbox</a></h3>
+<p><code>MessageQueue::mine()</code> returns the calling thread’s own <code>MessageQueue</code>, created on its
+first call in that thread (via a <code>ThreadLocal&lt;MessageQueue&gt;</code>, see
+<a href="#threads-locks-and-thread-local-storage-1">Threads, locks and thread-local storage</a>). A thread reads
+its own mail with <code>MessageQueue::mine()-&gt;pop()</code>, and other threads write to it
+by holding the same pointer.</p>
+<p>You don’t have to use <code>mine()</code> at all: a <code>MessageQueue</code> is an ordinary object,
+so you can also just construct one yourself and hand pointers to it
+around explicitly, if a thread wants more than one inbox or the sender
+already has the <code>MessageQueue</code> some other way.</p>
+<h3 id="public-methods-9"><a class="header" href="#public-methods-9">Public methods</a></h3>
+<ul>
+<li><code>push(const Variant&amp;)</code>, <code>push(const VariantArray&amp;)</code> - append one item,
+or several in order under a single lock, and wake a waiter. Pushing an
+empty <code>VariantArray</code> wakes nobody, since nothing arrived.</li>
+<li><code>pop()</code> - wait as long as it takes for an item, then return it.</li>
+<li><code>pop(Milliseconds timeout)</code> - the same, but give up after <code>timeout</code> and
+return a null <code>Variant</code> (<code>Variant().is_null()</code> is true) if nothing
+arrived in time.</li>
+<li><code>try_pop(Variant&amp; item)</code> - take an item now if there is one, without
+waiting; returns whether it found one.</li>
+<li><code>isEmpty()</code> - whether the queue currently holds nothing. Like any
+queue shared between threads, this is a snapshot: another thread can
+push or pop the instant after you read it.</li>
+<li><code>static mine()</code> - the calling thread’s own <code>MessageQueue</code>, created on first
+use.</li>
+</ul>
+<h3 id="what-it-does-not-do"><a class="header" href="#what-it-does-not-do">What it does not do</a></h3>
+<p>A <code>MessageQueue</code> does not know who else holds a pointer to it, so nothing stops
+two threads reading the same one - <code>pop()</code> and <code>try_pop()</code> are safe to
+call from more than one thread, but whichever call happens to win a race
+takes the item, and the loser sees the queue as if it had never been
+there. Arrange a single reader yourself if a queue needs one - the
+<code>MessageQueue</code> doesn’t enforce it.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="lock-and-sixlock-shared-intent-and-exclusive-locks-1"><a href="#lock-and-sixlock-shared-intent-and-exclusive-locks-1" class="header">Lock and SIXLock: shared, intent and exclusive locks</a></h1>
+<h2 id="lock-and-sixlock-shared-intent-and-exclusive-locks"><a class="header" href="#lock-and-sixlock-shared-intent-and-exclusive-locks">Lock and SIXLock: shared, intent and exclusive locks</a></h2>
+<p><code>#include &lt;lock.h&gt;</code>, which brings in <code>lockfree.h</code>, <code>condition.h</code>,
+<code>thread.h</code> and <code>datetime.h</code>.</p>
+<p>A <code>Latch</code> holds one thread at a time. A <code>Lock</code> does the same for longer: you
+keep an <code>ExclLock</code> object in scope for as long as you want to exclude
+everyone else. A <code>SIXLock</code> adds two lesser locks, so that many threads can
+read while one thread decides whether to write.</p>
+<h3 id="the-locks"><a class="header" href="#the-locks">The locks</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>you hold</th><th>others can hold</th><th>when it is granted</th></tr>
+</thead>
+<tbody>
+<tr><td><code>SharedLock</code></td><td>any number of <code>SharedLock</code>s, and one <code>IntentLock</code></td><td>no one holds an <code>IntentLock</code> or <code>ExclLock</code></td></tr>
+<tr><td><code>IntentLock</code></td><td><code>SharedLock</code>s that were granted before it</td><td>no one holds an <code>IntentLock</code> or <code>ExclLock</code></td></tr>
+<tr><td><code>ExclLock</code></td><td>nothing</td><td>no one holds any lock</td></tr>
+</tbody>
+</table>
+</div>
+<p>An <code>IntentLock</code> says “I will write soon”. The <code>SharedLock</code>s already granted
+carry on, but nobody new gets a lock until you release it, so readers cannot
+keep you waiting for ever. You can <code>upgrade</code> an <code>IntentLock</code> to an <code>ExclLock</code>,
+which waits for the <code>SharedLock</code>s to finish.</p>
+<p>You hold a lock by keeping its object in scope. Destroying the object
+releases it. You can move a lock object, but not copy it.</p>
+<pre><code>SIXLock		lock;
+
+{
+	SharedLock	reading(lock);	// Waits as long as it takes
+	look_at(data);
+}					// Released here
+
+IntentLock	intent(lock);
+prepare();				// Readers continue, no new ones start
+ExclLock	writing(static_cast&lt;IntentLock&amp;&amp;&gt;(intent));
+change(data);				// No one else holds any lock
+</code></pre>
+<h3 id="waiting-and-not-waiting"><a class="header" href="#waiting-and-not-waiting">Waiting, and not waiting</a></h3>
+<p>Each lock takes a <code>Milliseconds</code> timeout, and <code>Milliseconds(0)</code> polls. A
+lock that was not granted is empty, and <code>holding()</code> tells you which you got:</p>
+<pre><code>SharedLock	reading(lock, Milliseconds(50));
+if (!reading.holding())
+	return;				// Busy; try again later
+</code></pre>
+<p><code>ExclLock(intent, timeout)</code> upgrades an <code>IntentLock</code> and gives up after the
+timeout. When it gives up, you still hold the <code>IntentLock</code>.</p>
+<h3 id="waiting-for-yourself"><a class="header" href="#waiting-for-yourself">Waiting for yourself</a></h3>
+<p>A thread that holds an <code>IntentLock</code> or <code>ExclLock</code> can never be granted another
+lock on the same <code>SIXLock</code>, because it would wait for itself. If you ask for
+one without a timeout, the program stops with the reason reported. With a
+timeout you get an empty lock back after the wait.</p>
+<h3 id="public-methods-10"><a class="header" href="#public-methods-10">Public methods</a></h3>
+<p><code>Lock</code>, in <a href="https://github.com/cjheath/strpp/blob/main/include/lock.h">lock.h</a>:</p>
+<ul>
+<li><code>writing()</code> - whether any thread holds an <code>IntentLock</code> or <code>ExclLock</code>.</li>
+<li><code>sharing()</code> - how many <code>SharedLock</code>s are held.</li>
+</ul>
+<p>A <code>Lock</code> grants only an <code>ExclLock</code>. A <code>SIXLock</code> is a <code>Lock</code> that grants all
+three. Destroying a lock that is still held stops the program.</p>
+<p><code>SharedLock(SIXLock&amp;)</code>, <code>SharedLock(SIXLock&amp;, Milliseconds)</code>,
+<code>IntentLock(SIXLock&amp;)</code>, <code>IntentLock(SIXLock&amp;, Milliseconds)</code>,
+<code>ExclLock(Lock&amp;)</code>, <code>ExclLock(Lock&amp;, Milliseconds)</code>:</p>
+<ul>
+<li>Take the lock, waiting as long as it takes, or up to the timeout.</li>
+</ul>
+<p><code>ExclLock(IntentLock&amp;&amp;)</code>, <code>ExclLock(IntentLock&amp;, Milliseconds)</code>:</p>
+<ul>
+<li>Upgrade your <code>IntentLock</code>. The first leaves it empty, and the second leaves
+it unchanged if the timeout passes.</li>
+</ul>
+<p>Every lock object has:</p>
+<ul>
+<li><code>holding()</code> - whether you hold the lock.</li>
+<li><code>release()</code> - release it now, instead of at the end of the scope.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="windows-transactional-message-processing-1"><a href="#windows-transactional-message-processing-1" class="header">Windows: transactional message processing</a></h1>
+<h2 id="windows-transactional-message-processing"><a class="header" href="#windows-transactional-message-processing">Windows: transactional message processing</a></h2>
+<p><code>#include &lt;window.h&gt;</code>, which brings in <code>thread.h</code> and <code>lock.h</code>.</p>
+<p>Threads talk to each other with messages, and a message makes a good request
+or announcement. A message makes a poor way to ask “what is the state now?”,
+because the answer has gone stale by the time you read it, and the thread has
+to do work to build it.</p>
+<p>A thread can instead keep its state in a protected area that other threads
+read directly. You open a <strong>Window</strong> onto the thread, read what you want, and
+close it. While your Window is open, the thread changes none of that state.
+The thread changes its state only inside <code>update()</code>, a short transaction that
+no Window can see half-finished.</p>
+<p>So you use both:</p>
+<ul>
+<li><strong>Messages</strong> say what to do, and what has happened.</li>
+<li><strong>Windows</strong> show what the state is.</li>
+</ul>
+<h3 id="an-example"><a class="header" href="#an-example">An example</a></h3>
+<p>A thread counts what it is sent. Its state is <code>CounterData</code>, which you define
+before the thread:</p>
+<pre><code>struct CounterData
+{
+	CounterData() : count(0) {}
+	int		count;
+};
+
+class Counter
+: public Thread
+, public Windowed&lt;Counter, CounterData&gt;
+{
+	int run()
+	{
+		for (;;)
+		{
+			Variant		message = MessageQueue::mine()-&gt;pop();
+			int		next = data().count + message.as_int();
+			update([&amp;](Data&amp; d) { d.count = next; });
+		}
+	}
+};
+</code></pre>
+<p>Another thread reads the count:</p>
+<pre><code>Window&lt;Counter&gt;		w(counter);	// Waits until it is not updating
+show(w-&gt;count);
+					// The Window closes at the end of the scope
+</code></pre>
+<p><code>Counter</code> reads its own state with <code>data()</code>, which needs no Window, because
+only <code>Counter</code> writes it. It writes only through <code>update()</code>, which calls your
+lambda with a <code>Data&amp;</code> while no Window is open. A write anywhere else does not
+compile.</p>
+<h3 id="announcing-a-change"><a class="header" href="#announcing-a-change">Announcing a change</a></h3>
+<p>Don’t send the new state in a message. Update the state, then announce that
+it changed, and let each reader fetch what it wants:</p>
+<pre><code>update([&amp;](Data&amp; d) { d.last_scan = aps; d.scan_count++; });
+replies.push(Variant(VariantArray() &lt;&lt; "scan" &lt;&lt; (int)data().scan_count));
+</code></pre>
+<p>The announcement carries a generation number, <code>scan_count</code>. A reader that
+misses an announcement, or sees several at once, opens a Window and reads the
+latest. A reader that starts late does the same. The reader compares the
+number with the last one it saw to tell whether anything changed.</p>
+<p>Copy what you need out of the Window and close it before you do anything
+slow with it. A <code>VariantArray</code> or <code>StrVal</code> copy shares its data until someone
+changes it, so the copy costs little:</p>
+<pre><code>VariantArray	aps;
+{
+	Window&lt;WifiScanner&gt;	w(scanner, Milliseconds(1000));
+	if (!w.holding())
+		return;
+	aps = w-&gt;last_scan;
+}
+print(aps);
+</code></pre>
+<h3 id="the-rules-of-a-transaction"><a class="header" href="#the-rules-of-a-transaction">The rules of a transaction</a></h3>
+<p>An <code>update()</code> is a transaction on the thread’s state. These rules keep it one:</p>
+<ul>
+<li><strong>Leave the state consistent.</strong> A reader can open a Window between any two
+updates. Put everything that makes one consistent change in one <code>update()</code>:
+a list and its count, not the list in one and the count in the next.</li>
+<li><strong>Do the slow work first.</strong> Build the new value before <code>update()</code>, and only
+assign it inside. Every reader waits while you update. A scan that takes two
+seconds belongs outside, and the assignment that publishes its result
+inside.</li>
+<li><strong>Don’t wait for anything inside <code>update()</code>.</strong> Don’t pop a queue, wait on a
+condition or open a Window there.</li>
+<li><strong>Don’t nest them.</strong> An <code>update()</code> inside an <code>update()</code> waits for itself, and
+the program stops with the reason reported.</li>
+<li><strong>Handle each message quickly.</strong> A message that takes a long time holds up
+the messages behind it, whether or not any Window is open. If a job is
+long, make it a series of steps: do one, publish its progress with an
+<code>update()</code>, and send yourself a message to do the next. The thread can then
+answer other messages between steps.</li>
+</ul>
+<h3 id="the-rules-of-a-reader"><a class="header" href="#the-rules-of-a-reader">The rules of a reader</a></h3>
+<ul>
+<li><strong>Close every Window before you wait for the thread.</strong> If you open a Window,
+and then push a request and wait for the reply, the thread cannot update
+until you close the Window. It never replies, and you wait for ever.</li>
+<li><strong>Use a timeout if you can’t afford to wait.</strong> A user interface thread
+passes a <code>Milliseconds</code> and checks <code>holding()</code>, then shows what it had or
+tries again on the next frame.</li>
+<li><strong>Don’t open a Window on your own thread while you update.</strong> That asks the
+thread to wait for itself. Outside <code>update()</code> the thread can open a Window on
+itself, but it has <code>data()</code> for that.</li>
+<li><strong>Close every Window before the thread is destroyed.</strong></li>
+</ul>
+<h3 id="what-the-locks-do"><a class="header" href="#what-the-locks-do">What the locks do</a></h3>
+<p>A Window holds a <code>SharedLock</code> on the thread, and <code>update()</code> takes an
+<code>IntentLock</code> and then upgrades it to an <code>ExclLock</code>. See
+<a href="#lock-and-sixlock-shared-intent-and-exclusive-locks-1">Lock and SIXLock</a>. The result:</p>
+<ul>
+<li>Any number of Windows can be open at once.</li>
+<li>When the thread wants to update, Windows already open continue, and no new
+Window opens. The update starts when the last one closes.</li>
+<li>The thread then updates, and Windows can open again.</li>
+</ul>
+<p>A reader can never keep the thread from updating by opening Windows one after
+another, because new Windows wait once the thread is waiting.</p>
+<h3 id="memory"><a class="header" href="#memory">Memory</a></h3>
+<p><code>update()</code> takes your lambda by value, as a template argument. It does not use
+<code>std::function</code> and does not allocate. Capture with <code>[&amp;]</code>, which costs one
+pointer for each variable you name. What your lambda does inside can allocate,
+as it could anywhere. Appending to a <code>VariantArray</code> allocates, and assigning
+one to another does not.</p>
+<h3 id="public-methods-11"><a class="header" href="#public-methods-11">Public methods</a></h3>
+<p><code>Windowed&lt;Owner, Data&gt;</code>, in
+<a href="https://github.com/cjheath/strpp/blob/main/include/window.h">window.h</a>. You
+derive your <code>Thread</code> from it, and <code>Data</code> is a type you define, with a default
+constructor:</p>
+<ul>
+<li><code>Data</code> - the state’s type, which you can name in your thread’s code.</li>
+<li><code>data()</code> - the state, read-only. Only the owner calls this.</li>
+<li><code>update(f)</code> - call <code>f(Data&amp;)</code> with no Window open. Only the owner calls this.</li>
+</ul>
+<p><code>Window&lt;Owner&gt;</code>:</p>
+<ul>
+<li><code>Window(Owner&amp;)</code> - open a Window, waiting as long as it takes.</li>
+<li><code>Window(Owner&amp;, Milliseconds)</code> - the same, giving up after the timeout.</li>
+<li><code>holding()</code> - whether you have a Window.</li>
+<li><code>close()</code> - close it now, instead of at the end of the scope.</li>
+<li><code>operator-&gt;()</code>, <code>operator*()</code> - the state, read-only. They stop the program if
+you don’t hold a Window.</li>
+</ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="pegexp"><a href="#pegexp" class="header">Pegexp</a></h1>
 <h2 id="prefix-regular-expression-pattern-matching"><a class="header" href="#prefix-regular-expression-pattern-matching">Prefix Regular Expression pattern matching</a></h2>
@@ -2278,7 +2555,7 @@ processing required is that when any copy of a Source is made, it must be
 possible to proceed from that position in the stream. When a Source is
 deleted, no further access will be required to data from that position
 unless an older copy still exists.</p>
-<h3 id="public-methods-9"><a class="header" href="#public-methods-9">Public methods</a></h3>
+<h3 id="public-methods-12"><a class="header" href="#public-methods-12">Public methods</a></h3>
 <p>Defined in <a href="https://github.com/cjheath/strpp/blob/main/include/pegexp.h">pegexp.h</a>.</p>
 <p><code>Pegexp</code>:</p>
 <ul>
@@ -2352,7 +2629,7 @@ refined where necessary.</p>
 <p>The <a href="https://github.com/cjheath/strpp/blob/main/test/peg_test.cpp">Peg parser</a>
 for <a href="https://github.com/cjheath/px">Px</a> shows how to generate an AST from
 captures.</p>
-<h3 id="public-methods-10"><a class="header" href="#public-methods-10">Public methods</a></h3>
+<h3 id="public-methods-13"><a class="header" href="#public-methods-13">Public methods</a></h3>
 <p><code>Peg</code> and the no-capture Context it comes with are defined in
 <a href="https://github.com/cjheath/strpp/blob/main/include/peg.h">peg.h</a>:</p>
 <ul>

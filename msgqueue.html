@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Message catalogs - strpp</title>
+        <title>MessageQueue: a thread&#x27;s inbox - strpp</title>
 
 
         <!-- Custom HTML head -->
@@ -177,162 +177,64 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h2 id="message-catalogs"><a class="header" href="#message-catalogs">Message catalogs</a></h2>
-<p>Messages to the user of a program should be concise, consistent, and complete.
-They should be actionable, describing the problem, the reason and a solution.
-A translator must know enough of the context to know how to phrase the text.
-Parameters may occur in a different order in different translations.</p>
-<p>Message catalog management keeps that in one place, not embedded in the code.
-Numbers are allocated once and should not be reallocated. The completeness
-of a translation and the types of the parameters should be checked at build.</p>
-<p>We write message catalogs in ADL, a small type-checked declarative language
-for describing structured data. The code and its message catalog are separate.
-A generator writes two header files for the library to build from.</p>
-<h3 id="the-catalog-schema"><a class="header" href="#the-catalog-schema">The catalog schema</a></h3>
-<p>ADL type-checks your files against a schema, itself written in ADL. The
-Message Catalog Source schema object holds <code>Set</code>s; each set holds <code>Message</code>s
-with a number and default text, and may hold further <code>Text</code> objects for
-translations or styles.</p>
-<pre><code class="language-adl">Message Catalog Source:
-{
-	Set: {
-		Prefix: String;			// Used in filenames and Error definitions
-
-		Number: Integer;		// Globally allocated set number
-
-		-&gt; Languages.Language;		// Default language for the set
-
-		Message: {
-			Number: Integer;	// Must be unique in the Set, 1-1023
-			Usage: String;		// Notes for a translator
-			Syntax = String;	// Default text matches String's Syntax
-
-			Text: {			    // Stylised text (Language or Style override)
-				-&gt; Languages.Language;	// Or default to the set's language
-				Style: String;	// Typically blank/unset, could be "terse", "verbose", etc
-				Syntax = String;// Allow direct assignment
-			}
-		}
-	}
-}
-</code></pre>
-<p>In ADL you can assign a value to any object that has a Syntax. A Message is
-a container, but you can also assign text straight to it, since it matches
-the Syntax for a String. The schema expects a list of Languages, from a file
-loaded before it. Keep the default text in the main file, and put each
-translation in an additional one.</p>
-<h3 id="a-catalog-of-default-texts"><a class="header" href="#a-catalog-of-default-texts">A catalog of default texts</a></h3>
-<p>The catalog’s name gives the names of both generated headers. It holds Sets,
-and each Set holds Messages. Here is part of the library’s catalog:</p>
-<pre><code class="language-adl">Strpp: Message Catalog Source {
-
-	StrVal: Set {
-		Prefix = 'STR';
-		Number = 1;
-		Language = Languages.en;
-
-		Assert: Message { Number = 1; } ~= 'At {1}:{2}, assertion failed: `{3}`';
-
-		Trailing text: Message { Number = 2; } ~= 'The number `{1}` in radix {2} ended at character {3}, leaving `{4}` unread';
-		No digits: Message { Number = 3; } ~= 'Failed to read a number from `{1}` in radix {2}';
-		...
-		Is Complete = True;
-	}
-}
-</code></pre>
-<p>A message’s name is one or more words, and <code>msggen</code> builds both names from
-them: the ErrNum macro and the function that reports the message. The
-message called <code>Trailing text</code> becomes the macro <code>STRERR_TRAILING_TEXT</code> and
-the function <code>ErrorSTR_TrailingText</code>.</p>
-<p>Number the parameters <code>{1}</code>, <code>{2}</code> and so on in the order the text uses them,
-and the generated function takes them in that order. A translation may use
-them in any order, and may use one twice.</p>
-<p>Once you use a number, never re-use or re-number it: the Set-Message number
-identifies one condition for customer support, even to someone who cannot
-read the text. Each set ends <code>Is Complete = True;</code>, which stops a translation
-adding content to it.</p>
-<p>Assign with <code>=</code> for Final, which nothing can override; or with <code>~=</code> for
-tentative, which a specified context may override.</p>
-<h3 id="translations"><a class="header" href="#translations">Translations</a></h3>
-<p>Put each translation in a separate catalog file, loaded after the first. It
-re-opens the catalog by name and adds a new <code>Text</code> object to each Message
-(which is why you Complete a Set but not its Messages). It leaves the default
-text alone, so you can reword either one. You can load several translations
-over the same catalog.</p>
-<pre><code class="language-adl">// German wordings of strpp.mcs's messages.
-
-deText: Set.Message.Text { Language = Languages.de; }
-
-StrVal {
-	Assert { : deText ~= 'In {1}:{2} schlug die Zusicherung fehl: `{3}`'; }
-	Trailing text { : deText ~= 'Die Zahl `{1}` zur Basis {2} endete bei Zeichen {3}; `{4}` blieb ungelesen'; }
-	...
-}
-
-Strpp;
-</code></pre>
-<p>Use one language per file, and define a subtype of the schema’s own
-<code>Message.Text</code> that sets it once - then each message needs only its text.</p>
-<p>When ADL loads a file, new declarations begin in the scope the file before it
-left closed. So end each translation with a bare <code>Strpp;</code>: that re-opens the
-catalog, and leaves it as the starting point for the next file.</p>
-<h3 id="generating-the-headers"><a class="header" href="#generating-the-headers">Generating the headers</a></h3>
-<p><code>msggen</code> reads the schema, the catalog and any translation files, and writes
-both headers. Give it <code>-d</code> to write them into a directory:</p>
-<pre><code>cd strpp/tools
-./msggen -d ../include ../../adl/cpp/adl.adl ../../adl/cpp/ietf_languages.adl \
-	mcs.adl ../messages/strpp.mcs
-</code></pre>
-<p><code>msggen</code> loads every file you name in the order you give, each from the
-context the one before it left. Name the language enumeration and the schema
-first, then the catalog, which is where the name and the sets come from. It
-names the output files after the object the <strong>last statement of the last
-file</strong> defines, which for a catalog file is the catalog itself - so a file
-that goes on after its catalog generates from whatever it defined next.</p>
-<p>Without <code>-d</code> the two headers go to standard output instead, so you can
-pass your eye over them without writing them to storage.</p>
-<pre><code>./msggen ../../adl/cpp/adl.adl ../../adl/cpp/ietf_languages.adl \
-	mcs.adl ../messages/strpp.mcs
-</code></pre>
-<p>Code that emits messages includes one header; code that matches ErrNum
-return codes includes the other. Reporting pushes the parameters and the
-default text onto the thread’s error cascade, to be reported or recovered
-as <a href="error.html">Error Management</a> describes.</p>
-<p><code>strpp_err.h</code> gives each message a number and, in a comment, the default
-text:</p>
-<pre><code class="language-c">#define	STRERR_SET			1	// The message set allocated to the STR
-
-#define	STRERR_ASSERT		ErrNum(STRERR_SET, 1)	// At {1}:{2}, assertion failed: `{3}`
-#define	STRERR_TRAILING_TEXT		ErrNum(STRERR_SET, 2)	// The number `{1}` in radix {2} ended at character {3}, leaving `{4}` unread
-#define	STRERR_NUMBER_OVERFLOW		ErrNum(STRERR_SET, 4)	// The number `{1}` in radix {2} does not fit in `{3}`, overflowing at character {4}; the value returned is incomplete
-</code></pre>
-<p>An <code>ErrNum</code> holds a set number and a message number within it, and its
-<code>#define</code> is the message’s name. See <a href="error.html">Error Management</a> for
-details.</p>
-<p><code>strpp_msg.h</code> provides a function for each message. This function
-takes the parameters, logs the error and returns the ErrNum:</p>
-<pre><code class="language-c++">inline ErrNum
-ErrorSTR_Assert(Variant p1, Variant p2, Variant p3)
-{
-	return Error(STRERR_ASSERT,
-		"At {1}:{2}, assertion failed: `{3}`",
-		VariantArray() &lt;&lt; p1 &lt;&lt; p2 &lt;&lt; p3);
-}
-</code></pre>
-<p>All of this makes reporting an error with full context easier than returning
-a bare number.</p>
-<p>A coming revision will type the function’s parameters, and convert them to
-Variant for the error buffer.</p>
+                        <h2 id="messagequeue-a-threads-inbox"><a class="header" href="#messagequeue-a-threads-inbox">MessageQueue: a thread’s inbox</a></h2>
+<p><code>#include &lt;msgqueue.h&gt;</code>, which brings in <code>lockfree.h</code> (the <code>Latch</code>),
+<code>condition.h</code> (the <code>Condition</code>), <code>thread_local.h</code> (<code>ThreadLocal</code>) and
+<code>variant.h</code> (<code>Variant</code>, <code>VariantArray</code>).</p>
+<p>A <code>MessageQueue</code> is a thread-safe FIFO of <code>Variant</code>s: a <code>Latch</code>-protected
+<code>VariantArray</code>, with a <code>Condition</code> signalling a waiter when something
+arrives. It gives threads a way to pass messages without either one
+touching the other’s data directly - a sender pushes a copy of a
+<code>Variant</code> or <code>VariantArray</code>, and the copy-on-write design in <code>variant.h</code>
+makes that cheap even for a large nested structure.</p>
+<p>There is no name-based registry to look a thread’s queue up by. A sender
+holds a pointer or reference to the <em>target</em> thread’s <code>MessageQueue</code>, handed to
+it when the threads were set up - the same way you would hand it any
+other object one thread needs to reach into another’s world.</p>
+<h3 id="each-threads-own-inbox"><a class="header" href="#each-threads-own-inbox">Each thread’s own inbox</a></h3>
+<p><code>MessageQueue::mine()</code> returns the calling thread’s own <code>MessageQueue</code>, created on its
+first call in that thread (via a <code>ThreadLocal&lt;MessageQueue&gt;</code>, see
+<a href="threading.html">Threads, locks and thread-local storage</a>). A thread reads
+its own mail with <code>MessageQueue::mine()-&gt;pop()</code>, and other threads write to it
+by holding the same pointer.</p>
+<p>You don’t have to use <code>mine()</code> at all: a <code>MessageQueue</code> is an ordinary object,
+so you can also just construct one yourself and hand pointers to it
+around explicitly, if a thread wants more than one inbox or the sender
+already has the <code>MessageQueue</code> some other way.</p>
+<h3 id="public-methods"><a class="header" href="#public-methods">Public methods</a></h3>
+<ul>
+<li><code>push(const Variant&amp;)</code>, <code>push(const VariantArray&amp;)</code> - append one item,
+or several in order under a single lock, and wake a waiter. Pushing an
+empty <code>VariantArray</code> wakes nobody, since nothing arrived.</li>
+<li><code>pop()</code> - wait as long as it takes for an item, then return it.</li>
+<li><code>pop(Milliseconds timeout)</code> - the same, but give up after <code>timeout</code> and
+return a null <code>Variant</code> (<code>Variant().is_null()</code> is true) if nothing
+arrived in time.</li>
+<li><code>try_pop(Variant&amp; item)</code> - take an item now if there is one, without
+waiting; returns whether it found one.</li>
+<li><code>isEmpty()</code> - whether the queue currently holds nothing. Like any
+queue shared between threads, this is a snapshot: another thread can
+push or pop the instant after you read it.</li>
+<li><code>static mine()</code> - the calling thread’s own <code>MessageQueue</code>, created on first
+use.</li>
+</ul>
+<h3 id="what-it-does-not-do"><a class="header" href="#what-it-does-not-do">What it does not do</a></h3>
+<p>A <code>MessageQueue</code> does not know who else holds a pointer to it, so nothing stops
+two threads reading the same one - <code>pop()</code> and <code>try_pop()</code> are safe to
+call from more than one thread, but whichever call happens to win a race
+takes the item, and the loser sees the queue as if it had never been
+there. Arrange a single reader yourself if a queue needs one - the
+<code>MessageQueue</code> doesn’t enforce it.</p>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="error.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="threading.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="threading.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="lock.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -342,11 +244,11 @@ Variant for the error buffer.</p>
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="error.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="threading.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="threading.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="lock.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

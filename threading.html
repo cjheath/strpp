@@ -35,10 +35,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-4e6ac57a.js";
+            window.path_to_searchindex_js = "searchindex-e313047c.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-02946640.js"></script>
+        <script src="toc-974dafb5.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -322,7 +322,19 @@ thread, or by <code>ThreadLocal::clear()</code> - not by the slot.</p>
 but not on FreeRTOS, where it needs toolchain support, so it could not cover
 every model this library builds for.</p>
 <p>Under FreeRTOS, <code>configNUM_THREAD_LOCAL_STORAGE_POINTERS</code> must be raised
-from its default of 0 to at least <code>THREAD_LOCAL_MAX_SLOTS</code>.</p>
+from its default of 0 to at least <code>THREAD_LOCAL_MAX_SLOTS + 1</code>; ESP-IDF keeps
+index 0 for itself. In an ESP-IDF build, <code>THREAD_LOCAL_MAX_SLOTS</code> is the
+<code>STRPP_THREAD_LOCAL_SLOTS</code> setting (1 to 16, default 4), and the build fails if
+FreeRTOS has fewer.</p>
+<h3 id="passing-messages-between-threads"><a class="header" href="#passing-messages-between-threads">Passing messages between threads</a></h3>
+<p>A Thread may receive messages from a message <a href="msgqueue.html"><code>MessageQueue</code></a>, which
+is created on its first call to <code>MessageQueue::mine()</code>. The queue is made available
+to other threads which may <code>push()</code> new items onto the queue.
+Each MessageQueue involves a <code>Latch</code> to protect the critical section, a <code>Condition</code>
+to notify a waiter, and a VariantArray to contain message data.</p>
+<p>For locks that last longer than a critical section, see
+<a href="lock.html">Lock and SIXLock</a>. To let other threads read a thread’s state
+without sending it messages, see <a href="window.html">Windows</a>.</p>
 
                     </main>
 
@@ -332,7 +344,7 @@ from its default of 0 to at least <code>THREAD_LOCAL_MAX_SLOTS</code>.</p>
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="pegexp.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="msgqueue.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -346,7 +358,7 @@ from its default of 0 to at least <code>THREAD_LOCAL_MAX_SLOTS</code>.</p>
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="pegexp.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="msgqueue.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>
