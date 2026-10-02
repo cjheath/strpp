@@ -36,7 +36,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-c16ddc37.js";
+            window.path_to_searchindex_js = "searchindex-b1b5a82e.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-c18c0bf2.js"></script>
@@ -2576,6 +2576,12 @@ to know your platform:</p>
 	return true;
 }
 </code></pre>
+<p>A look allocates memory, and a failed allocation stops the program, so the
+monitor checks first. Before each look it asks the probe, and if the largest
+free block is smaller than a look needs, it looks at nothing and says so instead
+(see <code>no-memory</code> below). It works out what a look needs from the sizes you
+built with, or you can set <code>settings.reserve</code> to your own number of bytes.
+Without a probe, it has no way to ask, and looks anyway.</p>
 <h3 id="what-it-reports"><a class="header" href="#what-it-reports">What it reports</a></h3>
 <p>Each finding becomes a message pushed to a MessageQueue <code>reports</code> when it first appears:</p>
 <ul>
@@ -2594,6 +2600,10 @@ full, or a thread is waiting to push to it. See <a href="#messagequeue-a-threads
 in its buffer that have not been reported or forwarded. See <a href="#error-management-1">Errors</a>.</li>
 <li><code>["monitor", "memory", free, largest block, lowest free]</code> - the probe says
 memory is low.</li>
+<li><code>["monitor", "no-memory", "Not enough memory to report"]</code> - there was too little
+for a look, so it did not look. You get this once, until there is enough
+again. The monitor makes this message when it starts, so saying it allocates
+nothing itself. The queue you push it to might.</li>
 </ul>
 <p>Monitor reports are never repeated. If a condition goes away and returns, that’s a
 new report. The monitor never waits to push a report. If <code>reports</code> is full, it counts
@@ -2604,8 +2614,9 @@ to read it:</p>
 if (w.holding())                // We opened a Window
 	show(w-&gt;findings);	// The same reports, for what is found now
 </code></pre>
-<p><code>samples</code> counts its looks, <code>dropped</code> counts the reports it lost, and <code>threads</code>,
-<code>queues</code> and <code>error_buffers</code> say how much it saw.</p>
+<p><code>samples</code> counts its looks, <code>skipped</code> counts the looks it did not make for want of
+memory, <code>short_of_memory</code> says whether the last one was skipped, <code>dropped</code> counts
+the reports it lost, and <code>threads</code>, <code>queues</code> and <code>error_buffers</code> say how much it saw.</p>
 <h3 id="controlling-the-monitor"><a class="header" href="#controlling-the-monitor">Controlling the Monitor</a></h3>
 <p>You can push a request message to <code>monitor.requests</code>:</p>
 <ul>
