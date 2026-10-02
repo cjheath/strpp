@@ -22,6 +22,8 @@ holds_up(WatchMode wait, unsigned char hold)
 static bool
 waits_for(const WatchRecord& waiter, const WatchRecord& holder)
 {
+	if (waiter.wait_kind == WatchQueue)
+		return waiter.wait_has_consumer && waiter.wait_consumer == holder.id;
 	if (waiter.wait_kind != WatchLatch && waiter.wait_kind != WatchLock)
 		return false;
 	for (unsigned i = 0; i < holder.held_count; i++)
@@ -139,6 +141,7 @@ struct	ThreadWatch
 	: next(0), active(true), id(), name(0)
 	, held_count(0), held_dropped(0)
 	, wait_object(0), wait_kind(WatchNothing), wait_mode(WatchForSignal), wait_since(0)
+	, wait_has_consumer(false), wait_consumer()
 	, depth(0)
 	{
 		for (unsigned i = 0; i < STRPP_WATCH_HELD; i++)
@@ -160,6 +163,8 @@ struct	ThreadWatch
 	std::atomic<int>		wait_kind;
 	std::atomic<int>		wait_mode;
 	std::atomic<uint32_t>		wait_since;
+	std::atomic<bool>		wait_has_consumer;
+	std::atomic<ThreadId>		wait_consumer;
 	int				depth;		// Nested waits; only its own thread uses this
 };
 
@@ -267,7 +272,7 @@ watch_held_remove(const void* object)
 		w->held_dropped--;
 }
 
-WatchWait::WatchWait(const void* object, WatchKind kind, WatchMode mode)
+WatchWait::WatchWait(const void* object, WatchKind kind, WatchMode mode, const ThreadId* consumer)
 : record(mine())
 , outermost(record && record->depth++ == 0)
 {
@@ -276,6 +281,9 @@ WatchWait::WatchWait(const void* object, WatchKind kind, WatchMode mode)
 	record->wait_object = object;
 	record->wait_mode = mode;
 	record->wait_since = WatchNowMs();
+	record->wait_has_consumer = consumer != 0;
+	if (consumer)
+		record->wait_consumer = *consumer;
 	record->wait_kind = kind;	// Last: this says there is a wait
 }
 
@@ -319,6 +327,8 @@ WatchSnapshot(WatchRecord* out, unsigned max_out)
 		r.wait_mode = (WatchMode)w->wait_mode.load();
 		r.wait_object = w->wait_object;
 		r.wait_since = w->wait_since;
+		r.wait_has_consumer = w->wait_has_consumer;
+		r.wait_consumer = w->wait_consumer;
 		n++;
 	}
 	return n;

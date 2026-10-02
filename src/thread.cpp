@@ -46,6 +46,7 @@ Thread::Thread(const ThreadParams* params)
 , state(New)
 , stack_bytes(params ? params->stackBytes : 0)
 , name(params ? params->name : 0)
+, ended_errors(0)
 , exit_code(0)
 {
 #if	defined(HAVE_PTHREADS) || defined(HAVE_FREERTOS)
@@ -171,6 +172,18 @@ Thread::ThreadProc(void* _this)
 
 	int	ret = t->run();
 
+	/*
+	 * A thread that ends with undelivered errors has no one to deliver them to.
+	 * Stop in a debug build, and propagate them for the joiner otherwise.
+	 */
+#if	!defined(NDEBUG)
+	{
+		ErrBuf*	mine = ErrBuf::peek_mine();
+		StrppAssert(!mine || mine->count() == 0);
+	}
+#endif
+	t->ended_errors = ErrBuf::detach_mine();
+
 	thread_latch.enter();
 	t->exit_code = ret;		// What join() returns, before the thread is joined
 	t->state = Ended;
@@ -277,6 +290,7 @@ Thread::joinAny()
 			threads.remove(i, 1);
 			ended_count--;
 			thread_latch.leave();
+			thread->deliver_errors();
 			return thread;
 		}
 #else
@@ -290,6 +304,7 @@ Thread::joinAny()
 			assert(!Thread::find(tid));
 			ended_count--;
 			thread_latch.leave();
+			thread->deliver_errors();
 			return thread;
 		}
 #endif
@@ -360,7 +375,44 @@ Thread::join()
 	}
 	thread_latch.leave();
 
+	deliver_errors();
 	return exit_code;
+}
+
+/*
+ * The messages an ended thread left behind become the joiner's, in their own
+ * order and so before the message that says where they came from: the cause
+ * first and then the result, which is how a cascade reads.
+ */
+void
+Thread::deliver_errors()
+{
+	ErrBuf*		ended = ended_errors;
+	if (!ended)
+		return;
+	ended_errors = 0;
+
+	ErrBuf::MsgIndex	count = ended->count();
+	ErrBuf*			mine = ErrBuffer();
+	for (ErrBuf::MsgIndex i = 0; i < count; i++)
+	{
+		ErrBuf::Message	m = ended->message(i);
+		mine->report(m.error, m.default_text, m.parameters);
+	}
+	ErrorTHR_EndedWithErrors(name ? name : "(unnamed)", (int)count);
+	delete ended;
+}
+
+// A thread nobody joined: its errors still reach the one that destroys it
+void
+Thread::release_errors()
+{
+	if (!ended_errors)
+		return;
+	deliver_errors();
+#if	!defined(NDEBUG)
+	StrppAssert(!"A thread was destroyed with errors that no one joined it to receive");
+#endif
 }
 
 /*

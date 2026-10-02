@@ -37,6 +37,7 @@ Threads {
 	No condition { : frText ~= '`{1}` est impossible : la variable de condition n\'a pas été créée correctement'; }
 	Wait failed { : frText ~= 'Le thread {1} a échoué (code d\'erreur {2})'; }
 	Delay failed { : frText ~= 'Le thread {1} a échoué (code d\'erreur {2})'; }
+	Ended with errors { : frText ~= 'Le thread `{1}` s\'est terminé avec {2} erreurs non traitées ; elles sont signalées avant celle-ci'; }
 }
 
 Strpp;

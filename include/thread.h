@@ -30,6 +30,7 @@
 #endif
 
 class	Condition;
+class	ErrBuf;
 
 /*
  * Optional parameters to the Thread constructor. Currently just the stack
@@ -103,13 +104,9 @@ protected:
 	State			state;
 	size_t			stack_bytes;	// From ThreadParams, or 0 (platform default)
 	const char*		name;		// From ThreadParams, or null
-	/*
-	 * What run() returned, stored by ThreadProc before the thread is marked
-	 * Ended, or what exit() was given. The library carries it rather than the
-	 * platform, so every model returns it the same way - and join() returns 0
-	 * for a thread that never ran, which is the only case it cannot tell from
-	 * a thread that ended with 0.
-	 */
+	ErrBuf*			ended_errors;	// What this thread left in its error buffer when it ended, until joined
+
+	// Return value from run(), stored by ThreadProc before the thread is Ended
 	int			exit_code;
 
 	static	Thread*		main_thread;
@@ -131,6 +128,8 @@ protected:
 	static void		ThreadProcTask(void* _this);	// TaskFunction_t's signature; calls ThreadProc
 #endif
 	inline void		remove_ended();
+	void			deliver_errors();	// Put ended_errors into the caller's error buffer, as a cascade
+	void			release_errors();	// Deliver them if no one did, and in a debug build, stop
 
 	// REVISIT: Implement error buffer:
 	// ErrBuf*		err_buf;
@@ -192,6 +191,7 @@ Thread::~Thread()
 {
 	if (this == main_thread)
 		return;
+	release_errors();
 	// A thread that never started (its creation was reported) is not a bug:
 	// there is nothing of it to have ended.
 	StrppAssert(state == Ended || thread_id == 0);

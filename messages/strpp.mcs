@@ -81,6 +81,7 @@ Strpp: Message Catalog Source {
 		No condition: Message { Number = 4; } ~= 'Cannot {1} condition variable because it was not successfully created';
 		Wait failed: Message { Number = 5; } ~= 'Thread {1} failed (error code {2})';
 		Delay failed: Message { Number = 6; } ~= 'Thread {1} failed (error code {2})';
+		Ended with errors: Message { Number = 7; } ~= 'Thread `{1}` ended with {2} errors that nobody dealt with; they are reported before this one';
 
 		Is Complete = True;
 	}

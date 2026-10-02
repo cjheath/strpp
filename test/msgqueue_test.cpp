@@ -111,6 +111,61 @@ blocking_pop_tests()
 	expect("pop() waited roughly as long as the push was delayed", waited >= 150 && waited < 4000);
 }
 
+// Pops one item after a delay
+class	Popper
+: public Thread
+{
+	MessageQueue*	source;
+	long		delay_ms;
+public:
+	Popper(MessageQueue* a_source, long a_delay)
+	: source(a_source), delay_ms(a_delay)
+	{ resume(); }
+
+	int	run()
+	{
+		yield(Milliseconds(delay_ms));
+		source->pop();
+		return 0;
+	}
+};
+
+static void
+high_water_tests()
+{
+	printf("\nA full queue (high water %d)\n", MSGQUEUE_HIGH_WATER);
+	MessageQueue	q;
+	for (int i = 0; i < MSGQUEUE_HIGH_WATER; i++)
+		q.push(Variant(i));
+	expect("a queue takes items up to its high water", !q.isEmpty());
+	expect("try_push on a full queue fails", !q.try_push(Variant(99)));
+
+	long	start = now_ms();
+	bool	pushed = q.push(Variant(99), Milliseconds(100));
+	long	waited = now_ms()-start;
+	expect("a timed push on a full queue fails after the timeout", !pushed && waited >= 80 && waited < 2000);
+
+	Popper	popper(&q, 200);
+	start = now_ms();
+	q.push(Variant(100));			// Waits for the popper
+	waited = now_ms()-start;
+	popper.join();
+	expect("a push waits until a pop makes room", waited >= 150 && waited < 4000);
+
+	expect("...and nothing was lost: first item out is the oldest", q.pop().as_int() == 1);
+	for (int i = 0; i < MSGQUEUE_HIGH_WATER-2; i++)
+		q.pop();
+	expect("...and the late push is last", q.pop().as_int() == 100 && q.isEmpty());
+	expect("a queue with room takes try_push", q.try_push(Variant(5)));
+
+	VariantArray	batch;
+	for (int i = 0; i < MSGQUEUE_HIGH_WATER+4; i++)
+		batch.push(Variant(i));
+	MessageQueue	big;
+	expect("a batch bigger than the high water goes into an empty queue", big.try_push(batch));
+	expect("...and then the queue is full", !big.try_push(Variant(0)));
+}
+
 int
 main(int argc, const char** argv)
 {
@@ -119,6 +174,7 @@ main(int argc, const char** argv)
 	push_pop_tests();
 	timeout_tests();
 	blocking_pop_tests();
+	high_water_tests();
 
 	printf("\n%s\n", fails ? "FAILED" : "all queue checks passed");
 	return fails != 0;

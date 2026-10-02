@@ -33,7 +33,11 @@ already has the `MessageQueue` some other way.
 
 - `push(const Variant&)`, `push(const VariantArray&)` - append one item,
   or several in order under a single lock, and wake a waiter. Pushing an
-  empty `VariantArray` wakes nobody, since nothing arrived.
+  empty `VariantArray` wakes nobody, since nothing arrived. If the queue
+  is full, these wait for a pop to make room: see "A full queue" below.
+- `push(item, Milliseconds timeout)` - the same, giving up after the timeout.
+  It returns false when there was no room in time, and true when it pushed.
+- `try_push(item)` - push if there is room now, and return whether it did.
 - `pop()` - wait as long as it takes for an item, then return it.
 - `pop(Milliseconds timeout)` - the same, but give up after `timeout` and
   return a null `Variant` (`Variant().is_null()` is true) if nothing
@@ -46,9 +50,31 @@ already has the `MessageQueue` some other way.
 - `static mine()` - the calling thread's own `MessageQueue`, created on first
   use.
 
+### A full queue
+
+A queue holds at most `MSGQUEUE_HIGH_WATER` items, default 16. A `push` to
+a full queue waits until a `pop` makes room. A batch waits once, and
+can then take the queue past the high water by the size of the batch.
+
+A queue that stays full tells you something that its consumer is not
+keeping up, or it is stuck.
+
+A thread that pushes can wait for ever, so choose the form that suits it:
+
+- A thread with nothing better to do can use `push`.
+- A thread that must not wait, such as a user interface thread, uses
+  `try_push`, and decides what to do when the queue is full.
+- A thread that can wait a while uses `push` with a timeout.
+
+Two threads can each wait for room in the other's full queue, and neither
+ever pops, so give at least one of them a timeout.
+
+The queue remembers which thread popped it last, so deadlock detection can
+guess who is to blame.
+
 ### What it does not do
 
-A `MessageQueue` does not know who else holds a pointer to it, so nothing stops
+A `MessageQueue` does not know who else holds a pointer, so nothing stops
 two threads reading the same one - `pop()` and `try_pop()` are safe to
 call from more than one thread, but whichever call happens to win a race
 takes the item, and the loser sees the queue as if it had never been

@@ -8,11 +8,53 @@
  * (c) Copyright Clifford Heath 2026. See LICENSE file for usage rights.
  */
 #include	<errbuf.h>
+#include	<thread.h>
 
 ErrBuf::ErrBuf()
 : first_entry(0), first_parameter(0), delivered_count(0)
+#if	defined(STRPP_MONITOR)
+, stat_live(0), stat_parameters(0), stat_reported(0), owner(Thread::currentId()), registry_next(0)
+#endif
 {
+#if	defined(STRPP_MONITOR)
+	Registry<ErrBuf>::instance().add(this);
+#endif
 }
+
+#if	defined(STRPP_MONITOR)
+ErrBuf::~ErrBuf()
+{
+	Registry<ErrBuf>::instance().remove(this);
+}
+
+void
+ErrBuf::publish()
+{
+	stat_live = (unsigned)live();
+	stat_parameters = (unsigned)(parameters.length() - first_parameter);
+}
+
+unsigned
+ErrBuf::snapshot(ErrBufRecord* out, unsigned max_out)
+{
+	unsigned	n = 0;
+	Registry<ErrBuf>::instance().each([&](ErrBuf& b)
+	{
+		if (n >= max_out)
+			return;
+		ErrBufRecord&	r = out[n++];
+		r.buffer = &b;
+		r.owner = b.owner;
+		r.live = b.stat_live;
+		r.parameters = b.stat_parameters;
+		r.reported = b.stat_reported;
+	});
+	return n;
+}
+#define	ERRBUF_PUBLISH()	publish()
+#else
+#define	ERRBUF_PUBLISH()	((void)0)
+#endif
 
 ErrBuf::MsgIndex
 ErrBuf::live() const
@@ -61,6 +103,10 @@ ErrBuf::report(ErrNum err, const char* default_text, VariantArray params)
 		parameters.append(params[i]);
 
 	entries.append(Entry(err, default_text, first, params.length()));
+#if	defined(STRPP_MONITOR)
+	stat_reported++;
+#endif
+	ERRBUF_PUBLISH();
 	return delivered_count + live();
 }
 
@@ -78,6 +124,7 @@ ErrBuf::rollback(MsgSequence which)
 	ParamIndex	at = entries[first_entry+keep].first();
 	entries.remove(first_entry+keep, live()-keep);
 	parameters.remove(at, parameters.length()-at);
+	ERRBUF_PUBLISH();
 }
 
 void
@@ -91,10 +138,12 @@ ErrBuf::delivered()
 		entries.evacuate();
 		parameters.evacuate();
 		first_entry = first_parameter = 0;
+		ERRBUF_PUBLISH();
 		return;
 	}
 	first_parameter += entries[first_entry].parameters();
 	first_entry++;
+	ERRBUF_PUBLISH();
 }
 
 void
@@ -105,6 +154,7 @@ ErrBuf::clear()
 	entries.evacuate();
 	parameters.evacuate();
 	first_entry = first_parameter = 0;
+	ERRBUF_PUBLISH();
 }
 
 /*
@@ -120,6 +170,24 @@ ErrBuf*
 ErrBuffer()
 {
 	return error_buffer_tls.get();
+}
+
+ErrBuf*
+ErrBuf::peek_mine()
+{
+	return error_buffer_tls.peek();
+}
+
+ErrBuf*
+ErrBuf::detach_mine()
+{
+	ErrBuf*		b = error_buffer_tls.release();
+	if (b && b->count() == 0)
+	{
+		delete b;
+		return 0;
+	}
+	return b;
 }
 
 ErrNum

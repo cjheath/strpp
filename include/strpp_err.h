@@ -50,5 +50,6 @@
 #define	THRERR_NO_CONDITION		ErrNum(THRERR_SET, 4)	// Cannot {1} condition variable because it was not successfully created
 #define	THRERR_WAIT_FAILED		ErrNum(THRERR_SET, 5)	// Thread {1} failed (error code {2})
 #define	THRERR_DELAY_FAILED		ErrNum(THRERR_SET, 6)	// Thread {1} failed (error code {2})
+#define	THRERR_ENDED_WITH_ERRORS		ErrNum(THRERR_SET, 7)	// Thread `{1}` ended with {2} errors that nobody dealt with; they are reported before this one
 
 #endif	// STRPP_ERR_H

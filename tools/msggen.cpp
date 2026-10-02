@@ -125,7 +125,7 @@ static bool load_file(ADLMemStoreSink& sink, const char* filename)
 	ADLMemSource			source(text);
 	ADLParser<ADLMemStoreSink>	adl(sink);
 	bool	ok = adl.parse(source);
-	unsigned	errors = adl_display_errors(filename);
+	unsigned	errors = adl_display_errors();
 	return ok && errors == 0;
 }
 

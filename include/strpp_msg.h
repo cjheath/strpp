@@ -229,4 +229,12 @@ ErrorTHR_DelayFailed(Variant p1, Variant p2)
 		VariantArray() << p1 << p2);
 }
 
+inline ErrNum
+ErrorTHR_EndedWithErrors(Variant p1, Variant p2)
+{
+	return Error(THRERR_ENDED_WITH_ERRORS,
+		"Thread `{1}` ended with {2} errors that nobody dealt with; they are reported before this one",
+		VariantArray() << p1 << p2);
+}
+
 #endif	// STRPP_MSG_H

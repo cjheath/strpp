@@ -33,6 +33,7 @@ idf_component_register(
 		"src/errbuf.cpp"
 		"src/gregorian.cpp"
 		"src/lockfree.cpp"
+		"src/msgqueue.cpp"
 		"src/strassert.cpp"
 		"src/strval.cpp"
 		"src/thread.cpp"
@@ -51,6 +52,7 @@ target_compile_definitions(${COMPONENT_LIB} PUBLIC
 	THREAD_DEFAULT_STACK_BYTES=${CONFIG_STRPP_THREAD_DEFAULT_STACK_BYTES}
 	THREAD_DEFAULT_PRIORITY=${CONFIG_STRPP_THREAD_DEFAULT_PRIORITY}
 	THREAD_LOCAL_MAX_SLOTS=${CONFIG_STRPP_THREAD_LOCAL_SLOTS}
+	MSGQUEUE_HIGH_WATER=${CONFIG_STRPP_MSGQUEUE_HIGH_WATER}
 )
 
 # MAX_THREAD (see Array<Thread*> Thread::threads in src/thread.cpp) is tested

@@ -25,6 +25,25 @@
 #include	<variant.h>
 #include	<thread_local.h>
 
+#if	defined(STRPP_MONITOR)
+#include	<atomic>
+#include	<registry.h>
+#endif
+
+class	ErrBuf;
+
+#if	defined(STRPP_MONITOR)
+// One thread's error buffer as a monitor saw it
+struct	ErrBufRecord
+{
+	const void*		buffer;
+	ThreadId		owner;		// The thread that reports into it
+	unsigned		live;		// Messages reported and not yet delivered or recovered
+	unsigned		parameters;	// Parameters those hold
+	unsigned		reported;	// Messages reported over all time
+};
+#endif
+
 class	ErrBuf
 {
 public:
@@ -51,6 +70,24 @@ public:
 	};
 
 			ErrBuf();
+#if	defined(STRPP_MONITOR)
+			~ErrBuf();
+#endif
+
+	// The calling thread's buffer if it has one, and null if it never reported anything
+	static ErrBuf*	peek_mine();
+
+	/*
+	 * Take the calling thread's buffer away from it, for a thread that is ending.
+	 * Returns it only if it holds messages, and otherwise frees it and returns
+	 * null. Whoever takes it deletes it.
+	 */
+	static ErrBuf*	detach_mine();
+
+#if	defined(STRPP_MONITOR)
+	// Every buffer there is, as of now; returns how many it wrote
+	static unsigned	snapshot(ErrBufRecord* out, unsigned max_out);
+#endif
 
 	MsgIndex	count() const;
 	MsgSequence	checkpoint() const;
@@ -122,6 +159,17 @@ private:
 	VariantArray	parameters;		// Delivered ones stay where they are:
 	ParamIndex	first_parameter;	// first_parameter only counts them off
 	MsgSequence	delivered_count;	// Messages delivered over all time
+
+#if	defined(STRPP_MONITOR)
+	std::atomic<unsigned>	stat_live;
+	std::atomic<unsigned>	stat_parameters;
+	std::atomic<unsigned>	stat_reported;
+	ThreadId	owner;
+	void		publish();		// Copy the counts a monitor reads
+	friend class	Registry<ErrBuf>;
+public:
+	ErrBuf*		registry_next;
+#endif
 };
 
 /*

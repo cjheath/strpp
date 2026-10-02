@@ -37,6 +37,7 @@ Threads {
 	No condition { : esText ~= 'No se puede {1} la variable de condición porque no se creó correctamente'; }
 	Wait failed { : esText ~= 'El hilo {1} falló (código de error {2})'; }
 	Delay failed { : esText ~= 'El hilo {1} falló (código de error {2})'; }
+	Ended with errors { : esText ~= 'El hilo `{1}` terminó con {2} errores sin tratar; se informan antes que este'; }
 }
 
 Strpp;

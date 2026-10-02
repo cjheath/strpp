@@ -12,6 +12,8 @@
 #include	<condition.h>
 #include	<lock.h>
 #include	<watch.h>
+#include	<msgqueue.h>
+#include	<strpp_msg.h>
 
 static int	fails = 0;
 
@@ -283,6 +285,96 @@ window_stall_tests()
 }
 
 static void
+queue_tests()
+{
+	printf("\nQueues: statistics, and two threads each waiting for the other to pop\n");
+	MessageQueue	to_one("to-one");
+	MessageQueue	to_two("to-two");
+
+	// Each thread pops its own queue once, so it is known as that queue's consumer,
+	// then fills the other's queue and waits for room in it
+	Runner		one("q-one", [&]
+	{
+		Variant	item;
+		to_one.try_pop(item);
+		Thread::yield(Milliseconds(200));	// Until the other has been recorded as a consumer too
+		for (int i = 0; i < MSGQUEUE_HIGH_WATER; i++)
+			to_two.try_push(Variant(i));
+		to_two.push(Variant(0), Milliseconds(1500));
+	});
+	Runner		two("q-two", [&]
+	{
+		Variant	item;
+		to_two.try_pop(item);
+		Thread::yield(Milliseconds(200));	// Until the other has been recorded as a consumer too
+		for (int i = 0; i < MSGQUEUE_HIGH_WATER; i++)
+			to_one.try_push(Variant(i));
+		to_one.push(Variant(0), Milliseconds(1500));
+	});
+	Thread::yield(Milliseconds(700));
+
+	MessageQueueRecord	queues[8];
+	unsigned	qcount = MessageQueue::snapshot(queues, 8);
+	int		two_index = -1;
+	for (unsigned i = 0; i < qcount; i++)
+		if (queues[i].name && !strcmp(queues[i].name, "to-two"))
+			two_index = (int)i;
+	expect("a queue's record shows it full, with a thread waiting for room",
+		two_index >= 0 && queues[two_index].depth >= (unsigned)MSGQUEUE_HIGH_WATER
+		&& queues[two_index].blocked == 1 && queues[two_index].has_consumer);
+	expect("...and counts what went in and out",
+		two_index >= 0 && queues[two_index].pushed >= (unsigned)MSGQUEUE_HIGH_WATER && queues[two_index].peak >= queues[two_index].depth);
+
+	WatchRecord	records[STRPP_WATCH_THREADS];
+	unsigned	count = snapshot(records);
+	unsigned	cycle[8];
+	unsigned	length = WatchFindCycle(records, count, cycle, 8);
+	expect("two threads blocked pushing into each other's queues form a cycle", length == 2);
+	int		w = find_named(records, count, "q-one");
+	expect("...each recorded as waiting for a queue, with its consumer",
+		w >= 0 && records[w].wait_kind == WatchQueue && records[w].wait_has_consumer);
+	one.join();
+	two.join();
+}
+
+static void
+errbuf_tests()
+{
+	printf("\nError buffers\n");
+	ErrBuffer()->clear();
+	ErrorTHR_CreateFailed("one", 1);
+	ErrorTHR_CreateFailed("two", 2);
+
+	ErrBufRecord	records[8];
+	unsigned	count = ErrBuf::snapshot(records, 8);
+	int		mine = -1;
+	for (unsigned i = 0; i < count; i++)
+		if (records[i].owner == Thread::currentId())
+			mine = (int)i;
+	expect("this thread's buffer has a record", mine >= 0);
+	expect("...showing what has been reported and not dealt with",
+		mine >= 0 && records[mine].live == 2 && records[mine].parameters >= 4 && records[mine].reported >= 2);
+	ErrBuffer()->clear();
+	count = ErrBuf::snapshot(records, 8);
+	for (unsigned i = 0; i < count; i++)
+		if (records[i].owner == Thread::currentId())
+			mine = (int)i;
+	expect("...and none once it is cleared", records[mine].live == 0);
+
+	Runner		reporter("reporter", []
+	{
+		ErrorTHR_CreateFailed("three", 3);
+		Thread::yield(Milliseconds(300));
+		ErrBuffer()->clear();		// A thread must not end with errors
+	});
+	Thread::yield(Milliseconds(100));
+	unsigned	with_thread = ErrBuf::snapshot(records, 8);
+	reporter.join();
+	unsigned	after = ErrBuf::snapshot(records, 8);
+	expect("a thread's buffer is registered while it runs, and gone when it ends", with_thread == after+1);
+}
+
+static void
 lifetime_tests()
 {
 	printf("\nRecords belong to a thread only while it runs\n");
@@ -310,6 +402,8 @@ main(int argc, const char** argv)
 	record_tests();
 	deadlock_tests();
 	window_stall_tests();
+	queue_tests();
+	errbuf_tests();
 	lifetime_tests();
 
 	printf("\n%s\n", fails ? "FAILED" : "all watch checks passed");

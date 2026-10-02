@@ -159,6 +159,13 @@ public:
 				return (T*)slot.get();
 			}
 
+	T*	release()
+			{		// Give up this thread's object without destroying it; null if it has none
+				T*	p = (T*)slot.get();
+				slot.set(0);
+				return p;
+			}
+
 	void	clear()
 			{		// Destroy this thread's object, if it has one
 				T*	p = (T*)slot.get();
