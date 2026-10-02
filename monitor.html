@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>MessageQueue: a thread&#x27;s inbox - strpp</title>
+        <title>The monitor: finding deadlocks, stalls and runaway buffers - strpp</title>
 
 
         <!-- Custom HTML head -->
@@ -177,85 +177,146 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h2 id="messagequeue-a-threads-inbox"><a class="header" href="#messagequeue-a-threads-inbox">MessageQueue: a thread’s inbox</a></h2>
-<p><code>#include &lt;msgqueue.h&gt;</code>, which brings in <code>lockfree.h</code> (the <code>Latch</code>),
-<code>condition.h</code> (the <code>Condition</code>), <code>thread_local.h</code> (<code>ThreadLocal</code>) and
-<code>variant.h</code> (<code>Variant</code>, <code>VariantArray</code>).</p>
-<p>A <code>MessageQueue</code> is a thread-safe FIFO of <code>Variant</code>s: a <code>Latch</code>-protected
-<code>VariantArray</code>, with a <code>Condition</code> signalling a waiter when something
-arrives. It gives threads a way to pass messages without either one
-touching the other’s data directly - a sender pushes a copy of a
-<code>Variant</code> or <code>VariantArray</code>, and the copy-on-write design in <code>variant.h</code>
-makes that cheap even for a large nested structure.</p>
-<p>There is no name-based registry to look a thread’s queue up by. A sender
-holds a pointer or reference to the <em>target</em> thread’s <code>MessageQueue</code>, handed to
-it when the threads were set up - the same way you would hand it any
-other object one thread needs to reach into another’s world.</p>
-<h3 id="each-threads-own-inbox"><a class="header" href="#each-threads-own-inbox">Each thread’s own inbox</a></h3>
-<p><code>MessageQueue::mine()</code> returns the calling thread’s own <code>MessageQueue</code>, created on its
-first call in that thread (via a <code>ThreadLocal&lt;MessageQueue&gt;</code>, see
-<a href="threading.html">Threads, locks and thread-local storage</a>). A thread reads
-its own mail with <code>MessageQueue::mine()-&gt;pop()</code>, and other threads write to it
-by holding the same pointer.</p>
-<p>You don’t have to use <code>mine()</code> at all: a <code>MessageQueue</code> is an ordinary object,
-so you can also just construct one yourself and hand pointers to it
-around explicitly, if a thread wants more than one inbox or the sender
-already has the <code>MessageQueue</code> some other way.</p>
+                        <h2 id="the-monitor-finding-deadlocks-stalls-and-runaway-buffers"><a class="header" href="#the-monitor-finding-deadlocks-stalls-and-runaway-buffers">The monitor: finding deadlocks, stalls and runaway buffers</a></h2>
+<p>The Monitor is a background thread which watches for deadlocked threads,
+queues that fill faster then they are emptied, or an error buffer filling
+with reports that are not being delivered, or a device running out of
+memory. The Monitor wakes periodically and has a <code>look</code> to see if there
+seem to be problems.</p>
+<h3 id="switching-it-on"><a class="header" href="#switching-it-on">Switching it on</a></h3>
+<p>Build everything with <code>STRPP_MONITOR</code> to enable the Monitor thread and
+the Watch points that it uses to check things. If you don’t enable it,
+nothing is added to your code and no extra work is undertaken.</p>
+<p>In ESP-IDF, the <code>strpp</code> section of <code>menuconfig</code> provides <code>STRPP_MONITOR</code>.
+On other platforms you can set it in the Makefiles.</p>
+<p>The Watch point added to <code>Latch</code>, <code>Condition</code> and the Locks in <a href="lock.html">lock.h</a>
+record the time that a thread starts to wait, gets a lock or lets it go. Each
+thread that takes a lock can record up to <code>STRPP_WATCH_HELD</code> locks (8 by default).
+Up to <code>STRPP_WATCH_THREADS</code> threads (default 32) may be monitored, and a
+thread-local slot is allocated.</p>
+<h3 id="settings"><a class="header" href="#settings">Settings</a></h3>
+<p>Each setting has a default which you can change with <code>-D</code> when you build,
+or in <code>menuconfig</code> under ESP-IDF. For <code>make</code>, pass them in <code>EXTRA_COPT</code>:</p>
+<pre><code>make EXTRA_COPT='-DSTRPP_MONITOR -DSTRPP_WATCH_THREADS=64'
+</code></pre>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>define</th><th>default</th><th>what it sets</th></tr>
+</thead>
+<tbody>
+<tr><td><code>STRPP_WATCH_THREADS</code></td><td>32</td><td>how many threads can be monitored</td></tr>
+<tr><td><code>STRPP_WATCH_HELD</code></td><td>8</td><td>how many active locks for one thread</td></tr>
+<tr><td><code>STRPP_MONITOR_STACK_BYTES</code></td><td>6144</td><td>stack size for the monitor thread</td></tr>
+<tr><td><code>STRPP_MONITOR_QUEUES</code></td><td>16</td><td>How many queues can be monitored</td></tr>
+<tr><td><code>STRPP_MONITOR_ERRBUFS</code></td><td>16</td><td>How many error buffers can be monitored</td></tr>
+<tr><td><code>MSGQUEUE_HIGH_WATER</code></td><td>16</td><td>items a message queue holds before a push blocks</td></tr>
+</tbody>
+</table>
+</div>
+<p>Each time the Monitor looks, it builds arrays on its stack, not in allocated
+memory. If you raise the counts, expand the stack limit, allowing about 40 bytes
+for each thread, 60 for each queue and 40 for each error buffer, on top of 2KB base.
+All parts of the program should be built with the same settings, or they will
+disagree on the sizes of these records (<code>STRPP_WATCH_THREADS</code> and <code>STRPP_WATCH_HELD</code>)</p>
+<p>It is preferred to give each thread a name for reporting:</p>
+<pre><code>ThreadParams	params;
+params.name = "scanner";	// A literal, or anything that outlives the thread
+Thread(&amp;params);
+</code></pre>
+<h3 id="starting-the-monitor"><a class="header" href="#starting-the-monitor">Starting the monitor</a></h3>
+<pre><code>MessageQueue	reports("reports");
+Monitor		monitor(reports);
+</code></pre>
+<p><code>reports</code> is where findings go, so give it to a thread that reads them. You
+can change settings that control when and what the monitor looks for:</p>
+<pre><code>MonitorSettings	settings;
+settings.interval = Milliseconds(2000);		// Between looks (5000)
+settings.stall = Milliseconds(10000);		// A stall is a wait this long (5000)
+settings.queue_warning = 12;			// Items in a queue worth reporting
+settings.error_warning = 8;			// Errors in a buffer worth reporting
+settings.probe = heap_probe;			// How to ask about memory
+settings.low_free = 20000;			// Report when less is free
+Monitor		monitor(reports, settings);
+</code></pre>
+<p>The monitor takes about 11 KB of heap for its records and a 6 KB stack. It
+asks about memory through a function you give it, so that strpp does not need
+to know your platform:</p>
+<pre><code>static bool heap_probe(MonitorMemory&amp; memory)
+{
+	memory.free_bytes = ...;
+	memory.largest_block = ...;
+	memory.lowest_free = ...;
+	return true;
+}
+</code></pre>
+<h3 id="what-it-reports"><a class="header" href="#what-it-reports">What it reports</a></h3>
+<p>Each finding becomes a message pushed to a MessageQueue <code>reports</code> when it first appears:</p>
+<ul>
+<li><code>["monitor", "deadlock", [name, ...]]</code> - the named threads each wait for a lock,
+or for room in a queue, that the next one holds or should pop. The monitor looks
+twice, a moment apart, and only reports a cycle if it hasn’t changed, so a wait
+that happened to overlap is not a deadlock.</li>
+<li><code>["monitor", "stall", name, milliseconds, what, locks held]</code> - a thread has
+waited too long while it holds a lock. This catches the deadlocks that go
+through a condition or an empty queue, where the monitor has no knowledge of
+who should signal it. A reader that holds a read <a href="window.html">Window</a> and waiting
+for a reply from the owner thread is the most likely case.</li>
+<li><code>["monitor", "queue", name, depth, peak, pushers waiting]</code> - a queue is nearly
+full, or a thread is waiting to push to it. See <a href="msgqueue.html">MessageQueue</a>.</li>
+<li><code>["monitor", "errors", name, errors, parameters]</code> - a thread has many errors
+in its buffer that have not been reported or forwarded. See <a href="error.html">Errors</a>.</li>
+<li><code>["monitor", "memory", free, largest block, lowest free]</code> - the probe says
+memory is low.</li>
+</ul>
+<p>Monitor reports are never repeated. If a condition goes away and returns, that’s a
+new report. The monitor never waits to push a report. If <code>reports</code> is full, it counts
+the report as dropped and carries on.</p>
+<p>What it found at its last look is also published in its data. You can open a Window
+to read it:</p>
+<pre><code>Window&lt;Monitor&gt;	w(monitor, Milliseconds(100));
+if (w.holding())                // We opened a Window
+	show(w-&gt;findings);	// The same reports, for what is found now
+</code></pre>
+<p><code>samples</code> counts its looks, <code>dropped</code> counts the reports it lost, and <code>threads</code>,
+<code>queues</code> and <code>error_buffers</code> say how much it saw.</p>
+<h3 id="controlling-the-monitor"><a class="header" href="#controlling-the-monitor">Controlling the Monitor</a></h3>
+<p>You can push a request message to <code>monitor.requests</code>:</p>
+<ul>
+<li><code>["sample"]</code> - look now, instead of waiting for the interval.</li>
+<li><code>["quit"]</code> - end the thread. You can then <code>join()</code> it.</li>
+</ul>
+<h3 id="what-the-monitor-cannot-see"><a class="header" href="#what-the-monitor-cannot-see">What the Monitor cannot see</a></h3>
+<p>The Monitor sees only what the library knows about. Locks and conditions that
+go through strpp, and threads that have taken a lock. A queue, a lock or a
+thread that strpp did not make is invisible. A thread that strpp did not start
+keeps its record for as long as the program runs.</p>
+<p>If a lock-dependency cycle goes through a condition, that cannot be found by
+looking at the locks, because nothing says which thread will signal the condition.
+This will show up as a stall report instead.</p>
 <h3 id="public-methods"><a class="header" href="#public-methods">Public methods</a></h3>
+<p><code>Monitor</code>, in <a href="https://github.com/cjheath/strpp/blob/main/include/monitor.h">monitor.h</a>:</p>
 <ul>
-<li><code>push(const Variant&amp;)</code>, <code>push(const VariantArray&amp;)</code> - append one item,
-or several in order under a single lock, and wake a waiter. Pushing an
-empty <code>VariantArray</code> wakes nobody, since nothing arrived. If the queue
-is full, these wait for a pop to make room: see “A full queue” below.</li>
-<li><code>push(item, Milliseconds timeout)</code> - the same, giving up after the timeout.
-It returns false when there was no room in time, and true when it pushed.</li>
-<li><code>try_push(item)</code> - push if there is room now, and return whether it did.</li>
-<li><code>pop()</code> - wait as long as it takes for an item, then return it.</li>
-<li><code>pop(Milliseconds timeout)</code> - the same, but give up after <code>timeout</code> and
-return a null <code>Variant</code> (<code>Variant().is_null()</code> is true) if nothing
-arrived in time.</li>
-<li><code>try_pop(Variant&amp; item)</code> - take an item now if there is one, without
-waiting; returns whether it found one.</li>
-<li><code>isEmpty()</code> - whether the queue currently holds nothing. Like any
-queue shared between threads, this is a snapshot: another thread can
-push or pop the instant after you read it.</li>
-<li><code>static mine()</code> - the calling thread’s own <code>MessageQueue</code>, created on first
-use.</li>
+<li><code>Monitor(MessageQueue&amp; reports, const MonitorSettings&amp; settings)</code> - start it.
+<code>reports</code> must outlive it.</li>
+<li><code>requests</code> - the queue to push <code>["sample"]</code> and <code>["quit"]</code> to.</li>
+<li><code>data()</code> is private to the monitor; read what it found through a <code>Window&lt;Monitor&gt;</code>.</li>
 </ul>
-<h3 id="a-full-queue"><a class="header" href="#a-full-queue">A full queue</a></h3>
-<p>A queue holds at most <code>MSGQUEUE_HIGH_WATER</code> items, default 16. A <code>push</code> to
-a full queue waits until a <code>pop</code> makes room. A batch waits once, and
-can then take the queue past the high water by the size of the batch.</p>
-<p>A queue that stays full tells you something that its consumer is not
-keeping up, or it is stuck.</p>
-<p>A thread that pushes can wait for ever, so choose the form that suits it:</p>
-<ul>
-<li>A thread with nothing better to do can use <code>push</code>.</li>
-<li>A thread that must not wait, such as a user interface thread, uses
-<code>try_push</code>, and decides what to do when the queue is full.</li>
-<li>A thread that can wait a while uses <code>push</code> with a timeout.</li>
-</ul>
-<p>Two threads can each wait for room in the other’s full queue, and neither
-ever pops, so give at least one of them a timeout.</p>
-<p>The queue remembers which thread popped it last, so deadlock detection can
-guess who is to blame.</p>
-<h3 id="what-it-does-not-do"><a class="header" href="#what-it-does-not-do">What it does not do</a></h3>
-<p>A <code>MessageQueue</code> does not know who else holds a pointer, so nothing stops
-two threads reading the same one - <code>pop()</code> and <code>try_pop()</code> are safe to
-call from more than one thread, but whichever call happens to win a race
-takes the item, and the loser sees the queue as if it had never been
-there. Arrange a single reader yourself if a queue needs one - the
-<code>MessageQueue</code> doesn’t enforce it.</p>
+<p>The Monitor uses <code>WatchSnapshot</code>, <code>WatchFindCycle</code> and <code>WatchFindStalls</code> from
+<a href="https://github.com/cjheath/strpp/blob/main/include/watch.h">watch.h</a>.
+You can call them yourself to look for a deadlock when you choose, such as when a
+watchdog fires. The figures for queues and error buffers are available from
+<code>MessageQueue::snapshot</code> and <code>ErrBuf::snapshot</code> give you</p>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="threading.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="window.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="lock.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="pegexp.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -265,11 +326,11 @@ there. Arrange a single reader yourself if a queue needs one - the
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="threading.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="window.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="lock.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="pegexp.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

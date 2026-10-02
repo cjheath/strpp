@@ -36,10 +36,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-b8e80fee.js";
+            window.path_to_searchindex_js = "searchindex-60c08b16.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-974dafb5.js"></script>
+        <script src="toc-c18c0bf2.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -2491,6 +2491,138 @@ constructor:</p>
 you don’t hold a Window.</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
+<h1 id="the-monitor-finding-deadlocks-stalls-and-runaway-buffers-1"><a href="#the-monitor-finding-deadlocks-stalls-and-runaway-buffers-1" class="header">The monitor: finding deadlocks, stalls and runaway buffers</a></h1>
+<h2 id="the-monitor-finding-deadlocks-stalls-and-runaway-buffers"><a class="header" href="#the-monitor-finding-deadlocks-stalls-and-runaway-buffers">The monitor: finding deadlocks, stalls and runaway buffers</a></h2>
+<p>The Monitor is a background thread which watches for deadlocked threads,
+queues that fill faster then they are emptied, or an error buffer filling
+with reports that are not being delivered, or a device running out of
+memory. The Monitor wakes periodically and has a <code>look</code> to see if there
+seem to be problems.</p>
+<h3 id="switching-it-on"><a class="header" href="#switching-it-on">Switching it on</a></h3>
+<p>Build everything with <code>STRPP_MONITOR</code> to enable the Monitor thread and
+the Watch points that it uses to check things. If you don’t enable it,
+nothing is added to your code and no extra work is undertaken.</p>
+<p>In ESP-IDF, the <code>strpp</code> section of <code>menuconfig</code> provides <code>STRPP_MONITOR</code>.
+On other platforms you can set it in the Makefiles.</p>
+<p>The Watch point added to <code>Latch</code>, <code>Condition</code> and the Locks in <a href="#lock-and-sixlock-shared-intent-and-exclusive-locks-1">lock.h</a>
+record the time that a thread starts to wait, gets a lock or lets it go. Each
+thread that takes a lock can record up to <code>STRPP_WATCH_HELD</code> locks (8 by default).
+Up to <code>STRPP_WATCH_THREADS</code> threads (default 32) may be monitored, and a
+thread-local slot is allocated.</p>
+<h3 id="settings"><a class="header" href="#settings">Settings</a></h3>
+<p>Each setting has a default which you can change with <code>-D</code> when you build,
+or in <code>menuconfig</code> under ESP-IDF. For <code>make</code>, pass them in <code>EXTRA_COPT</code>:</p>
+<pre><code>make EXTRA_COPT='-DSTRPP_MONITOR -DSTRPP_WATCH_THREADS=64'
+</code></pre>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>define</th><th>default</th><th>what it sets</th></tr>
+</thead>
+<tbody>
+<tr><td><code>STRPP_WATCH_THREADS</code></td><td>32</td><td>how many threads can be monitored</td></tr>
+<tr><td><code>STRPP_WATCH_HELD</code></td><td>8</td><td>how many active locks for one thread</td></tr>
+<tr><td><code>STRPP_MONITOR_STACK_BYTES</code></td><td>6144</td><td>stack size for the monitor thread</td></tr>
+<tr><td><code>STRPP_MONITOR_QUEUES</code></td><td>16</td><td>How many queues can be monitored</td></tr>
+<tr><td><code>STRPP_MONITOR_ERRBUFS</code></td><td>16</td><td>How many error buffers can be monitored</td></tr>
+<tr><td><code>MSGQUEUE_HIGH_WATER</code></td><td>16</td><td>items a message queue holds before a push blocks</td></tr>
+</tbody>
+</table>
+</div>
+<p>Each time the Monitor looks, it builds arrays on its stack, not in allocated
+memory. If you raise the counts, expand the stack limit, allowing about 40 bytes
+for each thread, 60 for each queue and 40 for each error buffer, on top of 2KB base.
+All parts of the program should be built with the same settings, or they will
+disagree on the sizes of these records (<code>STRPP_WATCH_THREADS</code> and <code>STRPP_WATCH_HELD</code>)</p>
+<p>It is preferred to give each thread a name for reporting:</p>
+<pre><code>ThreadParams	params;
+params.name = "scanner";	// A literal, or anything that outlives the thread
+Thread(&amp;params);
+</code></pre>
+<h3 id="starting-the-monitor"><a class="header" href="#starting-the-monitor">Starting the monitor</a></h3>
+<pre><code>MessageQueue	reports("reports");
+Monitor		monitor(reports);
+</code></pre>
+<p><code>reports</code> is where findings go, so give it to a thread that reads them. You
+can change settings that control when and what the monitor looks for:</p>
+<pre><code>MonitorSettings	settings;
+settings.interval = Milliseconds(2000);		// Between looks (5000)
+settings.stall = Milliseconds(10000);		// A stall is a wait this long (5000)
+settings.queue_warning = 12;			// Items in a queue worth reporting
+settings.error_warning = 8;			// Errors in a buffer worth reporting
+settings.probe = heap_probe;			// How to ask about memory
+settings.low_free = 20000;			// Report when less is free
+Monitor		monitor(reports, settings);
+</code></pre>
+<p>The monitor takes about 11 KB of heap for its records and a 6 KB stack. It
+asks about memory through a function you give it, so that strpp does not need
+to know your platform:</p>
+<pre><code>static bool heap_probe(MonitorMemory&amp; memory)
+{
+	memory.free_bytes = ...;
+	memory.largest_block = ...;
+	memory.lowest_free = ...;
+	return true;
+}
+</code></pre>
+<h3 id="what-it-reports"><a class="header" href="#what-it-reports">What it reports</a></h3>
+<p>Each finding becomes a message pushed to a MessageQueue <code>reports</code> when it first appears:</p>
+<ul>
+<li><code>["monitor", "deadlock", [name, ...]]</code> - the named threads each wait for a lock,
+or for room in a queue, that the next one holds or should pop. The monitor looks
+twice, a moment apart, and only reports a cycle if it hasn’t changed, so a wait
+that happened to overlap is not a deadlock.</li>
+<li><code>["monitor", "stall", name, milliseconds, what, locks held]</code> - a thread has
+waited too long while it holds a lock. This catches the deadlocks that go
+through a condition or an empty queue, where the monitor has no knowledge of
+who should signal it. A reader that holds a read <a href="#windows-transactional-message-processing-1">Window</a> and waiting
+for a reply from the owner thread is the most likely case.</li>
+<li><code>["monitor", "queue", name, depth, peak, pushers waiting]</code> - a queue is nearly
+full, or a thread is waiting to push to it. See <a href="#messagequeue-a-threads-inbox-1">MessageQueue</a>.</li>
+<li><code>["monitor", "errors", name, errors, parameters]</code> - a thread has many errors
+in its buffer that have not been reported or forwarded. See <a href="#error-management-1">Errors</a>.</li>
+<li><code>["monitor", "memory", free, largest block, lowest free]</code> - the probe says
+memory is low.</li>
+</ul>
+<p>Monitor reports are never repeated. If a condition goes away and returns, that’s a
+new report. The monitor never waits to push a report. If <code>reports</code> is full, it counts
+the report as dropped and carries on.</p>
+<p>What it found at its last look is also published in its data. You can open a Window
+to read it:</p>
+<pre><code>Window&lt;Monitor&gt;	w(monitor, Milliseconds(100));
+if (w.holding())                // We opened a Window
+	show(w-&gt;findings);	// The same reports, for what is found now
+</code></pre>
+<p><code>samples</code> counts its looks, <code>dropped</code> counts the reports it lost, and <code>threads</code>,
+<code>queues</code> and <code>error_buffers</code> say how much it saw.</p>
+<h3 id="controlling-the-monitor"><a class="header" href="#controlling-the-monitor">Controlling the Monitor</a></h3>
+<p>You can push a request message to <code>monitor.requests</code>:</p>
+<ul>
+<li><code>["sample"]</code> - look now, instead of waiting for the interval.</li>
+<li><code>["quit"]</code> - end the thread. You can then <code>join()</code> it.</li>
+</ul>
+<h3 id="what-the-monitor-cannot-see"><a class="header" href="#what-the-monitor-cannot-see">What the Monitor cannot see</a></h3>
+<p>The Monitor sees only what the library knows about. Locks and conditions that
+go through strpp, and threads that have taken a lock. A queue, a lock or a
+thread that strpp did not make is invisible. A thread that strpp did not start
+keeps its record for as long as the program runs.</p>
+<p>If a lock-dependency cycle goes through a condition, that cannot be found by
+looking at the locks, because nothing says which thread will signal the condition.
+This will show up as a stall report instead.</p>
+<h3 id="public-methods-12"><a class="header" href="#public-methods-12">Public methods</a></h3>
+<p><code>Monitor</code>, in <a href="https://github.com/cjheath/strpp/blob/main/include/monitor.h">monitor.h</a>:</p>
+<ul>
+<li><code>Monitor(MessageQueue&amp; reports, const MonitorSettings&amp; settings)</code> - start it.
+<code>reports</code> must outlive it.</li>
+<li><code>requests</code> - the queue to push <code>["sample"]</code> and <code>["quit"]</code> to.</li>
+<li><code>data()</code> is private to the monitor; read what it found through a <code>Window&lt;Monitor&gt;</code>.</li>
+</ul>
+<p>The Monitor uses <code>WatchSnapshot</code>, <code>WatchFindCycle</code> and <code>WatchFindStalls</code> from
+<a href="https://github.com/cjheath/strpp/blob/main/include/watch.h">watch.h</a>.
+You can call them yourself to look for a deadlock when you choose, such as when a
+watchdog fires. The figures for queues and error buffers are available from
+<code>MessageQueue::snapshot</code> and <code>ErrBuf::snapshot</code> give you</p>
+<div style="break-before: page; page-break-before: always;"></div>
 <h1 id="pegexp"><a href="#pegexp" class="header">Pegexp</a></h1>
 <h2 id="prefix-regular-expression-pattern-matching"><a class="header" href="#prefix-regular-expression-pattern-matching">Prefix Regular Expression pattern matching</a></h2>
 <p><code>#include	&lt;pegexp.h&gt;</code></p>
@@ -2584,7 +2716,7 @@ processing required is that when any copy of a Source is made, it must be
 possible to proceed from that position in the stream. When a Source is
 deleted, no further access will be required to data from that position
 unless an older copy still exists.</p>
-<h3 id="public-methods-12"><a class="header" href="#public-methods-12">Public methods</a></h3>
+<h3 id="public-methods-13"><a class="header" href="#public-methods-13">Public methods</a></h3>
 <p>Defined in <a href="https://github.com/cjheath/strpp/blob/main/include/pegexp.h">pegexp.h</a>.</p>
 <p><code>Pegexp</code>:</p>
 <ul>
@@ -2658,7 +2790,7 @@ refined where necessary.</p>
 <p>The <a href="https://github.com/cjheath/strpp/blob/main/test/peg_test.cpp">Peg parser</a>
 for <a href="https://github.com/cjheath/px">Px</a> shows how to generate an AST from
 captures.</p>
-<h3 id="public-methods-13"><a class="header" href="#public-methods-13">Public methods</a></h3>
+<h3 id="public-methods-14"><a class="header" href="#public-methods-14">Public methods</a></h3>
 <p><code>Peg</code> and the no-capture Context it comes with are defined in
 <a href="https://github.com/cjheath/strpp/blob/main/include/peg.h">peg.h</a>:</p>
 <ul>
