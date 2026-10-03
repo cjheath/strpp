@@ -35,10 +35,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-b1b5a82e.js";
+            window.path_to_searchindex_js = "searchindex-4cf75955.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-c18c0bf2.js"></script>
+        <script src="toc-2b87ae2c.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -266,7 +266,7 @@ that happened to overlap is not a deadlock.</li>
 <li><code>["monitor", "stall", name, milliseconds, what, locks held]</code> - a thread has
 waited too long while it holds a lock. This catches the deadlocks that go
 through a condition or an empty queue, where the monitor has no knowledge of
-who should signal it. A reader that holds a read <a href="window.html">Window</a> and waiting
+who should signal it. A reader that holds a <a href="transactional.html">ReadWindow</a> and waiting
 for a reply from the owner thread is the most likely case.</li>
 <li><code>["monitor", "queue", name, depth, peak, pushers waiting]</code> - a queue is nearly
 full, or a thread is waiting to push to it. See <a href="msgqueue.html">MessageQueue</a>.</li>
@@ -282,9 +282,9 @@ nothing itself. The queue you push it to might.</li>
 <p>Monitor reports are never repeated. If a condition goes away and returns, that’s a
 new report. The monitor never waits to push a report. If <code>reports</code> is full, it counts
 the report as dropped and carries on.</p>
-<p>What it found at its last look is also published in its data. You can open a Window
+<p>What it found at its last look is also in its <code>published</code> value. You can open a ReadWindow
 to read it:</p>
-<pre><code>Window&lt;Monitor&gt;	w(monitor, Milliseconds(100));
+<pre><code>ReadWindow&lt;MonitorData&gt;	w(monitor.published, Milliseconds(100));
 if (w.holding())                // We opened a Window
 	show(w-&gt;findings);	// The same reports, for what is found now
 </code></pre>
@@ -311,7 +311,7 @@ This will show up as a stall report instead.</p>
 <li><code>Monitor(MessageQueue&amp; reports, const MonitorSettings&amp; settings)</code> - start it.
 <code>reports</code> must outlive it.</li>
 <li><code>requests</code> - the queue to push <code>["sample"]</code> and <code>["quit"]</code> to.</li>
-<li><code>data()</code> is private to the monitor; read what it found through a <code>Window&lt;Monitor&gt;</code>.</li>
+<li><code>published</code> - a <code>Transactional&lt;MonitorData&gt;</code>; read what it found through a <code>ReadWindow&lt;MonitorData&gt;</code>.</li>
 </ul>
 <p>The Monitor uses <code>WatchSnapshot</code>, <code>WatchFindCycle</code> and <code>WatchFindStalls</code> from
 <a href="https://github.com/cjheath/strpp/blob/main/include/watch.h">watch.h</a>.
@@ -323,7 +323,7 @@ watchdog fires. The figures for queues and error buffers are available from
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="window.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="transactional.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
@@ -337,7 +337,7 @@ watchdog fires. The figures for queues and error buffers are available from
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="window.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="transactional.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
