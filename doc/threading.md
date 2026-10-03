@@ -172,4 +172,4 @@ to notify a waiter, and a VariantArray to contain message data.
 
 For locks that last longer than a critical section, see
 [Lock and SIXLock](lock.md). To let other threads read a thread's state
-without sending it messages, see [Windows](window.md).
+without sending it messages, see [Transactional values](transactional.md).

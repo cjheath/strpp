@@ -74,7 +74,7 @@ HDRS	=	\
 		thread_local.h		\
 		variant.h		\
 		watch.h			\
-		window.h
+		transactional.h
 
 SRCS	=	\
 		array.cpp		\
@@ -122,7 +122,7 @@ TESTS	=	\
 		variant_ndebug_test	\
 		monitor_test		\
 		watch_test		\
-		window_test
+		transactional_test
 
 SUBDIRS	=	rx tools
 
@@ -209,7 +209,7 @@ run_variant_ndebug_test: variant_ndebug_test
 # Condition and the locks do: they are compiled from source with the flag on,
 # and not linked with the archive. `make monitor_tests` also runs the tests
 # that do not need it, to check that the hooks leave them working.
-MONITOR_TESTS	=	watch_test monitor_test lock_test window_test msgqueue_test thread_test
+MONITOR_TESTS	=	watch_test monitor_test lock_test transactional_test msgqueue_test thread_test
 
 watch_test monitor_test:	%:	test/%.cpp $(HDRS) Makefile
 	$(CXX) $(DEBUG) -DSTRPP_MONITOR $(CXXFLAGS) -Iinclude -Isrc -Itest -o $@ \

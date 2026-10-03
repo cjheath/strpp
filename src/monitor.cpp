@@ -129,7 +129,7 @@ Monitor::skip_look()
 	bool		first = !was_short;
 	was_short = true;
 	bool		pushed = !first || reports.try_push(no_memory);
-	update([&](Data& d)
+	published.update([&](MonitorData& d)
 	{
 		d.skipped++;
 		d.short_of_memory = true;
@@ -244,7 +244,7 @@ Monitor::sample()
 	}
 	known = keys;
 
-	update([&](Data& d)
+	published.update([&](MonitorData& d)
 	{
 		d.samples++;
 		d.short_of_memory = false;

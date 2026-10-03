@@ -93,7 +93,7 @@ main(int argc, const char** argv)
 	VariantArray		memory = wait_report(reports, "memory", 2000);
 	expect("it reports low memory from the probe", memory.length() == 5 && memory[2].as_long() == 500000 && memory[3].as_long() == 400000);
 	{
-		Window<Monitor>	w(monitor, Milliseconds(1000));
+		ReadWindow<MonitorData>	w(monitor.published, Milliseconds(1000));
 		expect("a Window shows its data: it has looked, and found memory low",
 			w.holding() && w->samples > 0 && w->memory.free_bytes == 500000 && w->findings.length() == 1);
 		expect("...and counted the threads, queues and error buffers",
@@ -107,14 +107,14 @@ main(int argc, const char** argv)
 	expect("with too little memory it says so, in words",
 		shortage.length() == 3 && shortage[2].as_strval() == "Not enough memory to report");
 	{
-		Window<Monitor>	w(monitor, Milliseconds(1000));
+		ReadWindow<MonitorData>	w(monitor.published, Milliseconds(1000));
 		expect("...and a Window shows it skipped looking", w.holding() && w->short_of_memory && w->skipped > 0);
 	}
 	expect("...and does not say it again", wait_report(reports, "no-memory", 500).length() == 0);
 	fake_memory.largest_block = 400000;
 	Thread::yield(Milliseconds(400));
 	{
-		Window<Monitor>	w(monitor, Milliseconds(1000));
+		ReadWindow<MonitorData>	w(monitor.published, Milliseconds(1000));
 		expect("once there is enough it looks again", w.holding() && !w->short_of_memory);
 	}
 
@@ -148,7 +148,7 @@ main(int argc, const char** argv)
 	}
 	expect("...naming both threads", both);
 	{
-		Window<Monitor>	w(monitor, Milliseconds(1000));
+		ReadWindow<MonitorData>	w(monitor.published, Milliseconds(1000));
 		bool		shown = false;
 		for (unsigned i = 0; w.holding() && i < w->findings.length(); i++)
 			shown |= w->findings[i].as_variant_array()[1].as_strval() == "deadlock";
@@ -158,7 +158,7 @@ main(int argc, const char** argv)
 	two.join();
 	Thread::yield(Milliseconds(400));
 	{
-		Window<Monitor>	w(monitor, Milliseconds(1000));
+		ReadWindow<MonitorData>	w(monitor.published, Milliseconds(1000));
 		bool		gone = w.holding();
 		for (unsigned i = 0; w.holding() && i < w->findings.length(); i++)
 			gone &= w->findings[i].as_variant_array()[1].as_strval() != "deadlock";
