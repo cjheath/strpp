@@ -96,7 +96,7 @@ Each finding becomes a message pushed to a MessageQueue `reports` when it first 
 - `["monitor", "stall", name, milliseconds, what, locks held]` - a thread has
   waited too long while it holds a lock. This catches the deadlocks that go
   through a condition or an empty queue, where the monitor has no knowledge of
-  who should signal it. A reader that holds a read [Window](window.md) and waiting
+  who should signal it. A reader that holds a [ReadWindow](transactional.md) and waiting
   for a reply from the owner thread is the most likely case.
 - `["monitor", "queue", name, depth, peak, pushers waiting]` - a queue is nearly
   full, or a thread is waiting to push to it. See [MessageQueue](msgqueue.md).
@@ -113,10 +113,10 @@ Monitor reports are never repeated. If a condition goes away and returns, that's
 new report. The monitor never waits to push a report. If `reports` is full, it counts
 the report as dropped and carries on.
 
-What it found at its last look is also published in its data. You can open a Window
+What it found at its last look is also in its `published` value. You can open a ReadWindow
 to read it:
 
-	Window<Monitor>	w(monitor, Milliseconds(100));
+	ReadWindow<MonitorData>	w(monitor.published, Milliseconds(100));
 	if (w.holding())                // We opened a Window
 		show(w->findings);	// The same reports, for what is found now
 
@@ -149,7 +149,7 @@ This will show up as a stall report instead.
 - `Monitor(MessageQueue& reports, const MonitorSettings& settings)` - start it.
   `reports` must outlive it.
 - `requests` - the queue to push `["sample"]` and `["quit"]` to.
-- `data()` is private to the monitor; read what it found through a `Window<Monitor>`.
+- `published` - a `Transactional<MonitorData>`; read what it found through a `ReadWindow<MonitorData>`.
 
 The Monitor uses `WatchSnapshot`, `WatchFindCycle` and `WatchFindStalls` from
 [watch.h](https://github.com/cjheath/strpp/blob/main/include/watch.h).

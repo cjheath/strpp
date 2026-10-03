@@ -21,7 +21,7 @@ are built on.
 - [Threads, locks and thread-local storage](threading.md)
 - [MessageQueue: a thread's inbox](msgqueue.md)
 - [Lock and SIXLock: shared, intent and exclusive locks](lock.md)
-- [Windows: transactional message processing](window.md)
+- [Transactional values and Windows](transactional.md)
 - [The monitor: finding deadlocks, stalls and runaway buffers](monitor.md)
 - [Pegexp](pegexp.md)
 - [PEG parsing](peg.md)

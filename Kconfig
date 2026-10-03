@@ -53,7 +53,7 @@ menu "strpp Configuration"
 
 	config STRPP_MONITOR
 		bool "Enable deadlock detection by tracking locks held by each thread"
-		default n
+		default y
 		help
 			Enable this to allow detecting deadlock and stalls. Keeps track
 			of who is holding what, and who is waiting for it. No memory

@@ -24,7 +24,7 @@
  * It reports each finding once, when it first appears, as a message
  * ["monitor", kind, ...] pushed to the queue you gave it. It never waits for
  * that queue: when it is full, the report is counted in `dropped` and lost.
- * What it has found now is also in its data, which you read through a Window.
+ * What it has found now is also in `published`, which you read through a ReadWindow.
  *
  * The messages are:
  *	["monitor", "deadlock", [thread name, ...]]
@@ -62,7 +62,7 @@
 
 #include	<thread.h>
 #include	<msgqueue.h>
-#include	<window.h>
+#include	<transactional.h>
 #include	<watch.h>
 
 // What a platform can say about its memory
@@ -95,7 +95,7 @@ struct	MonitorSettings
 	size_t			reserve;	// The largest block a look needs; 0 works it out from the sizes
 };
 
-// What a Window<Monitor> shows
+// What a ReadWindow<MonitorData> shows
 struct	MonitorData
 {
 	MonitorData()
@@ -115,7 +115,6 @@ struct	MonitorData
 
 class	Monitor
 : public Thread
-, public Windowed<Monitor, MonitorData>
 {
 public:
 	// Starts the thread. `reports` must outlive it.
@@ -125,6 +124,7 @@ public:
 	int		run();
 
 	MessageQueue	requests;	// ["sample"] and ["quit"]
+	Transactional<MonitorData>	published;	// What it found at the last look
 
 private:
 	MessageQueue&		reports;
