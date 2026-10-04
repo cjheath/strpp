@@ -135,6 +135,58 @@ join_tests()
 	}
 }
 
+// Reaches into the registry to play a host that hands a thread's id to a new thread once the old one has ended
+class	IdProbe
+	: public Thread
+{
+public:
+	int	run() { return 7; }
+	void	start() { resume(); }
+	bool	ended() { return state == Ended; }
+
+	// This thread, which has not been started, takes over the id of an ended thread that has not been joined
+	void	take_over(IdProbe& old)
+	{
+		thread_latch.enter();
+		thread_id = old.thread_id;
+		state = Started;
+		registerThread(this);
+		thread_latch.leave();
+	}
+	bool	registered() { return find(thread_id) == this; }
+	int	ended_total() { return ended_count; }
+	void	abandon()	// Leave the registry, and look as if never started
+	{
+		thread_latch.enter();
+		if (find(thread_id) == this)
+			unregisterThread(thread_id);
+		thread_latch.leave();
+		thread_id = 0;
+	}
+};
+
+static void
+reused_id_tests()
+{
+	printf("\nA new thread that takes over the id of an ended, unjoined one\n");
+	IdProbe	old;
+	old.start();
+	while (!old.ended())
+		Thread::yield(Milliseconds(5));
+	int	before = old.ended_total();
+
+	IdProbe	fresh;
+	fresh.take_over(old);
+	expect("the registry finds the new thread by that id", fresh.registered());
+	expect_int("the old thread is no longer counted as ended", fresh.ended_total(), before-1);
+
+	expect_int("the old thread still joins", old.join(), 7);
+	expect("...and the new thread is still registered", fresh.registered());
+	expect_int("...and the ended count is as it was", fresh.ended_total(), before-1);
+
+	fresh.abandon();
+}
+
 static void
 yield_tests()
 {
@@ -198,6 +250,7 @@ main(int argc, const char** argv)
 	);
 
 	join_tests();
+	reused_id_tests();
 	yield_tests();
 	condition_tests();
 

@@ -250,6 +250,15 @@ Thread::find(ThreadId tid)
 void
 Thread::registerThread(Thread* t)
 {
+	// The host reuses an id once its thread has ended, even if no one has joined that thread yet:
+	// the new thread takes the id over, and the old one is no longer found (or counted) by it.
+	Thread*	stale = find(t->id());
+	if (stale && stale != t)
+	{
+		if (stale->state == Ended)
+			ended_count--;
+		unregisterThread(t->id());
+	}
 #if	defined(USE_THREAD_ARRAY)
 	// Don't enforce MAX_THREAD
 	// assert(threads.length() < MAX_THREAD);
@@ -280,7 +289,7 @@ Thread::remove_ended()
 	thread_latch.enter();
 	// An id of 0 is a thread that never started, which was never registered -
 	// and looking it up would find whichever other thread shares that id
-	if (thread_id && Thread::find(thread_id))
+	if (thread_id && Thread::find(thread_id) == this)
 	{
 		if (state == Ended)
 			ended_count--;
