@@ -372,7 +372,7 @@ build:
 	@mkdir build
 
 clean:
-	rm -f $(OBJS) $(TESTS)
+	rm -f $(OBJS) $(TESTS) $(MONITOR_TESTS:%=%_monitor)
 	rm -f $(FREERTOS_OBJS) thread_test_freertos
 	rm -rf *.dSYM
 	@rmdir build/freertos 2>/dev/null || true
