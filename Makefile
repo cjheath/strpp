@@ -375,8 +375,13 @@ clean:
 	rm -f $(OBJS) $(TESTS) $(MONITOR_TESTS:%=%_monitor)
 	rm -f $(FREERTOS_OBJS) thread_test_freertos
 	rm -rf *.dSYM
-	@rmdir build/freertos 2>/dev/null || true
-	@rmdir build 2>/dev/null || true
+	@rm -rf build
+	@if command -v idf.py >/dev/null; then \
+		cd test/freertos_console && idf.py fullclean; \
+	else \
+		echo "idf.py is not on the PATH: removing test/freertos_console/build directly"; \
+		rm -rf test/freertos_console/build; \
+	fi
 	$(foreach subdir,$(SUBDIRS),$(MAKE) -C $(subdir) $@;)
 
 clobber:	clean
