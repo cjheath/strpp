@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-4cf75955.js";
+            window.path_to_searchindex_js = "searchindex-a615e9de.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-2b87ae2c.js"></script>
@@ -207,9 +207,10 @@ timeout. Under <code>NO_THREAD</code> nothing waits, so every method is a no-op.
 default.</li>
 <li><code>run()</code> - virtual, and yours to override. The thread’s body, whose return
 value is its exit code.</li>
-<li><code>resume()</code>, <code>suspend()</code> - start the thread, and suspend or resume it. A host
-that will not create the thread says so, and the thread is then not running:
-its <code>id()</code> is 0, joining it is a mistake, and destroying it is harmless.</li>
+<li><code>resume()</code> - start the thread. A thread is started once, and a second call
+stops the program with an assertion. A host that will not create the thread
+says so, and the thread is then not running: its <code>id()</code> is 0, joining it is a
+mistake, and destroying it is harmless.</li>
 <li><code>join()</code> - wait for the thread to end, and return its exit code: what <code>run()</code>
 returned, or what <code>exit()</code> was given. Not from the thread itself. 0 for a
 thread that never ran, or whose wait failed - the report is what tells those
