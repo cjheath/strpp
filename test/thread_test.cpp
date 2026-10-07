@@ -15,6 +15,7 @@
 #include	<lockfree.h>
 #include	<thread.h>
 #include	<condition.h>
+#include	<condition_signal_test.h>
 
 #define	FANOUT	25	// This many primary threads will each create this many again. total of N*(N+1)
 
@@ -204,6 +205,16 @@ yield_tests()
 }
 
 static void
+condition_signal_tests()
+{
+	printf("\nCondition::signal\n");
+	ConditionSignalResult	r = condition_signal_test();
+	expect_int("one signal wakes one of two waiters", r.after_signal, 1);
+	expect_int("a broadcast wakes the one that is left", r.after_broadcast, 2);
+	expect_int("a later signal still wakes a new waiter", r.after_later_signal, 3);
+}
+
+static void
 condition_tests()
 {
 	printf("\nCondition\n");
@@ -253,6 +264,7 @@ main(int argc, const char** argv)
 	reused_id_tests();
 	yield_tests();
 	condition_tests();
+	condition_signal_tests();
 
 	// The fan-out: FANOUT threads each create FANOUT more, and every one of
 	// them is drained through joinAny()

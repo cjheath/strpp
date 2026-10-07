@@ -27,8 +27,6 @@ xTaskCreate(
 }
 
 inline void		vTaskDelete(TaskHandle_t) {}
-inline void		vTaskSuspend(TaskHandle_t) {}
-inline void		vTaskResume(TaskHandle_t) {}
 inline void		vTaskDelay(TickType_t) {}
 inline void		taskYIELD_stub() {}
 #define			taskYIELD()	taskYIELD_stub()

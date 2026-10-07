@@ -66,12 +66,14 @@ private:
 	int			release_count;	// Number of threads to release
 	int			generation_count; // Fairness control
 	EventGroupHandle_t	eventGroup;
+	bool			claim(int my_generation, bool give_up);	// Takes a release ticket if there is one
 #elif	defined(MSW)
 	Latch			latch;
 	int			waiters_count;	// Number of threads waiting
 	int			release_count;	// Number of threads to release
 	int			generation_count; // Fairness control
 	HANDLE			hEvent;
+	bool			claim(int my_generation, bool give_up);	// As for FreeRTOS
 #else
 	/*
 	 * NO_THREAD, or no model selected at all - in which case thread.h reports

@@ -23,6 +23,7 @@
 #include "msgqueue.h"
 #include "transactional.h"
 #include "wifi_scanner.h"
+#include "../../condition_signal_test.h"
 
 #if defined(STRPP_MONITOR)
 #include "esp_heap_caps.h"
@@ -42,6 +43,7 @@ static const char*	HELP =
 	"auto <secs>   scan every <secs> seconds; 'auto 0' stops\n"
 	"info          free memory and stack use\n"
 	"tasks         list every FreeRTOS task\n"
+	"condition     check that one signal wakes one waiter (takes about 2 s)\n"
 #if defined(STRPP_MONITOR)
 	"monitor       what the monitor sees now\n"
 	"deadlock      two threads that deadlock, for about 12 s\n"
@@ -190,6 +192,7 @@ private:
 	void		show_scan();
 	void		info();
 	void		tasks();
+	void		condition();
 #if defined(STRPP_MONITOR)
 	static const int	MAX_THREADS = 8;
 	Scenario*	scenarios[MAX_THREADS];
@@ -255,6 +258,15 @@ Console::tasks()
 	vTaskList(text);
 	printf("Name            State  Prio  Stack-free  Num  Core\n%s", text);
 	free(text);
+}
+
+void
+Console::condition()
+{
+	ConditionSignalResult	r = condition_signal_test();
+	printf("woken after one signal %d (want 1), after a broadcast %d (want 2), after a later signal %d (want 3): %s\n",
+		r.after_signal, r.after_broadcast, r.after_later_signal,
+		r.after_signal == 1 && r.after_broadcast == 2 && r.after_later_signal == 3 ? "ok" : "FAIL");
 }
 
 #if defined(STRPP_MONITOR)
@@ -384,6 +396,8 @@ Console::command()
 		info();
 	else if (!strcmp(word, "tasks"))
 		tasks();
+	else if (!strcmp(word, "condition"))
+		condition();
 #if defined(STRPP_MONITOR)
 	else if (!strcmp(word, "monitor"))
 		monitor_status();

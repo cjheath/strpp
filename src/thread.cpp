@@ -99,6 +99,7 @@ Thread::resume()
 		ErrorTHR_StackRefused("pthread_attr_setstacksize", stack_bytes, code);
 
 	thread_latch.enter();
+	StrppAssert(thread_id == 0);		// A thread is started once
 	void	*(*proc)(void *) = (void *(*)(void *))Thread::ThreadProc;	// pthread procs return void*
 	code = pthread_create(&thread_id, &attr, proc, this);
 	pthread_attr_destroy(&attr);
@@ -114,6 +115,7 @@ Thread::resume()
 	thread_latch.leave();
 #elif	defined(HAVE_FREERTOS)
 	thread_latch.enter();
+	StrppAssert(thread_id == 0);		// A thread is started once
 	size_t		bytes = stack_bytes ? stack_bytes : THREAD_DEFAULT_STACK_BYTES;
 	size_t		depth = bytes / sizeof(StackType_t);
 	if (depth > (size_t)(configSTACK_DEPTH_TYPE)-1)		// The platform's count is a narrower field
@@ -141,8 +143,14 @@ Thread::resume()
 #elif	defined(MSW)
 	if (!thread_handle)
 		ErrorTHR_CreateFailed("CreateThread", (int)GetLastError());
-	else if (ResumeThread(thread_handle) == (DWORD)-1)
-		ErrorTHR_CreateFailed("ResumeThread", (int)GetLastError());
+	else
+	{
+		DWORD	was = ResumeThread(thread_handle);	// The prior suspend count
+		if (was == (DWORD)-1)
+			ErrorTHR_CreateFailed("ResumeThread", (int)GetLastError());
+		else
+			StrppAssert(was == 1);		// A thread is started once
+	}
 #else
 	assert(!"No threads can be started when there is no threading model");
 #endif

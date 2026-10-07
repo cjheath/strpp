@@ -36,9 +36,10 @@ timeout. Under `NO_THREAD` nothing waits, so every method is a no-op.
   default.
 - `run()` - virtual, and yours to override. The thread's body, whose return
   value is its exit code.
-- `resume()`, `suspend()` - start the thread, and suspend or resume it. A host
-  that will not create the thread says so, and the thread is then not running:
-  its `id()` is 0, joining it is a mistake, and destroying it is harmless.
+- `resume()` - start the thread. A thread is started once, and a second call
+  stops the program with an assertion. A host that will not create the thread
+  says so, and the thread is then not running: its `id()` is 0, joining it is a
+  mistake, and destroying it is harmless.
 - `join()` - wait for the thread to end, and return its exit code: what `run()`
   returned, or what `exit()` was given. Not from the thread itself. 0 for a
   thread that never ran, or whose wait failed - the report is what tells those

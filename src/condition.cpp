@@ -119,6 +119,44 @@ Condition::usable(const char* operation) const
 	return false;
 }
 
+#if	defined(HAVE_FREERTOS) || defined(MSW)
+bool
+Condition::claim(
+	int		my_generation,
+	bool		give_up
+)
+{
+#if	defined(HAVE_FREERTOS)
+	latch.enter();
+#else
+	ThreadId	tid = Thread::currentId();
+	latch.latch(tid);
+#endif
+	bool	released = release_count > 0
+		&& my_generation != generation_count;
+	if (released)
+	{
+		--waiters_count;
+		if (--release_count == 0)
+		{
+#if	defined(HAVE_FREERTOS)
+			xEventGroupClearBits(eventGroup, CONDITION_EVENT_BIT);
+#else
+			ResetEvent(hEvent);
+#endif
+		}
+	}
+	else if (give_up)
+		--waiters_count;
+#if	defined(HAVE_FREERTOS)
+	latch.leave();
+#else
+	latch.unlatch(tid);
+#endif
+	return released;
+}
+#endif
+
 void
 Condition::wait(
 	Latch*		user_latch
@@ -150,21 +188,10 @@ Condition::wait(
 	do
 	{
 		(void) xEventGroupWaitBits(eventGroup, CONDITION_EVENT_BIT, pdFALSE, pdFALSE, portMAX_DELAY);
-		latch.enter();
-		released = release_count > 0
-			&& my_generation != generation_count;
-		latch.leave();
+		released = claim(my_generation, false);
 	} while (!released);
 	if (user_latch)
 		user_latch->enter();
-
-	// Only a waiter that was released holds a ticket to hand back
-	latch.enter();
-	--waiters_count;
-	bool	last = released && --release_count == 0;
-	latch.leave();
-	if (last)
-		xEventGroupClearBits(eventGroup, CONDITION_EVENT_BIT);
 #elif	defined(MSW)
 	// Increment the count of waiters and grab the generation count:
 	ThreadId	tid = Thread::currentId();
@@ -184,21 +211,12 @@ Condition::wait(
 			ErrorTHR_WaitFailed("WaitForSingleObject", (int)GetLastError());
 			break;
 		}
-		latch.latch(tid);
-		released = release_count > 0
-			&& my_generation != generation_count;
-		latch.unlatch(tid);
+		released = claim(my_generation, false);
 	} while (!released);
+	if (!released)
+		claim(my_generation, true);	// The wait failed: leave without a ticket
 	if (user_latch)
 		user_latch->latch(tid);
-
-	// Only a waiter that was released holds a ticket to hand back
-	latch.latch(tid);
-	--waiters_count;
-	bool	last = released && --release_count == 0;
-	latch.unlatch(tid);
-	if (last)
-		ResetEvent(hEvent);
 #else
 #error	"Not implemented"
 #endif
@@ -334,21 +352,12 @@ Condition::wait(		// Wait for a ticket
 		timeout = elapsed >= (unsigned long)timeout ? 0 : timeout-elapsed; // Calculate remaining time
 
 		// Time to awake yet?
-		latch.enter();
-		released = release_count > 0
-			&& my_generation != generation_count;
-		latch.leave();
+		released = claim(my_generation, false);
 	}
+	if (!released)
+		claim(my_generation, true);	// Timed out, unless a signal came in just now
 	if (user_latch)
 		user_latch->enter();
-
-	// Only a waiter that was released holds a ticket to hand back
-	latch.enter();
-	--waiters_count;
-	bool	last = released && --release_count == 0;
-	latch.leave();
-	if (last)
-		xEventGroupClearBits(eventGroup, CONDITION_EVENT_BIT);
 #elif	defined(MSW)
 	if (timeout == 0)
 		return;			// Nothing to wait for, and so no ticket taken
@@ -381,21 +390,12 @@ Condition::wait(		// Wait for a ticket
 		timeout = elapsed.ms() >= timeout ? 0 : timeout-(long)elapsed.ms(); // Calculate remaining time
 
 		// Time to awake yet?
-		latch.latch(tid);
-		released = release_count > 0
-			&& my_generation != generation_count;
-		latch.unlatch(tid);
+		released = claim(my_generation, false);
 	}
+	if (!released)
+		claim(my_generation, true);	// Timed out, unless a signal came in just now
 	if (user_latch)
 		user_latch->latch(tid);
-
-	// Only a waiter that was released holds a ticket to hand back
-	latch.latch(tid);
-	--waiters_count;
-	bool	last = released && --release_count == 0;
-	latch.unlatch(tid);
-	if (last)
-		ResetEvent(hEvent);
 #else
 #error	"Not implemented"
 #endif

@@ -84,8 +84,7 @@ public:
 	virtual int		run() = 0;	// Override this
 
 	ThreadId		id() const { return thread_id; }
-	inline void		suspend();	// All threads start suspended
-	void			resume();	// Constructor should resume()
+	void			resume();	// Starts the thread, once; a subclass constructor calls it
 	int			join();		// Wait for this thread to end; its exit code
 
 	static	void			yield(Milliseconds milliseconds = 0);
@@ -216,21 +215,6 @@ Thread::~Thread()
 	// NO_THREAD: nothing was started, so there is nothing to stop
 #endif
 	remove_ended();
-}
-
-void
-Thread::suspend()
-{
-#if	defined(HAVE_PTHREADS)
-	// REVISIT: Not possible
-#elif	defined(HAVE_FREERTOS)
-	vTaskSuspend(thread_id);
-#elif	defined(MSW)
-	if (thread_handle)
-		SuspendThread(thread_handle);	// suspend the thread
-#else
-	// NO_THREAD: there is no other thread to suspend
-#endif
 }
 
 Thread*

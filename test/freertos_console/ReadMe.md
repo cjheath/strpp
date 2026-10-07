@@ -12,7 +12,8 @@ find. Type `help` for the list.
 
 ## Build, flash and run
 
-Activate ESP-IDF 6.1, then from this directory:
+Activate ESP-IDF 6.1, and put the Xtensa compiler's `bin` directory on your `PATH`
+(the activation script does not), then from this directory:
 
     idf.py build flash monitor -p /dev/cu.usbmodem14101
 
