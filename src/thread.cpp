@@ -266,6 +266,19 @@ void Thread::exit(int code)
 Thread*
 Thread::joinAny()
 {
+	// A thread that ended and was not joined still holds its stack under pthreads
+	auto	reclaim = [](Thread* thread) -> Thread*
+	{
+#if	defined(HAVE_PTHREADS)
+		void*	retval;
+		int	error = pthread_join(thread->thread_id, &retval);
+		if (error)
+			ErrorTHR_JoinFailed("pthread_join", error);
+#endif
+		thread->deliver_errors();
+		return thread;
+	};
+
 	thread_latch.enter();
 #if	defined(USE_THREAD_ARRAY)
 	if (threads.length() == 0)
@@ -298,8 +311,7 @@ Thread::joinAny()
 			threads.remove(i, 1);
 			ended_count--;
 			thread_latch.leave();
-			thread->deliver_errors();
-			return thread;
+			return reclaim(thread);
 		}
 #else
 		for (auto it = threads.begin(); it != threads.end(); it++)
@@ -312,8 +324,7 @@ Thread::joinAny()
 			assert(!Thread::find(tid));
 			ended_count--;
 			thread_latch.leave();
-			thread->deliver_errors();
-			return thread;
+			return reclaim(thread);
 		}
 #endif
 	}
