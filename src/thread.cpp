@@ -202,7 +202,7 @@ Thread::ThreadProc(void* _this)
 	 * If a thread's destructor is called before it exits, this won't be true
 	 * and joinAny will hang.
 	 */
-	if (Thread::find(t->thread_id) == t)
+	if (Thread::registered(t))
 	{
 		ended_count++;
 		ended_threads_condition.broadcast();
@@ -246,8 +246,7 @@ void Thread::exit(int code)
 	thread_latch.enter();
 	thread->exit_code = code;
 	thread->state = Ended;
-	thread = Thread::find(currentId());
-	if (thread)
+	if (registered(thread))
 	{
 		ended_count++;
 		ended_threads_condition.broadcast();
@@ -382,9 +381,9 @@ Thread::join()
 #endif
 
 	thread_latch.enter();
-	if (Thread::find(thread_id) == this)	// Not if a later thread took this id over
+	if (registered(this))
 	{
-		unregisterThread(thread_id);
+		unregisterThread(this);
 		ended_count--;
 	}
 	thread_latch.leave();

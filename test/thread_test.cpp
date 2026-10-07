@@ -154,13 +154,13 @@ public:
 		registerThread(this);
 		thread_latch.leave();
 	}
-	bool	registered() { return find(thread_id) == this; }
+	bool	registered() { return Thread::registered(this); }
 	int	ended_total() { return ended_count; }
 	void	abandon()	// Leave the registry, and look as if never started
 	{
 		thread_latch.enter();
-		if (find(thread_id) == this)
-			unregisterThread(thread_id);
+		if (Thread::registered(this))
+			unregisterThread(this);
 		thread_latch.leave();
 		thread_id = 0;
 	}
@@ -178,12 +178,22 @@ reused_id_tests()
 
 	IdProbe	fresh;
 	fresh.take_over(old);
+#if	defined(USE_THREAD_ARRAY)
+	// Both threads are registered, so the old one is still there for joinAny() to return
+	expect("the registry finds the new thread by that id", fresh.registered());
+	expect("the old thread is still registered", old.registered());
+	expect_int("the old thread is still counted as ended", fresh.ended_total(), before);
+	Thread*	any = Thread::joinAny();
+	expect("joinAny returns the old thread", any == &old);
+	expect_int("the ended count is down by one", fresh.ended_total(), before-1);
+#else
 	expect("the registry finds the new thread by that id", fresh.registered());
 	expect_int("the old thread is no longer counted as ended", fresh.ended_total(), before-1);
 
 	expect_int("the old thread still joins", old.join(), 7);
 	expect("...and the new thread is still registered", fresh.registered());
 	expect_int("...and the ended count is as it was", fresh.ended_total(), before-1);
+#endif
 
 	fresh.abandon();
 }

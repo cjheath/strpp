@@ -44,6 +44,7 @@ static const char*	HELP =
 	"info          free memory and stack use\n"
 	"tasks         list every FreeRTOS task\n"
 	"condition     check that one signal wakes one waiter (takes about 2 s)\n"
+	"threadreuse   check that an ended, unjoined thread survives its task handle being reused\n"
 #if defined(STRPP_MONITOR)
 	"monitor       what the monitor sees now\n"
 	"deadlock      two threads that deadlock, for about 12 s\n"
@@ -193,6 +194,7 @@ private:
 	void		info();
 	void		tasks();
 	void		condition();
+	void		threadreuse();
 #if defined(STRPP_MONITOR)
 	static const int	MAX_THREADS = 8;
 	Scenario*	scenarios[MAX_THREADS];
@@ -267,6 +269,68 @@ Console::condition()
 	printf("woken after one signal %d (want 1), after a broadcast %d (want 2), after a later signal %d (want 3): %s\n",
 		r.after_signal, r.after_broadcast, r.after_later_signal,
 		r.after_signal == 1 && r.after_broadcast == 2 && r.after_later_signal == 3 ? "ok" : "FAIL");
+}
+
+// A thread that ends at once, and exposes the registry state the reuse check reports
+class ReuseProbe
+: public Thread
+{
+public:
+	int		run() { return 7; }
+	void		start() { resume(); }
+	bool		ended() const { return state == Ended; }
+	bool		listed() { thread_latch.enter(); bool r = registered(this); thread_latch.leave(); return r; }
+	static int	ended_total() { return ended_count; }
+};
+
+void
+Console::threadreuse()
+{
+	static const int	MAX_TRIES = 64;
+	ReuseProbe*		probes[MAX_TRIES + 1];
+	int			made = 0;
+	int			reused = -1;	// Index of the first probe whose task handle equals an earlier probe's
+
+	// Each probe ends and is left unjoined, so its task is deleted and its handle can be handed out again
+	for (; made <= MAX_TRIES && reused < 0; made++)
+	{
+		ReuseProbe*	p = new ReuseProbe;
+		probes[made] = p;
+		p->start();
+		while (!p->ended())
+			vTaskDelay(pdMS_TO_TICKS(5));
+		vTaskDelay(pdMS_TO_TICKS(50));		// The idle task frees a deleted task's memory
+		for (int i = 0; i < made; i++)
+			if (p->id() == probes[i]->id())
+				reused = made;
+	}
+
+	int		listed = 0;
+	for (int i = 0; i < made; i++)
+		if (probes[i]->listed())
+			listed++;
+	int		counted = ReuseProbe::ended_total();
+	if (reused < 0)
+		printf("%d threads made and no task handle was reused, so this run proves nothing\n", made);
+	else
+		printf("a task handle was reused, first by thread %d\n", reused);
+	printf("%d threads made: %d registered (want %d), %d counted ended (want %d); calling joinAny\n",
+		made, listed, made, counted, made);
+	flush();
+
+	int		joined = 0;
+	for (int i = 0; i < made; i++)
+	{
+		Thread*		t = Thread::joinAny();
+		if (!t)
+			break;
+		joined++;
+	}
+	for (int i = 0; i < made; i++)
+		delete probes[i];
+
+	printf("joinAny returned %d (want %d)\n", joined, made);
+	printf("%s\n", reused >= 0 && listed == made && counted == made && joined == made ? "ok" : "FAIL");
 }
 
 #if defined(STRPP_MONITOR)
@@ -398,6 +462,8 @@ Console::command()
 		tasks();
 	else if (!strcmp(word, "condition"))
 		condition();
+	else if (!strcmp(word, "threadreuse"))
+		threadreuse();
 #if defined(STRPP_MONITOR)
 	else if (!strcmp(word, "monitor"))
 		monitor_status();

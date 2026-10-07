@@ -120,7 +120,8 @@ protected:
 
 	static	inline	Thread*	find(ThreadId);
 	static	inline	void	registerThread(Thread*);	// Add to the registry; caller holds thread_latch
-	static	inline	void	unregisterThread(ThreadId);	// Remove from the registry if present; caller holds thread_latch
+	static	inline	void	unregisterThread(Thread*);	// Remove from the registry if present; caller holds thread_latch
+	static	inline	bool	registered(const Thread*);	// Is this very object in the registry; caller holds thread_latch
 
 	static int		ThreadProc(void* _this);
 #if	defined(HAVE_FREERTOS)
@@ -221,19 +222,45 @@ Thread*
 Thread::find(ThreadId tid)
 {
 #if	defined(USE_THREAD_ARRAY)
-	for (Array<Thread*>::Index i = 0; i < threads.length(); i++)
+	// An id can be shared by an ended thread and the live thread that took it over,
+	// so the newest live thread wins, then the newest ended one.
+	Thread*	ended = 0;
+	for (Array<Thread*>::Index i = threads.length(); i-- > 0; )
 		if (threads[i]->id() == tid)
-			return threads[i];
-	return 0;
+		{
+			if (threads[i]->state != Ended)
+				return threads[i];
+			if (!ended)
+				ended = threads[i];
+		}
+	return ended;
 #else
 	auto it = threads.find(tid);
 	return it != threads.end() ? it->second : 0;
 #endif
 }
 
+bool
+Thread::registered(const Thread* t)
+{
+#if	defined(USE_THREAD_ARRAY)
+	for (Array<Thread*>::Index i = 0; i < threads.length(); i++)
+		if (threads[i] == t)
+			return true;
+	return false;
+#else
+	return find(t->id()) == t;
+#endif
+}
+
 void
 Thread::registerThread(Thread* t)
 {
+#if	defined(USE_THREAD_ARRAY)
+	// Don't enforce MAX_THREAD
+	// assert(threads.length() < MAX_THREAD);
+	threads.push(t);
+#else
 	// The host reuses an id once its thread has ended, even if no one has joined that thread yet:
 	// the new thread takes the id over, and the old one is no longer found (or counted) by it.
 	Thread*	stale = find(t->id());
@@ -241,29 +268,24 @@ Thread::registerThread(Thread* t)
 	{
 		if (stale->state == Ended)
 			ended_count--;
-		unregisterThread(t->id());
+		unregisterThread(stale);
 	}
-#if	defined(USE_THREAD_ARRAY)
-	// Don't enforce MAX_THREAD
-	// assert(threads.length() < MAX_THREAD);
-	threads.push(t);
-#else
 	threads.insert(t->id(), t);
 #endif
 }
 
 void
-Thread::unregisterThread(ThreadId tid)
+Thread::unregisterThread(Thread* t)
 {
 #if	defined(USE_THREAD_ARRAY)
 	for (Array<Thread*>::Index i = 0; i < threads.length(); i++)
-		if (threads[i]->id() == tid)
+		if (threads[i] == t)
 		{
 			threads.remove(i, 1);
 			return;
 		}
 #else
-	threads.remove(tid);
+	threads.remove(t->id());
 #endif
 }
 
@@ -271,13 +293,12 @@ void
 Thread::remove_ended()
 {
 	thread_latch.enter();
-	// An id of 0 is a thread that never started, which was never registered -
-	// and looking it up would find whichever other thread shares that id
-	if (thread_id && Thread::find(thread_id) == this)
+	// An id of 0 is a thread that never started, which was never registered
+	if (thread_id && registered(this))
 	{
 		if (state == Ended)
 			ended_count--;
-		unregisterThread(thread_id);	// Remove from registry
+		unregisterThread(this);	// Remove from registry
 	}
 	thread_latch.leave();
 	thread_id = 0;
